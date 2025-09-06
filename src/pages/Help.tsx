@@ -8,6 +8,9 @@ const Help = () => {
     { question: 'faq2Question', answer: 'faq2Answer' },
     { question: 'faq3Question', answer: 'faq3Answer' },
     { question: 'faq4Question', answer: 'faq4Answer' },
+    { question: 'faq5Question', answer: 'faq5Answer' },
+    { question: 'faq6Question', answer: 'faq6Answer' },
+    { question: 'faq7Question', answer: 'faq7Answer' },
   ];
 
   return (
