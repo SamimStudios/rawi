@@ -21,6 +21,7 @@ import I18nDemo from "./pages/I18nDemo";
 import SEODemo from "./pages/SEODemo";
 import ConfigDemo from "./pages/ConfigDemo";
 import AnalyticsDemo from "./pages/AnalyticsDemo";
+import MediaPlayerDemo from "./pages/MediaPlayerDemo";
 import SignIn from "./pages/auth/SignIn";
 import SignUp from "./pages/auth/SignUp";
 import App from "./pages/App";
@@ -181,6 +182,13 @@ const MainApp = () => (
                     <div>
                       <Header />
                       <AnalyticsDemo />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/media-player-demo" element={
+                    <div>
+                      <Header />
+                      <MediaPlayerDemo />
                       <Footer />
                     </div>
                   } />

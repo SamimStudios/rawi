@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
+import MediaPlayer from '@/components/MediaPlayer';
 import { Download, Share, RotateCcw, Copy, Play, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -17,6 +18,7 @@ interface ResultData {
   creditsSpent: number;
   isGuest: boolean;
   videoUrl: string;
+  posterUrl?: string;
   publicUrl: string;
   relatedOutputs: Array<{
     id: string;
@@ -49,7 +51,8 @@ const Result = () => {
       submittedDate: new Date().toLocaleDateString(),
       creditsSpent: 20,
       isGuest: !user,
-      videoUrl: '#', // Placeholder
+      videoUrl: user ? 'https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_1mb.mp4' : '', // Sample video for registered users
+      posterUrl: '/placeholder.svg', // Fallback poster
       publicUrl: `${window.location.origin}/public/results/${id}`,
       relatedOutputs: [
         { id: '1', thumbnail: '/placeholder.svg', title: 'Variation 1' },
@@ -120,19 +123,15 @@ const Result = () => {
             <div className="lg:col-span-2 space-y-8">
               {/* Video Player */}
               <Card className="bg-card border-border">
-                <CardContent className="p-0">
-                  <div className="aspect-video bg-black rounded-lg overflow-hidden relative">
-                    {/* Placeholder Video Player */}
-                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-primary/20 to-purple-500/20">
-                      <div className="text-center space-y-4">
-                        <Play className="w-16 h-16 text-white mx-auto opacity-60" />
-                        <div className="text-white">
-                          <h3 className="text-xl font-semibold">{result.title || t('untitled')}</h3>
-                          <p className="text-white/60">{t('duration')}: {result.duration}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                <CardContent className="p-6">
+                  <MediaPlayer
+                    src={result.videoUrl}
+                    poster={result.posterUrl}
+                    isGuest={result.isGuest}
+                    title={`${result.title || t('untitled')} - ${t('duration')}: ${result.duration}`}
+                    controls={true}
+                    className="w-full"
+                  />
                 </CardContent>
               </Card>
 
