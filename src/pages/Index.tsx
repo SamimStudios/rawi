@@ -7,6 +7,12 @@ const Index = () => {
       {/* Hero Section */}
       <main className="container mx-auto px-4 py-16 md:py-24">
         <div className="text-center space-y-8">
+          <img 
+            src="/brand/logo-lockup-bilingual-stacked.svg" 
+            alt="Rawi App" 
+            className="h-24 md:h-32 mx-auto"
+          />
+          
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-foreground leading-tight">
             Turn your photos into{" "}
             <span className="bg-gradient-accent bg-clip-text text-transparent">
