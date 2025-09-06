@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import rawiLogo from "@/assets/rawi-logo.png";
 
 const Index = () => {
   return (
@@ -9,7 +8,7 @@ const Index = () => {
       <header className="px-4 py-6">
         <div className="container mx-auto">
           <img 
-            src={rawiLogo} 
+            src="/brand/logo-rawi-en-gradient.svg" 
             alt="Rawi App Logo" 
             className="h-12 md:h-16"
           />
