@@ -3,18 +3,7 @@ import { Link } from "react-router-dom";
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-gradient-hero">
-      {/* Header with Logo */}
-      <header className="px-4 py-6">
-        <div className="container mx-auto">
-          <img 
-            src="/brand/logo-rawi-en-gradient.svg" 
-            alt="Rawi App Logo" 
-            className="h-12 md:h-16"
-          />
-        </div>
-      </header>
-
+    <div className="bg-gradient-hero">
       {/* Hero Section */}
       <main className="container mx-auto px-4 py-16 md:py-24">
         <div className="text-center space-y-8">

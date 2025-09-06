@@ -48,6 +48,9 @@ All colors MUST be HSL.
     --shadow-cinematic: 0 25px 50px -12px hsl(220 13% 4% / 0.8);
     --shadow-glow: 0 0 40px hsl(217 91% 60% / 0.3);
 
+    /* Arabic font support */
+    --font-arabic: 'Noto Sans Arabic', system-ui, sans-serif;
+
     --radius: 0.5rem;
 
     --sidebar-background: 0 0% 98%;
@@ -106,5 +109,9 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+  }
+
+  .font-arabic {
+    font-family: var(--font-arabic);
   }
 }
