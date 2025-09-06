@@ -17,6 +17,9 @@ const translations = {
     help: 'Help',
     signIn: 'Sign In',
     credits: 'credits',
+    terms: 'Terms',
+    privacy: 'Privacy',
+    consent: 'Consent',
   },
   ar: {
     templates: 'القوالب',
@@ -24,6 +27,9 @@ const translations = {
     help: 'مساعدة',
     signIn: 'تسجيل الدخول',
     credits: 'رصيد',
+    terms: 'الشروط',
+    privacy: 'الخصوصية',
+    consent: 'الموافقة',
   }
 };
 
