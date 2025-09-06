@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
+import { featureFlags, getConfig } from '@/config/app';
 import { Wallet as WalletIcon, CreditCard, Plus, Minus, Check } from 'lucide-react';
 
 const Wallet = () => {
@@ -24,8 +25,8 @@ const Wallet = () => {
   const [selectedPlan, setSelectedPlan] = useState('standard');
   const [selectedInterval, setSelectedInterval] = useState('monthly');
   
-  // Feature flag for weekly subscriptions
-  const WEEKLY_SUBS_ENABLED = false;
+  // Get feature flags from centralized config
+  const WEEKLY_SUBS_ENABLED = featureFlags.WEEKLY_SUBS_ENABLED;
 
   useEffect(() => {
     if (!loading && !user) {
@@ -132,8 +133,9 @@ const Wallet = () => {
 
   const handleOneTimeCheckout = async () => {
     try {
-      // Placeholder API call
-      const response = await fetch('/api/credits/checkout', {
+      // Use configured API base URL
+      const apiUrl = `${getConfig('API_BASE')}/credits/checkout`;
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -161,8 +163,9 @@ const Wallet = () => {
 
   const handleSubscriptionCheckout = async () => {
     try {
-      // Placeholder API call
-      const response = await fetch('/api/credits/checkout', {
+      // Use configured API base URL
+      const apiUrl = `${getConfig('API_BASE')}/credits/checkout`;
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -286,15 +289,17 @@ const Wallet = () => {
                       {t('total')}: {credits} AED
                     </div>
 
-                    {/* Promo code */}
-                    <div>
-                      <Input
-                        placeholder={t('promoCode')}
-                        value={promoCode}
-                        onChange={(e) => setPromoCode(e.target.value)}
-                        className="w-full max-w-xs"
-                      />
-                    </div>
+                    {/* Promo code - conditional rendering based on feature flag */}
+                    {featureFlags.PROMO_CODES_ENABLED && (
+                      <div>
+                        <Input
+                          placeholder={t('promoCode')}
+                          value={promoCode}
+                          onChange={(e) => setPromoCode(e.target.value)}
+                          className="w-full max-w-xs"
+                        />
+                      </div>
+                    )}
 
                     {/* Checkout button */}
                     <div className="space-y-2">

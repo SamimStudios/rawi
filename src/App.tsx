@@ -17,6 +17,7 @@ import NotFound from "./pages/NotFound";
 import ServerError from "./pages/ServerError";
 import I18nDemo from "./pages/I18nDemo";
 import SEODemo from "./pages/SEODemo";
+import ConfigDemo from "./pages/ConfigDemo";
 import SignIn from "./pages/auth/SignIn";
 import SignUp from "./pages/auth/SignUp";
 import App from "./pages/App";
@@ -162,6 +163,13 @@ const MainApp = () => (
                     <div>
                       <Header />
                       <SEODemo />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/config-demo" element={
+                    <div>
+                      <Header />
+                      <ConfigDemo />
                       <Footer />
                     </div>
                   } />
