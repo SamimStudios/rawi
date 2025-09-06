@@ -16,8 +16,8 @@ const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const logoSrc = language === 'ar' 
-    ? "/brand/logo-rawi-ar-gradient.svg" 
-    : "/brand/logo-rawi-en-gradient.svg";
+    ? "/brand/logo-lockup-ar-horizontal.svg" 
+    : "/brand/logo-lockup-en-horizontal.svg";
 
   const navItems = [
     { key: 'templates', href: '/templates' },
