@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  
+  <!-- Homepage -->
+  <url>
+    <loc>https://rawiapp.io/</loc>
+    <lastmod>2025-09-06</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://rawiapp.io/?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://rawiapp.io/?lang=ar"/>
+  </url>
+  
+  <!-- Templates -->
+  <url>
+    <loc>https://rawiapp.io/templates</loc>
+    <lastmod>2025-09-06</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://rawiapp.io/templates?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://rawiapp.io/templates?lang=ar"/>
+  </url>
+  
+  <!-- Try Free Cinematic Teaser -->
+  <url>
+    <loc>https://rawiapp.io/try/cinematic-teaser</loc>
+    <lastmod>2025-09-06</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://rawiapp.io/try/cinematic-teaser?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://rawiapp.io/try/cinematic-teaser?lang=ar"/>
+  </url>
+  
+  <!-- Help & Support -->
+  <url>
+    <loc>https://rawiapp.io/help</loc>
+    <lastmod>2025-09-06</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://rawiapp.io/help?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://rawiapp.io/help?lang=ar"/>
+  </url>
+  
+  <!-- Legal Pages -->
+  <url>
+    <loc>https://rawiapp.io/legal/terms</loc>
+    <lastmod>2025-09-06</lastmod>
+    <changefreq>quarterly</changefreq>
+    <priority>0.5</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://rawiapp.io/legal/terms?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://rawiapp.io/legal/terms?lang=ar"/>
+  </url>
+  
+  <url>
+    <loc>https://rawiapp.io/legal/privacy</loc>
+    <lastmod>2025-09-06</lastmod>
+    <changefreq>quarterly</changefreq>
+    <priority>0.5</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://rawiapp.io/legal/privacy?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://rawiapp.io/legal/privacy?lang=ar"/>
+  </url>
+  
+  <url>
+    <loc>https://rawiapp.io/legal/consent</loc>
+    <lastmod>2025-09-06</lastmod>
+    <changefreq>quarterly</changefreq>
+    <priority>0.5</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://rawiapp.io/legal/consent?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://rawiapp.io/legal/consent?lang=ar"/>
+  </url>
+  
+  <!-- Authentication Pages -->
+  <url>
+    <loc>https://rawiapp.io/auth/sign-in</loc>
+    <lastmod>2025-09-06</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://rawiapp.io/auth/sign-in?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://rawiapp.io/auth/sign-in?lang=ar"/>
+  </url>
+  
+  <url>
+    <loc>https://rawiapp.io/auth/sign-up</loc>
+    <lastmod>2025-09-06</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://rawiapp.io/auth/sign-up?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://rawiapp.io/auth/sign-up?lang=ar"/>
+  </url>
+
+</urlset>

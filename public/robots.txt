@@ -1,14 +1,42 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
+# Robots.txt for Rawi App
+# Allow all crawlers to access all content
 
 User-agent: *
 Allow: /
+
+# Sitemap location
+Sitemap: https://rawiapp.io/sitemap.xml
+
+# Crawl delay (optional, helps with server load)
+Crawl-delay: 1
+
+# Specific directives for major search engines
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 0
+
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 1
+
+User-agent: Slurp
+Allow: /
+Crawl-delay: 1
+
+# Block access to sensitive directories (if any)
+# Disallow: /api/
+# Disallow: /admin/
+
+# Allow access to important resources
+Allow: /brand/
+Allow: /*.css
+Allow: /*.js
+Allow: /*.jpg
+Allow: /*.jpeg
+Allow: /*.png
+Allow: /*.gif
+Allow: /*.webp
+Allow: /*.svg
+
+# Host directive (helps search engines understand the preferred domain)
+# Host: https://rawiapp.io

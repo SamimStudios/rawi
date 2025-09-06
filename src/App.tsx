@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import { SEOProvider } from "@/contexts/SEOContext";
 import { AuthProvider } from "@/hooks/useAuth";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Header from "@/components/Header";
@@ -15,6 +16,7 @@ import Help from "./pages/Help";
 import NotFound from "./pages/NotFound";
 import ServerError from "./pages/ServerError";
 import I18nDemo from "./pages/I18nDemo";
+import SEODemo from "./pages/SEODemo";
 import SignIn from "./pages/auth/SignIn";
 import SignUp from "./pages/auth/SignUp";
 import App from "./pages/App";
@@ -33,14 +35,15 @@ const queryClient = new QueryClient();
 const MainApp = () => (
   <QueryClientProvider client={queryClient}>
     <LanguageProvider>
-      <TooltipProvider>
-        <ErrorBoundary>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <AuthProvider>
-              <div className="min-h-screen bg-background">
-                <Routes>
+      <SEOProvider>
+        <TooltipProvider>
+          <ErrorBoundary>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <AuthProvider>
+                <div className="min-h-screen bg-background">
+                  <Routes>
                   <Route path="/auth/sign-in" element={<SignIn />} />
                   <Route path="/auth/sign-up" element={<SignUp />} />
                   <Route path="/404" element={
@@ -155,6 +158,13 @@ const MainApp = () => (
                       <Footer />
                     </div>
                   } />
+                  <Route path="/seo-demo" element={
+                    <div>
+                      <Header />
+                      <SEODemo />
+                      <Footer />
+                    </div>
+                  } />
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={
                     <div>
@@ -169,8 +179,9 @@ const MainApp = () => (
           </BrowserRouter>
         </ErrorBoundary>
       </TooltipProvider>
-    </LanguageProvider>
-  </QueryClientProvider>
+    </SEOProvider>
+  </LanguageProvider>
+</QueryClientProvider>
 );
 
 export default MainApp;

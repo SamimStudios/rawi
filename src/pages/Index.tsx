@@ -1,9 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useSEOConfig, seoConfigs } from '@/hooks/useSEO';
 
 const Index = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+
+  // Set SEO for homepage
+  useSEOConfig(seoConfigs.homepage[language]);
 
   return (
     <div className="bg-[#0F1320]">

@@ -1,7 +1,11 @@
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useSEOConfig, seoConfigs } from '@/hooks/useSEO';
 
 const Templates = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+
+  // Set SEO for templates page
+  useSEOConfig(seoConfigs.templates[language]);
 
   return (
     <div className="min-h-screen bg-gradient-hero">

@@ -4,12 +4,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useSEOConfig, seoConfigs } from '@/hooks/useSEO';
 import { CreditCard, History, FileText, Wallet } from 'lucide-react';
 
 const Dashboard = () => {
   const { user, loading } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
+
+  // Set SEO for dashboard page
+  useSEOConfig(seoConfigs.dashboard[language]);
 
   useEffect(() => {
     if (!loading && !user) {
