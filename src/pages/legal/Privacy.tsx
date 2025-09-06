@@ -1,4 +1,5 @@
 import { useLanguage } from '@/contexts/LanguageContext';
+import { Card } from '@/components/ui/card';
 
 const Privacy = () => {
   const { t } = useLanguage();
@@ -13,14 +14,14 @@ const Privacy = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0F1320]">
+    <div className="min-h-screen bg-background">
       <main className="container mx-auto px-4 py-16">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-4xl md:text-6xl font-bold text-white mb-8 text-center">
             {t('privacyPolicy')}
           </h1>
           
-          <div className="bg-card rounded-lg p-8 text-foreground">
+          <Card className="p-8 text-foreground">
             <div className="space-y-8">
               {sections.map((section, index) => (
                 <section key={index}>
@@ -34,7 +35,7 @@ const Privacy = () => {
                 </section>
               ))}
             </div>
-          </div>
+          </Card>
         </div>
       </main>
     </div>

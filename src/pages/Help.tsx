@@ -1,4 +1,5 @@
 import { useLanguage } from "@/contexts/LanguageContext";
+import { Card } from "@/components/ui/card";
 
 const Help = () => {
   const { t } = useLanguage();
@@ -14,7 +15,7 @@ const Help = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0F1320]">
+    <div className="min-h-screen bg-background">
       <main className="container mx-auto px-4 py-16">
         <div className="max-w-4xl mx-auto">
           <div className="text-center space-y-8 mb-16">
@@ -27,7 +28,7 @@ const Help = () => {
           </div>
 
           {/* FAQ Section */}
-          <div className="bg-card rounded-lg p-8">
+          <Card className="p-8">
             <h2 className="text-3xl font-bold text-foreground mb-8 text-center">
               {t('faqTitle')}
             </h2>
@@ -44,7 +45,7 @@ const Help = () => {
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
         </div>
       </main>
     </div>

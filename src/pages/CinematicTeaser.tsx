@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Upload } from "lucide-react";
 
 const CinematicTeaser = () => {
@@ -13,16 +14,18 @@ const CinematicTeaser = () => {
             Upload your photos and transform them into stunning cinematic moments with our AI-powered editing tools.
           </p>
 
-          <div className="bg-card rounded-lg p-8 max-w-md mx-auto shadow-cinematic border border-border">
-            <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
-              <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground mb-4">
-                Drag and drop your photos here, or click to browse
-              </p>
-              <Button variant="hero" size="lg">
-                Choose Photos
-              </Button>
-            </div>
+          <div className="max-w-md mx-auto">
+            <Card className="p-8">
+              <div className="border-2 border-dashed border-border rounded-[var(--radius)] p-8 text-center">
+                <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground mb-4">
+                  Drag and drop your photos here, or click to browse
+                </p>
+                <Button variant="primary" size="lg">
+                  Choose Photos
+                </Button>
+              </div>
+            </Card>
           </div>
         </div>
       </div>
