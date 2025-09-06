@@ -9,9 +9,9 @@ const Footer = () => {
     : "/brand/logo-lockup-en-vertical.svg";
 
   const footerLinks = [
-    { key: 'terms', href: '/terms' },
-    { key: 'privacy', href: '/privacy' },
-    { key: 'consent', href: '/consent' },
+    { key: 'terms', href: '/legal/terms' },
+    { key: 'privacy', href: '/legal/privacy' },
+    { key: 'consent', href: '/legal/consent' },
     { key: 'help', href: '/help' },
   ];
 

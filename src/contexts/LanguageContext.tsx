@@ -24,6 +24,10 @@ const translations = {
     heroSubtext: 'Try a teaser for free. Upgrade to generate full trailers.',
     tryFreeButton: 'Try Free',
     browseTemplates: 'Browse Templates',
+    termsConditions: 'Terms & Conditions',
+    privacyPolicy: 'Privacy Policy',
+    consentIpPolicy: 'Consent & IP Policy',
+    legalPlaceholder: 'This is a placeholder for legal content. Please consult with legal professionals to create appropriate content for your jurisdiction.',
   },
   ar: {
     templates: 'القوالب',
@@ -38,6 +42,10 @@ const translations = {
     heroSubtext: 'جرّب إعلانًا قصيرًا مجانًا. طوّر لحفظ وتنزيل العروض الكاملة.',
     tryFreeButton: 'جرب مجاناً',
     browseTemplates: 'تصفح القوالب',
+    termsConditions: 'الشروط والأحكام',
+    privacyPolicy: 'سياسة الخصوصية',
+    consentIpPolicy: 'سياسة الموافقة والملكية الفكرية',
+    legalPlaceholder: 'هذا نص تجريبي للمحتوى القانوني. يرجى استشارة المتخصصين القانونيين لإنشاء محتوى مناسب لولايتك القضائية.',
   }
 };
 
