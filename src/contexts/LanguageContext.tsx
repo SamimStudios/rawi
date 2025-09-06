@@ -76,6 +76,17 @@ const translations = {
     faq6Answer: 'Yes, as long as you own the uploads and respect our Terms.',
     faq7Question: 'What languages are supported?',
     faq7Answer: 'English + Arabic. More coming soon.',
+    // Consent & IP Policy Content
+    consentProcess: 'Consent to Process',
+    consentProcessContent: 'By uploading any image, text, or audio, you give Rawi App permission to process it using AI. You confirm you own the rights or have permission to use all uploaded content.',
+    consentUploads: 'Intellectual Property of Uploads',
+    consentUploadsContent: 'You retain full ownership of the images, text, and audio you upload. You must not upload celebrity likenesses, copyrighted material, or any third-party content without rights.',
+    consentOutputs: 'Intellectual Property of Outputs',
+    consentOutputsContent: 'The generated videos, images, audio, or designs belong to you. You may use them for personal or commercial purposes, subject to compliance with these Terms.',
+    consentRestrictions: 'Restrictions',
+    consentRestrictionsContent: 'Generated outputs cannot be used for unlawful, harmful, or defamatory purposes. Outputs cannot be resold as templates or re-distributed as your own AI service.',
+    consentLiability: 'Liability',
+    consentLiabilityContent: 'Rawi App is not responsible for misuse of outputs by users. If reported for abuse (celebrity likeness, copyright infringement, NSFW), content may be removed.',
   },
   ar: {
     templates: 'القوالب',
@@ -142,6 +153,17 @@ const translations = {
     faq6Answer: 'نعم، طالما أنك تملك الملفات المرفوعة وتحترم الشروط.',
     faq7Question: 'ما هي اللغات المدعومة؟',
     faq7Answer: 'العربية والإنجليزية. المزيد قريبًا.',
+    // Consent & IP Policy Content (Arabic)
+    consentProcess: 'الموافقة على المعالجة',
+    consentProcessContent: 'برفعك أي صورة أو نص أو صوت فأنت تعطي تطبيق راوي الإذن بمعالجتها باستخدام الذكاء الاصطناعي. أنت تؤكد أنك تملك الحقوق أو لديك إذن باستخدام كل ما ترفعه.',
+    consentUploads: 'الملكية الفكرية للملفات المرفوعة',
+    consentUploadsContent: 'تبقى أنت المالك الكامل للصور أو النصوص أو الأصوات التي ترفعها. يمنع رفع صور المشاهير أو مواد محمية أو أي محتوى لطرف ثالث بدون إذن.',
+    consentOutputs: 'الملكية الفكرية للمخرجات',
+    consentOutputsContent: 'الفيديوهات أو الصور أو الأصوات أو التصاميم الناتجة تعود ملكيتها لك. يمكنك استخدامها شخصيًا أو تجاريًا بشرط الالتزام بهذه الشروط.',
+    consentRestrictions: 'القيود',
+    consentRestrictionsContent: 'لا يجوز استخدام المخرجات في أغراض غير قانونية أو مسيئة أو تشهيرية. لا يجوز بيع المخرجات كقوالب أو إعادة توزيعها كخدمة ذكاء اصطناعي باسمك.',
+    consentLiability: 'المسؤولية',
+    consentLiabilityContent: 'تطبيق راوي غير مسؤول عن أي إساءة استخدام للمخرجات من قبل المستخدمين. في حال التبليغ عن إساءة (استخدام صور مشاهير، حقوق نشر، محتوى غير لائق) يمكن إزالة المحتوى.',
   }
 };
 
