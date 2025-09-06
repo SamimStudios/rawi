@@ -22,6 +22,8 @@ import Dashboard from "./pages/app/Dashboard";
 import History from "./pages/app/History";
 import Wallet from "./pages/app/Wallet";
 import Settings from "./pages/app/Settings";
+import JobStatus from "./pages/app/JobStatus";
+import Result from "./pages/app/Result";
 
 const queryClient = new QueryClient();
 
@@ -62,6 +64,20 @@ const MainApp = () => (
                   <div>
                     <Header />
                     <Settings />
+                    <Footer />
+                  </div>
+                } />
+                <Route path="/app/jobs/:id" element={
+                  <div>
+                    <Header />
+                    <JobStatus />
+                    <Footer />
+                  </div>
+                } />
+                <Route path="/app/results/:id" element={
+                  <div>
+                    <Header />
+                    <Result />
                     <Footer />
                   </div>
                 } />
