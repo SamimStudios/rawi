@@ -20,6 +20,10 @@ const translations = {
     terms: 'Terms',
     privacy: 'Privacy',
     consent: 'Consent',
+    heroHeadline: 'Turn your photos into cinematic moments.',
+    heroSubtext: 'Try a teaser for free. Upgrade to generate full trailers.',
+    tryFreeButton: 'Try Free',
+    browseTemplates: 'Browse Templates',
   },
   ar: {
     templates: 'القوالب',
@@ -30,6 +34,10 @@ const translations = {
     terms: 'الشروط',
     privacy: 'الخصوصية',
     consent: 'الموافقة',
+    heroHeadline: 'حوّل صورك إلى لقطات سينمائية.',
+    heroSubtext: 'جرّب إعلانًا قصيرًا مجانًا. طوّر لحفظ وتنزيل العروض الكاملة.',
+    tryFreeButton: 'جرب مجاناً',
+    browseTemplates: 'تصفح القوالب',
   }
 };
 
