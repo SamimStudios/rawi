@@ -177,6 +177,19 @@ const translations = {
     paymentCanceled: 'Payment canceled.',
     subscriptionActive: 'Subscription active.',
     subscriptionCheckoutCanceled: 'Subscription checkout canceled.',
+    // Error Pages
+    pageNotFound: 'Page Not Found',
+    pageNotFoundMessage: 'The page you\'re looking for doesn\'t exist or has been moved.',
+    serverError: 'Server Error', 
+    serverErrorMessage: 'Something went wrong on our end. We\'re working to fix it.',
+    goHome: 'Go Home',
+    goBack: 'Go Back',
+    needHelp: 'Need help?',
+    visitHelpCenter: 'Visit Help Center',
+    persistentError: 'If this error persists:',
+    contactSupport: 'Contact Support',
+    // Demo Messages
+    demoSaved: 'Settings saved successfully!',
   },
   ar: {
     templates: 'القوالب',
@@ -344,6 +357,19 @@ const translations = {
     paymentCanceled: 'تم إلغاء الدفع.',
     subscriptionActive: 'الاشتراك نشط.',
     subscriptionCheckoutCanceled: 'تم إلغاء عملية الاشتراك.',
+    // Error Pages (Arabic)
+    pageNotFound: 'الصفحة غير موجودة',
+    pageNotFoundMessage: 'الصفحة التي تبحث عنها غير موجودة أو تم نقلها.',
+    serverError: 'خطأ في الخادم',
+    serverErrorMessage: 'حدث خطأ من جانبنا. نعمل على إصلاحه.',
+    goHome: 'العودة للرئيسية',
+    goBack: 'العودة',
+    needHelp: 'تحتاج مساعدة؟',
+    visitHelpCenter: 'زر مركز المساعدة',
+    persistentError: 'إذا استمر هذا الخطأ:',
+    contactSupport: 'تواصل مع الدعم',
+    // Demo Messages (Arabic)
+    demoSaved: 'تم حفظ الإعدادات بنجاح!',
   }
 };
 

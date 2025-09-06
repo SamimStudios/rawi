@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { AuthProvider } from "@/hooks/useAuth";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Index from "./pages/Index";
@@ -12,6 +13,7 @@ import CinematicTeaser from "./pages/CinematicTeaser";
 import Templates from "./pages/Templates";
 import Help from "./pages/Help";
 import NotFound from "./pages/NotFound";
+import ServerError from "./pages/ServerError";
 import SignIn from "./pages/auth/SignIn";
 import SignUp from "./pages/auth/SignUp";
 import App from "./pages/App";
@@ -31,117 +33,133 @@ const MainApp = () => (
   <QueryClientProvider client={queryClient}>
     <LanguageProvider>
       <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AuthProvider>
-            <div className="min-h-screen bg-background">
-              <Routes>
-                <Route path="/auth/sign-in" element={<SignIn />} />
-                <Route path="/auth/sign-up" element={<SignUp />} />
-                <Route path="/app" element={
-                  <div>
-                    <Header />
-                    <Dashboard />
-                    <Footer />
-                  </div>
-                } />
-                <Route path="/app/history" element={
-                  <div>
-                    <Header />
-                    <History />
-                    <Footer />
-                  </div>
-                } />
-                <Route path="/app/wallet" element={
-                  <div>
-                    <Header />
-                    <Wallet />
-                    <Footer />
-                  </div>
-                } />
-                <Route path="/app/settings" element={
-                  <div>
-                    <Header />
-                    <Settings />
-                    <Footer />
-                  </div>
-                } />
-                <Route path="/app/jobs/:id" element={
-                  <div>
-                    <Header />
-                    <JobStatus />
-                    <Footer />
-                  </div>
-                } />
-                <Route path="/app/results/:id" element={
-                  <div>
-                    <Header />
-                    <Result />
-                    <Footer />
-                  </div>
-                } />
-                <Route path="/legal/terms" element={
-                  <div>
-                    <Header />
-                    <Terms />
-                    <Footer />
-                  </div>
-                } />
-                <Route path="/legal/privacy" element={
-                  <div>
-                    <Header />
-                    <Privacy />
-                    <Footer />
-                  </div>
-                } />
-                <Route path="/legal/consent" element={
-                  <div>
-                    <Header />
-                    <Consent />
-                    <Footer />
-                  </div>
-                } />
-                <Route path="/" element={
-                  <div>
-                    <Header />
-                    <Index />
-                    <Footer />
-                  </div>
-                } />
-                <Route path="/try/cinematic-teaser" element={
-                  <div>
-                    <Header />
-                    <CinematicTeaser />
-                    <Footer />
-                  </div>
-                } />
-                <Route path="/templates" element={
-                  <div>
-                    <Header />
-                    <Templates />
-                    <Footer />
-                  </div>
-                } />
-                <Route path="/help" element={
-                  <div>
-                    <Header />
-                    <Help />
-                    <Footer />
-                  </div>
-                } />
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" element={
-                  <div>
-                    <Header />
-                    <NotFound />
-                    <Footer />
-                  </div>
-                } />
-              </Routes>
-            </div>
-          </AuthProvider>
-        </BrowserRouter>
+        <ErrorBoundary>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AuthProvider>
+              <div className="min-h-screen bg-background">
+                <Routes>
+                  <Route path="/auth/sign-in" element={<SignIn />} />
+                  <Route path="/auth/sign-up" element={<SignUp />} />
+                  <Route path="/404" element={
+                    <div>
+                      <Header />
+                      <NotFound />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/500" element={
+                    <div>
+                      <Header />
+                      <ServerError />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/app" element={
+                    <div>
+                      <Header />
+                      <Dashboard />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/app/history" element={
+                    <div>
+                      <Header />
+                      <History />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/app/wallet" element={
+                    <div>
+                      <Header />
+                      <Wallet />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/app/settings" element={
+                    <div>
+                      <Header />
+                      <Settings />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/app/jobs/:id" element={
+                    <div>
+                      <Header />
+                      <JobStatus />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/app/results/:id" element={
+                    <div>
+                      <Header />
+                      <Result />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/legal/terms" element={
+                    <div>
+                      <Header />
+                      <Terms />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/legal/privacy" element={
+                    <div>
+                      <Header />
+                      <Privacy />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/legal/consent" element={
+                    <div>
+                      <Header />
+                      <Consent />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/" element={
+                    <div>
+                      <Header />
+                      <Index />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/try/cinematic-teaser" element={
+                    <div>
+                      <Header />
+                      <CinematicTeaser />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/templates" element={
+                    <div>
+                      <Header />
+                      <Templates />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/help" element={
+                    <div>
+                      <Header />
+                      <Help />
+                      <Footer />
+                    </div>
+                  } />
+                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                  <Route path="*" element={
+                    <div>
+                      <Header />
+                      <NotFound />
+                      <Footer />
+                    </div>
+                  } />
+                </Routes>
+              </div>
+            </AuthProvider>
+          </BrowserRouter>
+        </ErrorBoundary>
       </TooltipProvider>
     </LanguageProvider>
   </QueryClientProvider>

@@ -7,11 +7,13 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useToast } from '@/hooks/use-toast';
 import { Settings as SettingsIcon, User, Globe, Link as LinkIcon, Save } from 'lucide-react';
 
 const Settings = () => {
   const { user, loading } = useAuth();
   const { language, setLanguage, t } = useLanguage();
+  const { toast } = useToast();
   const navigate = useNavigate();
   const [userName, setUserName] = useState('');
 
@@ -40,8 +42,13 @@ const Settings = () => {
   }
 
   const handleSave = () => {
-    // Placeholder for save functionality
-    console.log('Settings saved');
+    // Simulate saving with toast notification
+    setTimeout(() => {
+      toast({
+        title: t('demoSaved'),
+        variant: 'default',
+      });
+    }, 500);
   };
 
   const accountConnections = [
