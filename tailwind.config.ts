@@ -62,6 +62,7 @@ export default {
         "gradient-hero": "var(--gradient-hero)",
         "gradient-primary": "var(--gradient-primary)", 
         "gradient-accent": "var(--gradient-accent)",
+        "gradient-auth": "var(--gradient-auth)",
       },
       boxShadow: {
         "cinematic": "var(--shadow-cinematic)",
