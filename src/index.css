@@ -115,4 +115,64 @@ All colors MUST be HSL.
   .font-arabic {
     font-family: var(--font-arabic);
   }
+
+  /* RTL Support */
+  [dir="rtl"] {
+    text-align: right;
+  }
+
+  [dir="rtl"] .rtl\:text-left {
+    text-align: left;
+  }
+
+  [dir="rtl"] .rtl\:text-right {
+    text-align: right;
+  }
+
+  /* RTL-specific spacing utilities */
+  [dir="rtl"] .rtl\:ml-auto {
+    margin-left: auto;
+  }
+
+  [dir="rtl"] .rtl\:mr-auto {
+    margin-right: auto;
+  }
+
+  /* RTL flex utilities */
+  [dir="rtl"] .rtl\:flex-row-reverse {
+    flex-direction: row-reverse;
+  }
+
+  [dir="rtl"] .rtl\:space-x-reverse > :not([hidden]) ~ :not([hidden]) {
+    --tw-space-x-reverse: 1;
+  }
+
+  /* Arabic font override */
+  [dir="rtl"] body,
+  [dir="rtl"] * {
+    font-family: var(--font-arabic);
+  }
+
+  /* Ensure smooth transitions for language changes */
+  html {
+    transition: direction 0.3s ease;
+  }
+
+  /* Custom scrollbar for RTL */
+  [dir="rtl"] ::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  [dir="rtl"] ::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+  }
+
+  [dir="rtl"] ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 4px;
+  }
+
+  [dir="rtl"] ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--accent));
+  }
 }

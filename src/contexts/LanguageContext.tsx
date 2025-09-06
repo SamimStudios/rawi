@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
 type Language = 'en' | 'ar';
 
@@ -6,30 +6,157 @@ interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
   t: (key: string) => string;
+  isRTL: boolean;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
+// Centralized translations organized by category
 const translations = {
   en: {
+    // Navigation & Header
     templates: 'Templates',
     tryFree: 'Try Free',
     help: 'Help',
     signIn: 'Sign In',
+    signUp: 'Sign Up',
+    signOut: 'Sign Out',
+    dashboard: 'Dashboard',
+    
+    // Legal Pages
     terms: 'Terms',
     privacy: 'Privacy',
     consent: 'Consent',
-    heroHeadline: 'Turn your photos into cinematic moments.',
-    heroSubtext: 'Try a teaser for free. Upgrade to generate full trailers.',
-    tryFreeButton: 'Try Free',
     termsConditions: 'Terms & Conditions',
     privacyPolicy: 'Privacy Policy',
     consentIpPolicy: 'Consent & IP Policy',
-    legalPlaceholder: 'This is a placeholder for legal content. Please consult with legal professionals to create appropriate content for your jurisdiction.',
+    
+    // Main Content
+    heroHeadline: 'Turn your photos into cinematic moments.',
+    heroSubtext: 'Try a teaser for free. Upgrade to generate full trailers.',
+    tryFreeButton: 'Try Free',
+    
+    // App Pages
+    welcomeUser: 'Welcome',
+    walletBalance: 'Wallet Balance',
+    credits: 'Credits',
+    quickLinks: 'Quick Links',
+    browseTemplates: 'Browse Templates',
+    myHistory: 'My History',
+    buyCredits: 'Buy Credits',
+    recentJobsPlaceholder: 'Your recent jobs will appear here.',
+    wallet: 'Wallet',
+    viewTransactions: 'View Transactions',
+    creditsExpiry: 'Credits expire after 90 days.',
+    settings: 'Settings',
+    
+    // Form Fields
+    name: 'Name',
+    language: 'Language',
+    accountConnections: 'Account Connections',
+    save: 'Save',
+    
+    // History & Jobs
+    title: 'Title',
+    date: 'Date',
+    status: 'Status',
+    result: 'Result',
+    statusQueued: 'Queued',
+    statusRunning: 'Running',
+    statusSuccess: 'Success',
+    statusFailed: 'Failed',
+    viewResult: 'View Result',
+    
+    // Job Status
+    generationStatus: 'Generation Status',
+    jobId: 'Job ID',
+    templateName: 'Template',
+    statusQueuedDesc: 'Queued — waiting for a worker',
+    statusRunningDesc: 'Generating — this may take a moment',
+    statusSuccessDesc: 'Completed — open result',
+    statusFailedDesc: 'Failed — please try again or contact support',
+    openResult: 'Open Result',
+    tryAgain: 'Try Again',
+    guestNote: 'Guest preview only. Sign up to save and download.',
+    autoRefreshing: 'Auto-refreshing status…',
+    
+    // Results
+    yourResult: 'Your Result',
+    untitled: 'Untitled',
+    duration: 'Duration',
+    guestRibbon: 'Guest preview — Watermarked. Sign up to save & download.',
+    download: 'Download',
+    shareLink: 'Share Link',
+    regenerate: 'Regenerate',
+    makeVariation: 'Make Variation',
+    template: 'Template',
+    submittedDate: 'Submitted',
+    creditsSpent: 'Credits Spent',
+    resultNotes: 'If something looks off, re-run or visit Help.',
+    relatedOutputs: 'Related Outputs',
+    linkCopied: 'Link copied to clipboard!',
+    
+    // Transactions
+    transactionType: 'Type',
+    transactionAmount: 'Amount',
+    transactionDate: 'Date',
+    purchase: 'Purchase',
+    generation: 'Generation',
+    transactionHistory: 'Transaction History',
+    teaser: 'Teaser',
+    trailer: 'Trailer',
+    poster: 'Poster',
+    subscriptionMonthly: 'Subscription (Monthly)',
+    
+    // Wallet Purchase Flow
+    oneTime: 'One-time',
+    subscription: 'Subscription',
+    monthly: 'Monthly',
+    weekly: 'Weekly',
+    howManyCredits: 'How many credits do you need?',
+    total: 'Total',
+    payWithStripe: 'Pay with Stripe',
+    startSubscription: 'Start Subscription',
+    manageBilling: 'Manage billing',
+    promoCode: 'Promo code',
+    currentBalance: 'Current Balance',
+    creditsExpireIn90: 'Credits expire in 90 days',
+    light: 'Light',
+    standard: 'Standard',
+    pro: 'Pro',
+    studio: 'Studio',
+    billedEach: 'Billed each',
+    securePayment: 'Secure payment via Stripe',
+    
+    // Error Pages
+    pageNotFound: 'Page Not Found',
+    pageNotFoundMessage: 'The page you\'re looking for doesn\'t exist or has been moved.',
+    serverError: 'Server Error', 
+    serverErrorMessage: 'Something went wrong on our end. We\'re working to fix it.',
+    goHome: 'Go Home',
+    goBack: 'Go Back',
+    needHelp: 'Need help?',
+    visitHelpCenter: 'Visit Help Center',
+    persistentError: 'If this error persists:',
+    contactSupport: 'Contact Support',
+    
+    // Help & Support
     helpPageTitle: 'Help & Support',
     helpPageSubtitle: 'Get help and support for using Rawi App\'s cinematic photo editing tools.',
     faqTitle: 'Frequently Asked Questions',
-    // Terms & Conditions Content
+    
+    // Success/Error Messages
+    paymentSuccessful: 'Payment successful — credits added.',
+    paymentCanceled: 'Payment canceled.',
+    subscriptionActive: 'Subscription active.',
+    subscriptionCheckoutCanceled: 'Subscription checkout canceled.',
+    demoSaved: 'Settings saved successfully!',
+    
+    // Legal Content
+    legalPlaceholder: 'This is a placeholder for legal content. Please consult with legal professionals to create appropriate content for your jurisdiction.',
+    consentLogNote: 'Last accepted: Consent & IP v1.0',
+    
+    // Terms & Conditions
     termsAcceptance: 'Acceptance',
     termsAcceptanceContent: 'By using Rawi App, you agree to these Terms. You must be 13+ years old.',
     termsCredits: 'Credits & Payments',
@@ -46,7 +173,8 @@ const translations = {
     termsLawContent: 'These Terms are governed by the laws of the United Arab Emirates. Any disputes will be resolved in the courts of Abu Dhabi.',
     termsChanges: 'Changes',
     termsChangesContent: 'Terms may change; updates will be posted on this page.',
-    // Privacy Policy Content
+    
+    // Privacy Policy
     privacyData: 'Data We Collect',
     privacyDataContent: 'Account info (name, email, sign-in provider). Uploaded images, text prompts, generated results. Usage data (pages visited, device, language).',
     privacyUse: 'How We Use Data',
@@ -59,7 +187,20 @@ const translations = {
     privacySecurityContent: 'We use industry-standard encryption. No system is 100% secure; use at your own risk.',
     privacyContact: 'Contact',
     privacyContactContent: 'For privacy requests: support@rawiapp.io',
-    // FAQ Content
+    
+    // Consent & IP
+    consentProcess: 'Consent to Process',
+    consentProcessContent: 'By uploading any image, text, or audio, you give Rawi App permission to process it using AI. You confirm you own the rights or have permission to use all uploaded content.',
+    consentUploads: 'Intellectual Property of Uploads',
+    consentUploadsContent: 'You retain full ownership of the images, text, and audio you upload. You must not upload celebrity likenesses, copyrighted material, or any third-party content without rights.',
+    consentOutputs: 'Intellectual Property of Outputs',
+    consentOutputsContent: 'The generated videos, images, audio, or designs belong to you. You may use them for personal or commercial purposes, subject to compliance with these Terms.',
+    consentRestrictions: 'Restrictions',
+    consentRestrictionsContent: 'Generated outputs cannot be used for unlawful, harmful, or defamatory purposes. Outputs cannot be resold as templates or re-distributed as your own AI service.',
+    consentLiability: 'Liability',
+    consentLiabilityContent: 'Rawi App is not responsible for misuse of outputs by users. If reported for abuse (celebrity likeness, copyright infringement, NSFW), content may be removed.',
+    
+    // FAQ
     faq1Question: 'What can I create with Rawi?',
     faq1Answer: 'Cinematic teasers, trailers, fight scenes (more templates coming).',
     faq2Question: 'Do I need to sign up?',
@@ -74,142 +215,151 @@ const translations = {
     faq6Answer: 'Yes, as long as you own the uploads and respect our Terms.',
     faq7Question: 'What languages are supported?',
     faq7Answer: 'English + Arabic. More coming soon.',
-    // Consent & IP Policy Content
-    consentProcess: 'Consent to Process',
-    consentProcessContent: 'By uploading any image, text, or audio, you give Rawi App permission to process it using AI. You confirm you own the rights or have permission to use all uploaded content.',
-    consentUploads: 'Intellectual Property of Uploads',
-    consentUploadsContent: 'You retain full ownership of the images, text, and audio you upload. You must not upload celebrity likenesses, copyrighted material, or any third-party content without rights.',
-    consentOutputs: 'Intellectual Property of Outputs',
-    consentOutputsContent: 'The generated videos, images, audio, or designs belong to you. You may use them for personal or commercial purposes, subject to compliance with these Terms.',
-    consentRestrictions: 'Restrictions',
-    consentRestrictionsContent: 'Generated outputs cannot be used for unlawful, harmful, or defamatory purposes. Outputs cannot be resold as templates or re-distributed as your own AI service.',
-    consentLiability: 'Liability',
-    consentLiabilityContent: 'Rawi App is not responsible for misuse of outputs by users. If reported for abuse (celebrity likeness, copyright infringement, NSFW), content may be removed.',
-    // App Pages Content
-    welcomeUser: 'Welcome',
-    walletBalance: 'Wallet Balance',
-    credits: 'Credits',
-    quickLinks: 'Quick Links',
-    browseTemplates: 'Browse Templates',
-    myHistory: 'My History',
-    buyCredits: 'Buy Credits',
-    recentJobsPlaceholder: 'Your recent jobs will appear here.',
-    wallet: 'Wallet',
-    viewTransactions: 'View Transactions',
-    creditsExpiry: 'Credits expire after 90 days.',
-    settings: 'Settings',
-    name: 'Name',
-    language: 'Language',
-    accountConnections: 'Account Connections',
-    save: 'Save',
-    consentLogNote: 'Last accepted: Consent & IP v1.0',
-    // History Page
-    title: 'Title',
-    date: 'Date',
-    status: 'Status',
-    result: 'Result',
-    statusQueued: 'Queued',
-    statusRunning: 'Running',
-    statusSuccess: 'Success',
-    statusFailed: 'Failed',
-    viewResult: 'View Result',
-    // Transactions
-    transactionType: 'Type',
-    transactionAmount: 'Amount',
-    transactionDate: 'Date',
-    purchase: 'Purchase',
-    generation: 'Generation',
-    // Job Status Page
-    generationStatus: 'Generation Status',
-    jobId: 'Job ID',
-    templateName: 'Template',
-    statusQueuedDesc: 'Queued — waiting for a worker',
-    statusRunningDesc: 'Generating — this may take a moment',
-    statusSuccessDesc: 'Completed — open result',
-    statusFailedDesc: 'Failed — please try again or contact support',
-    openResult: 'Open Result',
-    tryAgain: 'Try Again',
-    guestNote: 'Guest preview only. Sign up to save and download.',
-    autoRefreshing: 'Auto-refreshing status…',
-    // Result Page
-    yourResult: 'Your Result',
-    untitled: 'Untitled',
-    duration: 'Duration',
-    guestRibbon: 'Guest preview — Watermarked. Sign up to save & download.',
-    download: 'Download',
-    shareLink: 'Share Link',
-    regenerate: 'Regenerate',
-    makeVariation: 'Make Variation',
-    template: 'Template',
-    submittedDate: 'Submitted',
-    creditsSpent: 'Credits Spent',
-    resultNotes: 'If something looks off, re-run or visit Help.',
-    relatedOutputs: 'Related Outputs',
-    linkCopied: 'Link copied to clipboard!',
-    // Wallet Purchase Flow
-    oneTime: 'One-time',
-    subscription: 'Subscription',
-    monthly: 'Monthly',
-    weekly: 'Weekly',
-    howManyCredits: 'How many credits do you need?',
-    total: 'Total',
-    payWithStripe: 'Pay with Stripe',
-    startSubscription: 'Start Subscription',
-    manageBilling: 'Manage billing',
-    promoCode: 'Promo code',
-    currentBalance: 'Current Balance',
-    creditsExpireIn90: 'Credits expire in 90 days',
-    // Subscription Plans
-    light: 'Light',
-    standard: 'Standard',
-    pro: 'Pro',
-    studio: 'Studio',
-    billedEach: 'Billed each',
-    securePayment: 'Secure payment via Stripe',
-    // Transaction History
-    transactionHistory: 'Transaction History',
-    teaser: 'Teaser',
-    trailer: 'Trailer',
-    poster: 'Poster',
-    subscriptionMonthly: 'Subscription (Monthly)',
-    // Success/Error Messages
-    paymentSuccessful: 'Payment successful — credits added.',
-    paymentCanceled: 'Payment canceled.',
-    subscriptionActive: 'Subscription active.',
-    subscriptionCheckoutCanceled: 'Subscription checkout canceled.',
-    // Error Pages
-    pageNotFound: 'Page Not Found',
-    pageNotFoundMessage: 'The page you\'re looking for doesn\'t exist or has been moved.',
-    serverError: 'Server Error', 
-    serverErrorMessage: 'Something went wrong on our end. We\'re working to fix it.',
-    goHome: 'Go Home',
-    goBack: 'Go Back',
-    needHelp: 'Need help?',
-    visitHelpCenter: 'Visit Help Center',
-    persistentError: 'If this error persists:',
-    contactSupport: 'Contact Support',
-    // Demo Messages
-    demoSaved: 'Settings saved successfully!',
   },
   ar: {
+    // Navigation & Header (Arabic)
     templates: 'القوالب',
     tryFree: 'جرب مجاناً',
     help: 'مساعدة',
     signIn: 'تسجيل الدخول',
+    signUp: 'إنشاء حساب',
+    signOut: 'تسجيل الخروج',
+    dashboard: 'لوحة التحكم',
+    
+    // Legal Pages (Arabic)
     terms: 'الشروط',
     privacy: 'الخصوصية',
     consent: 'الموافقة',
-    heroHeadline: 'حوّل صورك إلى لقطات سينمائية.',
-    heroSubtext: 'جرّب إعلانًا قصيرًا مجانًا. طوّر لحفظ وتنزيل العروض الكاملة.',
-    tryFreeButton: 'جرب مجاناً',
     termsConditions: 'الشروط والأحكام',
     privacyPolicy: 'سياسة الخصوصية',
     consentIpPolicy: 'سياسة الموافقة والملكية الفكرية',
-    legalPlaceholder: 'هذا نص تجريبي للمحتوى القانوني. يرجى استشارة المتخصصين القانونيين لإنشاء محتوى مناسب لولايتك القضائية.',
+    
+    // Main Content (Arabic)
+    heroHeadline: 'حوّل صورك إلى لقطات سينمائية.',
+    heroSubtext: 'جرّب إعلانًا قصيرًا مجانًا. طوّر لحفظ وتنزيل العروض الكاملة.',
+    tryFreeButton: 'جرب مجاناً',
+    
+    // App Pages (Arabic)
+    welcomeUser: 'مرحباً',
+    walletBalance: 'رصيد المحفظة',
+    credits: 'رصيد',
+    quickLinks: 'روابط سريعة',
+    browseTemplates: 'تصفح القوالب',
+    myHistory: 'تاريخي',
+    buyCredits: 'شراء رصيد',
+    recentJobsPlaceholder: 'ستظهر وظائفك الأخيرة هنا.',
+    wallet: 'المحفظة',
+    viewTransactions: 'عرض المعاملات',
+    creditsExpiry: 'ينتهي الرصيد بعد ٩٠ يوماً.',
+    settings: 'الإعدادات',
+    
+    // Form Fields (Arabic)
+    name: 'الاسم',
+    language: 'اللغة',
+    accountConnections: 'ربط الحسابات',
+    save: 'حفظ',
+    
+    // History & Jobs (Arabic)
+    title: 'العنوان',
+    date: 'التاريخ',
+    status: 'الحالة',
+    result: 'النتيجة',
+    statusQueued: 'في الانتظار',
+    statusRunning: 'قيد التشغيل',
+    statusSuccess: 'مكتمل',
+    statusFailed: 'فشل',
+    viewResult: 'عرض النتيجة',
+    
+    // Job Status (Arabic)
+    generationStatus: 'حالة الإنشاء',
+    jobId: 'رقم المهمة',
+    templateName: 'القالب',
+    statusQueuedDesc: 'بالانتظار — بانتظار المعالجة',
+    statusRunningDesc: 'جاري الإنشاء — قد يستغرق لحظات',
+    statusSuccessDesc: 'اكتمل — افتح النتيجة',
+    statusFailedDesc: 'فشل — حاول مرة أخرى أو تواصل مع الدعم',
+    openResult: 'افتح النتيجة',
+    tryAgain: 'حاول مرة أخرى',
+    guestNote: 'عرض للضيف فقط. سجّل لحفظ وتحميل النتيجة.',
+    autoRefreshing: 'تحديث تلقائي للحالة…',
+    
+    // Results (Arabic)
+    yourResult: 'نتيجتك',
+    untitled: 'بدون عنوان',
+    duration: 'المدة',
+    guestRibbon: 'معاينة للضيف — مع علامة مائية. سجّل لحفظ وتحميل.',
+    download: 'تحميل',
+    shareLink: 'شارك الرابط',
+    regenerate: 'أعد الإنشاء',
+    makeVariation: 'اصنع نسخة',
+    template: 'القالب',
+    submittedDate: 'تاريخ الإرسال',
+    creditsSpent: 'الرصيد المستهلك',
+    resultNotes: 'إذا كان هناك خطأ، أعد التشغيل أو زر صفحة المساعدة.',
+    relatedOutputs: 'مخرجات ذات صلة',
+    linkCopied: 'تم نسخ الرابط!',
+    
+    // Transactions (Arabic)
+    transactionType: 'النوع',
+    transactionAmount: 'المبلغ',
+    transactionDate: 'التاريخ',
+    purchase: 'شراء',
+    generation: 'إنتاج',
+    transactionHistory: 'تاريخ المعاملات',
+    teaser: 'إعلان قصير',
+    trailer: 'عرض مقطورة',
+    poster: 'بوستر',
+    subscriptionMonthly: 'اشتراك (شهري)',
+    
+    // Wallet Purchase Flow (Arabic)
+    oneTime: 'دفع لمرة واحدة',
+    subscription: 'اشتراك',
+    monthly: 'شهري',
+    weekly: 'أسبوعي',
+    howManyCredits: 'كم رصيدًا تحتاج؟',
+    total: 'الإجمالي',
+    payWithStripe: 'ادفع عبر سترايب',
+    startSubscription: 'ابدأ الاشتراك',
+    manageBilling: 'إدارة الفواتير',
+    promoCode: 'رمز ترويجي',
+    currentBalance: 'الرصيد الحالي',
+    creditsExpireIn90: 'الرصيد ينتهي خلال ٩٠ يومًا',
+    light: 'خفيف',
+    standard: 'قياسي',
+    pro: 'احترافي',
+    studio: 'استوديو',
+    billedEach: 'يُحاسب كل',
+    securePayment: 'دفع آمن عبر سترايب',
+    
+    // Error Pages (Arabic)
+    pageNotFound: 'الصفحة غير موجودة',
+    pageNotFoundMessage: 'الصفحة التي تبحث عنها غير موجودة أو تم نقلها.',
+    serverError: 'خطأ في الخادم',
+    serverErrorMessage: 'حدث خطأ من جانبنا. نعمل على إصلاحه.',
+    goHome: 'العودة للرئيسية',
+    goBack: 'العودة',
+    needHelp: 'تحتاج مساعدة؟',
+    visitHelpCenter: 'زر مركز المساعدة',
+    persistentError: 'إذا استمر هذا الخطأ:',
+    contactSupport: 'تواصل مع الدعم',
+    
+    // Help & Support (Arabic)
     helpPageTitle: 'المساعدة والدعم',
     helpPageSubtitle: 'احصل على المساعدة والدعم لاستخدام أدوات تحرير الصور السينمائية في تطبيق راوي.',
     faqTitle: 'الأسئلة الشائعة',
-    // Terms & Conditions Content (Arabic)
+    
+    // Success/Error Messages (Arabic)
+    paymentSuccessful: 'تم الدفع بنجاح — تم إضافة الرصيد.',
+    paymentCanceled: 'تم إلغاء الدفع.',
+    subscriptionActive: 'الاشتراك نشط.',
+    subscriptionCheckoutCanceled: 'تم إلغاء عملية الاشتراك.',
+    demoSaved: 'تم حفظ الإعدادات بنجاح!',
+    
+    // Legal Content (Arabic)
+    legalPlaceholder: 'هذا نص تجريبي للمحتوى القانوني. يرجى استشارة المتخصصين القانونيين لإنشاء محتوى مناسب لولايتك القضائية.',
+    consentLogNote: 'آخر قبول: سياسة الموافقة والملكية الفكرية الإصدار ١.٠',
+    
+    // Terms & Conditions (Arabic)
     termsAcceptance: 'القبول',
     termsAcceptanceContent: 'باستخدامك لتطبيق راوي فأنت توافق على هذه الشروط. يجب أن يكون عمرك ١٣ سنة أو أكثر.',
     termsCredits: 'الرصيد والدفع',
@@ -226,7 +376,8 @@ const translations = {
     termsLawContent: 'تخضع هذه الشروط لقوانين دولة الإمارات العربية المتحدة. أي نزاع يتم حله في محاكم أبوظبي.',
     termsChanges: 'التغييرات',
     termsChangesContent: 'قد يتم تعديل الشروط، وسيتم نشر التحديثات هنا.',
-    // Privacy Policy Content (Arabic)
+    
+    // Privacy Policy (Arabic)
     privacyData: 'البيانات التي نجمعها',
     privacyDataContent: 'معلومات الحساب (اسم، بريد إلكتروني، مزود تسجيل). الصور والنصوص المرفوعة والنتائج الناتجة. بيانات الاستخدام (صفحات، جهاز، لغة).',
     privacyUse: 'كيفية استخدام البيانات',
@@ -239,7 +390,20 @@ const translations = {
     privacySecurityContent: 'نستخدم تشفير بمعايير عالية. لا يوجد نظام آمن ١٠٠٪. الاستخدام على مسؤوليتك.',
     privacyContact: 'التواصل',
     privacyContactContent: 'لأي طلب خصوصية: support@rawiapp.io',
-    // FAQ Content (Arabic)
+    
+    // Consent & IP (Arabic)
+    consentProcess: 'الموافقة على المعالجة',
+    consentProcessContent: 'برفعك أي صورة أو نص أو صوت فأنت تعطي تطبيق راوي الإذن بمعالجتها باستخدام الذكاء الاصطناعي. أنت تؤكد أنك تملك الحقوق أو لديك إذن باستخدام كل ما ترفعه.',
+    consentUploads: 'الملكية الفكرية للملفات المرفوعة',
+    consentUploadsContent: 'تبقى أنت المالك الكامل للصور أو النصوص أو الأصوات التي ترفعها. يمنع رفع صور المشاهير أو مواد محمية أو أي محتوى لطرف ثالث بدون إذن.',
+    consentOutputs: 'الملكية الفكرية للمخرجات',
+    consentOutputsContent: 'الفيديوهات أو الصور أو الأصوات أو التصاميم الناتجة تعود ملكيتها لك. يمكنك استخدامها شخصيًا أو تجاريًا بشرط الالتزام بهذه الشروط.',
+    consentRestrictions: 'القيود',
+    consentRestrictionsContent: 'لا يجوز استخدام المخرجات في أغراض غير قانونية أو مسيئة أو تشهيرية. لا يجوز بيع المخرجات كقوالب أو إعادة توزيعها كخدمة ذكاء اصطناعي باسمك.',
+    consentLiability: 'المسؤولية',
+    consentLiabilityContent: 'تطبيق راوي غير مسؤول عن أي إساءة استخدام للمخرجات من قبل المستخدمين. في حال التبليغ عن إساءة (استخدام صور مشاهير، حقوق نشر، محتوى غير لائق) يمكن إزالة المحتوى.',
+    
+    // FAQ (Arabic)
     faq1Question: 'ماذا يمكنني أن أنشئ باستخدام راوي؟',
     faq1Answer: 'إعلانات قصيرة، عروض سينمائية، مشاهد قتال (المزيد قريبًا).',
     faq2Question: 'هل يجب أن أسجّل؟',
@@ -254,142 +418,63 @@ const translations = {
     faq6Answer: 'نعم، طالما أنك تملك الملفات المرفوعة وتحترم الشروط.',
     faq7Question: 'ما هي اللغات المدعومة؟',
     faq7Answer: 'العربية والإنجليزية. المزيد قريبًا.',
-    // Consent & IP Policy Content (Arabic)
-    consentProcess: 'الموافقة على المعالجة',
-    consentProcessContent: 'برفعك أي صورة أو نص أو صوت فأنت تعطي تطبيق راوي الإذن بمعالجتها باستخدام الذكاء الاصطناعي. أنت تؤكد أنك تملك الحقوق أو لديك إذن باستخدام كل ما ترفعه.',
-    consentUploads: 'الملكية الفكرية للملفات المرفوعة',
-    consentUploadsContent: 'تبقى أنت المالك الكامل للصور أو النصوص أو الأصوات التي ترفعها. يمنع رفع صور المشاهير أو مواد محمية أو أي محتوى لطرف ثالث بدون إذن.',
-    consentOutputs: 'الملكية الفكرية للمخرجات',
-    consentOutputsContent: 'الفيديوهات أو الصور أو الأصوات أو التصاميم الناتجة تعود ملكيتها لك. يمكنك استخدامها شخصيًا أو تجاريًا بشرط الالتزام بهذه الشروط.',
-    consentRestrictions: 'القيود',
-    consentRestrictionsContent: 'لا يجوز استخدام المخرجات في أغراض غير قانونية أو مسيئة أو تشهيرية. لا يجوز بيع المخرجات كقوالب أو إعادة توزيعها كخدمة ذكاء اصطناعي باسمك.',
-    consentLiability: 'المسؤولية',
-    consentLiabilityContent: 'تطبيق راوي غير مسؤول عن أي إساءة استخدام للمخرجات من قبل المستخدمين. في حال التبليغ عن إساءة (استخدام صور مشاهير، حقوق نشر، محتوى غير لائق) يمكن إزالة المحتوى.',
-    // App Pages Content (Arabic)
-    welcomeUser: 'مرحباً',
-    walletBalance: 'رصيد المحفظة',
-    credits: 'رصيد',
-    quickLinks: 'روابط سريعة',
-    browseTemplates: 'تصفح القوالب',
-    myHistory: 'تاريخي',
-    buyCredits: 'شراء رصيد',
-    recentJobsPlaceholder: 'ستظهر وظائفك الأخيرة هنا.',
-    wallet: 'المحفظة',
-    viewTransactions: 'عرض المعاملات',
-    creditsExpiry: 'ينتهي الرصيد بعد ٩٠ يوماً.',
-    settings: 'الإعدادات',
-    name: 'الاسم',
-    language: 'اللغة',
-    accountConnections: 'ربط الحسابات',
-    save: 'حفظ',
-    consentLogNote: 'آخر قبول: سياسة الموافقة والملكية الفكرية الإصدار ١.٠',
-    // History Page (Arabic)
-    title: 'العنوان',
-    date: 'التاريخ',
-    status: 'الحالة',
-    result: 'النتيجة',
-    statusQueued: 'في الانتظار',
-    statusRunning: 'قيد التشغيل',
-    statusSuccess: 'مكتمل',
-    statusFailed: 'فشل',
-    viewResult: 'عرض النتيجة',
-    // Transactions (Arabic)
-    transactionType: 'النوع',
-    transactionAmount: 'المبلغ',
-    transactionDate: 'التاريخ',
-    purchase: 'شراء',
-    generation: 'إنتاج',
-    // Job Status Page (Arabic)
-    generationStatus: 'حالة الإنشاء',
-    jobId: 'رقم المهمة',
-    templateName: 'القالب',
-    statusQueuedDesc: 'بالانتظار — بانتظار المعالجة',
-    statusRunningDesc: 'جاري الإنشاء — قد يستغرق لحظات',
-    statusSuccessDesc: 'اكتمل — افتح النتيجة',
-    statusFailedDesc: 'فشل — حاول مرة أخرى أو تواصل مع الدعم',
-    openResult: 'افتح النتيجة',
-    tryAgain: 'حاول مرة أخرى',
-    guestNote: 'عرض للضيف فقط. سجّل لحفظ وتحميل النتيجة.',
-    autoRefreshing: 'تحديث تلقائي للحالة…',
-    // Result Page (Arabic)
-    yourResult: 'نتيجتك',
-    untitled: 'بدون عنوان',
-    duration: 'المدة',
-    guestRibbon: 'معاينة للضيف — مع علامة مائية. سجّل لحفظ وتحميل.',
-    download: 'تحميل',
-    shareLink: 'شارك الرابط',
-    regenerate: 'أعد الإنشاء',
-    makeVariation: 'اصنع نسخة',
-    template: 'القالب',
-    submittedDate: 'تاريخ الإرسال',
-    creditsSpent: 'الرصيد المستهلك',
-    resultNotes: 'إذا كان هناك خطأ، أعد التشغيل أو زر صفحة المساعدة.',
-    relatedOutputs: 'مخرجات ذات صلة',
-    linkCopied: 'تم نسخ الرابط!',
-    // Wallet Purchase Flow (Arabic)
-    oneTime: 'دفع لمرة واحدة',
-    subscription: 'اشتراك',
-    monthly: 'شهري',
-    weekly: 'أسبوعي',
-    howManyCredits: 'كم رصيدًا تحتاج؟',
-    total: 'الإجمالي',
-    payWithStripe: 'ادفع عبر سترايب',
-    startSubscription: 'ابدأ الاشتراك',
-    manageBilling: 'إدارة الفواتير',
-    promoCode: 'رمز ترويجي',
-    currentBalance: 'الرصيد الحالي',
-    creditsExpireIn90: 'الرصيد ينتهي خلال ٩٠ يومًا',
-    // Subscription Plans (Arabic)
-    light: 'خفيف',
-    standard: 'قياسي',
-    pro: 'احترافي',
-    studio: 'استوديو',
-    billedEach: 'يُحاسب كل',
-    securePayment: 'دفع آمن عبر سترايب',
-    // Transaction History (Arabic)
-    transactionHistory: 'تاريخ المعاملات',
-    teaser: 'إعلان قصير',
-    trailer: 'عرض مقطورة',
-    poster: 'بوستر',
-    subscriptionMonthly: 'اشتراك (شهري)',
-    // Success/Error Messages (Arabic)
-    paymentSuccessful: 'تم الدفع بنجاح — تم إضافة الرصيد.',
-    paymentCanceled: 'تم إلغاء الدفع.',
-    subscriptionActive: 'الاشتراك نشط.',
-    subscriptionCheckoutCanceled: 'تم إلغاء عملية الاشتراك.',
-    // Error Pages (Arabic)
-    pageNotFound: 'الصفحة غير موجودة',
-    pageNotFoundMessage: 'الصفحة التي تبحث عنها غير موجودة أو تم نقلها.',
-    serverError: 'خطأ في الخادم',
-    serverErrorMessage: 'حدث خطأ من جانبنا. نعمل على إصلاحه.',
-    goHome: 'العودة للرئيسية',
-    goBack: 'العودة',
-    needHelp: 'تحتاج مساعدة؟',
-    visitHelpCenter: 'زر مركز المساعدة',
-    persistentError: 'إذا استمر هذا الخطأ:',
-    contactSupport: 'تواصل مع الدعم',
-    // Demo Messages (Arabic)
-    demoSaved: 'تم حفظ الإعدادات بنجاح!',
   }
 };
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguage] = useState<Language>('en');
+  // Initialize language from localStorage or default to 'en'
+  const [language, setLanguageState] = useState<Language>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('rawi-language');
+      return (saved === 'ar' || saved === 'en') ? saved : 'en';
+    }
+    return 'en';
+  });
 
-  const t = (key: string) => {
-    return translations[language][key as keyof typeof translations.en] || key;
+  const isRTL = language === 'ar';
+
+  // Update language and persist to localStorage
+  const setLanguage = (lang: Language) => {
+    setLanguageState(lang);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('rawi-language', lang);
+    }
+  };
+
+  // Update HTML attributes when language changes
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('lang', language);
+      document.documentElement.setAttribute('dir', isRTL ? 'rtl' : 'ltr');
+      
+      // Update the title based on language
+      if (language === 'ar') {
+        document.title = 'تطبيق راوي - حوّل صورك إلى لقطات سينمائية';
+      } else {
+        document.title = 'Rawi App - Turn Your Photos Into Cinematic Moments';
+      }
+    }
+  }, [language, isRTL]);
+
+  const t = (key: string): string => {
+    return translations[language][key as keyof typeof translations[typeof language]] || key;
+  };
+
+  const value: LanguageContextType = {
+    language,
+    setLanguage,
+    t,
+    isRTL,
   };
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t }}>
-      <div dir={language === 'ar' ? 'rtl' : 'ltr'} className={language === 'ar' ? 'font-arabic' : ''}>
-        {children}
-      </div>
+    <LanguageContext.Provider value={value}>
+      {children}
     </LanguageContext.Provider>
   );
 };
 
-export const useLanguage = () => {
+export const useLanguage = (): LanguageContextType => {
   const context = useContext(LanguageContext);
   if (context === undefined) {
     throw new Error('useLanguage must be used within a LanguageProvider');

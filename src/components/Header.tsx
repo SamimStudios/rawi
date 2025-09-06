@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { Globe, Wallet, Menu, X, User } from "lucide-react";
+import { Globe, Wallet, Menu, X, User, LogOut } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
@@ -8,12 +8,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 const Header = () => {
-  const { language, setLanguage, t } = useLanguage();
+  const { language, setLanguage, t, isRTL } = useLanguage();
   const { user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -36,8 +37,8 @@ const Header = () => {
   return (
     <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
       <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
-          {/* Left: Logo */}
+        <div className={cn("flex h-16 items-center justify-between", isRTL && "flex-row-reverse")}>
+          {/* Logo */}
           <Link to="/" className="flex items-center">
             <img 
               src={logoSrc}
@@ -47,7 +48,7 @@ const Header = () => {
           </Link>
 
           {/* Center: Navigation (Desktop) */}
-          <nav className="hidden md:flex items-center space-x-8">
+          <nav className={cn("hidden md:flex items-center", isRTL ? "space-x-reverse space-x-8" : "space-x-8")}>
             {navItems.map((item) => (
               <Link
                 key={item.key}
@@ -60,7 +61,7 @@ const Header = () => {
           </nav>
 
           {/* Right: Actions */}
-          <div className="flex items-center space-x-4">
+          <div className={cn("flex items-center", isRTL ? "space-x-reverse space-x-4" : "space-x-4")}>
             {/* Language Toggle */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -104,13 +105,15 @@ const Header = () => {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="bg-popover border border-border shadow-cinematic z-50">
                   <DropdownMenuItem asChild>
-                    <Link to="/app" className="cursor-pointer">Dashboard</Link>
+                    <Link to="/app" className="cursor-pointer">{t('dashboard')}</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link to="/app/settings" className="cursor-pointer">{t('settings')}</Link>
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem className="cursor-pointer text-destructive">
-                    Sign Out
+                    <LogOut className="h-4 w-4 mr-2" />
+                    {t('signOut')}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -148,7 +151,7 @@ const Header = () => {
                   {t(item.key)}
                 </Link>
               ))}
-              <div className="flex items-center justify-between pt-4 border-t border-border">
+              <div className={cn("flex items-center justify-between pt-4 border-t border-border", isRTL && "flex-row-reverse")}>
                 <Link to={user ? "/app/wallet" : "/auth/sign-in"}>
                   <div className="flex items-center gap-2 bg-secondary rounded-full px-3 py-1 hover:bg-secondary/80 transition-colors">
                     <Wallet className="h-4 w-4 text-muted-foreground" />

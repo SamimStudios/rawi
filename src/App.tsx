@@ -14,6 +14,7 @@ import Templates from "./pages/Templates";
 import Help from "./pages/Help";
 import NotFound from "./pages/NotFound";
 import ServerError from "./pages/ServerError";
+import I18nDemo from "./pages/I18nDemo";
 import SignIn from "./pages/auth/SignIn";
 import SignUp from "./pages/auth/SignUp";
 import App from "./pages/App";
@@ -144,6 +145,13 @@ const MainApp = () => (
                     <div>
                       <Header />
                       <Help />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/i18n-demo" element={
+                    <div>
+                      <Header />
+                      <I18nDemo />
                       <Footer />
                     </div>
                   } />
