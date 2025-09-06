@@ -18,6 +18,10 @@ import App from "./pages/App";
 import Terms from "./pages/legal/Terms";
 import Privacy from "./pages/legal/Privacy";
 import Consent from "./pages/legal/Consent";
+import Dashboard from "./pages/app/Dashboard";
+import History from "./pages/app/History";
+import Wallet from "./pages/app/Wallet";
+import Settings from "./pages/app/Settings";
 
 const queryClient = new QueryClient();
 
@@ -33,7 +37,34 @@ const MainApp = () => (
               <Routes>
                 <Route path="/auth/sign-in" element={<SignIn />} />
                 <Route path="/auth/sign-up" element={<SignUp />} />
-                <Route path="/app" element={<App />} />
+                <Route path="/app" element={
+                  <div>
+                    <Header />
+                    <Dashboard />
+                    <Footer />
+                  </div>
+                } />
+                <Route path="/app/history" element={
+                  <div>
+                    <Header />
+                    <History />
+                    <Footer />
+                  </div>
+                } />
+                <Route path="/app/wallet" element={
+                  <div>
+                    <Header />
+                    <Wallet />
+                    <Footer />
+                  </div>
+                } />
+                <Route path="/app/settings" element={
+                  <div>
+                    <Header />
+                    <Settings />
+                    <Footer />
+                  </div>
+                } />
                 <Route path="/legal/terms" element={
                   <div>
                     <Header />

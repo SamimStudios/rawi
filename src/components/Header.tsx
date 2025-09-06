@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { Globe, Wallet, Menu, X } from "lucide-react";
+import { Globe, Wallet, Menu, X, User } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
 import {
   DropdownMenu,
@@ -13,17 +14,24 @@ import { cn } from "@/lib/utils";
 
 const Header = () => {
   const { language, setLanguage, t } = useLanguage();
+  const { user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const logoSrc = language === 'ar' 
     ? "/brand/logo-lockup-ar-horizontal.svg" 
     : "/brand/logo-lockup-en-horizontal.svg";
 
-  const navItems = [
+  const navItems = user ? [
+    { key: 'templates', href: '/templates' },
+    { key: 'myHistory', href: '/app/history' },
+    { key: 'wallet', href: '/app/wallet' },
+  ] : [
     { key: 'templates', href: '/templates' },
     { key: 'tryFree', href: '/try/cinematic-teaser' },
     { key: 'help', href: '/help' },
   ];
+
+  const walletCredits = user ? 120 : 0;
 
   return (
     <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
@@ -78,15 +86,41 @@ const Header = () => {
             </DropdownMenu>
 
             {/* Wallet */}
-            <div className="hidden sm:flex items-center gap-2 bg-secondary rounded-full px-3 py-1">
-              <Wallet className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">0 {t('credits')}</span>
-            </div>
+            <Link to={user ? "/app/wallet" : "/auth/sign-in"}>
+              <div className="hidden sm:flex items-center gap-2 bg-secondary rounded-full px-3 py-1 hover:bg-secondary/80 transition-colors cursor-pointer">
+                <Wallet className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">{walletCredits} {t('credits')}</span>
+              </div>
+            </Link>
 
-            {/* Sign In */}
-            <Button variant="outline" size="sm" className="hidden sm:flex">
-              {t('signIn')}
-            </Button>
+            {/* User Menu or Sign In */}
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="hidden sm:flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    <span className="hidden md:inline">{user.email?.split('@')[0]}</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-popover border border-border shadow-cinematic z-50">
+                  <DropdownMenuItem asChild>
+                    <Link to="/app" className="cursor-pointer">Dashboard</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/app/settings" className="cursor-pointer">{t('settings')}</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer text-destructive">
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button variant="outline" size="sm" className="hidden sm:flex" asChild>
+                <Link to="/auth/sign-in">
+                  {t('signIn')}
+                </Link>
+              </Button>
+            )}
 
             {/* Mobile Menu Toggle */}
             <Button
@@ -115,13 +149,21 @@ const Header = () => {
                 </Link>
               ))}
               <div className="flex items-center justify-between pt-4 border-t border-border">
-                <div className="flex items-center gap-2 bg-secondary rounded-full px-3 py-1">
-                  <Wallet className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">0 {t('credits')}</span>
-                </div>
-                <Button variant="outline" size="sm">
-                  {t('signIn')}
-                </Button>
+                <Link to={user ? "/app/wallet" : "/auth/sign-in"}>
+                  <div className="flex items-center gap-2 bg-secondary rounded-full px-3 py-1 hover:bg-secondary/80 transition-colors">
+                    <Wallet className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">{walletCredits} {t('credits')}</span>
+                  </div>
+                </Link>
+                {user ? (
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/app/settings">{t('settings')}</Link>
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/auth/sign-in">{t('signIn')}</Link>
+                  </Button>
+                )}
               </div>
             </nav>
           </div>
