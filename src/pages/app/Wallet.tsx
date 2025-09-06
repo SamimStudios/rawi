@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
+import { useCommerceTracking } from '@/hooks/useAnalytics';
 import { featureFlags, getConfig } from '@/config/app';
 import { Wallet as WalletIcon, CreditCard, Plus, Minus, Check } from 'lucide-react';
 
@@ -18,6 +19,7 @@ const Wallet = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const { trackPurchaseStarted, trackCreditsPurchased, trackSubscriptionStarted } = useCommerceTracking();
   
   // Purchase state
   const [credits, setCredits] = useState(100);
@@ -133,6 +135,9 @@ const Wallet = () => {
 
   const handleOneTimeCheckout = async () => {
     try {
+      // Track purchase initiation
+      trackPurchaseStarted('one-time-credits', credits, 'AED');
+      
       // Use configured API base URL
       const apiUrl = `${getConfig('API_BASE')}/credits/checkout`;
       const response = await fetch(apiUrl, {
@@ -163,6 +168,12 @@ const Wallet = () => {
 
   const handleSubscriptionCheckout = async () => {
     try {
+      const selectedPlanData = plans.find(p => p.key === selectedPlan);
+      if (selectedPlanData) {
+        // Track subscription initiation
+        trackSubscriptionStarted(selectedPlan, selectedInterval, selectedPlanData.price);
+      }
+      
       // Use configured API base URL
       const apiUrl = `${getConfig('API_BASE')}/credits/checkout`;
       const response = await fetch(apiUrl, {

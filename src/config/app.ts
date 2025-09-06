@@ -8,7 +8,8 @@ export const config = {
   API_BASE: import.meta.env.VITE_API_BASE || 'http://localhost:3000/api',
   
   // Analytics configuration
-  ANALYTICS_ID: import.meta.env.VITE_ANALYTICS_ID || 'GA_PLACEHOLDER_ID',
+  ANALYTICS_ID: import.meta.env.VITE_ANALYTICS_ID || 'rawiapp.io',
+  PLAUSIBLE_DOMAIN: import.meta.env.VITE_PLAUSIBLE_DOMAIN || 'rawiapp.io',
   
   // App metadata
   APP_NAME: 'Rawi App',
@@ -25,7 +26,8 @@ export const featureFlags = {
   // Subscription features
   WEEKLY_SUBS_ENABLED: false,
   
-  // Experimental features  
+  // Analytics features
+  ANALYTICS_ENABLED: true,
   ADVANCED_ANALYTICS_ENABLED: false,
   BETA_FEATURES_ENABLED: false,
   
