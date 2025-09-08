@@ -101,9 +101,15 @@ export default function StoryboardPlayground() {
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => {
       const newData = { ...prev, [field]: value };
-      // Reset accent when language changes
+      // Reset accent when language changes and set default for Arabic
       if (field === 'language') {
-        newData.accent = '';
+        if (value === 'Arabic') {
+          newData.accent = 'MSA'; // Default to MSA for Arabic
+        } else if (value === 'English') {
+          newData.accent = 'US'; // Default to US for English
+        } else {
+          newData.accent = '';
+        }
       }
       // Handle boolean fields
       if (field === 'leadAiCharacter') {
