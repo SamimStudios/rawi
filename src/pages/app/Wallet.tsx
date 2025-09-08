@@ -367,8 +367,8 @@ const Wallet = () => {
                       </>
                     ) : (
                       <>
-                        <CreditCard className="mr-2 h-4 w-4" />
-                        {t('wallet.purchaseCredits', { credits: customCredits })}
+                         <CreditCard className="mr-2 h-4 w-4" />
+                         {t('walletPurchaseCredits')} ({customCredits} {t('walletCredits')})
                       </>
                     )}
                   </Button>
@@ -421,7 +421,7 @@ const Wallet = () => {
                       </CardHeader>
                       <CardContent className="pt-0 space-y-2">
                         <div className="text-sm text-muted-foreground">
-                          {t('wallet.perCredit')}: {formatPrice(perCreditRate)} ({t('wallet.vsOneTime', { price: formatPrice(oneTimePricing.perCreditRate) })})
+                          {t('walletPerCredit')}: {formatPrice(perCreditRate)} ({t('walletVsOneTime')} {formatPrice(oneTimePricing.perCreditRate)})
                         </div>
                         <Button
                           onClick={() => handleSubscription(plan.id)}
