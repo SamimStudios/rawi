@@ -39,30 +39,33 @@ const Header = () => {
   return (
     <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
       <div className="container mx-auto px-4">
-        <div className={cn("flex h-16 items-center justify-between", isRTL && "flex-row-reverse")}>
-          {/* Logo */}
-          <Link to="/" className="flex items-center">
-            <img 
-              src={logoSrc}
-              alt="Rawi App" 
-              className="h-8 md:h-10"
-            />
-          </Link>
+        <div className={cn("flex h-16 items-center", isRTL ? "justify-between" : "justify-between")}>
+          {/* Content container with proper RTL handling */}
+          <div className={cn("flex items-center flex-1", isRTL ? "flex-row-reverse" : "")}>
+            {/* Logo - will be on right in RTL, left in LTR */}
+            <Link to="/" className="flex items-center">
+              <img 
+                src={logoSrc}
+                alt="Rawi App" 
+                className="h-8 md:h-10"
+              />
+            </Link>
 
-          {/* Center: Navigation (Desktop) */}
-          <nav className={cn("hidden md:flex items-center", isRTL ? "space-x-reverse space-x-8" : "space-x-8")}>
-            {navItems.map((item) => (
-              <Link
-                key={item.key}
-                to={item.href}
-                className="text-foreground hover:text-primary transition-colors font-medium"
-              >
-                {t(item.key)}
-              </Link>
-            ))}
-          </nav>
+            {/* Center: Navigation (Desktop) */}
+            <nav className={cn("hidden md:flex items-center flex-1", isRTL ? "justify-end mr-8 space-x-reverse space-x-8" : "justify-center space-x-8")}>
+              {navItems.map((item) => (
+                <Link
+                  key={item.key}
+                  to={item.href}
+                  className="text-foreground hover:text-primary transition-colors font-medium"
+                >
+                  {t(item.key)}
+                </Link>
+              ))}
+            </nav>
+          </div>
 
-          {/* Right: Actions */}
+          {/* Actions - will be on left in RTL, right in LTR */}
           <div className={cn("flex items-center", isRTL ? "space-x-reverse space-x-4" : "space-x-4")}>
             {/* Language Toggle */}
             <DropdownMenu>
@@ -72,7 +75,7 @@ const Header = () => {
                   <span className="hidden sm:inline">{language.toUpperCase()}</span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-popover border border-border shadow-cinematic z-50">
+              <DropdownMenuContent align={isRTL ? "start" : "end"} className="bg-popover border border-border shadow-cinematic z-50">
                 <DropdownMenuItem 
                   onClick={() => setLanguage('en')}
                   className={cn("cursor-pointer", language === 'en' && "bg-accent")}
@@ -105,7 +108,7 @@ const Header = () => {
                     <span className="hidden md:inline">{user.email?.split('@')[0]}</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="bg-popover border border-border shadow-cinematic z-50">
+                <DropdownMenuContent align={isRTL ? "start" : "end"} className="bg-popover border border-border shadow-cinematic z-50">
                   <DropdownMenuItem asChild>
                     <Link to="/app" className="cursor-pointer">{t('dashboard')}</Link>
                   </DropdownMenuItem>
@@ -117,7 +120,7 @@ const Header = () => {
                     onClick={() => signOut()}
                     className="cursor-pointer text-destructive"
                   >
-                    <LogOut className="h-4 w-4 mr-2" />
+                    <LogOut className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
                     {t('signOut')}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
