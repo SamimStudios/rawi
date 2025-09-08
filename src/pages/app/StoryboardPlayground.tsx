@@ -15,6 +15,7 @@ import { useGuestSession } from '@/hooks/useGuestSession';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { cn } from "@/lib/utils";
 
 const LANGUAGES = [
   { key: 'englishLang', value: 'English' }, 
@@ -54,7 +55,7 @@ export default function StoryboardPlayground() {
   const { user } = useAuth();
   const { sessionId } = useGuestSession();
   const { toast } = useToast();
-  const { t } = useLanguage();
+  const { t, isRTL } = useLanguage();
 
   // Helper function to get translated genre names
   const getTranslatedGenres = (genreValues: string[]) => {
@@ -344,7 +345,7 @@ export default function StoryboardPlayground() {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div className={cn("flex items-center", isRTL ? "space-x-reverse space-x-2" : "space-x-2")}>
                 <Switch
                   id="leadAiCharacter"
                   checked={formData.leadAiCharacter}
@@ -464,7 +465,7 @@ export default function StoryboardPlayground() {
                         </div>
                       </div>
                       
-                      <div className="flex items-center space-x-2">
+                      <div className={cn("flex items-center", isRTL ? "space-x-reverse space-x-2" : "space-x-2")}>
                         <Switch
                           checked={character.aiFace}
                           onCheckedChange={(checked) => {
