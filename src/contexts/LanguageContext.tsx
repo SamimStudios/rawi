@@ -355,8 +355,8 @@ const translations = {
     couldNotLoadTemplates: 'Could not load templates. You can still proceed without selecting a template.',
     
     // Additional Storyboard Elements
-    maxTwoSupportingChars: '(Max 2)',
-    supportingCharCount: '({count}/2)',
+    maxOneSupportingChar: '(Max 1)',
+    supportingCharCount: '({count}/1)',
     voiceLanguage: 'Language',
     selectLanguage: 'Select language',
     selectAccent: 'Select accent',
@@ -768,8 +768,8 @@ const translations = {
     couldNotLoadTemplates: 'لا يمكن تحميل القوالب. يمكنك المتابعة دون اختيار قالب.',
     
     // Additional Storyboard Elements (Arabic)
-    maxTwoSupportingChars: '(حد أقصى 2)',
-    supportingCharCount: '({count}/2)',
+    maxOneSupportingChar: '(حد أقصى 1)',
+    supportingCharCount: '({count}/1)',
     voiceLanguage: 'اللغة',
     selectLanguage: 'اختر اللغة',
     selectAccent: 'اختر اللهجة',

@@ -46,8 +46,7 @@ const GENRE_OPTIONS = [
   { key: 'genreRomance', value: 'Romance' },
   { key: 'genreSciFi', value: 'Sci-Fi' },
   { key: 'genreThriller', value: 'Thriller' },
-  { key: 'genreDocumentary', value: 'Documentary' },
-  { key: 'genreAnimation', value: 'Animation' }
+  { key: 'genreDocumentary', value: 'Documentary' }
 ];
 
 export default function StoryboardPlayground() {
@@ -564,9 +563,9 @@ export default function StoryboardPlayground() {
                       }]);
                     }}
                     className="w-full"
-                    disabled={supportingCharacters.length >= 2}
+                    disabled={supportingCharacters.length >= 1}
                   >
-                    {t('addSupportingCharacter')} {supportingCharacters.length >= 2 ? t('maxTwoSupportingChars') : t('supportingCharCount').replace('{count}', supportingCharacters.length.toString())}
+                    {t('addSupportingCharacter')} {supportingCharacters.length >= 1 ? t('maxOneSupportingChar') : t('supportingCharCount').replace('{count}', supportingCharacters.length.toString())}
                   </Button>
                 </div>
               </CollapsibleContent>
