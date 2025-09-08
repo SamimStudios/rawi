@@ -213,24 +213,24 @@ const Wallet = () => {
         <div className="max-w-6xl mx-auto">
           {/* Page Header */}
           <div className="mb-8">
-            <h1 className="text-4xl font-bold mb-2">Wallet</h1>
-            <p className="text-muted-foreground">Manage your credits and subscriptions</p>
+            <h1 className="text-4xl font-bold mb-2">{t('walletTitle')}</h1>
+            <p className="text-muted-foreground">{t('walletDescription')}</p>
           </div>
 
           {/* Balance Card */}
           <Card className="mb-8">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span>Current Balance</span>
+                <span>{t('walletCurrentBalance')}</span>
                 <Badge variant="outline">{currency}</Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-4xl font-bold text-primary mb-2">
-                {credits.toLocaleString()} Credits
+                {credits.toLocaleString()} {t('walletCredits')}
               </div>
               <p className="text-muted-foreground">
-                Credits never expire
+                {t('walletCreditsNeverExpire')}
               </p>
             </CardContent>
           </Card>
@@ -238,20 +238,20 @@ const Wallet = () => {
           {/* Purchase Options */}
           <Tabs defaultValue="packages" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="packages">🔹 One-Time Credit Packs</TabsTrigger>
-              <TabsTrigger value="subscription">🔹 Subscriptions (Weekly)</TabsTrigger>
+              <TabsTrigger value="packages">🔹 {t('walletOneTimeCreditPacks')}</TabsTrigger>
+              <TabsTrigger value="subscription">🔹 {t('walletSubscriptionsWeekly')}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="packages" className="space-y-4">
               {/* Discount Rules Display */}
               <Card className="bg-gradient-to-r from-primary/10 to-secondary/10">
                 <CardContent className="pt-6">
-                  <h4 className="font-semibold mb-2">Discount Rules:</h4>
+                  <h4 className="font-semibold mb-2">{t('walletDiscountRules')}:</h4>
                   <div className="text-sm space-y-1">
-                    <p>• 0–49 cr → 0% off ({formatPrice(1.00)}/cr)</p>
-                    <p>• 50–99 cr → 10% off ({formatPrice(0.90)}/cr)</p>
-                    <p>• 100–249 cr → 20% off ({formatPrice(0.80)}/cr)</p>
-                    <p>• 250+ cr → 30% off ({formatPrice(0.70)}/cr)</p>
+                    <p>• {t('walletDiscount0to49')} ({formatPrice(1.00)}/cr)</p>
+                    <p>• {t('walletDiscount50to99')} ({formatPrice(0.90)}/cr)</p>
+                    <p>• {t('walletDiscount100to249')} ({formatPrice(0.80)}/cr)</p>
+                    <p>• {t('walletDiscount250plus')} ({formatPrice(0.70)}/cr)</p>
                   </div>
                 </CardContent>
               </Card>
@@ -263,10 +263,10 @@ const Wallet = () => {
                   return (
                     <Card key={pkg.id} className="relative hover:shadow-lg transition-shadow">
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-lg">{pkg.credits} Credits</CardTitle>
+                        <CardTitle className="text-lg">{pkg.credits} {t('wallet.credits')}</CardTitle>
                         {pricing.discountPercent > 0 && (
                           <Badge variant="secondary" className="w-fit">
-                            {pricing.discountPercent}% off
+                            {pricing.discountPercent}% {t('wallet.off')}
                           </Badge>
                         )}
                         <CardDescription>
@@ -282,12 +282,12 @@ const Wallet = () => {
                           {packageLoading === pkg.id ? (
                             <>
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Processing...
+                              {t('wallet.processing')}...
                             </>
                           ) : (
                             <>
                               <CreditCard className="mr-2 h-4 w-4" />
-                              Buy Now
+                              {t('wallet.buyNow')}
                             </>
                           )}
                         </Button>
@@ -300,14 +300,14 @@ const Wallet = () => {
               {/* Custom Amount Section */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Custom Amount</CardTitle>
+                  <CardTitle>{t('wallet.customAmount')}</CardTitle>
                   <CardDescription>
-                    Choose exactly how many credits you need (minimum 10)
+                    {t('wallet.customAmountDescription')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="credits">Credits</Label>
+                    <Label htmlFor="credits">{t('wallet.credits')}</Label>
                     <Slider
                       id="credits"
                       min={10}
@@ -318,12 +318,12 @@ const Wallet = () => {
                       className="w-full"
                     />
                     <div className="flex items-center justify-between text-sm text-muted-foreground">
-                      <span>10 credits</span>
-                      <span>1000 credits</span>
+                      <span>10 {t('wallet.credits')}</span>
+                      <span>1000 {t('wallet.credits')}</span>
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="custom-input">Or enter exact amount</Label>
+                    <Label htmlFor="custom-input">{t('wallet.orEnterExactAmount')}</Label>
                     <Input
                       id="custom-input"
                       type="number"
@@ -331,7 +331,7 @@ const Wallet = () => {
                       max={1000}
                       value={customCredits}
                       onChange={(e) => setCustomCredits(Math.max(10, parseInt(e.target.value) || 10))}
-                      placeholder="Enter credits"
+                      placeholder={t('wallet.enterCredits')}
                     />
                   </div>
                   <div className="p-4 bg-muted rounded-lg">
@@ -339,15 +339,15 @@ const Wallet = () => {
                       const pricing = calculateDynamicPrice(customCredits, currency);
                       return (
                         <div>
-                          <p className="text-sm font-medium">Order Summary</p>
+                          <p className="text-sm font-medium">{t('wallet.orderSummary')}</p>
                           <p className="text-lg font-bold">
-                            {customCredits} credits = {formatPrice(pricing.totalPrice)}
+                            {customCredits} {t('wallet.credits')} = {formatPrice(pricing.totalPrice)}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            Rate: {formatPrice(pricing.perCreditRate)}/cr
+                            {t('wallet.rate')}: {formatPrice(pricing.perCreditRate)}/cr
                             {pricing.discountPercent > 0 && (
                               <Badge variant="secondary" className="ml-2">
-                                {pricing.discountPercent}% off
+                                {pricing.discountPercent}% {t('wallet.off')}
                               </Badge>
                             )}
                           </p>
@@ -363,12 +363,12 @@ const Wallet = () => {
                     {loading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Processing...
+                        {t('wallet.processing')}...
                       </>
                     ) : (
                       <>
                         <CreditCard className="mr-2 h-4 w-4" />
-                        Purchase {customCredits} Credits
+                        {t('wallet.purchaseCredits', { credits: customCredits })}
                       </>
                     )}
                   </Button>
@@ -380,11 +380,11 @@ const Wallet = () => {
               {/* Subscription Benefits Display */}
               <Card className="bg-gradient-to-r from-secondary/10 to-primary/10">
                 <CardContent className="pt-6">
-                  <h4 className="font-semibold mb-2">📈 Always ~10% cheaper than one-time packs!</h4>
+                  <h4 className="font-semibold mb-2">📈 {t('wallet.subscriptionBenefit')}</h4>
                   <div className="text-sm space-y-1">
-                    <p>• Weekly auto-renewal with higher discounts (up to 40%)</p>
-                    <p>• Same 20cr entry point for accessibility</p>
-                    <p>• Cancel anytime through customer portal</p>
+                    <p>• {t('wallet.weeklyAutoRenewal')}</p>
+                    <p>• {t('wallet.sameEntryPoint')}</p>
+                    <p>• {t('wallet.cancelAnytime')}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -396,7 +396,7 @@ const Wallet = () => {
                   className="mb-4"
                 >
                   <ExternalLink className="mr-2 h-4 w-4" />
-                  Manage Subscriptions
+                  {t('wallet.manageSubscriptions')}
                 </Button>
               </div>
               
@@ -413,15 +413,15 @@ const Wallet = () => {
                       <CardHeader className="pb-2">
                         <CardTitle className="text-lg">{plan.name}</CardTitle>
                         <Badge variant="secondary" className="w-fit mb-2">
-                          {savingsPercent}% cheaper than one-time
+                          {savingsPercent}% {t('wallet.cheaperThanOneTime')}
                         </Badge>
                         <CardDescription>
-                          {formatPrice(subscriptionPrice)}/week • {plan.credits_per_week} credits
+                          {formatPrice(subscriptionPrice)}/{t('wallet.week')} • {plan.credits_per_week} {t('wallet.credits')}
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="pt-0 space-y-2">
                         <div className="text-sm text-muted-foreground">
-                          Per credit: {formatPrice(perCreditRate)} (vs {formatPrice(oneTimePricing.perCreditRate)} one-time)
+                          {t('wallet.perCredit')}: {formatPrice(perCreditRate)} ({t('wallet.vsOneTime', { price: formatPrice(oneTimePricing.perCreditRate) })})
                         </div>
                         <Button
                           onClick={() => handleSubscription(plan.id)}
@@ -431,10 +431,10 @@ const Wallet = () => {
                           {subscriptionLoading === plan.id ? (
                             <>
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Processing...
+                              {t('wallet.processing')}...
                             </>
                           ) : (
-                            'Subscribe Now'
+                            t('wallet.subscribeNow')
                           )}
                         </Button>
                       </CardContent>
@@ -448,9 +448,9 @@ const Wallet = () => {
           {/* Transaction History */}
           <Card className="mt-8">
             <CardHeader>
-              <CardTitle>Transaction History</CardTitle>
+              <CardTitle>{t('wallet.transactionHistory')}</CardTitle>
               <CardDescription>
-                View your recent credit purchases and subscriptions
+                {t('wallet.transactionHistoryDescription')}
               </CardDescription>
             </CardHeader>
             <CardContent>
