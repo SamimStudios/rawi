@@ -26,7 +26,7 @@ const Privacy = () => {
           <Card className="p-8 text-foreground">
             <div className="space-y-8">
               {sections.map((section, index) => (
-                <section key={index}>
+                <section key={index} id={section.title}>
                   <h2 className="text-2xl font-semibold mb-4 flex items-start gap-2">
                     <span className="text-primary">{section.number}</span>
                     <span>{t(section.title)}</span>
