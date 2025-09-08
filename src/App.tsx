@@ -38,6 +38,7 @@ import StoryboardPlayground from "./pages/app/StoryboardPlayground";
 import JobStatus from "./pages/app/JobStatus";
 import StoryboardJobStatus from "./pages/app/StoryboardJobStatus";
 import Result from "./pages/app/Result";
+import StyleGuideline from "./pages/StyleGuideline";
 
 const queryClient = new QueryClient();
 
@@ -215,6 +216,13 @@ const MainApp = () => (
                     <div>
                       <Header />
                       <MediaPlayerDemo />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/style-guideline" element={
+                    <div>
+                      <Header />
+                      <StyleGuideline />
                       <Footer />
                     </div>
                   } />
