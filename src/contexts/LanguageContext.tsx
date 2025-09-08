@@ -365,6 +365,30 @@ const translations = {
     plotInstructions: 'Plot & Instructions (Optional)',
     plotPlaceholder: 'Describe your story plot or provide specific instructions. Example: \'A thriller about a detective in Paris\' or \'Title: The Last Stand - A sci-fi adventure...\'',
     creatingStoryboard: 'Creating Storyboard...',
+    
+    // Language and Accent Options
+    englishLang: 'English',
+    arabicLang: 'Arabic',
+    accentUS: 'US',
+    accentUK: 'UK',
+    accentEgyptian: 'Egyptian',
+    accentMSA: 'MSA',
+    accentGulf: 'Gulf',
+    accentLevantine: 'Levantine',
+    
+    // Genre Options
+    genreAction: 'Action',
+    genreAdventure: 'Adventure',
+    genreComedy: 'Comedy',
+    genreDrama: 'Drama',
+    genreFantasy: 'Fantasy',
+    genreHorror: 'Horror',
+    genreMystery: 'Mystery',
+    genreRomance: 'Romance',
+    genreSciFi: 'Sci-Fi',
+    genreThriller: 'Thriller',
+    genreDocumentary: 'Documentary',
+    genreAnimation: 'Animation',
   },
   ar: {
     // Navigation & Header (Arabic)
@@ -718,6 +742,30 @@ const translations = {
     plotInstructions: 'الحبكة والتعليمات (اختياري)',
     plotPlaceholder: 'صف حبكة قصتك أو قدم تعليمات محددة. مثال: \'إثارة حول محقق في باريس\' أو \'العنوان: الموقف الأخير - مغامرة خيال علمي...\'',
     creatingStoryboard: 'جارٍ إنشاء القصة المصورة...',
+    
+    // Language and Accent Options (Arabic)
+    englishLang: 'الإنجليزية',
+    arabicLang: 'العربية',
+    accentUS: 'أمريكي',
+    accentUK: 'بريطاني',
+    accentEgyptian: 'مصري',
+    accentMSA: 'فصحى',
+    accentGulf: 'خليجي',
+    accentLevantine: 'شامي',
+    
+    // Genre Options (Arabic)
+    genreAction: 'أكشن',
+    genreAdventure: 'مغامرة',
+    genreComedy: 'كوميديا',
+    genreDrama: 'دراما',
+    genreFantasy: 'خيال',
+    genreHorror: 'رعب',
+    genreMystery: 'غموض',
+    genreRomance: 'رومانسي',
+    genreSciFi: 'خيال علمي',
+    genreThriller: 'إثارة',
+    genreDocumentary: 'وثائقي',
+    genreAnimation: 'رسوم متحركة',
   }
 };
 

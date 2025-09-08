@@ -17,16 +17,36 @@ import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 const LANGUAGES = [
-  'English', 'Arabic'
+  { key: 'englishLang', value: 'English' }, 
+  { key: 'arabicLang', value: 'Arabic' }
 ];
 
 const ACCENTS = {
-  'English': ['US', 'UK'],
-  'Arabic': ['Egyptian', 'MSA', 'Gulf', 'Levantine']
+  'English': [
+    { key: 'accentUS', value: 'US' },
+    { key: 'accentUK', value: 'UK' }
+  ],
+  'Arabic': [
+    { key: 'accentEgyptian', value: 'Egyptian' },
+    { key: 'accentMSA', value: 'MSA' },
+    { key: 'accentGulf', value: 'Gulf' },
+    { key: 'accentLevantine', value: 'Levantine' }
+  ]
 };
 
 const GENRE_OPTIONS = [
-  'Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Horror', 'Mystery', 'Romance', 'Sci-Fi', 'Thriller', 'Documentary', 'Animation'
+  { key: 'genreAction', value: 'Action' },
+  { key: 'genreAdventure', value: 'Adventure' },
+  { key: 'genreComedy', value: 'Comedy' },
+  { key: 'genreDrama', value: 'Drama' },
+  { key: 'genreFantasy', value: 'Fantasy' },
+  { key: 'genreHorror', value: 'Horror' },
+  { key: 'genreMystery', value: 'Mystery' },
+  { key: 'genreRomance', value: 'Romance' },
+  { key: 'genreSciFi', value: 'Sci-Fi' },
+  { key: 'genreThriller', value: 'Thriller' },
+  { key: 'genreDocumentary', value: 'Documentary' },
+  { key: 'genreAnimation', value: 'Animation' }
 ];
 
 export default function StoryboardPlayground() {
@@ -35,6 +55,14 @@ export default function StoryboardPlayground() {
   const { sessionId } = useGuestSession();
   const { toast } = useToast();
   const { t } = useLanguage();
+
+  // Helper function to get translated genre names
+  const getTranslatedGenres = (genreValues: string[]) => {
+    return genreValues.map(value => {
+      const genreOption = GENRE_OPTIONS.find(g => g.value === value);
+      return genreOption ? t(genreOption.key) : value;
+    });
+  };
 
   const [formData, setFormData] = useState({
     template: '',
@@ -121,12 +149,12 @@ export default function StoryboardPlayground() {
     });
   };
 
-  const handleGenreToggle = (genre: string) => {
+  const handleGenreToggle = (genreValue: string) => {
     setSelectedGenres(prev => {
-      if (prev.includes(genre)) {
-        return prev.filter(g => g !== genre);
+      if (prev.includes(genreValue)) {
+        return prev.filter(g => g !== genreValue);
       } else if (prev.length < 3) {
-        return [...prev, genre];
+        return [...prev, genreValue];
       }
       return prev; // Don't add if already at max
     });
@@ -552,7 +580,7 @@ export default function StoryboardPlayground() {
                 </SelectTrigger>
                 <SelectContent>
                   {LANGUAGES.map(lang => (
-                    <SelectItem key={lang} value={lang}>{lang}</SelectItem>
+                    <SelectItem key={lang.value} value={lang.value}>{t(lang.key)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -571,7 +599,7 @@ export default function StoryboardPlayground() {
                 </SelectTrigger>
                 <SelectContent>
                   {formData.language && ACCENTS[formData.language as keyof typeof ACCENTS]?.map(accent => (
-                    <SelectItem key={accent} value={accent}>{accent}</SelectItem>
+                    <SelectItem key={accent.value} value={accent.value}>{t(accent.key)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -583,22 +611,22 @@ export default function StoryboardPlayground() {
               <div className="flex flex-wrap gap-2">
                 {GENRE_OPTIONS.map(genre => (
                   <Badge
-                    key={genre}
-                    variant={selectedGenres.includes(genre) ? "default" : "outline"}
+                    key={genre.value}
+                    variant={selectedGenres.includes(genre.value) ? "default" : "outline"}
                     className={`cursor-pointer ${
-                      !selectedGenres.includes(genre) && selectedGenres.length >= 3 
+                      !selectedGenres.includes(genre.value) && selectedGenres.length >= 3 
                         ? 'opacity-50 cursor-not-allowed' 
                         : ''
                     }`}
-                    onClick={() => handleGenreToggle(genre)}
+                    onClick={() => handleGenreToggle(genre.value)}
                   >
-                    {genre}
+                    {t(genre.key)}
                   </Badge>
                 ))}
               </div>
               {selectedGenres.length > 0 && (
                 <p className="text-sm text-muted-foreground">
-                  {t('selectedGenres').replace('{genres}', selectedGenres.join(', ')).replace('{count}', selectedGenres.length.toString())}
+                  {t('selectedGenres').replace('{genres}', getTranslatedGenres(selectedGenres).join(', ')).replace('{count}', selectedGenres.length.toString())}
                 </p>
               )}
             </div>
