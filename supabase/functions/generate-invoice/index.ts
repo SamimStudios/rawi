@@ -61,6 +61,7 @@ serve(async (req) => {
         stripeInvoiceData = invoice;
         invoiceUrl = invoice.invoice_pdf;
         invoiceNumber = invoice.number;
+        console.log(`Found subscription invoice PDF: ${invoiceUrl}`);
       }
     } else if (transaction.stripe_session_id) {
       // For one-time payments, get the payment receipt from the session
@@ -74,6 +75,7 @@ serve(async (req) => {
           const charge = paymentIntent.charges.data[0];
           invoiceUrl = charge.receipt_url;
           invoiceNumber = `RECEIPT-${charge.id}`;
+          console.log(`Found payment receipt URL: ${invoiceUrl}`);
           stripeInvoiceData = {
             id: charge.id,
             number: invoiceNumber,
@@ -84,6 +86,25 @@ serve(async (req) => {
             description: session.metadata?.description || transaction.description
           };
         }
+      }
+    } else if (transaction.stripe_payment_intent_id) {
+      // Direct payment intent case
+      const paymentIntent = await stripe.paymentIntents.retrieve(transaction.stripe_payment_intent_id);
+      
+      if (paymentIntent.charges?.data?.[0]) {
+        const charge = paymentIntent.charges.data[0];
+        invoiceUrl = charge.receipt_url;
+        invoiceNumber = `RECEIPT-${charge.id}`;
+        console.log(`Found direct payment receipt URL: ${invoiceUrl}`);
+        stripeInvoiceData = {
+          id: charge.id,
+          number: invoiceNumber,
+          amount_paid: charge.amount,
+          currency: charge.currency.toUpperCase(),
+          created: charge.created,
+          receipt_url: charge.receipt_url,
+          description: transaction.description
+        };
       }
     }
 
