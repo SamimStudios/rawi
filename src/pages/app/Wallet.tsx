@@ -36,6 +36,7 @@ import { useUserCredits } from '@/hooks/useUserCredits';
 import { usePayments, type CreditPackage, type SubscriptionPlan } from '@/hooks/usePayments';
 import { useCurrency } from '@/hooks/useCurrency';
 import { supabase } from '@/integrations/supabase/client';
+import { SetupStripeProducts } from '@/components/SetupStripeProducts';
 
 const Wallet = () => {
   const [customCredits, setCustomCredits] = useState(50);
@@ -51,7 +52,9 @@ const Wallet = () => {
   const { trackPurchase, trackViewItem, trackPurchaseStarted } = useCommerceTracking();
   const { credits, transactions, loading: creditsLoading, refresh: refreshCredits } = useUserCredits();
   const { 
-    loading: paymentLoading, 
+    loading: paymentLoading,
+    packageLoading,
+    subscriptionLoading,
     createCheckout, 
     createSubscription, 
     openCustomerPortal, 
@@ -226,6 +229,11 @@ const Wallet = () => {
             </Card>
           </div>
 
+          {/* Setup Required Notice */}
+          <div className="mb-8">
+            <SetupStripeProducts />
+          </div>
+
           {/* Purchase Card */}
           <div className="mb-8">
             <Card className="bg-card border-border">
@@ -266,9 +274,9 @@ const Wallet = () => {
                             </div>
                             <Button 
                               className="w-full mt-4" 
-                              disabled={paymentLoading}
+                              disabled={packageLoading === pkg.id}
                             >
-                              {paymentLoading ? <LoadingSpinner /> : (isRTL ? 'شراء الآن' : 'Buy Now')}
+                              {packageLoading === pkg.id ? <LoadingSpinner /> : (isRTL ? 'شراء الآن' : 'Buy Now')}
                             </Button>
                           </CardContent>
                         </Card>
@@ -372,12 +380,12 @@ const Wallet = () => {
                                 Saves {Math.round((1 - getPrice(plan) / plan.credits_per_week) * 100)}% vs one-time
                               </div>
                             </div>
-                            <Button 
+                             <Button 
                               className="w-full" 
                               onClick={() => handleSubscriptionPurchase(plan)}
-                              disabled={paymentLoading}
+                              disabled={subscriptionLoading === plan.id}
                             >
-                              {paymentLoading ? <LoadingSpinner /> : (isRTL ? 'اشترك الآن' : 'Subscribe Now')}
+                              {subscriptionLoading === plan.id ? <LoadingSpinner /> : (isRTL ? 'اشترك الآن' : 'Subscribe Now')}
                             </Button>
                           </CardContent>
                         </Card>

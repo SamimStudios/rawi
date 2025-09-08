@@ -23,6 +23,8 @@ export interface SubscriptionPlan {
 
 export const usePayments = () => {
   const [loading, setLoading] = useState(false);
+  const [packageLoading, setPackageLoading] = useState<string | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState<string | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -41,7 +43,12 @@ export const usePayments = () => {
       return;
     }
 
-    setLoading(true);
+    if (options.packageId) {
+      setPackageLoading(options.packageId);
+    } else {
+      setLoading(true);
+    }
+    
     try {
       const { data, error } = await supabase.functions.invoke('create-checkout', {
         body: options
@@ -60,7 +67,11 @@ export const usePayments = () => {
         variant: "destructive"
       });
     } finally {
-      setLoading(false);
+      if (options.packageId) {
+        setPackageLoading(null);
+      } else {
+        setLoading(false);
+      }
     }
   };
 
@@ -74,7 +85,7 @@ export const usePayments = () => {
       return;
     }
 
-    setLoading(true);
+    setSubscriptionLoading(planId);
     try {
       const { data, error } = await supabase.functions.invoke('create-subscription', {
         body: { planId, currency }
@@ -93,7 +104,7 @@ export const usePayments = () => {
         variant: "destructive"
       });
     } finally {
-      setLoading(false);
+      setSubscriptionLoading(null);
     }
   };
 
@@ -171,6 +182,8 @@ export const usePayments = () => {
 
   return {
     loading,
+    packageLoading,
+    subscriptionLoading,
     createCheckout,
     createSubscription,
     checkPaymentStatus,

@@ -48,6 +48,11 @@ serve(async (req) => {
       
       const currencyField = `stripe_price_id_${currency.toLowerCase()}`;
       priceId = pkg[currencyField];
+      
+      if (!priceId) {
+        throw new Error(`No Stripe price ID found for package ${pkg.name} in currency ${currency}. Please run setup-stripe-products first.`);
+      }
+      
       creditsAmount = pkg.credits;
       amount = pkg[`price_${currency.toLowerCase()}`] * 100;
     } else {
@@ -104,8 +109,8 @@ serve(async (req) => {
         },
       ],
       mode: "payment",
-      success_url: `${req.headers.get("origin")}/wallet?success=true&credits=${creditsAmount}`,
-      cancel_url: `${req.headers.get("origin")}/wallet?canceled=true`,
+      success_url: `${req.headers.get("origin")}/app/wallet?success=true&credits=${creditsAmount}`,
+      cancel_url: `${req.headers.get("origin")}/app/wallet?canceled=true`,
       metadata: {
         user_id: user.id,
         credits: creditsAmount.toString(),
