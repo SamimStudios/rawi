@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,13 +37,44 @@ export default function StoryboardPlayground() {
     leadGender: '',
     language: 'English',
     accent: 'American',
-    prompt: ''
+    prompt: '',
+    template: ''
   });
 
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [faceImage, setFaceImage] = useState<File | null>(null);
   const [faceImagePreview, setFaceImagePreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [templates, setTemplates] = useState<Array<{id: string, name: string, description: string}>>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('templates')
+          .select('id, name, description')
+          .order('name');
+
+        if (error) {
+          console.error('Error fetching templates:', error);
+          toast({
+            title: "Warning",
+            description: "Could not load templates. You can still proceed without selecting a template.",
+            variant: "destructive"
+          });
+        } else {
+          setTemplates(data || []);
+        }
+      } catch (error) {
+        console.error('Error fetching templates:', error);
+      } finally {
+        setTemplatesLoading(false);
+      }
+    };
+
+    fetchTemplates();
+  }, [toast]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => {
@@ -96,10 +127,10 @@ export default function StoryboardPlayground() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.leadName || !formData.leadGender || !formData.language || !formData.accent) {
+    if (!formData.leadName || !formData.leadGender || !formData.language || !formData.accent || !formData.template) {
       toast({
         title: "Missing fields",
-        description: "Please fill in all required fields",
+        description: "Please fill in all required fields including template selection",
         variant: "destructive"
       });
       return;
@@ -288,6 +319,28 @@ export default function StoryboardPlayground() {
                 <SelectContent>
                   {formData.language && ACCENTS[formData.language as keyof typeof ACCENTS]?.map(accent => (
                     <SelectItem key={accent} value={accent}>{accent}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Template */}
+            <div className="space-y-2">
+              <Label htmlFor="template">Template *</Label>
+              <Select onValueChange={(value) => handleInputChange('template', value)} required>
+                <SelectTrigger>
+                  <SelectValue placeholder={templatesLoading ? "Loading templates..." : "Select a template"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map(template => (
+                    <SelectItem key={template.id} value={template.id}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{template.name}</span>
+                        {template.description && (
+                          <span className="text-xs text-muted-foreground">{template.description}</span>
+                        )}
+                      </div>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
