@@ -39,10 +39,9 @@ const Header = () => {
   return (
     <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
       <div className="container mx-auto px-4">
-        <div className={cn("flex h-16 items-center", isRTL ? "justify-between" : "justify-between")}>
-          {/* Content container with proper RTL handling */}
-          <div className={cn("flex items-center flex-1", isRTL ? "flex-row-reverse" : "")}>
-            {/* Logo - will be on right in RTL, left in LTR */}
+        <div className="flex h-16 items-center justify-between">
+          {/* Logo - positioned based on language direction */}
+          <div className={cn("flex items-center", isRTL ? "order-3" : "order-1")}>
             <Link to="/" className="flex items-center">
               <img 
                 src={logoSrc}
@@ -50,23 +49,23 @@ const Header = () => {
                 className="h-8 md:h-10"
               />
             </Link>
-
-            {/* Center: Navigation (Desktop) */}
-            <nav className={cn("hidden md:flex items-center flex-1", isRTL ? "justify-end mr-8 space-x-reverse space-x-8" : "justify-center space-x-8")}>
-              {navItems.map((item) => (
-                <Link
-                  key={item.key}
-                  to={item.href}
-                  className="text-foreground hover:text-primary transition-colors font-medium"
-                >
-                  {t(item.key)}
-                </Link>
-              ))}
-            </nav>
           </div>
 
-          {/* Actions - will be on left in RTL, right in LTR */}
-          <div className={cn("flex items-center", isRTL ? "space-x-reverse space-x-4" : "space-x-4")}>
+          {/* Center: Navigation (Desktop) */}
+          <nav className={cn("hidden md:flex items-center flex-1 justify-center", isRTL ? "order-2 space-x-reverse space-x-8" : "order-2 space-x-8")}>
+            {navItems.map((item) => (
+              <Link
+                key={item.key}
+                to={item.href}
+                className="text-foreground hover:text-primary transition-colors font-medium"
+              >
+                {t(item.key)}
+              </Link>
+            ))}
+          </nav>
+
+          {/* Actions - positioned based on language direction */}
+          <div className={cn("flex items-center", isRTL ? "order-1 space-x-reverse space-x-4" : "order-3 space-x-4")}>
             {/* Language Toggle */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
