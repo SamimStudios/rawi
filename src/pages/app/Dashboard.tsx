@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserCredits } from '@/hooks/useUserCredits';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useSEOConfig, seoConfigs } from '@/hooks/useSEO';
 import { CreditCard, History, FileText, Wallet } from 'lucide-react';
@@ -10,6 +11,7 @@ import { CreditCard, History, FileText, Wallet } from 'lucide-react';
 const Dashboard = () => {
   const { user, loading } = useAuth();
   const { t, language } = useLanguage();
+  const { credits, loading: creditsLoading } = useUserCredits();
   const navigate = useNavigate();
 
   // Set SEO for dashboard page
@@ -57,7 +59,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-primary">
-                  120 {t('credits')}
+                  {creditsLoading ? "..." : credits} {t('credits')}
                 </div>
               </CardContent>
             </Card>

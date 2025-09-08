@@ -1,8 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { Globe, Wallet, Menu, X, User, LogOut } from "lucide-react";
-import { useLanguage } from "@/contexts/LanguageContext";
-import { useAuth } from "@/hooks/useAuth";
+import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/hooks/useAuth';
+import { useUserCredits } from '@/hooks/useUserCredits';
 import { useState } from "react";
 import {
   DropdownMenu,
@@ -16,6 +17,7 @@ import { cn } from "@/lib/utils";
 const Header = () => {
   const { language, setLanguage, t, isRTL } = useLanguage();
   const { user, signOut } = useAuth();
+  const { credits } = useUserCredits();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const logoSrc = language === 'ar' 
@@ -32,7 +34,7 @@ const Header = () => {
     { key: 'help', href: '/help' },
   ];
 
-  const walletCredits = user ? 120 : 0;
+  const walletCredits = user ? credits : 0;
 
   return (
     <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">

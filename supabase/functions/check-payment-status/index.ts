@@ -14,6 +14,7 @@ serve(async (req) => {
 
   try {
     const { sessionId } = await req.json();
+    console.log("Processing payment status check for session:", sessionId);
     
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -35,6 +36,11 @@ serve(async (req) => {
 
     // Retrieve checkout session
     const session = await stripe.checkout.sessions.retrieve(sessionId);
+    console.log("Session retrieved:", { 
+      payment_status: session.payment_status, 
+      mode: session.mode,
+      metadata: session.metadata 
+    });
     
     if (session.payment_status === "paid" && session.metadata?.user_id === user.id) {
       const credits = parseInt(session.metadata.credits || "0");
@@ -42,7 +48,9 @@ serve(async (req) => {
       
       if (session.mode === "payment") {
         // One-time purchase - add credits
-        await supabase.rpc("add_credits", {
+        console.log("Adding credits:", { user_id: user.id, credits, currency });
+        
+        const { data: addResult, error: addError } = await supabase.rpc("add_credits", {
           p_user_id: user.id,
           p_credits: credits,
           p_type: "purchase",
@@ -51,6 +59,13 @@ serve(async (req) => {
           p_amount_paid: session.amount_total ? session.amount_total / 100 : null,
           p_currency: currency,
         });
+        
+        if (addError) {
+          console.error("Error adding credits:", addError);
+          throw addError;
+        }
+        
+        console.log("Credits added successfully:", addResult);
 
         // Generate invoice
         await supabase.functions.invoke("generate-invoice", {
