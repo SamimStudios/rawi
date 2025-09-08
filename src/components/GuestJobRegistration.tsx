@@ -8,6 +8,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CheckCircle } from 'lucide-react';
+import { validateEmail, validatePassword, sanitizeInput } from '@/lib/security';
 
 interface GuestJobRegistrationProps {
   jobId: string;
@@ -25,13 +26,22 @@ const GuestJobRegistration = ({ jobId, onRegistrationComplete }: GuestJobRegistr
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (password !== confirmPassword) {
-      toast.error('Passwords do not match');
+    // Input validation and sanitization
+    const sanitizedEmail = sanitizeInput(email);
+    
+    if (!validateEmail(sanitizedEmail)) {
+      toast.error('Invalid email format');
       return;
     }
-
-    if (password.length < 6) {
-      toast.error('Password must be at least 6 characters');
+    
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      toast.error(passwordValidation.errors[0]);
+      return;
+    }
+    
+    if (password !== confirmPassword) {
+      toast.error('Passwords do not match');
       return;
     }
 
@@ -39,7 +49,7 @@ const GuestJobRegistration = ({ jobId, onRegistrationComplete }: GuestJobRegistr
 
     try {
       // Sign up the user
-      const { error: signUpError } = await signUp(email, password);
+      const { error: signUpError } = await signUp(sanitizedEmail, password);
       
       if (signUpError) {
         toast.error(signUpError.message);
@@ -48,7 +58,7 @@ const GuestJobRegistration = ({ jobId, onRegistrationComplete }: GuestJobRegistr
 
       // Link guest jobs to the new user account
       const { error: linkError } = await supabase.rpc('link_guest_jobs_to_user', {
-        p_email: email
+        p_email: sanitizedEmail
       });
 
       if (linkError) {

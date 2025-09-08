@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
+import { validateEmail, sanitizeInput, rateLimit } from '@/lib/security';
 
 const SignIn = () => {
   const [email, setEmail] = useState('');
@@ -35,13 +36,34 @@ const SignIn = () => {
 
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Input validation
+    const sanitizedEmail = sanitizeInput(email);
+    const sanitizedPassword = sanitizeInput(password);
+    
+    if (!validateEmail(sanitizedEmail)) {
+      toast.error(language === 'ar' ? 'البريد الإلكتروني غير صحيح' : 'Invalid email format');
+      return;
+    }
+    
+    if (sanitizedPassword.length < 6) {
+      toast.error(language === 'ar' ? 'كلمة المرور قصيرة جداً' : 'Password too short');
+      return;
+    }
+    
+    // Rate limiting
+    if (!rateLimit(`signin_${sanitizedEmail}`, 5, 15 * 60 * 1000)) {
+      toast.error(language === 'ar' ? 'تم تجاوز عدد المحاولات المسموح' : 'Too many login attempts. Please try again later.');
+      return;
+    }
+    
     setIsLoading(true);
     
     try {
-      const { error } = await signInWithEmail(email, password);
+      const { error } = await signInWithEmail(sanitizedEmail, sanitizedPassword);
       if (error) {
         if (error.message.includes('Invalid login credentials')) {
-          toast.error('Invalid email or password');
+          toast.error(language === 'ar' ? 'البريد الإلكتروني أو كلمة المرور خاطئة' : 'Invalid email or password');
         } else {
           toast.error(error.message);
         }
@@ -57,10 +79,24 @@ const SignIn = () => {
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const sanitizedEmail = sanitizeInput(email);
+    
+    if (!validateEmail(sanitizedEmail)) {
+      toast.error(language === 'ar' ? 'البريد الإلكتروني غير صحيح' : 'Invalid email format');
+      return;
+    }
+    
+    // Rate limiting for password reset
+    if (!rateLimit(`reset_${sanitizedEmail}`, 3, 30 * 60 * 1000)) {
+      toast.error(language === 'ar' ? 'تم تجاوز عدد المحاولات المسموح' : 'Too many reset attempts. Please try again later.');
+      return;
+    }
+    
     setIsLoading(true);
     
     try {
-      const { error } = await resetPassword(email);
+      const { error } = await resetPassword(sanitizedEmail);
       if (error) {
         toast.error(error.message);
       } else {

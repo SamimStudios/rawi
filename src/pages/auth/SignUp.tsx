@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
+import { validateEmail, validatePassword, sanitizeInput, rateLimit } from '@/lib/security';
 
 const SignUp = () => {
   const [email, setEmail] = useState('');
@@ -36,15 +37,37 @@ const SignUp = () => {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (password !== confirmPassword) {
+    // Input validation and sanitization
+    const sanitizedEmail = sanitizeInput(email);
+    const sanitizedPassword = password; // Don't sanitize password to preserve special chars
+    
+    if (!validateEmail(sanitizedEmail)) {
+      toast.error(language === 'ar' ? 'البريد الإلكتروني غير صحيح' : 'Invalid email format');
+      return;
+    }
+    
+    const passwordValidation = validatePassword(sanitizedPassword);
+    if (!passwordValidation.isValid) {
+      const errorMsg = passwordValidation.errors[0];
+      toast.error(language === 'ar' ? 'كلمة المرور ضعيفة' : errorMsg);
+      return;
+    }
+    
+    if (sanitizedPassword !== confirmPassword) {
       toast.error(language === 'ar' ? 'كلمات المرور غير متطابقة' : 'Passwords do not match');
+      return;
+    }
+    
+    // Rate limiting
+    if (!rateLimit(`signup_${sanitizedEmail}`, 3, 60 * 60 * 1000)) {
+      toast.error(language === 'ar' ? 'تم تجاوز عدد المحاولات المسموح' : 'Too many signup attempts. Please try again later.');
       return;
     }
 
     setIsLoading(true);
     
     try {
-      const { error } = await signUp(email, password);
+      const { error } = await signUp(sanitizedEmail, sanitizedPassword);
       if (error) {
         if (error.message.includes('User already registered')) {
           toast.error(language === 'ar' ? 'المستخدم مسجل بالفعل' : 'User already registered');
