@@ -4,7 +4,9 @@ import { useLanguage } from "@/contexts/LanguageContext";
 const Footer = () => {
   const { language, t } = useLanguage();
 
-  const logoSrc = "/brand/logo-lockup-bilingual-stacked.svg";
+  const logoSrc = language === 'ar' 
+    ? "/brand/logo-lockup-bilingual-stacked-ar.svg" 
+    : "/brand/logo-lockup-bilingual-stacked.svg";
 
   const footerLinks = [
     { key: 'terms', href: '/legal/terms' },
