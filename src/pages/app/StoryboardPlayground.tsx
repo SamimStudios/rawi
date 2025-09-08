@@ -29,6 +29,7 @@ const ACCENTS = {
   ],
   'Arabic': [
     { key: 'accentEgyptian', value: 'Egyptian' },
+    { key: 'accentMSA', value: 'MSA' },
     { key: 'accentGulf', value: 'Gulf' },
     { key: 'accentLevantine', value: 'Levantine' }
   ]
@@ -36,6 +37,7 @@ const ACCENTS = {
 
 const GENRE_OPTIONS = [
   { key: 'genreAction', value: 'Action' },
+  { key: 'genreAdventure', value: 'Adventure' },
   { key: 'genreComedy', value: 'Comedy' },
   { key: 'genreDrama', value: 'Drama' },
   { key: 'genreFantasy', value: 'Fantasy' },
@@ -47,7 +49,7 @@ const GENRE_OPTIONS = [
   { key: 'genreDocumentary', value: 'Documentary' }
 ];
 
-const StoryboardPlayground = () => {
+export default function StoryboardPlayground() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { sessionId } = useGuestSession();
@@ -57,36 +59,36 @@ const StoryboardPlayground = () => {
   // Helper function to get translated genre names
   const getTranslatedGenres = (genreValues: string[]) => {
     return genreValues.map(value => {
-      const genreOption = GENRE_OPTIONS.find(option => option.value === value);
+      const genreOption = GENRE_OPTIONS.find(g => g.value === value);
       return genreOption ? t(genreOption.key) : value;
     });
   };
 
   const [formData, setFormData] = useState({
     template: '',
-    leadName: '',
+    leadName: user?.user_metadata?.full_name || '',
     leadGender: '',
     leadAiCharacter: false,
-    language: '',
-    accent: '',
+    language: 'English',
+    accent: 'American',
     prompt: ''
   });
 
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [faceImage, setFaceImage] = useState<File | null>(null);
+  const [faceImagePreview, setFaceImagePreview] = useState<string | null>(null);
   const [supportingCharacters, setSupportingCharacters] = useState<Array<{
     id: string;
     name: string;
     gender: string;
     aiFace: boolean;
-    faceImage: File | null;
-    faceImagePreview: string | null;
+    faceImage?: File;
+    faceImagePreview?: string;
   }>>([]);
-  const [faceImage, setFaceImage] = useState<File | null>(null);
-  const [faceImagePreview, setFaceImagePreview] = useState<string | null>(null);
+  const [supportingCollapsed, setSupportingCollapsed] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const [templates, setTemplates] = useState<any[]>([]);
-  const [isTemplateOpen, setIsTemplateOpen] = useState(true);
-  const [isSupportingOpen, setIsSupportingOpen] = useState(false);
+  const [templates, setTemplates] = useState<Array<{id: string, name: string, description: string}>>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(true);
   const [consentAgreed, setConsentAgreed] = useState(false);
 
   useEffect(() => {
@@ -94,14 +96,14 @@ const StoryboardPlayground = () => {
       try {
         const { data, error } = await supabase
           .from('templates')
-          .select('*')
-          .eq('type', 'storyboard');
-          
+          .select('id, name, description')
+          .order('name');
+
         if (error) {
           console.error('Error fetching templates:', error);
           toast({
-            title: t('error'),
-            description: t('failedToLoadTemplates'),
+            title: t('warning'),
+            description: t('couldNotLoadTemplates'),
             variant: "destructive"
           });
         } else {
@@ -110,13 +112,14 @@ const StoryboardPlayground = () => {
       } catch (error) {
         console.error('Error fetching templates:', error);
       } finally {
-        // Loading complete
+        setTemplatesLoading(false);
       }
     };
 
     fetchTemplates();
-  }, [toast, t]);
+  }, [toast]);
 
+  // Update lead name when user data becomes available
   useEffect(() => {
     if (user?.user_metadata?.full_name && !formData.leadName) {
       setFormData(prev => ({
@@ -128,26 +131,22 @@ const StoryboardPlayground = () => {
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => {
-      const updated = { ...prev, [field]: value };
-      
+      const newData = { ...prev, [field]: value };
+      // Reset accent when language changes and set default for Arabic
       if (field === 'language') {
         if (value === 'Arabic') {
-          updated.accent = 'Egyptian';
+          newData.accent = 'MSA'; // Default to MSA for Arabic
         } else if (value === 'English') {
-          updated.accent = 'US';
+          newData.accent = 'US'; // Default to US for English
         } else {
-          updated.accent = '';
+          newData.accent = '';
         }
       }
-
+      // Handle boolean fields
       if (field === 'leadAiCharacter') {
-        if (value === 'true') {
-          setFaceImage(null);
-          setFaceImagePreview(null);
-        }
+        newData.leadAiCharacter = value === 'true';
       }
-
-      return updated;
+      return newData;
     });
   };
 
@@ -158,7 +157,7 @@ const StoryboardPlayground = () => {
       } else if (prev.length < 3) {
         return [...prev, genreValue];
       }
-      return prev;
+      return prev; // Don't add if already at max
     });
   };
 
@@ -168,11 +167,12 @@ const StoryboardPlayground = () => {
       if (file.size > 5 * 1024 * 1024) {
         toast({
           title: t('fileTooLarge'),
-          description: t('maxFileSize5MB'),
+          description: t('imageUnder5MB'),
           variant: "destructive"
         });
         return;
       }
+
       setFaceImage(file);
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -220,12 +220,6 @@ const StoryboardPlayground = () => {
     setIsLoading(true);
 
     try {
-      // Convert face image to base64 if exists
-      let faceImageBase64 = null;
-      if (faceImage) {
-        faceImageBase64 = await convertFileToBase64(faceImage);
-      }
-
       // Process supporting characters' face images
       const processedSupportingCharacters = await Promise.all(
         supportingCharacters.map(async (character) => ({
@@ -235,69 +229,49 @@ const StoryboardPlayground = () => {
         }))
       );
 
-      // Get the function details for storyboard creation
-      const { data: functionData } = await supabase
-        .from('functions')
-        .select('*')
-        .eq('name', 'start-storyboard-job')
-        .eq('active', true)
-        .single();
-
-      if (!functionData) {
-        toast({
-          title: t('serviceUnavailable'),
-          description: t('storyboardServiceUnavailable'),
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Prepare the user input data
-      const userInput = {
-        ...formData,
-        genres: selectedGenres,
-        supportingCharacters: processedSupportingCharacters,
-        faceImage: faceImageBase64,
-        faceImageType: faceImage?.type || null
-      };
-
-      console.log('Creating storyboard job with user input:', userInput);
-
-      // Create the storyboard job record
-      const { data: jobData, error: jobError } = await supabase
-        .from('storyboard_jobs')
-        .insert({
-          user_id: user?.id || null,
-          session_id: sessionId || null,
-          function_id: functionData.id,
-          user_input: userInput,
-          status: 'created',
-          stage: 'created'
-        })
-        .select()
-        .single();
-
-      if (jobError) {
-        console.error('Error creating storyboard job:', jobError);
-        toast({
-          title: t('errorCreatingStoryboard'),
-          description: t('tryAgain'),
-          variant: "destructive"
-        });
-        return;
-      }
-
-      console.log('Storyboard job created successfully:', jobData);
-      toast({
-        title: t('storyboardCreated'),
-        description: t('storyboardWorkspaceCreated')
+      const { data, error } = await supabase.functions.invoke('create-storyboard-job', {
+        body: {
+          ...formData,
+          genres: selectedGenres,
+          supportingCharacters: processedSupportingCharacters,
+          faceImage: faceImage ? await convertFileToBase64(faceImage) : null,
+          faceImageType: faceImage?.type || null,
+          userId: user?.id || null,
+          sessionId: sessionId || null
+        }
       });
 
-      // Navigate to the storyboard workspace
-      navigate(`/app/storyboard/${jobData.id}`);
+      if (error) {
+        console.error('Error creating storyboard job:', error);
+        
+        // Handle specific credit errors
+        if (error.message?.includes('Insufficient credits')) {
+          const requiredCredits = error.required_credits || 10;
+          toast({
+            title: t('insufficientCredits'),
+            description: t('needCreditsMessage').replace('{credits}', requiredCredits.toString()),
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: t('error'),
+            description: error.message || t('unexpectedError'),
+            variant: "destructive"
+          });
+        }
+        return;
+      }
+
+      toast({
+        title: t('storyboardJobCreated'),
+        description: t('processingRedirecting')
+      });
+
+      // Navigate to job status page
+      navigate(`/app/storyboard-status/${data.jobId}`);
 
     } catch (error) {
-      console.error('Error in handleSubmit:', error);
+      console.error('Error:', error);
       toast({
         title: t('error'),
         description: t('unexpectedError'),
@@ -328,71 +302,47 @@ const StoryboardPlayground = () => {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Template Selection */}
-            <Collapsible open={isTemplateOpen} onOpenChange={setIsTemplateOpen}>
-              <CollapsibleTrigger className="flex items-center justify-between w-full p-4 rounded-lg border hover:bg-muted/50 transition-colors">
-                <Label className="text-lg font-semibold">{t('template')}</Label>
-                {isTemplateOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </CollapsibleTrigger>
-              <CollapsibleContent className="mt-4 space-y-4">
-                <div className="space-y-3">
+            {/* Template */}
+            <div className="space-y-2">
+              <Label htmlFor="template">{t('storyboardTemplate')} *</Label>
+              <Select onValueChange={(value) => handleInputChange('template', value)} required>
+                <SelectTrigger>
+                  <SelectValue placeholder={templatesLoading ? t('loadingTemplates') : t('selectTemplate')} />
+                </SelectTrigger>
+                <SelectContent className="max-w-[calc(100vw-2rem)] w-full">
                   {templates.map(template => (
-                    <div key={template.id} className={cn(
-                      "p-4 rounded-lg border-2 cursor-pointer transition-all",
-                      formData.template === template.id 
-                        ? "border-primary bg-primary/5" 
-                        : "border-border hover:border-muted-foreground"
-                    )} onClick={() => handleInputChange('template', template.id)}>
-                      <div className="flex items-center space-x-3 rtl:space-x-reverse">
-                        <input
-                          type="radio"
-                          id={template.id}
-                          name="template"
-                          value={template.id}
-                          checked={formData.template === template.id}
-                          onChange={() => handleInputChange('template', template.id)}
-                          className="h-4 w-4 text-primary focus:ring-primary border-gray-300"
-                        />
-                        <div>
-                          <Label htmlFor={template.id} className="font-medium cursor-pointer">
-                            {template.name}
-                          </Label>
-                          {template.description && (
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {template.description}
-                            </p>
-                          )}
-                        </div>
+                    <SelectItem key={template.id} value={template.id}>
+                      <div className="flex flex-col max-w-full">
+                        <span className="font-medium truncate">{template.name}</span>
+                        {template.description && (
+                          <span className="text-xs text-muted-foreground truncate">{template.description}</span>
+                        )}
                       </div>
-                    </div>
+                    </SelectItem>
                   ))}
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
+                </SelectContent>
+              </Select>
+            </div>
 
             {/* Lead Character */}
-            <div className="space-y-4">
-              <Label className="text-lg font-semibold">{t('leadCharacter')}</Label>
+            <div className="space-y-4 border rounded-lg p-4">
+              <h3 className="text-lg font-semibold">{t('leadCharacter')}</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="leadName" className="text-sm font-medium">
-                    {t('characterName')} *
-                  </Label>
+                <div className="space-y-2">
+                  <Label htmlFor="leadName">{t('leadName')} *</Label>
                   <Input
                     id="leadName"
                     value={formData.leadName}
                     onChange={(e) => handleInputChange('leadName', e.target.value)}
-                    placeholder={t('enterCharacterName')}
+                    placeholder={t('enterLeadCharacterName')}
                     required
                   />
                 </div>
 
-                <div>
-                  <Label htmlFor="leadGender" className="text-sm font-medium">
-                    {t('gender')} *
-                  </Label>
-                  <Select value={formData.leadGender} onValueChange={(value) => handleInputChange('leadGender', value)}>
+                <div className="space-y-2">
+                  <Label htmlFor="leadGender">{t('gender')} *</Label>
+                  <Select onValueChange={(value) => handleInputChange('leadGender', value)} required>
                     <SelectTrigger>
                       <SelectValue placeholder={t('selectGender')} />
                     </SelectTrigger>
@@ -404,48 +354,54 @@ const StoryboardPlayground = () => {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2 rtl:space-x-reverse">
+              <div className={cn("flex items-center", isRTL ? "space-x-reverse space-x-2" : "space-x-2")}>
                 <Switch
                   id="leadAiCharacter"
                   checked={formData.leadAiCharacter}
                   onCheckedChange={(checked) => handleInputChange('leadAiCharacter', checked.toString())}
                 />
-                <Label htmlFor="leadAiCharacter" className="text-sm font-medium">
-                  {t('useAICharacter')}
-                </Label>
+                <Label htmlFor="leadAiCharacter">{t('aiGeneratedCharacter')}</Label>
               </div>
 
               {!formData.leadAiCharacter && (
-                <div>
-                  <Label className="text-sm font-medium">{t('faceReference')}</Label>
-                  <div className="mt-2">
+                <div className="space-y-2">
+                  <Label htmlFor="faceImage">{t('faceReferenceImage')}</Label>
+                  <div className="space-y-4">
                     {faceImagePreview ? (
                       <div className="relative inline-block">
                         <img 
                           src={faceImagePreview} 
-                          alt="Face preview" 
-                          className="w-32 h-32 rounded-lg object-cover border-2 border-border"
+                          alt={t('faceReferenceImage')} 
+                          className="w-32 h-32 object-cover rounded-lg border"
                         />
-                        <button
+                        <Button
                           type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
                           onClick={removeImage}
-                          className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90 transition-colors"
                         >
                           <X className="h-4 w-4" />
-                        </button>
+                        </Button>
                       </div>
                     ) : (
-                      <div className="w-32 h-32 border-2 border-dashed border-muted-foreground rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-colors relative">
-                        <input
+                      <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+                        <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground mb-2">{t('uploadFaceReference')}</p>
+                        <Input
+                          id="faceImage"
                           type="file"
                           accept="image/*"
                           onChange={handleImageUpload}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          className="hidden"
                         />
-                        <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-                        <span className="text-xs text-muted-foreground text-center px-2">
-                          {t('uploadImage')}
-                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => document.getElementById('faceImage')?.click()}
+                        >
+                          {t('chooseImage')}
+                        </Button>
                       </div>
                     )}
                   </div>
@@ -454,17 +410,23 @@ const StoryboardPlayground = () => {
             </div>
 
             {/* Supporting Characters */}
-            <Collapsible open={isSupportingOpen} onOpenChange={setIsSupportingOpen}>
-              <CollapsibleTrigger className="flex items-center justify-between w-full p-4 rounded-lg border hover:bg-muted/50 transition-colors">
-                <Label className="text-lg font-semibold">{t('supportingCharacters')}</Label>
-                {isSupportingOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            <Collapsible open={!supportingCollapsed} onOpenChange={(open) => setSupportingCollapsed(!open)}>
+              <CollapsibleTrigger asChild>
+                <Button variant="outline" className="w-full justify-between">
+                  <span>{t('supportingCharacters')}</span>
+                  {supportingCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                </Button>
               </CollapsibleTrigger>
-              <CollapsibleContent className="mt-4 space-y-4">
+              <CollapsibleContent className="space-y-4 mt-4">
+                <div className="text-sm text-muted-foreground">
+                  {t('supportingCharactersDesc')}
+                </div>
+                
                 <div className="space-y-4">
                   {supportingCharacters.map((character, index) => (
-                    <Card key={character.id} className="p-4">
-                      <div className="flex items-center justify-between mb-4">
-                        <Label className="font-medium">{t('supportingCharacter')} {index + 1}</Label>
+                    <div key={character.id} className="border rounded-lg p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium">{t('supportingCharacter')} {index + 1}</h4>
                         <Button
                           type="button"
                           variant="ghost"
@@ -477,32 +439,32 @@ const StoryboardPlayground = () => {
                         </Button>
                       </div>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                          <Label className="text-sm font-medium">{t('characterName')}</Label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>{t('leadName')}</Label>
                           <Input
                             value={character.name}
                             onChange={(e) => {
-                              setSupportingCharacters(prev =>
-                                prev.map(c => c.id === character.id ? { ...c, name: e.target.value } : c)
-                              );
+                              setSupportingCharacters(prev => prev.map(c => 
+                                c.id === character.id ? { ...c, name: e.target.value } : c
+                              ));
                             }}
-                            placeholder={t('enterCharacterName')}
+                            placeholder={t('figureFromPlot')}
                           />
                         </div>
-
-                        <div>
-                          <Label className="text-sm font-medium">{t('gender')}</Label>
+                        
+                        <div className="space-y-2">
+                          <Label>{t('gender')}</Label>
                           <Select 
                             value={character.gender} 
                             onValueChange={(value) => {
-                              setSupportingCharacters(prev =>
-                                prev.map(c => c.id === character.id ? { ...c, gender: value } : c)
-                              );
+                              setSupportingCharacters(prev => prev.map(c => 
+                                c.id === character.id ? { ...c, gender: value } : c
+                              ));
                             }}
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder={t('selectGender')} />
+                              <SelectValue placeholder={t('figureFromPlot')} />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="male">{t('male')}</SelectItem>
@@ -511,57 +473,50 @@ const StoryboardPlayground = () => {
                           </Select>
                         </div>
                       </div>
-
-                      <div className="flex items-center space-x-2 rtl:space-x-reverse mb-4">
+                      
+                      <div className={cn("flex items-center", isRTL ? "space-x-reverse space-x-2" : "space-x-2")}>
                         <Switch
-                          id={`aiCharacter-${character.id}`}
                           checked={character.aiFace}
                           onCheckedChange={(checked) => {
-                            setSupportingCharacters(prev =>
-                              prev.map(c => c.id === character.id ? { 
-                                ...c, 
-                                aiFace: checked, 
-                                faceImage: checked ? null : c.faceImage,
-                                faceImagePreview: checked ? null : c.faceImagePreview
-                              } : c)
-                            );
+                            setSupportingCharacters(prev => prev.map(c => 
+                              c.id === character.id ? { ...c, aiFace: checked } : c
+                            ));
                           }}
                         />
-                        <Label htmlFor={`aiCharacter-${character.id}`} className="text-sm font-medium">
-                          {t('useAICharacter')}
-                        </Label>
+                        <Label>{t('aiGeneratedFace')}</Label>
                       </div>
 
                       {!character.aiFace && (
-                        <div>
-                          <Label className="text-sm font-medium">{t('faceReference')}</Label>
-                          <div className="mt-2">
+                        <div className="space-y-2">
+                          <Label>Face Reference Image</Label>
+                          <div className="space-y-4">
                             {character.faceImagePreview ? (
                               <div className="relative inline-block">
                                 <img 
                                   src={character.faceImagePreview} 
-                                  alt="Face preview" 
-                                  className="w-32 h-32 rounded-lg object-cover border-2 border-border"
+                                  alt="Face reference" 
+                                  className="w-32 h-32 object-cover rounded-lg border"
                                 />
-                                <button
+                                <Button
                                   type="button"
+                                  variant="destructive"
+                                  size="sm"
+                                  className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
                                   onClick={() => {
-                                    setSupportingCharacters(prev =>
-                                      prev.map(c => c.id === character.id ? { 
-                                        ...c, 
-                                        faceImage: null, 
-                                        faceImagePreview: null 
-                                      } : c)
-                                    );
+                                    setSupportingCharacters(prev => prev.map(c => 
+                                      c.id === character.id ? { ...c, faceImage: undefined, faceImagePreview: undefined } : c
+                                    ));
                                   }}
-                                  className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90 transition-colors"
                                 >
                                   <X className="h-4 w-4" />
-                                </button>
+                                </Button>
                               </div>
                             ) : (
-                              <div className="w-32 h-32 border-2 border-dashed border-muted-foreground rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-colors relative">
-                                <input
+                              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+                                <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                                <p className="text-sm text-muted-foreground mb-2">Upload a face reference image</p>
+                                <Input
+                                  id={`faceImage-${character.id}`}
                                   type="file"
                                   accept="image/*"
                                   onChange={(e) => {
@@ -569,37 +524,41 @@ const StoryboardPlayground = () => {
                                     if (file) {
                                       if (file.size > 5 * 1024 * 1024) {
                                         toast({
-                                          title: t('fileTooLarge'),
-                                          description: t('maxFileSize5MB'),
+                                          title: "File too large",
+                                          description: "Please select an image under 5MB",
                                           variant: "destructive"
                                         });
                                         return;
                                       }
+
                                       const reader = new FileReader();
                                       reader.onload = (e) => {
-                                        setSupportingCharacters(prev =>
-                                          prev.map(c => c.id === character.id ? { 
+                                        setSupportingCharacters(prev => prev.map(c => 
+                                          c.id === character.id ? { 
                                             ...c, 
-                                            faceImage: file,
-                                            faceImagePreview: e.target?.result as string
-                                          } : c)
-                                        );
+                                            faceImage: file, 
+                                            faceImagePreview: e.target?.result as string 
+                                          } : c
+                                        ));
                                       };
                                       reader.readAsDataURL(file);
                                     }
                                   }}
-                                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                  className="hidden"
                                 />
-                                <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-                                <span className="text-xs text-muted-foreground text-center px-2">
-                                  {t('uploadImage')}
-                                </span>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => document.getElementById(`faceImage-${character.id}`)?.click()}
+                                >
+                                  {t('chooseImage')}
+                                </Button>
                               </div>
                             )}
                           </div>
                         </div>
                       )}
-                    </Card>
+                    </div>
                   ))}
                   
                   <Button
@@ -607,73 +566,67 @@ const StoryboardPlayground = () => {
                     variant="outline"
                     onClick={() => {
                       setSupportingCharacters(prev => [...prev, {
-                        id: Math.random().toString(36).substr(2, 9),
+                        id: crypto.randomUUID(),
                         name: '',
                         gender: '',
-                        aiFace: true,
-                        faceImage: null,
-                        faceImagePreview: null
+                        aiFace: true
                       }]);
                     }}
                     className="w-full"
+                    disabled={supportingCharacters.length >= 1}
                   >
-                    {t('addSupportingCharacter')}
+                    {t('addSupportingCharacter')} {supportingCharacters.length >= 1 ? t('maxOneSupportingChar') : t('supportingCharCount').replace('{count}', supportingCharacters.length.toString())}
                   </Button>
                 </div>
               </CollapsibleContent>
             </Collapsible>
 
-            {/* Language & Accent */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="language" className="text-sm font-medium">
-                  {t('language')} *
-                </Label>
-                <Select value={formData.language} onValueChange={(value) => handleInputChange('language', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={t('selectLanguage')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LANGUAGES.map(lang => (
-                      <SelectItem key={lang.value} value={lang.value}>
-                        {t(lang.key)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Language */}
+            <div className="space-y-2">
+              <Label htmlFor="language">{t('voiceLanguage')} *</Label>
+              <Select onValueChange={(value) => handleInputChange('language', value)} defaultValue="English" required>
+                <SelectTrigger>
+                  <SelectValue placeholder={t('selectLanguage')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {LANGUAGES.map(lang => (
+                    <SelectItem key={lang.value} value={lang.value}>{t(lang.key)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-              <div>
-                <Label htmlFor="accent" className="text-sm font-medium">
-                  {t('accent')} *
-                </Label>
-                <Select value={formData.accent} onValueChange={(value) => handleInputChange('accent', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={t('selectAccent')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {formData.language && ACCENTS[formData.language as keyof typeof ACCENTS]?.map(accent => (
-                      <SelectItem key={accent.value} value={accent.value}>
-                        {t(accent.key)}
-                      </SelectItem>
-                    )) || null}
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Accent */}
+            <div className="space-y-2">
+              <Label htmlFor="accent">{t('accent')} *</Label>
+              <Select 
+                onValueChange={(value) => handleInputChange('accent', value)} 
+                value={formData.accent}
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={t('selectAccent')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {formData.language && ACCENTS[formData.language as keyof typeof ACCENTS]?.map(accent => (
+                    <SelectItem key={accent.value} value={accent.value}>{t(accent.key)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Genres */}
-            <div>
-              <Label className="text-sm font-medium">{t('genres')} * ({t('selectUpTo3')})</Label>
-              <div className="flex flex-wrap gap-2 mt-2">
+            <div className="space-y-2">
+              <Label>{t('genresMax3')}</Label>
+              <div className="flex flex-wrap gap-2">
                 {GENRE_OPTIONS.map(genre => (
                   <Badge
                     key={genre.value}
-                    variant={selectedGenres.includes(genre.value) ? "default" : "secondary"}
+                    variant={selectedGenres.includes(genre.value) ? "default" : "outline"}
                     className={`cursor-pointer ${
-                      selectedGenres.includes(genre.value) 
-                        ? 'bg-primary text-primary-foreground' 
-                        : 'hover:bg-secondary-foreground hover:text-secondary'
+                      !selectedGenres.includes(genre.value) && selectedGenres.length >= 3 
+                        ? 'opacity-50 cursor-not-allowed' 
+                        : ''
                     }`}
                     onClick={() => handleGenreToggle(genre.value)}
                   >
@@ -682,24 +635,21 @@ const StoryboardPlayground = () => {
                 ))}
               </div>
               {selectedGenres.length > 0 && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  {t('selectedGenres')}: {getTranslatedGenres(selectedGenres).join(', ')}
+                <p className="text-sm text-muted-foreground">
+                  {t('selectedGenres').replace('{genres}', getTranslatedGenres(selectedGenres).join(', ')).replace('{count}', selectedGenres.length.toString())}
                 </p>
               )}
             </div>
 
-            {/* Plot Prompt */}
-            <div>
-              <Label htmlFor="prompt" className="text-sm font-medium">
-                {t('plotPrompt')}
-              </Label>
+            {/* Prompt */}
+            <div className="space-y-2">
+              <Label htmlFor="prompt">{t('plotInstructions')}</Label>
               <Textarea
                 id="prompt"
                 value={formData.prompt}
                 onChange={(e) => handleInputChange('prompt', e.target.value)}
-                placeholder={t('enterPlotPrompt')}
+                placeholder={t('plotPlaceholder')}
                 rows={4}
-                className="mt-2"
               />
             </div>
 
@@ -760,6 +710,4 @@ const StoryboardPlayground = () => {
       </Card>
     </div>
   );
-};
-
-export default StoryboardPlayground;
+}
