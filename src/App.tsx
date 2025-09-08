@@ -12,11 +12,20 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import CookieConsent from "@/components/CookieConsent";
 import Index from "./pages/Index";
+import CinematicTeaser from "./pages/CinematicTeaser";
+import Templates from "./pages/Templates";
+import Help from "./pages/Help";
 import NotFound from "./pages/NotFound";
 import ServerError from "./pages/ServerError";
+import I18nDemo from "./pages/I18nDemo";
+import SEODemo from "./pages/SEODemo";
+import ConfigDemo from "./pages/ConfigDemo";
+import AnalyticsDemo from "./pages/AnalyticsDemo";
+import MediaPlayerDemo from "./pages/MediaPlayerDemo";
 import SignIn from "./pages/auth/SignIn";
 import SignUp from "./pages/auth/SignUp";
 import ResetPassword from "./pages/auth/ResetPassword";
+import App from "./pages/App";
 import Terms from "./pages/legal/Terms";
 import Privacy from "./pages/legal/Privacy";
 import Consent from "./pages/legal/Consent";
@@ -26,8 +35,11 @@ import History from "./pages/app/History";
 import Wallet from "./pages/app/Wallet";
 import Settings from "./pages/app/Settings";
 import StoryboardPlayground from "./pages/app/StoryboardPlayground";
+import JobStatus from "./pages/app/JobStatus";
+import StoryboardJobStatus from "./pages/app/StoryboardJobStatus";
 import StoryboardWorkspace from "./pages/app/StoryboardWorkspace";
 import Result from "./pages/app/Result";
+import StyleGuideline from "./pages/StyleGuideline";
 
 const queryClient = new QueryClient();
 
@@ -96,13 +108,27 @@ const MainApp = () => (
                        <Footer />
                      </div>
                    } />
-                    <Route path="/app/storyboard/:jobId" element={
+                   <Route path="/app/storyboard/:jobId" element={
+                     <div>
+                       <Header />
+                       <StoryboardWorkspace />
+                       <Footer />
+                     </div>
+                   } />
+                    <Route path="/app/storyboard-status/:id" element={
                       <div>
                         <Header />
-                        <StoryboardWorkspace />
+                        <StoryboardJobStatus />
                         <Footer />
                       </div>
                     } />
+                   <Route path="/app/jobs/:id" element={
+                    <div>
+                      <Header />
+                      <JobStatus />
+                      <Footer />
+                    </div>
+                  } />
                   <Route path="/app/results/:id" element={
                     <div>
                       <Header />
@@ -142,6 +168,69 @@ const MainApp = () => (
                     <div>
                       <Header />
                       <Index />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/try/cinematic-teaser" element={
+                    <div>
+                      <Header />
+                      <CinematicTeaser />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/templates" element={
+                    <div>
+                      <Header />
+                      <Templates />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/help" element={
+                    <div>
+                      <Header />
+                      <Help />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/i18n-demo" element={
+                    <div>
+                      <Header />
+                      <I18nDemo />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/seo-demo" element={
+                    <div>
+                      <Header />
+                      <SEODemo />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/config-demo" element={
+                    <div>
+                      <Header />
+                      <ConfigDemo />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/analytics-demo" element={
+                    <div>
+                      <Header />
+                      <AnalyticsDemo />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/media-player-demo" element={
+                    <div>
+                      <Header />
+                      <MediaPlayerDemo />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/style-guideline" element={
+                    <div>
+                      <Header />
+                      <StyleGuideline />
                       <Footer />
                     </div>
                   } />
