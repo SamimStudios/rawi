@@ -178,6 +178,7 @@ export default function StoryboardPlayground() {
         body: {
           ...formData,
           genres: selectedGenres,
+          supportingCharacters,
           faceImage: faceImage ? await convertFileToBase64(faceImage) : null,
           faceImageType: faceImage?.type || null,
           userId: user?.id || null,
@@ -363,11 +364,90 @@ export default function StoryboardPlayground() {
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-4 mt-4">
                 <div className="text-sm text-muted-foreground">
-                  Supporting characters will be automatically generated based on your plot. You can customize them here if needed.
+                  Supporting characters will be automatically generated based on your plot and template.
                 </div>
-                {/* Supporting character inputs would go here - for now just placeholder */}
-                <div className="p-4 border rounded-lg bg-muted/50">
-                  <p className="text-sm text-muted-foreground">Supporting characters will be auto-generated from your plot and template.</p>
+                
+                <div className="space-y-4">
+                  {supportingCharacters.map((character, index) => (
+                    <div key={character.id} className="border rounded-lg p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium">Supporting Character {index + 1}</h4>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSupportingCharacters(prev => prev.filter(c => c.id !== character.id));
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Name</Label>
+                          <Input
+                            value={character.name}
+                            onChange={(e) => {
+                              setSupportingCharacters(prev => prev.map(c => 
+                                c.id === character.id ? { ...c, name: e.target.value } : c
+                              ));
+                            }}
+                            placeholder="Figure from plot"
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>Gender</Label>
+                          <Select 
+                            value={character.gender} 
+                            onValueChange={(value) => {
+                              setSupportingCharacters(prev => prev.map(c => 
+                                c.id === character.id ? { ...c, gender: value } : c
+                              ));
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Figure from plot" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="male">Male</SelectItem>
+                              <SelectItem value="female">Female</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          checked={character.aiFace}
+                          onCheckedChange={(checked) => {
+                            setSupportingCharacters(prev => prev.map(c => 
+                              c.id === character.id ? { ...c, aiFace: checked } : c
+                            ));
+                          }}
+                        />
+                        <Label>AI Generated Face</Label>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setSupportingCharacters(prev => [...prev, {
+                        id: crypto.randomUUID(),
+                        name: '',
+                        gender: '',
+                        aiFace: true
+                      }]);
+                    }}
+                    className="w-full"
+                  >
+                    Add Supporting Character
+                  </Button>
                 </div>
               </CollapsibleContent>
             </Collapsible>
@@ -434,12 +514,12 @@ export default function StoryboardPlayground() {
 
             {/* Prompt */}
             <div className="space-y-2">
-              <Label htmlFor="prompt">Plot & Instructions</Label>
+              <Label htmlFor="prompt">Plot & Instructions (Optional)</Label>
               <Textarea
                 id="prompt"
                 value={formData.prompt}
                 onChange={(e) => handleInputChange('prompt', e.target.value)}
-                placeholder="Describe your story plot, suggest a title, or provide specific instructions for your storyboard. For example: 'A thriller about a detective solving a mystery in Paris' or 'Create an action sequence with car chases and explosions' or 'Title: The Last Stand - A sci-fi story about...'"
+                placeholder="Describe your story plot or provide specific instructions. Example: 'A thriller about a detective in Paris' or 'Title: The Last Stand - A sci-fi adventure...'"
                 rows={4}
               />
             </div>
