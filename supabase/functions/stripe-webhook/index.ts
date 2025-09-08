@@ -43,7 +43,7 @@ serve(async (req) => {
 
     console.log("Processing webhook event:", event.type);
 
-    // Handle checkout.session.completed
+    // Handle checkout.session.completed (one-time payments)
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
       
@@ -54,45 +54,109 @@ serve(async (req) => {
       });
 
       if (session.payment_status === "paid" && session.metadata?.user_id) {
-        const userId = session.metadata.user_id;
-        const credits = parseInt(session.metadata.credits || "0");
-        const currency = session.metadata.currency || "AED";
-        const amountPaid = session.amount_total ? session.amount_total / 100 : null;
+        await processCreditsAddition(session.metadata, session.id, session.amount_total);
+      }
+    }
 
-        console.log("Adding credits:", { userId, credits, currency, amountPaid });
+    // Handle invoice.payment_succeeded (subscription renewals, invoice payments)
+    else if (event.type === "invoice.payment_succeeded") {
+      const invoice = event.data.object as Stripe.Invoice;
+      
+      console.log("Invoice payment succeeded:", {
+        id: invoice.id,
+        subscription: invoice.subscription,
+        amount_paid: invoice.amount_paid,
+        customer: invoice.customer
+      });
 
-        // Use service role key to bypass RLS
-        const supabase = createClient(
-          Deno.env.get("SUPABASE_URL") ?? "",
-          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-          { auth: { persistSession: false } }
-        );
-
-        // Add credits using the existing database function
-        const { data, error } = await supabase.rpc("add_credits", {
-          p_user_id: userId,
-          p_credits: credits,
-          p_type: "purchase",
-          p_description: `Credit purchase - ${credits} credits`,
-          p_stripe_session_id: session.id,
-          p_amount_paid: amountPaid,
-          p_currency: currency,
-        });
-
-        if (error) {
-          console.error("Error adding credits:", error);
-          return new Response("Database error", { status: 500 });
+      // For subscription renewals or invoice payments
+      if (invoice.subscription) {
+        // Handle subscription renewal - add weekly credits
+        const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
+        if (subscription.metadata?.user_id) {
+          // Add credits based on subscription plan
+          const weeklyCredits = parseInt(subscription.metadata.weekly_credits || "0");
+          if (weeklyCredits > 0) {
+            await processCreditsAddition(
+              {
+                user_id: subscription.metadata.user_id,
+                credits: weeklyCredits.toString(),
+                currency: invoice.currency?.toUpperCase() || "AED"
+              },
+              invoice.id,
+              invoice.amount_paid,
+              "subscription_renewal"
+            );
+          }
         }
+      } else if (invoice.metadata?.user_id) {
+        // Handle direct invoice payment
+        await processCreditsAddition(invoice.metadata, invoice.id, invoice.amount_paid);
+      }
+    }
 
-        console.log("Credits added successfully via webhook");
+    // Handle payment_intent.succeeded (direct payment intents)
+    else if (event.type === "payment_intent.succeeded") {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+      
+      console.log("Payment intent succeeded:", {
+        id: paymentIntent.id,
+        amount: paymentIntent.amount,
+        metadata: paymentIntent.metadata
+      });
 
-        // Generate invoice
+      if (paymentIntent.metadata?.user_id) {
+        await processCreditsAddition(paymentIntent.metadata, paymentIntent.id, paymentIntent.amount);
+      }
+    }
+
+    // Helper function to process credits addition
+    async function processCreditsAddition(
+      metadata: any, 
+      paymentId: string, 
+      amount: number | null, 
+      type: string = "purchase"
+    ) {
+      const userId = metadata.user_id;
+      const credits = parseInt(metadata.credits || "0");
+      const currency = metadata.currency || "AED";
+      const amountPaid = amount ? amount / 100 : null;
+
+      console.log("Adding credits:", { userId, credits, currency, amountPaid, type });
+
+      // Use service role key to bypass RLS
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+        { auth: { persistSession: false } }
+      );
+
+      // Add credits using the existing database function
+      const { data, error } = await supabase.rpc("add_credits", {
+        p_user_id: userId,
+        p_credits: credits,
+        p_type: type,
+        p_description: `${type === "subscription_renewal" ? "Weekly credits" : "Credit purchase"} - ${credits} credits`,
+        p_stripe_session_id: paymentId,
+        p_amount_paid: amountPaid,
+        p_currency: currency,
+      });
+
+      if (error) {
+        console.error("Error adding credits:", error);
+        throw new Error("Database error");
+      }
+
+      console.log(`Credits added successfully via webhook (${type})`);
+
+      // Generate invoice for purchases (not renewals)
+      if (type !== "subscription_renewal") {
         try {
           await supabase.functions.invoke("generate-invoice", {
             body: {
               userId: userId,
-              sessionId: session.id,
-              type: "purchase",
+              sessionId: paymentId,
+              type: type,
             }
           });
           console.log("Invoice generated successfully");
