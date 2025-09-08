@@ -35,6 +35,8 @@ const translations = {
     heroHeadline: 'Turn your photos into cinematic moments.',
     heroSubtext: 'Try a teaser for free. Upgrade to generate full trailers.',
     tryFreeButton: 'Try Free',
+    getStarted: 'Get Started',
+    alreadyHaveAccount: 'Already have an account?',
     
     // App Pages
     welcomeUser: 'Welcome',
@@ -256,6 +258,8 @@ const translations = {
     heroHeadline: 'حوّل صورك إلى لقطات سينمائية.',
     heroSubtext: 'جرّب إعلانًا قصيرًا مجانًا. طوّر لحفظ وتنزيل العروض الكاملة.',
     tryFreeButton: 'جرب مجاناً',
+    getStarted: 'ابدأ الآن',
+    alreadyHaveAccount: 'لديك حساب بالفعل؟',
     
     // App Pages (Arabic)
     welcomeUser: 'مرحباً',

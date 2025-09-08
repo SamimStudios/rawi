@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 
 const Header = () => {
   const { language, setLanguage, t, isRTL } = useLanguage();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const logoSrc = language === 'ar' 
@@ -111,7 +111,10 @@ const Header = () => {
                     <Link to="/app/settings" className="cursor-pointer">{t('settings')}</Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="cursor-pointer text-destructive">
+                  <DropdownMenuItem 
+                    onClick={() => signOut()}
+                    className="cursor-pointer text-destructive"
+                  >
                     <LogOut className="h-4 w-4 mr-2" />
                     {t('signOut')}
                   </DropdownMenuItem>

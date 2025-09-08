@@ -28,8 +28,8 @@ const Index = () => {
               asChild
               className="text-lg px-8 py-4 h-auto bg-gradient-auth hover:opacity-90 text-white border-0"
             >
-              <Link to="/try/cinematic-teaser">
-                {t('tryFreeButton')}
+              <Link to="/auth/sign-up">
+                {t('getStarted')}
               </Link>
             </Button>
             
@@ -37,22 +37,25 @@ const Index = () => {
               variant="outline"
               size="lg" 
               asChild
-              className="text-lg px-8 py-4 h-auto bg-gradient-auth hover:opacity-90 text-white border-0"
+              className="text-lg px-8 py-4 h-auto bg-white/10 text-white border-white/20 hover:bg-white/20"
             >
-              <Link to="/templates">
-                {t('browseTemplates')}
+              <Link to="/try/cinematic-teaser">
+                {t('tryFreeButton')}
               </Link>
             </Button>
           </div>
 
           {/* Sign In Link */}
           <div className="pt-8">
-            <Link 
-              to="/auth/sign-in" 
-              className="text-white/70 hover:text-white underline hover:no-underline"
-            >
-              {t('signIn')}
-            </Link>
+            <p className="text-white/70">
+              {t('alreadyHaveAccount')}{' '}
+              <Link 
+                to="/auth/sign-in" 
+                className="text-white underline hover:no-underline"
+              >
+                {t('signIn')}
+              </Link>
+            </p>
           </div>
         </div>
       </main>

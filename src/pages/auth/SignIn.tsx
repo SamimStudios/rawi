@@ -21,7 +21,7 @@ const SignIn = () => {
     }
   }, [user, navigate]);
 
-  const handleOAuthSignIn = async (provider: 'google' | 'apple' | 'facebook') => {
+  const handleOAuthSignIn = async (provider: 'google' | 'facebook') => {
     try {
       setIsLoading(true);
       await signInWithOAuth(provider);
@@ -111,16 +111,6 @@ const SignIn = () => {
               {language === 'ar' ? 'المتابعة مع جوجل' : 'Continue with Google'}
             </Button>
 
-            <Button
-              onClick={() => handleOAuthSignIn('apple')}
-              disabled={isLoading}
-              className="w-full bg-gradient-auth hover:opacity-90 text-white border-0 h-12"
-            >
-              <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M17.05 5.46c-.83.99-2.19 1.76-3.68 1.57-.16-1.41.42-2.9 1.16-3.83.83-.99 2.24-1.72 3.58-1.81.11 1.48-.39 2.95-1.06 4.07zM8.59 9.8c-.28 0-.82.05-1.24.05-.42 0-.96-.05-1.24-.05-1.54.11-2.96 1.12-3.68 2.85-1.54 3.66-.39 9.11 1.1 12.06.72 1.43 1.58 3.04 2.75 3.01 1.01-.02 1.38-.65 2.58-.65s1.54.63 2.58.65c1.17.03 2.06-1.65 2.78-3.08.52-1.02.73-1.54 1.14-2.68-2.99-1.15-3.51-5.46-.47-6.16z"/>
-              </svg>
-              {language === 'ar' ? 'المتابعة مع أبل' : 'Continue with Apple'}
-            </Button>
 
             <Button
               onClick={() => handleOAuthSignIn('facebook')}

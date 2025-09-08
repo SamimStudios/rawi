@@ -6,7 +6,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signInWithOAuth: (provider: 'google' | 'apple' | 'facebook') => Promise<void>;
+  signInWithOAuth: (provider: 'google' | 'facebook') => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -39,7 +39,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, []);
 
-  const signInWithOAuth = async (provider: 'google' | 'apple' | 'facebook') => {
+  const signInWithOAuth = async (provider: 'google' | 'facebook') => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
