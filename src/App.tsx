@@ -37,6 +37,7 @@ import Settings from "./pages/app/Settings";
 import StoryboardPlayground from "./pages/app/StoryboardPlayground";
 import JobStatus from "./pages/app/JobStatus";
 import StoryboardJobStatus from "./pages/app/StoryboardJobStatus";
+import StoryboardWorkspace from "./pages/app/StoryboardWorkspace";
 import Result from "./pages/app/Result";
 import StyleGuideline from "./pages/StyleGuideline";
 
@@ -104,6 +105,13 @@ const MainApp = () => (
                      <div>
                        <Header />
                        <StoryboardPlayground />
+                       <Footer />
+                     </div>
+                   } />
+                   <Route path="/app/storyboard/:jobId" element={
+                     <div>
+                       <Header />
+                       <StoryboardWorkspace />
                        <Footer />
                      </div>
                    } />

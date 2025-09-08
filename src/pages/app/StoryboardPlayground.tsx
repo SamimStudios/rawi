@@ -220,6 +220,12 @@ export default function StoryboardPlayground() {
     setIsLoading(true);
 
     try {
+      // Convert face image to base64 if exists
+      let faceImageBase64 = null;
+      if (faceImage) {
+        faceImageBase64 = await convertFileToBase64(faceImage);
+      }
+
       // Process supporting characters' face images
       const processedSupportingCharacters = await Promise.all(
         supportingCharacters.map(async (character) => ({
@@ -229,19 +235,77 @@ export default function StoryboardPlayground() {
         }))
       );
 
-      const { data, error } = await supabase.functions.invoke('create-storyboard-job', {
-        body: {
-          ...formData,
-          genres: selectedGenres,
-          supportingCharacters: processedSupportingCharacters,
-          faceImage: faceImage ? await convertFileToBase64(faceImage) : null,
-          faceImageType: faceImage?.type || null,
-          userId: user?.id || null,
-          sessionId: sessionId || null
-        }
+      // Get the function details for storyboard creation
+      const { data: functionData } = await supabase
+        .from('functions')
+        .select('*')
+        .eq('name', 'start-storyboard-job')
+        .eq('active', true)
+        .single();
+
+      if (!functionData) {
+        toast({
+          title: t('serviceUnavailable'),
+          description: t('storyboardServiceUnavailable'),
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Prepare the user input data
+      const userInput = {
+        ...formData,
+        genres: selectedGenres,
+        supportingCharacters: processedSupportingCharacters,
+        faceImage: faceImageBase64,
+        faceImageType: faceImage?.type || null
+      };
+
+      console.log('Creating storyboard job with user input:', userInput);
+
+      // Create the storyboard job record
+      const { data: jobData, error: jobError } = await supabase
+        .from('storyboard_jobs')
+        .insert({
+          user_id: user?.id || null,
+          session_id: sessionId || null,
+          function_id: functionData.id,
+          user_input: userInput,
+          status: 'created',
+          stage: 'created'
+        })
+        .select()
+        .single();
+
+      if (jobError) {
+        console.error('Error creating storyboard job:', jobError);
+        toast({
+          title: t('errorCreatingStoryboard'),
+          description: t('tryAgain'),
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log('Storyboard job created successfully:', jobData);
+      toast({
+        title: t('storyboardCreated'),
+        description: t('storyboardWorkspaceCreated')
       });
 
-      if (error) {
+      // Navigate to the storyboard workspace
+      navigate(`/app/storyboard/${jobData.id}`);
+    } catch (error) {
+      console.error('Error in handleSubmit:', error);
+      toast({
+        title: t('error'),
+        description: t('unexpectedError'),
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
         console.error('Error creating storyboard job:', error);
         
         // Handle specific credit errors
@@ -262,16 +326,17 @@ export default function StoryboardPlayground() {
         return;
       }
 
+      console.log('Storyboard job created successfully:', jobData);
       toast({
-        title: t('storyboardJobCreated'),
-        description: t('processingRedirecting')
+        title: t('storyboardCreated'),
+        description: t('storyboardWorkspaceCreated')
       });
 
-      // Navigate to job status page
-      navigate(`/app/storyboard-status/${data.jobId}`);
+      // Navigate to the storyboard workspace
+      navigate(`/app/storyboard/${jobData.id}`);
 
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error in handleSubmit:', error);
       toast({
         title: t('error'),
         description: t('unexpectedError'),
@@ -710,4 +775,6 @@ export default function StoryboardPlayground() {
       </Card>
     </div>
   );
-}
+};
+
+export default StoryboardPlayground;
