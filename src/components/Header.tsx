@@ -39,7 +39,7 @@ const Header = () => {
   return (
     <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
       <div className="container mx-auto px-4">
-        <div className={cn("flex h-16 items-center", isRTL && "flex-row-reverse")}>
+        <div className="flex h-16 items-center justify-between" dir={isRTL ? 'rtl' : 'ltr'}>
           {/* Logo */}
           <Link to="/" className="flex items-center">
             <img 
@@ -49,8 +49,8 @@ const Header = () => {
             />
           </Link>
 
-          {/* Center: Navigation (Desktop) */}
-          <nav className={cn("hidden md:flex items-center flex-1 justify-center", isRTL ? "space-x-reverse space-x-8" : "space-x-8")}>
+          {/* Center Navigation (Desktop) */}
+          <nav className="hidden md:flex items-center space-x-8">
             {navItems.map((item) => (
               <Link
                 key={item.key}
@@ -62,8 +62,8 @@ const Header = () => {
             ))}
           </nav>
 
-          {/* Actions */}
-          <div className={cn("flex items-center", isRTL ? "space-x-reverse space-x-4" : "space-x-4")}>
+          {/* Right Actions */}
+          <div className="flex items-center space-x-4">
             {/* Language Toggle */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -72,7 +72,7 @@ const Header = () => {
                   <span className="hidden sm:inline">{language.toUpperCase()}</span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align={isRTL ? "start" : "end"} className="bg-popover border border-border shadow-cinematic z-50">
+              <DropdownMenuContent align="end" className="bg-popover border border-border shadow-cinematic z-50">
                 <DropdownMenuItem 
                   onClick={() => setLanguage('en')}
                   className={cn("cursor-pointer", language === 'en' && "bg-accent")}
@@ -105,7 +105,7 @@ const Header = () => {
                     <span className="hidden md:inline">{user.email?.split('@')[0]}</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align={isRTL ? "start" : "end"} className="bg-popover border border-border shadow-cinematic z-50">
+                <DropdownMenuContent align="end" className="bg-popover border border-border shadow-cinematic z-50">
                   <DropdownMenuItem asChild>
                     <Link to="/app" className="cursor-pointer">{t('dashboard')}</Link>
                   </DropdownMenuItem>
@@ -117,7 +117,7 @@ const Header = () => {
                     onClick={() => signOut()}
                     className="cursor-pointer text-destructive"
                   >
-                    <LogOut className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                    <LogOut className="h-4 w-4 mr-2" />
                     {t('signOut')}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -144,7 +144,7 @@ const Header = () => {
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden py-4 border-t border-border bg-background">
+          <div className="md:hidden py-4 border-t border-border bg-background" dir={isRTL ? 'rtl' : 'ltr'}>
             <nav className="flex flex-col space-y-4">
               {navItems.map((item) => (
                 <Link
@@ -156,7 +156,7 @@ const Header = () => {
                   {t(item.key)}
                 </Link>
               ))}
-              <div className={cn("flex items-center justify-between pt-4 border-t border-border", isRTL && "flex-row-reverse")}>
+              <div className="flex items-center justify-between pt-4 border-t border-border">
                 <Link to={user ? "/app/wallet" : "/auth/sign-in"}>
                   <div className="flex items-center gap-2 bg-secondary rounded-full px-3 py-1 hover:bg-secondary/80 transition-colors">
                     <Wallet className="h-4 w-4 text-muted-foreground" />
