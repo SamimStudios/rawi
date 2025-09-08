@@ -68,6 +68,51 @@ serve(async (req) => {
       );
     }
 
+    // Get the start-storyboard-job function details
+    const { data: functionData, error: functionError } = await supabase
+      .from('functions')
+      .select('*')
+      .eq('name', 'start-storyboard-job')
+      .eq('active', true)
+      .single();
+
+    if (functionError || !functionData) {
+      console.error('Function lookup error:', functionError);
+      return new Response(
+        JSON.stringify({ error: 'Function not found or inactive' }),
+        { 
+          status: 404, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    console.log('Function found:', functionData.name, 'Price:', functionData.price);
+
+    // Check and deduct credits for authenticated users
+    if (userId) {
+      const { data: success, error: creditError } = await supabase.rpc('consume_credits', {
+        p_user_id: userId,
+        p_credits: functionData.price,
+        p_description: `${functionData.name} - ${functionData.description}`
+      });
+
+      if (creditError || !success) {
+        console.error('Credit deduction failed:', creditError);
+        return new Response(
+          JSON.stringify({ 
+            error: 'Insufficient credits or credit deduction failed',
+            required_credits: functionData.price 
+          }),
+          { 
+            status: 402, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+      console.log(`Successfully deducted ${functionData.price} credits from user ${userId}`);
+    }
+
     let faceRefUrl = null;
 
     // Handle face image upload if provided
@@ -117,17 +162,23 @@ serve(async (req) => {
       }
     }
 
+    // Prepare user input data
+    const userInput = {
+      lead_name: leadName,
+      lead_gender: leadGender,
+      language: language,
+      accent: accent,
+      genres: genres,
+      prompt: prompt,
+      face_ref_url: faceRefUrl
+    };
+
     // Create storyboard job record
     const jobData = {
       user_id: userId || null,
       session_id: sessionId || null,
-      lead_name: leadName,
-      lead_gender: leadGender,
-      face_ref_url: faceRefUrl,
-      language: language,
-      accent: accent,
-      genres: genres,
-      prompt: prompt || null,
+      function_id: functionData.id,
+      user_input: userInput,
       status: 'pending',
       stage: 'created',
       n8n_webhook_sent: false
@@ -154,22 +205,19 @@ serve(async (req) => {
 
     console.log('Job created successfully:', job);
 
-    // Send webhook to N8N
-    const webhookUrl = 'https://samim-studios.app.n8n.cloud/webhook-test/start-job';
+    // Send webhook to N8N using the function's test webhook URL
+    const webhookUrl = functionData.test_webhook;
     const webhookPayload = {
-      rowId: job.id,
-      tableId: 'storyboard_jobs',
-      leadName: job.lead_name,
-      leadGender: job.lead_gender,
-      faceRefUrl: job.face_ref_url,
-      language: job.language,
-      accent: job.accent,
-      genres: job.genres,
-      prompt: job.prompt,
-      createdAt: job.created_at
+      row_id: job.id,
+      table_id: 'storyboard_jobs',
+      function_name: functionData.name,
+      user_input: userInput,
+      status: job.status,
+      stage: job.stage,
+      created_at: job.created_at
     };
 
-    console.log('Sending webhook to N8N:', webhookPayload);
+    console.log('Sending webhook to N8N:', webhookUrl, webhookPayload);
 
     try {
       const webhookResponse = await fetch(webhookUrl, {
@@ -217,7 +265,8 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         jobId: job.id,
-        message: 'Storyboard job created successfully'
+        message: 'Storyboard job created successfully',
+        creditsDeducted: functionData.price
       }),
       { 
         status: 200, 

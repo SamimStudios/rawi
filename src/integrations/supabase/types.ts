@@ -213,6 +213,48 @@ export type Database = {
         }
         Relationships: []
       }
+      functions: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string | null
+          expected_payload: Json | null
+          id: string
+          name: string
+          price: number
+          production_webhook: string | null
+          test_webhook: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          expected_payload?: Json | null
+          id?: string
+          name: string
+          price?: number
+          production_webhook?: string | null
+          test_webhook?: string | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          expected_payload?: Json | null
+          id?: string
+          name?: string
+          price?: number
+          production_webhook?: string | null
+          test_webhook?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           amount: number
@@ -620,61 +662,46 @@ export type Database = {
       }
       storyboard_jobs: {
         Row: {
-          accent: string
           created_at: string
-          face_ref_url: string | null
-          genres: string[]
+          function_id: string
           id: string
-          language: string
-          lead_gender: string
-          lead_name: string
           n8n_response: Json | null
           n8n_webhook_sent: boolean
-          prompt: string | null
           result_data: Json | null
           session_id: string | null
           stage: string
           status: string
           updated_at: string
           user_id: string | null
+          user_input: Json
         }
         Insert: {
-          accent: string
           created_at?: string
-          face_ref_url?: string | null
-          genres?: string[]
+          function_id: string
           id?: string
-          language: string
-          lead_gender: string
-          lead_name: string
           n8n_response?: Json | null
           n8n_webhook_sent?: boolean
-          prompt?: string | null
           result_data?: Json | null
           session_id?: string | null
           stage?: string
           status?: string
           updated_at?: string
           user_id?: string | null
+          user_input?: Json
         }
         Update: {
-          accent?: string
           created_at?: string
-          face_ref_url?: string | null
-          genres?: string[]
+          function_id?: string
           id?: string
-          language?: string
-          lead_gender?: string
-          lead_name?: string
           n8n_response?: Json | null
           n8n_webhook_sent?: boolean
-          prompt?: string | null
           result_data?: Json | null
           session_id?: string | null
           stage?: string
           status?: string
           updated_at?: string
           user_id?: string | null
+          user_input?: Json
         }
         Relationships: []
       }

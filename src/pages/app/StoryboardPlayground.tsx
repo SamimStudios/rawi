@@ -119,11 +119,22 @@ export default function StoryboardPlayground() {
 
       if (error) {
         console.error('Error creating storyboard job:', error);
-        toast({
-          title: "Error",
-          description: "Failed to create storyboard job. Please try again.",
-          variant: "destructive"
-        });
+        
+        // Handle specific credit errors
+        if (error.message?.includes('Insufficient credits')) {
+          const requiredCredits = error.required_credits || 10;
+          toast({
+            title: "Insufficient Credits",
+            description: `You need ${requiredCredits} credits to start this job. Please purchase more credits.`,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: error.message || "Failed to create storyboard job. Please try again.",
+            variant: "destructive"
+          });
+        }
         return;
       }
 
