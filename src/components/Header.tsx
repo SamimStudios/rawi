@@ -50,7 +50,7 @@ const Header = () => {
           </Link>
 
           {/* Center Navigation (Desktop) */}
-          <nav className="hidden md:flex items-center space-x-8">
+          <nav className={cn("hidden md:flex items-center", isRTL ? "space-x-reverse space-x-8" : "space-x-8")}>
             {navItems.map((item) => (
               <Link
                 key={item.key}
@@ -63,7 +63,7 @@ const Header = () => {
           </nav>
 
           {/* Right Actions */}
-          <div className="flex items-center space-x-4">
+          <div className={cn("flex items-center", isRTL ? "space-x-reverse space-x-4" : "space-x-4")}>
             {/* Language Toggle */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -117,7 +117,7 @@ const Header = () => {
                     onClick={() => signOut()}
                     className="cursor-pointer text-destructive"
                   >
-                    <LogOut className="h-4 w-4 mr-2" />
+                    <LogOut className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
                     {t('signOut')}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
