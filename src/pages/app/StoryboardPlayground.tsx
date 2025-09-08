@@ -89,6 +89,7 @@ export default function StoryboardPlayground() {
   const [isLoading, setIsLoading] = useState(false);
   const [templates, setTemplates] = useState<Array<{id: string, name: string, description: string}>>([]);
   const [templatesLoading, setTemplatesLoading] = useState(true);
+  const [consentAgreed, setConsentAgreed] = useState(false);
 
   useEffect(() => {
     const fetchTemplates = async () => {
@@ -202,6 +203,15 @@ export default function StoryboardPlayground() {
       toast({
         title: t('missingGenres'),
         description: t('selectAtLeastOneGenre'),
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!consentAgreed) {
+      toast({
+        title: t('consentRequired'),
+        description: t('consentRequiredDescription'),
         variant: "destructive"
       });
       return;
@@ -641,6 +651,43 @@ export default function StoryboardPlayground() {
                 placeholder={t('plotPlaceholder')}
                 rows={4}
               />
+            </div>
+
+            {/* Consent Checkbox */}
+            <div className="flex items-start space-x-2 rtl:space-x-reverse">
+              <input
+                type="checkbox"
+                id="storyboard-consent"
+                checked={consentAgreed}
+                onChange={(e) => setConsentAgreed(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                required
+              />
+              <label htmlFor="storyboard-consent" className="text-sm text-muted-foreground leading-5">
+                {isRTL ? (
+                  <>
+                    أوافق على{' '}
+                    <a href="/legal/terms" className="text-primary underline hover:no-underline" target="_blank" rel="noopener noreferrer">
+                      الشروط والأحكام
+                    </a>
+                    {' '}و{' '}
+                    <a href="/legal/consent" className="text-primary underline hover:no-underline" target="_blank" rel="noopener noreferrer">
+                      سياسة الموافقة والملكية الفكرية
+                    </a>
+                  </>
+                ) : (
+                  <>
+                    I agree to the{' '}
+                    <a href="/legal/terms" className="text-primary underline hover:no-underline" target="_blank" rel="noopener noreferrer">
+                      Terms & Conditions
+                    </a>
+                    {' '}and{' '}
+                    <a href="/legal/consent" className="text-primary underline hover:no-underline" target="_blank" rel="noopener noreferrer">
+                      Consent & IP Policy
+                    </a>
+                  </>
+                )}
+              </label>
             </div>
 
             {/* Submit Button */}

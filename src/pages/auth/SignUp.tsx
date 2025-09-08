@@ -13,6 +13,7 @@ const SignUp = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
+  const [consentAgreed, setConsentAgreed] = useState(false);
   const { signUp, signInWithOAuth, user } = useAuth();
   const { language, setLanguage } = useLanguage();
   const navigate = useNavigate();
@@ -55,6 +56,11 @@ const SignUp = () => {
     
     if (sanitizedPassword !== confirmPassword) {
       toast.error(language === 'ar' ? 'كلمات المرور غير متطابقة' : 'Passwords do not match');
+      return;
+    }
+    
+    if (!consentAgreed) {
+      toast.error(language === 'ar' ? 'يجب الموافقة على شروط الملكية الفكرية' : 'You must agree to the IP and consent terms');
       return;
     }
     
@@ -198,6 +204,42 @@ const SignUp = () => {
             required
             className="bg-white/5 border-white/20 text-white placeholder:text-white/50"
           />
+          
+          <div className="flex items-start space-x-2 rtl:space-x-reverse">
+            <input
+              type="checkbox"
+              id="consent"
+              checked={consentAgreed}
+              onChange={(e) => setConsentAgreed(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-white/20 bg-white/5 text-primary focus:ring-primary"
+              required
+            />
+            <label htmlFor="consent" className="text-sm text-white/70 leading-5">
+              {language === 'ar' ? (
+                <>
+                  أوافق على{' '}
+                  <Link to="/legal/terms" className="text-white underline hover:no-underline" target="_blank">
+                    الشروط والأحكام
+                  </Link>
+                  {' '}و{' '}
+                  <Link to="/legal/consent" className="text-white underline hover:no-underline" target="_blank">
+                    سياسة الموافقة والملكية الفكرية
+                  </Link>
+                </>
+              ) : (
+                <>
+                  I agree to the{' '}
+                  <Link to="/legal/terms" className="text-white underline hover:no-underline" target="_blank">
+                    Terms & Conditions
+                  </Link>
+                  {' '}and{' '}
+                  <Link to="/legal/consent" className="text-white underline hover:no-underline" target="_blank">
+                    Consent & IP Policy
+                  </Link>
+                </>
+              )}
+            </label>
+          </div>
           <Button
             type="submit"
             disabled={isLoading}

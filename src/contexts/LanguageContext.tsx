@@ -356,6 +356,10 @@ const translations = {
     warning: 'Warning',
     couldNotLoadTemplates: 'Could not load templates. You can still proceed without selecting a template.',
     
+    // Additional storyboard translations
+    consentRequired: 'Consent Required',
+    consentRequiredDescription: 'You must agree to our terms and IP policy to create a storyboard',
+    
     // Additional Storyboard Elements
     maxOneSupportingChar: '(Max 1)',
     supportingCharCount: '({count}/1)',
@@ -770,6 +774,10 @@ const translations = {
     // Common Status Messages (Arabic)
     warning: 'تحذير',
     couldNotLoadTemplates: 'لا يمكن تحميل القوالب. يمكنك المتابعة دون اختيار قالب.',
+    
+    // Additional storyboard translations (Arabic)
+    consentRequired: 'الموافقة مطلوبة',
+    consentRequiredDescription: 'يجب الموافقة على شروطنا وسياسة الملكية الفكرية لإنشاء القصة المصورة',
     
     // Additional Storyboard Elements (Arabic)
     maxOneSupportingChar: '(حد أقصى 1)',
