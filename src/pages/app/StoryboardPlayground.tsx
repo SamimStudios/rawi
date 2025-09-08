@@ -14,12 +14,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 const LANGUAGES = [
-  'English', 'Arabic', 'Spanish', 'French', 'German', 'Italian', 'Portuguese', 'Russian', 'Chinese', 'Japanese', 'Korean'
+  'English', 'Arabic'
 ];
 
-const ACCENTS = [
-  'American', 'British', 'Australian', 'Canadian', 'Irish', 'Scottish', 'South African', 'Indian', 'Arab Gulf', 'Egyptian', 'Levantine'
-];
+const ACCENTS = {
+  'English': ['US', 'UK'],
+  'Arabic': ['Egyptian', 'MSA', 'Gulf', 'Levantine']
+};
 
 const GENRE_OPTIONS = [
   'Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Horror', 'Mystery', 'Romance', 'Sci-Fi', 'Thriller', 'Documentary', 'Animation'
@@ -45,15 +46,25 @@ export default function StoryboardPlayground() {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => {
+      const newData = { ...prev, [field]: value };
+      // Reset accent when language changes
+      if (field === 'language') {
+        newData.accent = '';
+      }
+      return newData;
+    });
   };
 
   const handleGenreToggle = (genre: string) => {
-    setSelectedGenres(prev => 
-      prev.includes(genre) 
-        ? prev.filter(g => g !== genre)
-        : [...prev, genre]
-    );
+    setSelectedGenres(prev => {
+      if (prev.includes(genre)) {
+        return prev.filter(g => g !== genre);
+      } else if (prev.length < 3) {
+        return [...prev, genre];
+      }
+      return prev; // Don't add if already at max
+    });
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -266,12 +277,16 @@ export default function StoryboardPlayground() {
             {/* Accent */}
             <div className="space-y-2">
               <Label htmlFor="accent">Accent *</Label>
-              <Select onValueChange={(value) => handleInputChange('accent', value)} defaultValue="American" required>
+              <Select 
+                onValueChange={(value) => handleInputChange('accent', value)} 
+                value={formData.accent}
+                required
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select accent" />
                 </SelectTrigger>
                 <SelectContent>
-                  {ACCENTS.map(accent => (
+                  {formData.language && ACCENTS[formData.language as keyof typeof ACCENTS]?.map(accent => (
                     <SelectItem key={accent} value={accent}>{accent}</SelectItem>
                   ))}
                 </SelectContent>
@@ -280,13 +295,17 @@ export default function StoryboardPlayground() {
 
             {/* Genres */}
             <div className="space-y-2">
-              <Label>Genres *</Label>
+              <Label>Genres * (Max 3)</Label>
               <div className="flex flex-wrap gap-2">
                 {GENRE_OPTIONS.map(genre => (
                   <Badge
                     key={genre}
                     variant={selectedGenres.includes(genre) ? "default" : "outline"}
-                    className="cursor-pointer"
+                    className={`cursor-pointer ${
+                      !selectedGenres.includes(genre) && selectedGenres.length >= 3 
+                        ? 'opacity-50 cursor-not-allowed' 
+                        : ''
+                    }`}
                     onClick={() => handleGenreToggle(genre)}
                   >
                     {genre}
@@ -295,7 +314,7 @@ export default function StoryboardPlayground() {
               </div>
               {selectedGenres.length > 0 && (
                 <p className="text-sm text-muted-foreground">
-                  Selected: {selectedGenres.join(', ')}
+                  Selected: {selectedGenres.join(', ')} ({selectedGenres.length}/3)
                 </p>
               )}
             </div>
