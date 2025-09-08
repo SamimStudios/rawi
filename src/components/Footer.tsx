@@ -24,7 +24,7 @@ const Footer = () => {
               <img 
                 src={logoSrc}
                 alt="Rawi App" 
-                className="h-20 md:h-24"
+                className="h-12 md:h-16"
               />
             </Link>
           </div>
