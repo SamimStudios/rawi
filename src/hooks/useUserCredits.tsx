@@ -112,6 +112,46 @@ export const useUserCredits = () => {
 
   useEffect(() => {
     fetchCredits();
+
+    // Set up real-time subscriptions for credits and transactions
+    if (user) {
+      const creditsChannel = supabase
+        .channel('user-credits-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'user_credits',
+            filter: `user_id=eq.${user.id}`
+          },
+          () => {
+            fetchCredits();
+          }
+        )
+        .subscribe();
+
+      const transactionsChannel = supabase
+        .channel('user-transactions-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'transactions',
+            filter: `user_id=eq.${user.id}`
+          },
+          () => {
+            fetchCredits();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(creditsChannel);
+        supabase.removeChannel(transactionsChannel);
+      };
+    }
   }, [user]);
 
   return {

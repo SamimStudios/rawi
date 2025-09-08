@@ -69,102 +69,21 @@ const Wallet = () => {
       navigate('/auth/sign-in');
       return;
     }
+  }, [user, navigate]);
 
-    // Check URL parameters for payment verification
+  // Show success message when returning from Stripe
+  useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const success = urlParams.get('success');
     const canceled = urlParams.get('canceled');
-    const sessionId = urlParams.get('session_id');
-    const subscription = urlParams.get('subscription');
 
-    console.log("=== WALLET PAYMENT VERIFICATION DEBUG ===");
-    console.log("URL params:", { success, canceled, sessionId, subscription });
-    console.log("Current URL:", window.location.href);
-    console.log("User authenticated:", !!user);
-
-    const verifyPayment = async (sessionId: string) => {
-      try {
-        console.log("=== STARTING PAYMENT VERIFICATION ===");
-        console.log("Session ID:", sessionId);
-        console.log("About to call check-payment-status function...");
-        console.log("Supabase client initialized:", !!supabase);
-        console.log("Request body:", { sessionId });
-        
-        const { data, error } = await supabase.functions.invoke('check-payment-status', {
-          body: { sessionId }
-        });
-
-        console.log("=== PAYMENT VERIFICATION RESPONSE ===");
-        console.log("Data:", data);
-        console.log("Error:", error);
-
-        if (error) throw error;
-
-        if (data?.success) {
-          console.log("Payment verification successful!");
-          if (subscription === 'true') {
-            console.log("Processing subscription success...");
-            toast({
-              title: isRTL ? 'تم تفعيل الاشتراك!' : 'Subscription Activated!',
-              description: isRTL ? 'اشتراكك الآن نشط.' : 'Your subscription is now active.',
-            });
-          } else {
-            console.log("Processing one-time payment success...", data.credits);
-            toast({
-              title: isRTL ? 'تم الدفع بنجاح!' : 'Payment Successful!',
-              description: isRTL ? 
-                `تم إضافة ${data.credits} رصيد إلى حسابك.` : 
-                `${data.credits} credits have been added to your account.`,
-            });
-          }
-          
-          console.log("Refreshing credits in 1 second...");
-          // Refresh credits after successful payment verification
-          setTimeout(() => {
-            console.log("Calling refreshCredits...");
-            refreshCredits();
-          }, 1000);
-        } else {
-          console.log("Payment verification failed - data.success is false");
-          toast({
-            title: isRTL ? 'فشل في التحقق من الدفع' : 'Payment Verification Failed',
-            description: isRTL ? 'يرجى المحاولة مرة أخرى أو الاتصال بالدعم' : 'Please try again or contact support',
-            variant: 'destructive'
-          });
-        }
-      } catch (error) {
-        console.error('Payment verification error:', error);
-        toast({
-          title: isRTL ? 'خطأ في التحقق' : 'Verification Error',
-          description: isRTL ? 'حدث خطأ أثناء التحقق من الدفع' : 'An error occurred while verifying payment',
-          variant: 'destructive'
-        });
-      }
-    };
-
-    if (success === 'true' && sessionId) {
-      console.log("=== TRIGGERING PAYMENT VERIFICATION ===");
-      console.log("Success parameter found, calling verifyPayment...");
-      console.log("Auth user exists:", !!user);
-      console.log("User ID:", user?.id);
-      
-      // Add a manual test of the function call
-      console.log("Testing direct function call...");
-      supabase.functions.invoke('check-payment-status', {
-        body: { sessionId }
-      }).then(result => {
-        console.log("Direct function call result:", result);
-      }).catch(err => {
-        console.error("Direct function call error:", err);
+    if (success === 'true') {
+      toast({
+        title: isRTL ? 'تم الدفع بنجاح!' : 'Payment Successful!',
+        description: isRTL ? 'سيتم إضافة الرصيد إلى حسابك خلال دقائق.' : 'Credits will be added to your account within minutes.',
       });
-      
-      verifyPayment(sessionId);
       // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
-    } else {
-      console.log("=== NO PAYMENT VERIFICATION TRIGGERED ===");
-      console.log("Success:", success, "SessionId:", sessionId);
-      console.log("Conditions not met for payment verification");
     }
 
     if (canceled === 'true') {
@@ -173,11 +92,10 @@ const Wallet = () => {
         description: isRTL ? 'لم يتم خصم أي مبلغ من حسابك.' : 'No charge was made to your account.',
         variant: 'destructive'
       });
-      
       // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, [user, navigate, toast, isRTL, refreshCredits]);
+  }, [toast, isRTL]);
 
   // Fetch credit packages and subscription plans
   useEffect(() => {
@@ -206,36 +124,79 @@ const Wallet = () => {
     setCustomCredits(amount);
   };
 
-  const handlePackagePurchase = (pkg: CreditPackage) => {
-    trackViewItem(pkg.name, pkg.credits, getPrice(pkg));
-    createCheckout({
-      packageId: pkg.id,
-      currency: currency,
-    });
+  const handlePackagePurchase = async (pkg: CreditPackage) => {
+    try {
+      trackViewItem(pkg.name, pkg.credits, getPrice(pkg));
+      
+      const { data, error } = await createCheckout({
+        packageId: pkg.id,
+        currency: currency,
+      });
+
+      if (error) throw error;
+
+      // Redirect to Stripe checkout in the same tab
+      window.location.href = data.url;
+    } catch (error) {
+      console.error('Checkout error:', error);
+      toast({
+        title: isRTL ? 'خطأ' : 'Error',
+        description: isRTL ? 'حدث خطأ أثناء إنشاء جلسة الدفع' : 'An error occurred while creating the checkout session',
+        variant: 'destructive'
+      });
+    }
   };
 
-  const handleCustomPurchase = () => {
+  const handleCustomPurchase = async () => {
     if (customCredits < 10) {
       toast({
-        title: "Minimum Credits",
-        description: "Minimum purchase is 10 credits",
+        title: isRTL ? 'الحد الأدنى للرصيد' : 'Minimum Credits',
+        description: isRTL ? 'الحد الأدنى للشراء 10 أرصدة' : 'Minimum purchase is 10 credits',
         variant: "destructive"
       });
       return;
     }
 
-    createCheckout({
-      credits: customCredits,
-      currency: currency,
-      customAmount: true
-    });
+    try {
+      const { data, error } = await createCheckout({
+        credits: customCredits,
+        currency: currency,
+        customAmount: true
+      });
+
+      if (error) throw error;
+
+      // Redirect to Stripe checkout in the same tab
+      window.location.href = data.url;
+    } catch (error) {
+      console.error('Checkout error:', error);
+      toast({
+        title: isRTL ? 'خطأ' : 'Error',
+        description: isRTL ? 'حدث خطأ أثناء إنشاء جلسة الدفع' : 'An error occurred while creating the checkout session',
+        variant: 'destructive'
+      });
+    }
   };
 
-  const handleSubscriptionPurchase = (plan: SubscriptionPlan) => {
-    if (!selectedPlan) {
-      setSelectedPlan(plan.id);
+  const handleSubscriptionPurchase = async (plan: SubscriptionPlan) => {
+    try {
+      if (!selectedPlan) {
+        setSelectedPlan(plan.id);
+      }
+
+      const { data, error } = await createSubscription(plan.id, currency);
+      if (error) throw error;
+
+      // Redirect to Stripe checkout in the same tab
+      window.location.href = data.url;
+    } catch (error) {
+      console.error('Subscription error:', error);
+      toast({
+        title: isRTL ? 'خطأ' : 'Error',
+        description: isRTL ? 'حدث خطأ أثناء إنشاء الاشتراك' : 'An error occurred while creating the subscription',
+        variant: 'destructive'
+      });
     }
-    createSubscription(plan.id, currency);
   };
 
   if (creditsLoading || currencyLoading) {

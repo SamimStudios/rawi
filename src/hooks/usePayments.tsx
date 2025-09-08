@@ -40,7 +40,7 @@ export const usePayments = () => {
         description: "Please sign in to purchase credits",
         variant: "destructive"
       });
-      return;
+      return { data: null, error: new Error("Authentication required") };
     }
 
     if (options.packageId) {
@@ -56,9 +56,7 @@ export const usePayments = () => {
 
       if (error) throw error;
 
-      if (data.url) {
-        window.open(data.url, '_blank');
-      }
+      return { data, error: null };
     } catch (error) {
       console.error('Checkout error:', error);
       toast({
@@ -66,6 +64,7 @@ export const usePayments = () => {
         description: "Failed to create checkout session",
         variant: "destructive"
       });
+      return { data: null, error: error as Error };
     } finally {
       if (options.packageId) {
         setPackageLoading(null);
@@ -82,7 +81,7 @@ export const usePayments = () => {
         description: "Please sign in to subscribe",
         variant: "destructive"
       });
-      return;
+      return { data: null, error: new Error("Authentication required") };
     }
 
     setSubscriptionLoading(planId);
@@ -93,9 +92,7 @@ export const usePayments = () => {
 
       if (error) throw error;
 
-      if (data.url) {
-        window.open(data.url, '_blank');
-      }
+      return { data, error: null };
     } catch (error) {
       console.error('Subscription error:', error);
       toast({
@@ -103,6 +100,7 @@ export const usePayments = () => {
         description: "Failed to create subscription",
         variant: "destructive"
       });
+      return { data: null, error: error as Error };
     } finally {
       setSubscriptionLoading(null);
     }

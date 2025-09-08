@@ -109,8 +109,8 @@ serve(async (req) => {
         },
       ],
       mode: "payment",
-      success_url: `${req.headers.get("origin")}/app/wallet?success=true&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${req.headers.get("origin")}/app/wallet?canceled=true`,
+      success_url: `${req.headers.get("origin")}/app/wallet`,
+      cancel_url: `${req.headers.get("origin")}/app/wallet`,
       metadata: {
         user_id: user.id,
         credits: creditsAmount.toString(),
