@@ -44,6 +44,23 @@ const Footer = () => {
             ))}
           </nav>
         </div>
+        
+        {/* Company Copyright Section */}
+        <div className="border-t border-white/10 mt-8 pt-6">
+          <div className="text-center text-white/60 text-sm">
+            <p className="mb-2">
+              {language === 'ar' 
+                ? 'تطبيق راوي مملوك ومُشغل من قِبل' 
+                : 'Rawi is owned and operated by'}
+            </p>
+            <p className="font-medium text-white/80">
+              ﺻﻤﻴﻢ ﺳﺘﻮدﻳﻮز ش.ذ.م.م-ﻣﻨﻄﻘﺔ ﺣﺮة (SAMIM STUDIOS L.L.C-FZ)
+            </p>
+            <p className="mt-2">
+              © {new Date().getFullYear()} {language === 'ar' ? 'جميع الحقوق محفوظة' : 'All rights reserved'}
+            </p>
+          </div>
+        </div>
       </div>
     </footer>
   );
