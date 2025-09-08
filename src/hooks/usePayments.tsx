@@ -153,26 +153,22 @@ export const usePayments = () => {
 
       if (error) throw error;
 
-      // Create and download PDF
-      const blob = new Blob([data.html], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `invoice-${data.invoiceNumber}.html`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      toast({
-        title: "Invoice Downloaded",
-        description: `Invoice ${data.invoiceNumber} has been downloaded`,
-      });
+      if (data.invoiceUrl) {
+        // Open Stripe invoice/receipt in new tab
+        window.open(data.invoiceUrl, '_blank');
+        
+        toast({
+          title: "Invoice Opened",
+          description: `Invoice ${data.invoiceNumber} opened in new tab`,
+        });
+      } else {
+        throw new Error("No invoice URL returned");
+      }
     } catch (error) {
       console.error('Invoice download error:', error);
       toast({
         title: "Download Error",
-        description: "Failed to download invoice",
+        description: "Failed to open invoice",
         variant: "destructive"
       });
     }

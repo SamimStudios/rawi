@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import Stripe from "https://esm.sh/stripe@14.21.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,6 +20,11 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
       { auth: { persistSession: false } }
     );
+
+    // Initialize Stripe
+    const stripe = new Stripe(Deno.env.get("STRIPE_TEST_SECRET") || Deno.env.get("STRIPE_LIVE_SECRET") || "", {
+      apiVersion: "2023-10-16"
+    });
 
     // Get transaction details
     let transaction;
@@ -40,97 +46,97 @@ serve(async (req) => {
 
     if (!transaction) throw new Error("Transaction not found");
 
-    // Generate invoice number
-    const invoiceNumber = `INV-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
+    let stripeInvoiceData;
+    let invoiceUrl;
+    let invoiceNumber;
 
-    // Create simple HTML invoice
-    const invoiceHTML = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Invoice ${invoiceNumber}</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
-        .company { text-align: left; }
-        .invoice-info { text-align: right; }
-        .details { margin: 30px 0; }
-        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-        .total { font-weight: bold; font-size: 18px; }
-        .footer { margin-top: 40px; font-size: 12px; color: #666; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <div class="company">
-            <h1>Rawi</h1>
-            <p>Cinematic AI Generator</p>
-            <p>United Arab Emirates</p>
-        </div>
-        <div class="invoice-info">
-            <h2>INVOICE</h2>
-            <p><strong>Invoice #:</strong> ${invoiceNumber}</p>
-            <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
-            <p><strong>Status:</strong> Paid</p>
-        </div>
-    </div>
+    // Handle different transaction types
+    if (transaction.stripe_subscription_id) {
+      // For subscriptions, fetch the invoice from Stripe
+      const subscription = await stripe.subscriptions.retrieve(transaction.stripe_subscription_id);
+      const latestInvoiceId = subscription.latest_invoice as string;
+      
+      if (latestInvoiceId) {
+        const invoice = await stripe.invoices.retrieve(latestInvoiceId);
+        stripeInvoiceData = invoice;
+        invoiceUrl = invoice.invoice_pdf;
+        invoiceNumber = invoice.number;
+      }
+    } else if (transaction.stripe_session_id) {
+      // For one-time payments, get the payment receipt from the session
+      const session = await stripe.checkout.sessions.retrieve(transaction.stripe_session_id);
+      
+      if (session.payment_intent) {
+        const paymentIntent = await stripe.paymentIntents.retrieve(session.payment_intent as string);
+        
+        // Get the charge to access the receipt
+        if (paymentIntent.charges?.data?.[0]) {
+          const charge = paymentIntent.charges.data[0];
+          invoiceUrl = charge.receipt_url;
+          invoiceNumber = `RECEIPT-${charge.id}`;
+          stripeInvoiceData = {
+            id: charge.id,
+            number: invoiceNumber,
+            amount_paid: charge.amount,
+            currency: charge.currency.toUpperCase(),
+            created: charge.created,
+            receipt_url: charge.receipt_url,
+            description: session.metadata?.description || transaction.description
+          };
+        }
+      }
+    }
 
-    <div class="details">
-        <h3>Transaction Details</h3>
-        <p><strong>Transaction ID:</strong> ${transaction.id}</p>
-        <p><strong>Payment Method:</strong> Stripe</p>
-        <p><strong>Currency:</strong> ${transaction.currency}</p>
-    </div>
+    if (!stripeInvoiceData || !invoiceUrl) {
+      throw new Error("Unable to fetch Stripe invoice/receipt");
+    }
 
-    <table>
-        <thead>
-            <tr>
-                <th>Description</th>
-                <th>Quantity</th>
-                <th>Unit Price</th>
-                <th>Total</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>${transaction.description}</td>
-                <td>${Math.abs(transaction.credits_amount)} credits</td>
-                <td>${(transaction.amount_paid / Math.abs(transaction.credits_amount)).toFixed(2)} ${transaction.currency}</td>
-                <td class="total">${transaction.amount_paid} ${transaction.currency}</td>
-            </tr>
-        </tbody>
-    </table>
+    // Save or update invoice record in database
+    const invoiceData = {
+      user_id: userId || transaction.user_id,
+      invoice_number: invoiceNumber,
+      transaction_id: transaction.id,
+      amount: transaction.amount_paid,
+      currency: transaction.currency,
+      status: "paid",
+      stripe_invoice_id: stripeInvoiceData.id,
+      pdf_url: invoiceUrl
+    };
 
-    <div class="footer">
-        <p>Thank you for using Rawi!</p>
-        <p>This is a computer-generated invoice.</p>
-    </div>
-</body>
-</html>
-    `;
-
-    // Save invoice to database
-    const { data: invoice } = await supabase
+    // Check if invoice already exists
+    const { data: existingInvoice } = await supabase
       .from("invoices")
-      .insert({
-        user_id: userId,
-        invoice_number: invoiceNumber,
-        transaction_id: transaction.id,
-        amount: transaction.amount_paid,
-        currency: transaction.currency,
-        status: "paid",
-      })
-      .select()
+      .select("*")
+      .eq("transaction_id", transaction.id)
       .single();
+
+    let invoice;
+    if (existingInvoice) {
+      // Update existing invoice
+      const { data } = await supabase
+        .from("invoices")
+        .update(invoiceData)
+        .eq("id", existingInvoice.id)
+        .select()
+        .single();
+      invoice = data;
+    } else {
+      // Create new invoice
+      const { data } = await supabase
+        .from("invoices")
+        .insert(invoiceData)
+        .select()
+        .single();
+      invoice = data;
+    }
 
     return new Response(
       JSON.stringify({ 
         success: true,
         invoiceNumber,
         invoiceId: invoice.id,
-        html: invoiceHTML
+        invoiceUrl,
+        stripeData: stripeInvoiceData
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
