@@ -8,11 +8,12 @@ const Terms = () => {
     { title: 'termsAcceptance', content: 'termsAcceptanceContent', number: '1.' },
     { title: 'termsCredits', content: 'termsCreditsContent', number: '2.' },
     { title: 'termsOwnership', content: 'termsOwnershipContent', number: '3.' },
-    { title: 'termsProhibited', content: 'termsProhibitedContent', number: '4.' },
-    { title: 'termsAvailability', content: 'termsAvailabilityContent', number: '5.' },
-    { title: 'termsLiability', content: 'termsLiabilityContent', number: '6.' },
-    { title: 'termsLaw', content: 'termsLawContent', number: '7.' },
-    { title: 'termsChanges', content: 'termsChangesContent', number: '8.' },
+    { title: 'termsIpConsent', content: 'termsIpConsentContent', number: '4.' },
+    { title: 'termsProhibited', content: 'termsProhibitedContent', number: '5.' },
+    { title: 'termsAvailability', content: 'termsAvailabilityContent', number: '6.' },
+    { title: 'termsLiability', content: 'termsLiabilityContent', number: '7.' },
+    { title: 'termsLaw', content: 'termsLawContent', number: '8.' },
+    { title: 'termsChanges', content: 'termsChangesContent', number: '9.' },
   ];
 
   return (
