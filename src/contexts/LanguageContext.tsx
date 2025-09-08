@@ -187,8 +187,10 @@ const translations = {
     privacySecurityContent: 'We implement encryption in transit and at rest, secure authentication systems, regular security audits, access controls for staff, and incident response procedures. However, no system is completely secure. Users share responsibility for account security.',
     privacyRights: 'Your Privacy Rights',
     privacyRightsContent: 'You have the right to access, correct, or delete your personal information. You may request data portability or restrict processing. To exercise these rights, contact support@rawiapp.io. We will respond within 30 days.',
-    privacyContact: 'Privacy Contact Information',
-    privacyContactContent: 'For privacy-related inquiries, complaints, or requests: Email: support@rawiapp.io | Address: Rawi App DMCC, UAE | Phone: Available upon request through support channels.',
+     privacyContact: 'Privacy Contact Information',
+     privacyContactContent: 'For privacy-related inquiries, complaints, or requests: Email: support@rawiapp.io | Address: Rawi App DMCC, UAE | Phone: Available upon request through support channels.',
+     privacyDeletion: 'User Data Deletion',
+     privacyDeletionContent: 'You have the right to request complete deletion of your account and associated data. To request account deletion, contact support@rawiapp.io with your account details. Upon verification, we will permanently delete your account, uploaded content, generated outputs, and personal information within 30 days. Backup copies may be retained for up to 90 days for recovery purposes, after which they are permanently destroyed. Please note that some data may be retained longer if required by law or for legitimate business purposes such as preventing fraud.',
     
     // Consent & IP Policy
     consentProcess: 'Content Processing Consent',
@@ -406,8 +408,10 @@ const translations = {
     privacySecurityContent: 'نطبق التشفير أثناء النقل والتخزين، أنظمة مصادقة آمنة، تدقيق أمني منتظم، ضوابط وصول للموظفين، وإجراءات الاستجابة للحوادث. ومع ذلك، لا يوجد نظام آمن بنسبة ١٠٠٪. يتشارك المستخدمون مسؤولية أمان الحساب.',
     privacyRights: 'حقوق الخصوصية الخاصة بك',
     privacyRightsContent: 'لديك الحق في الوصول إلى معلوماتك الشخصية أو تصحيحها أو حذفها. يمكنك طلب نقل البيانات أو تقييد المعالجة. لممارسة هذه الحقوق، تواصل مع support@rawiapp.io. سنرد خلال ٣٠ يومًا.',
-    privacyContact: 'معلومات التواصل للخصوصية',
-    privacyContactContent: 'للاستفسارات أو الشكاوى أو الطلبات المتعلقة بالخصوصية: البريد الإلكتروني: support@rawiapp.io | العنوان: Rawi App DMCC، الإمارات العربية المتحدة | الهاتف: متاح عند الطلب عبر قنوات الدعم.',
+     privacyContact: 'معلومات التواصل للخصوصية',
+     privacyContactContent: 'للاستفسارات أو الشكاوى أو الطلبات المتعلقة بالخصوصية: البريد الإلكتروني: support@rawiapp.io | العنوان: Rawi App DMCC، الإمارات العربية المتحدة | الهاتف: متاح عند الطلب عبر قنوات الدعم.',
+     privacyDeletion: 'حذف بيانات المستخدم',
+     privacyDeletionContent: 'لديك الحق في طلب الحذف الكامل لحسابك والبيانات المرتبطة به. لطلب حذف الحساب، تواصل مع support@rawiapp.io مع تفاصيل حسابك. بعد التحقق، سنقوم بحذف حسابك ومحتواك المرفوع والنتائج المُنتجة والمعلومات الشخصية نهائياً خلال ٣٠ يوماً. قد تُحتفظ بنسخ احتياطية لمدة تصل إلى ٩٠ يوماً لأغراض الاستعادة، وبعدها يتم تدميرها نهائياً. يُرجى ملاحظة أن بعض البيانات قد تُحتفظ بها لفترة أطول إذا كان ذلك مطلوباً بموجب القانون أو لأغراض تجارية مشروعة مثل منع الاحتيال.',
     
     // Consent & IP Policy (Arabic)
     consentProcess: 'موافقة معالجة المحتوى',

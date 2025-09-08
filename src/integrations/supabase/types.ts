@@ -532,6 +532,10 @@ export type Database = {
         Args: { p_schema: string; p_table: string }
         Returns: undefined
       }
+      link_guest_jobs_to_user: {
+        Args: { p_email: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

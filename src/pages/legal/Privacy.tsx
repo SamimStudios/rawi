@@ -4,14 +4,16 @@ import { Card } from '@/components/ui/card';
 const Privacy = () => {
   const { t } = useLanguage();
 
-  const sections = [
-    { title: 'privacyData', content: 'privacyDataContent', number: '1.' },
-    { title: 'privacyUse', content: 'privacyUseContent', number: '2.' },
-    { title: 'privacySharing', content: 'privacySharingContent', number: '3.' },
-    { title: 'privacyStorage', content: 'privacyStorageContent', number: '4.' },
-    { title: 'privacySecurity', content: 'privacySecurityContent', number: '5.' },
-    { title: 'privacyContact', content: 'privacyContactContent', number: '6.' },
-  ];
+   const sections = [
+     { title: 'privacyData', content: 'privacyDataContent', number: '1.' },
+     { title: 'privacyUse', content: 'privacyUseContent', number: '2.' },
+     { title: 'privacySharing', content: 'privacySharingContent', number: '3.' },
+     { title: 'privacyStorage', content: 'privacyStorageContent', number: '4.' },
+     { title: 'privacySecurity', content: 'privacySecurityContent', number: '5.' },
+     { title: 'privacyRights', content: 'privacyRightsContent', number: '6.' },
+     { title: 'privacyDeletion', content: 'privacyDeletionContent', number: '7.' },
+     { title: 'privacyContact', content: 'privacyContactContent', number: '8.' },
+   ];
 
   return (
     <div className="min-h-screen bg-background">

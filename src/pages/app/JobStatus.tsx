@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { CheckCircle, Clock, AlertCircle, XCircle, Play, RotateCcw, HelpCircle, Loader2 } from 'lucide-react';
+import { CheckCircle, Clock, AlertCircle, XCircle, Play, RotateCcw, HelpCircle, Loader2, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
+import GuestJobRegistration from '@/components/GuestJobRegistration';
 
 type JobStatus = 'queued' | 'running' | 'success' | 'failed';
 
@@ -26,29 +27,33 @@ const JobStatus = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [job, setJob] = useState<JobData | null>(null);
+  const [showRegistration, setShowRegistration] = useState(false);
 
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth/sign-in');
-    }
-  }, [user, loading, navigate]);
+  // Remove auth requirement for guest job access
+  // Users can now view job status without being logged in
 
   useEffect(() => {
     // Mock job data - replace with API call later
     const mockJob: JobData = {
       id: id || 'mock-id',
       templateName: 'Cinematic Action Trailer',
-      status: 'running', // Change this to test different states
-      progress: 65,
+      status: 'success', // Changed to success to test registration flow
+      progress: 100,
       logs: [
         'Processing character detection...',
         'Generating cinematic shots...',
-        'Applying visual effects...'
+        'Applying visual effects...',
+        'Generation completed successfully!'
       ],
       resultId: 'result-123',
       isGuest: !user
     };
     setJob(mockJob);
+
+    // Show registration prompt if job is successful and user is guest
+    if (mockJob.status === 'success' && !user) {
+      setShowRegistration(true);
+    }
   }, [id, user]);
 
   if (loading) {
@@ -159,6 +164,20 @@ const JobStatus = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Guest Registration Card */}
+          {showRegistration && job?.isGuest && job?.status === 'success' && (
+            <div className="mb-8">
+              <GuestJobRegistration 
+                jobId={job.id}
+                onRegistrationComplete={() => {
+                  setShowRegistration(false);
+                  // Refresh the page or update the job data
+                  window.location.reload();
+                }}
+              />
+            </div>
+          )}
 
           {/* Guest Note */}
           {job.isGuest && (
