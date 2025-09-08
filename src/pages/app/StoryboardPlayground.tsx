@@ -174,11 +174,20 @@ export default function StoryboardPlayground() {
     setIsLoading(true);
 
     try {
+      // Process supporting characters' face images
+      const processedSupportingCharacters = await Promise.all(
+        supportingCharacters.map(async (character) => ({
+          ...character,
+          faceImage: character.faceImage ? await convertFileToBase64(character.faceImage) : null,
+          faceImageType: character.faceImage?.type || null
+        }))
+      );
+
       const { data, error } = await supabase.functions.invoke('create-storyboard-job', {
         body: {
           ...formData,
           genres: selectedGenres,
-          supportingCharacters,
+          supportingCharacters: processedSupportingCharacters,
           faceImage: faceImage ? await convertFileToBase64(faceImage) : null,
           faceImageType: faceImage?.type || null,
           userId: user?.id || null,
@@ -254,13 +263,13 @@ export default function StoryboardPlayground() {
                 <SelectTrigger>
                   <SelectValue placeholder={templatesLoading ? "Loading templates..." : "Select a template"} />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-w-[calc(100vw-2rem)] w-full">
                   {templates.map(template => (
                     <SelectItem key={template.id} value={template.id}>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{template.name}</span>
+                      <div className="flex flex-col max-w-full">
+                        <span className="font-medium truncate">{template.name}</span>
                         {template.description && (
-                          <span className="text-xs text-muted-foreground">{template.description}</span>
+                          <span className="text-xs text-muted-foreground truncate">{template.description}</span>
                         )}
                       </div>
                     </SelectItem>
@@ -430,6 +439,79 @@ export default function StoryboardPlayground() {
                         />
                         <Label>AI Generated Face</Label>
                       </div>
+
+                      {!character.aiFace && (
+                        <div className="space-y-2">
+                          <Label>Face Reference Image</Label>
+                          <div className="space-y-4">
+                            {character.faceImagePreview ? (
+                              <div className="relative inline-block">
+                                <img 
+                                  src={character.faceImagePreview} 
+                                  alt="Face reference" 
+                                  className="w-32 h-32 object-cover rounded-lg border"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  size="sm"
+                                  className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+                                  onClick={() => {
+                                    setSupportingCharacters(prev => prev.map(c => 
+                                      c.id === character.id ? { ...c, faceImage: undefined, faceImagePreview: undefined } : c
+                                    ));
+                                  }}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+                                <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                                <p className="text-sm text-muted-foreground mb-2">Upload a face reference image</p>
+                                <Input
+                                  id={`faceImage-${character.id}`}
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      if (file.size > 5 * 1024 * 1024) {
+                                        toast({
+                                          title: "File too large",
+                                          description: "Please select an image under 5MB",
+                                          variant: "destructive"
+                                        });
+                                        return;
+                                      }
+
+                                      const reader = new FileReader();
+                                      reader.onload = (e) => {
+                                        setSupportingCharacters(prev => prev.map(c => 
+                                          c.id === character.id ? { 
+                                            ...c, 
+                                            faceImage: file, 
+                                            faceImagePreview: e.target?.result as string 
+                                          } : c
+                                        ));
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }
+                                  }}
+                                  className="hidden"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => document.getElementById(`faceImage-${character.id}`)?.click()}
+                                >
+                                  Choose Image
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                   
