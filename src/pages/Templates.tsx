@@ -15,7 +15,7 @@ const Templates = () => {
             {t('templates')}
           </h1>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-            Discover our collection of cinematic templates to transform your photos.
+            {t('templatesSubtitle')}
           </p>
         </div>
       </div>

@@ -26,7 +26,7 @@ const Dashboard = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0F1320] flex items-center justify-center">
-        <div className="text-white">Loading...</div>
+        <div className="text-white">{t('loading')}</div>
       </div>
     );
   }
@@ -77,7 +77,7 @@ const Dashboard = () => {
                       <h3 className="text-xl font-semibold text-foreground">{t('browseTemplates')}</h3>
                     </div>
                     <p className="text-muted-foreground">
-                      Explore cinematic templates for your projects
+                      {t('exploreTemplates')}
                     </p>
                   </Link>
                 </CardContent>
@@ -91,7 +91,7 @@ const Dashboard = () => {
                       <h3 className="text-xl font-semibold text-foreground">{t('myHistory')}</h3>
                     </div>
                     <p className="text-muted-foreground">
-                      View your past generations and projects
+                      {t('viewPastGenerations')}
                     </p>
                   </Link>
                 </CardContent>
@@ -105,7 +105,7 @@ const Dashboard = () => {
                       <h3 className="text-xl font-semibold text-foreground">{t('buyCredits')}</h3>
                     </div>
                     <p className="text-muted-foreground">
-                      Purchase credits to generate content
+                      {t('purchaseCredits')}
                     </p>
                   </Link>
                 </CardContent>
@@ -115,7 +115,7 @@ const Dashboard = () => {
 
           {/* Recent Jobs Placeholder */}
           <div>
-            <h2 className="text-2xl font-bold text-white mb-6">Recent Jobs</h2>
+            <h2 className="text-2xl font-bold text-white mb-6">{t('recentJobs')}</h2>
             <Card className="bg-card border-border">
               <CardContent className="p-12 text-center">
                 <div className="text-muted-foreground text-lg">

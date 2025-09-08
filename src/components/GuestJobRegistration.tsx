@@ -30,7 +30,7 @@ const GuestJobRegistration = ({ jobId, onRegistrationComplete }: GuestJobRegistr
     const sanitizedEmail = sanitizeInput(email);
     
     if (!validateEmail(sanitizedEmail)) {
-      toast.error('Invalid email format');
+      toast.error(t('invalidEmail'));
       return;
     }
     
@@ -41,7 +41,7 @@ const GuestJobRegistration = ({ jobId, onRegistrationComplete }: GuestJobRegistr
     }
     
     if (password !== confirmPassword) {
-      toast.error('Passwords do not match');
+      toast.error(t('passwordsDoNotMatch'));
       return;
     }
 
@@ -66,11 +66,11 @@ const GuestJobRegistration = ({ jobId, onRegistrationComplete }: GuestJobRegistr
         // Don't show error to user as the account was still created successfully
       }
 
-      toast.success('Account created successfully! Your job has been saved to your account.');
+      toast.success(t('accountCreatedSuccess'));
       onRegistrationComplete();
     } catch (error) {
       console.error('Registration error:', error);
-      toast.error('Failed to create account. Please try again.');
+      toast.error(t('createAccountFailed'));
     } finally {
       setLoading(false);
     }
@@ -81,45 +81,45 @@ const GuestJobRegistration = ({ jobId, onRegistrationComplete }: GuestJobRegistr
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-primary">
           <CheckCircle className="w-5 h-5" />
-          Save Your Result - Create Account
+          {t('saveYourResultCreate')}
         </CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t('email')}</Label>
             <Input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              placeholder="Enter your email"
+              placeholder={t('enterEmail')}
             />
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t('password')}</Label>
             <Input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              placeholder="Enter your password"
+              placeholder={t('enterPassword')}
               minLength={6}
             />
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirm Password</Label>
+            <Label htmlFor="confirmPassword">{t('confirmPassword')}</Label>
             <Input
               id="confirmPassword"
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              placeholder="Confirm your password"
+              placeholder={t('confirmYourPassword')}
               minLength={6}
             />
           </div>
@@ -129,11 +129,11 @@ const GuestJobRegistration = ({ jobId, onRegistrationComplete }: GuestJobRegistr
             className="w-full bg-gradient-auth hover:opacity-90 text-white"
             disabled={loading}
           >
-            {loading ? 'Creating Account...' : 'Create Account & Save Job'}
+            {loading ? t('creatingAccount') : t('createAccountAndSave')}
           </Button>
           
           <p className="text-sm text-muted-foreground text-center">
-            By creating an account, you agree to our Terms & Privacy Policy
+            {t('byCreatingAccount')}
           </p>
         </form>
       </CardContent>

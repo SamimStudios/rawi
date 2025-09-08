@@ -46,10 +46,7 @@ const CookieConsent: React.FC = () => {
           {/* Content */}
           <div className="flex-1 min-w-0">
             <p className={`text-sm text-foreground ${isRTL ? 'text-right' : 'text-left'}`}>
-              {language === 'ar' 
-                ? 'نحن نستخدم ملفات تعريف الارتباط لتحسين تطبيق راوي. باستخدام الموقع، فإنك توافق على سياسة الخصوصية الخاصة بنا.'
-                : 'We use cookies to improve Rawi. By using the site you agree to our Privacy Policy.'
-              }
+              {t('cookieMessage')}
             </p>
           </div>
 
@@ -61,7 +58,7 @@ const CookieConsent: React.FC = () => {
               onClick={handleAccept}
               className="whitespace-nowrap"
             >
-              {language === 'ar' ? 'موافق' : 'Accept'}
+              {t('acceptCookies')}
             </Button>
             
             <Button
@@ -71,7 +68,7 @@ const CookieConsent: React.FC = () => {
               className="whitespace-nowrap"
             >
               <Link to="/legal/privacy">
-                {language === 'ar' ? 'اعرف المزيد' : 'Learn More'}
+                {t('learnMore')}
               </Link>
             </Button>
 
@@ -80,7 +77,7 @@ const CookieConsent: React.FC = () => {
               size="icon"
               onClick={handleDismiss}
               className="w-8 h-8"
-              aria-label={language === 'ar' ? 'إغلاق' : 'Dismiss'}
+              aria-label={t('dismiss')}
             >
               <X className="w-4 h-4" />
             </Button>

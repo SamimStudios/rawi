@@ -262,6 +262,48 @@ const translations = {
     required: 'Required',
     optional: 'Optional',
     placeholder: 'Enter text...',
+    
+    // Pages Content
+    templatesSubtitle: 'Discover our collection of cinematic templates to transform your photos.',
+    exploreTemplates: 'Explore cinematic templates for your projects',
+    viewPastGenerations: 'View your past generations and projects',
+    purchaseCredits: 'Purchase credits to generate content',
+    recentJobs: 'Recent Jobs',
+    
+    // Auth Pages
+    createAccount: 'Create an account',
+    emailPlaceholder: 'Enter your email',
+    passwordPlaceholder: 'Enter your password',
+    confirmPasswordPlaceholder: 'Confirm your password',
+    signUpAccount: 'Sign up for your account',
+    alreadyHaveAccountPrefix: 'Already have an account?',
+    dontHaveAccount: "Don't have an account?",
+    
+    // Guest Registration
+    saveYourResult: 'Save Your Result',
+    registerToSave: 'Sign up to save and share your creation',
+    enterEmail: 'Enter your email',
+    enterPassword: 'Enter your password',
+    confirmYourPassword: 'Confirm your password',
+    
+    // Common Messages
+    cookieMessage: 'We use cookies to improve Rawi. By using the site you agree to our Privacy Policy.',
+    acceptCookies: 'Accept',
+    declineCookies: 'Decline',
+    learnMore: 'Learn More',
+    dismiss: 'Dismiss',
+    
+    // Error Messages
+    invalidEmail: 'Invalid email format',
+    passwordsDoNotMatch: 'Passwords do not match',
+    accountCreatedSuccess: 'Account created successfully! Your job has been saved to your account.',
+    createAccountFailed: 'Failed to create account. Please try again.',
+    creatingAccount: 'Creating Account...',
+    createAccountAndSave: 'Create Account & Save Job',
+    byCreatingAccount: 'By creating an account, you agree to our Terms & Privacy Policy',
+    
+    // Guest Registration Full
+    saveYourResultCreate: 'Save Your Result - Create Account',
   },
   ar: {
     // Navigation & Header (Arabic)
@@ -512,6 +554,48 @@ const translations = {
     required: 'مطلوب',
     optional: 'اختياري',
     placeholder: 'أدخل النص...',
+    
+    // Pages Content (Arabic)
+    templatesSubtitle: 'اكتشف مجموعتنا من القوالب السينمائية لتحويل صورك.',
+    exploreTemplates: 'استكشف القوالب السينمائية لمشاريعك',
+    viewPastGenerations: 'عرض الأجيال والمشاريع السابقة',
+    purchaseCredits: 'شراء الرصيد لإنشاء المحتوى',
+    recentJobs: 'الوظائف الأخيرة',
+    
+    // Auth Pages (Arabic)
+    createAccount: 'إنشاء حساب',
+    emailPlaceholder: 'أدخل بريدك الإلكتروني',
+    passwordPlaceholder: 'أدخل كلمة المرور',
+    confirmPasswordPlaceholder: 'تأكيد كلمة المرور',
+    signUpAccount: 'سجل حسابك',
+    alreadyHaveAccountPrefix: 'لديك حساب بالفعل؟',
+    dontHaveAccount: 'ليس لديك حساب؟',
+    
+    // Guest Registration (Arabic)
+    saveYourResult: 'احفظ نتيجتك',
+    registerToSave: 'سجّل لحفظ ومشاركة إبداعك',
+    enterEmail: 'أدخل بريدك الإلكتروني',
+    enterPassword: 'أدخل كلمة المرور',
+    confirmYourPassword: 'تأكيد كلمة المرور',
+    
+    // Common Messages (Arabic)
+    cookieMessage: 'نستخدم ملفات تعريف الارتباط لتحسين راوي. باستخدام الموقع توافق على سياسة الخصوصية.',
+    acceptCookies: 'موافق',
+    declineCookies: 'رفض',
+    learnMore: 'اعرف المزيد',
+    dismiss: 'إغلاق',
+    
+    // Error Messages (Arabic)
+    invalidEmail: 'تنسيق البريد الإلكتروني غير صحيح',
+    passwordsDoNotMatch: 'كلمات المرور غير متطابقة',
+    accountCreatedSuccess: 'تم إنشاء الحساب بنجاح! تم حفظ مهمتك في حسابك.',
+    createAccountFailed: 'فشل في إنشاء الحساب. حاول مرة أخرى.',
+    creatingAccount: 'جارٍ إنشاء الحساب...',
+    createAccountAndSave: 'إنشاء حساب وحفظ المهمة',
+    byCreatingAccount: 'بإنشاء حساب، توافق على شروطنا وسياسة الخصوصية',
+    
+    // Guest Registration Full (Arabic)
+    saveYourResultCreate: 'احفظ نتيجتك - إنشاء حساب',
   }
 };
 
