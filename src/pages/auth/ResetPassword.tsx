@@ -15,26 +15,59 @@ const ResetPassword = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if we have the required tokens from the URL
-    const accessToken = searchParams.get('access_token');
-    const refreshToken = searchParams.get('refresh_token');
-    const type = searchParams.get('type');
-    
-    if (!accessToken || !refreshToken || type !== 'recovery') {
-      toast.error('Invalid or expired reset link');
-      navigate('/auth/sign-in');
-      return;
-    }
+    // Handle the password recovery flow
+    const handleRecovery = async () => {
+      // Check for recovery parameters in URL
+      const accessToken = searchParams.get('access_token');
+      const refreshToken = searchParams.get('refresh_token');  
+      const type = searchParams.get('type');
+      
+      console.log('URL params:', { accessToken: !!accessToken, refreshToken: !!refreshToken, type });
+      
+      if (type === 'recovery' && accessToken && refreshToken) {
+        try {
+          // Set the session with recovery tokens
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+          
+          if (error) {
+            console.error('Session error:', error);
+            toast.error('Invalid or expired reset link');
+            navigate('/auth/sign-in');
+          } else {
+            console.log('Recovery session set successfully');
+          }
+        } catch (error) {
+          console.error('Recovery error:', error);
+          toast.error('Invalid reset link');
+          navigate('/auth/sign-in');
+        }
+      } else {
+        // Check for hash parameters (alternative format)
+        const hash = window.location.hash;
+        console.log('Hash:', hash);
+        
+        if (hash.includes('type=recovery')) {
+          // Hash contains recovery parameters, let Supabase handle it automatically
+          const { data, error } = await supabase.auth.getSession();
+          if (error || !data.session) {
+            console.error('No valid session found:', error);
+            toast.error('Invalid or expired reset link');
+            navigate('/auth/sign-in');
+          } else {
+            console.log('Found valid session from hash');
+          }
+        } else if (!hash && !accessToken) {
+          // No recovery parameters at all
+          toast.error('Invalid reset link - missing recovery parameters');
+          navigate('/auth/sign-in');
+        }
+      }
+    };
 
-    // Set the session with the tokens from URL
-    supabase.auth.setSession({
-      access_token: accessToken,
-      refresh_token: refreshToken
-    }).catch((error) => {
-      console.error('Session error:', error);
-      toast.error('Invalid reset link');
-      navigate('/auth/sign-in');
-    });
+    handleRecovery();
   }, [searchParams, navigate]);
 
   const handleResetPassword = async (e: React.FormEvent) => {
