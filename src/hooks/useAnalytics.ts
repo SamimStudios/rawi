@@ -44,5 +44,11 @@ export const useCommerceTracking = () => {
     trackCreditsPurchased: (credits: number, amount: number, currency: string = 'AED') => {
       trackEvent('Credits Purchased', { credits, amount, currency });
     },
+    trackPurchase: (item: string, credits: number, amount: number, currency: string = 'AED') => {
+      trackEvent('Purchase', { item, credits, amount, currency });
+    },
+    trackViewItem: (item: string, credits: number, amount: number) => {
+      trackEvent('View Item', { item, credits, amount });
+    },
   };
 };

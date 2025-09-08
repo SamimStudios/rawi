@@ -1,208 +1,179 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Slider } from '@/components/ui/slider';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAuth } from '@/hooks/useAuth';
+import { Slider } from '@/components/ui/slider';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { 
+  CreditCard, 
+  Package, 
+  Calendar, 
+  TrendingUp, 
+  Download,
+  RefreshCw,
+  Crown,
+  Star,
+  Zap,
+  Building2,
+  Settings,
+  Plus,
+  Minus,
+  Check,
+  Wallet as WalletIcon
+} from 'lucide-react';
+import { RTLWrapper } from '@/components/ui/rtl-wrapper';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { useCommerceTracking } from '@/hooks/useAnalytics';
-import { featureFlags, getConfig } from '@/config/app';
-import { Wallet as WalletIcon, CreditCard, Plus, Minus, Check } from 'lucide-react';
+import { useUserCredits } from '@/hooks/useUserCredits';
+import { usePayments, type CreditPackage, type SubscriptionPlan } from '@/hooks/usePayments';
+import { useCurrency } from '@/hooks/useCurrency';
+import { supabase } from '@/integrations/supabase/client';
 
 const Wallet = () => {
-  const { user, loading } = useAuth();
-  const { t, language } = useLanguage();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { toast } = useToast();
-  const { trackPurchaseStarted, trackCreditsPurchased, trackSubscriptionStarted } = useCommerceTracking();
-  
-  // Purchase state
-  const [credits, setCredits] = useState(100);
+  const [customCredits, setCustomCredits] = useState(50);
   const [promoCode, setPromoCode] = useState('');
-  const [selectedPlan, setSelectedPlan] = useState('standard');
-  const [selectedInterval, setSelectedInterval] = useState('monthly');
+  const [selectedPlan, setSelectedPlan] = useState<string>('');
+  const [creditPackages, setCreditPackages] = useState<CreditPackage[]>([]);
+  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>([]);
   
-  // Get feature flags from centralized config
-  const WEEKLY_SUBS_ENABLED = featureFlags.WEEKLY_SUBS_ENABLED;
+  const { language, t } = useLanguage();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { trackPurchase, trackViewItem, trackPurchaseStarted } = useCommerceTracking();
+  const { credits, transactions, loading: creditsLoading, refresh: refreshCredits } = useUserCredits();
+  const { 
+    loading: paymentLoading, 
+    createCheckout, 
+    createSubscription, 
+    openCustomerPortal, 
+    downloadInvoice 
+  } = usePayments();
+  const { currency, formatPrice, getPrice, loading: currencyLoading } = useCurrency();
+  
+  const isRTL = language === 'ar';
 
   useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth/sign-in');
+    if (!user) {
+      navigate('/auth/signin');
+      return;
     }
-  }, [user, loading, navigate]);
 
-  // Handle URL parameters for success/error messages
+    // Check URL parameters for success/cancel messages
+    const urlParams = new URLSearchParams(window.location.search);
+    const success = urlParams.get('success');
+    const canceled = urlParams.get('canceled');
+    const creditsAmount = urlParams.get('credits');
+    const subscription = urlParams.get('subscription');
+
+    if (success === 'true') {
+      if (subscription === 'true') {
+        toast({
+          title: isRTL ? 'تم تفعيل الاشتراك!' : 'Subscription Activated!',
+          description: isRTL ? 'اشتراكك الآن نشط.' : 'Your subscription is now active.',
+        });
+      } else {
+        toast({
+          title: isRTL ? 'تم الدفع بنجاح!' : 'Payment Successful!',
+          description: isRTL ? 
+            `تم إضافة ${creditsAmount} رصيد إلى حسابك.` : 
+            `${creditsAmount} credits have been added to your account.`,
+        });
+      }
+      
+      // Refresh credits after successful payment
+      refreshCredits();
+      
+      // Clear URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    if (canceled === 'true') {
+      toast({
+        title: isRTL ? 'تم إلغاء الدفع' : 'Payment Canceled',
+        description: isRTL ? 'لم يتم خصم أي مبلغ من حسابك.' : 'No charge was made to your account.',
+        variant: 'destructive'
+      });
+      
+      // Clear URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [user, navigate, toast, isRTL, refreshCredits]);
+
+  // Fetch credit packages and subscription plans
   useEffect(() => {
-    if (searchParams.get('success') === '1') {
-      toast({
-        title: t('paymentSuccessful'),
-        variant: 'default',
-      });
-    } else if (searchParams.get('canceled') === '1') {
-      toast({
-        title: t('paymentCanceled'),
-        variant: 'destructive',
-      });
-    } else if (searchParams.get('sub_success') === '1') {
-      toast({
-        title: t('subscriptionActive'),
-        variant: 'default',
-      });
-    } else if (searchParams.get('sub_canceled') === '1') {
-      toast({
-        title: t('subscriptionCheckoutCanceled'),
-        variant: 'destructive',
-      });
-    }
-  }, [searchParams, t, toast]);
+    const fetchPackagesAndPlans = async () => {
+      try {
+        const [packagesResult, plansResult] = await Promise.all([
+          supabase.from('credit_packages').select('*').eq('active', true),
+          supabase.from('subscription_plans').select('*').eq('active', true)
+        ]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0F1320] flex items-center justify-center">
-        <div className="text-white">Loading...</div>
-      </div>
-    );
-  }
+        if (packagesResult.data) setCreditPackages(packagesResult.data);
+        if (plansResult.data) setSubscriptionPlans(plansResult.data);
+      } catch (error) {
+        console.error('Error fetching packages and plans:', error);
+      }
+    };
 
-  if (!user) {
-    return null;
-  }
-
-  // Mock transaction data with new entries
-  const transactions = [
-    {
-      id: '1',
-      type: 'purchase',
-      amount: 150,
-      date: '2025-09-01',
-      description: t('purchase'),
-      currency: 'AED'
-    },
-    {
-      id: '2',
-      type: 'generation',
-      amount: -24,
-      date: '2025-09-02',
-      description: `${t('generation')} — ${t('teaser')}`,
-      currency: ''
-    },
-    {
-      id: '3',
-      type: 'generation',
-      amount: -66,
-      date: '2025-09-03',
-      description: `${t('generation')} — ${t('trailer')}`,
-      currency: ''
-    },
-    {
-      id: '4',
-      type: 'subscription',
-      amount: 350,
-      date: '2025-09-04',
-      description: t('subscriptionMonthly'),
-      currency: 'AED'
-    },
-    {
-      id: '5',
-      type: 'generation',
-      amount: -12,
-      date: '2025-09-05',
-      description: `${t('generation')} — ${t('poster')}`,
-      currency: ''
-    }
-  ];
-
-  // Subscription plans
-  const plans = [
-    { key: 'light', name: t('light'), credits: 70, price: 60 },
-    { key: 'standard', name: t('standard'), credits: 150, price: 120 },
-    { key: 'pro', name: t('pro'), credits: 350, price: 280 },
-    { key: 'studio', name: t('studio'), credits: 800, price: 640 }
-  ];
+    fetchPackagesAndPlans();
+  }, []);
 
   const handleCreditsChange = (value: number[]) => {
-    setCredits(value[0]);
+    setCustomCredits(value[0]);
   };
 
   const handlePresetClick = (amount: number) => {
-    setCredits(amount);
+    setCustomCredits(amount);
   };
 
-  const handleOneTimeCheckout = async () => {
-    try {
-      // Track purchase initiation
-      trackPurchaseStarted('one-time-credits', credits, 'AED');
-      
-      // Use configured API base URL
-      const apiUrl = `${getConfig('API_BASE')}/credits/checkout`;
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          mode: 'one_time',
-          credits,
-          currency: 'AED',
-          success_url: `${window.location.origin}/app/wallet?success=1`,
-          cancel_url: `${window.location.origin}/app/wallet?canceled=1`
-        })
-      });
-      
-      const data = await response.json();
-      // Open checkout URL in new tab
-      window.open(data.checkout_url || '#stripe-placeholder', '_blank');
-    } catch (error) {
-      console.error('Checkout error:', error);
+  const handlePackagePurchase = (pkg: CreditPackage) => {
+    trackViewItem(pkg.name, pkg.credits, getPrice(pkg));
+    createCheckout({
+      packageId: pkg.id,
+      currency: currency,
+    });
+  };
+
+  const handleCustomPurchase = () => {
+    if (customCredits < 10) {
       toast({
-        title: 'Error starting checkout',
-        variant: 'destructive',
+        title: "Minimum Credits",
+        description: "Minimum purchase is 10 credits",
+        variant: "destructive"
       });
+      return;
     }
+
+    createCheckout({
+      credits: customCredits,
+      currency: currency,
+      customAmount: true
+    });
   };
 
-  const handleSubscriptionCheckout = async () => {
-    try {
-      const selectedPlanData = plans.find(p => p.key === selectedPlan);
-      if (selectedPlanData) {
-        // Track subscription initiation
-        trackSubscriptionStarted(selectedPlan, selectedInterval, selectedPlanData.price);
-      }
-      
-      // Use configured API base URL
-      const apiUrl = `${getConfig('API_BASE')}/credits/checkout`;
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          mode: 'subscription',
-          interval: selectedInterval,
-          plan_key: selectedPlan,
-          success_url: `${window.location.origin}/app/wallet?sub_success=1`,
-          cancel_url: `${window.location.origin}/app/wallet?sub_canceled=1`
-        })
-      });
-      
-      const data = await response.json();
-      // Open checkout URL in new tab
-      window.open(data.checkout_url || '#stripe-placeholder', '_blank');
-    } catch (error) {
-      console.error('Subscription checkout error:', error);
-      toast({
-        title: 'Error starting subscription',
-        variant: 'destructive',
-      });
+  const handleSubscriptionPurchase = (plan: SubscriptionPlan) => {
+    if (!selectedPlan) {
+      setSelectedPlan(plan.id);
     }
+    createSubscription(plan.id, currency);
   };
 
-  const isRTL = language === 'ar';
+  if (creditsLoading || currencyLoading) {
+    return (
+      <div className="min-h-screen bg-[#0F1320] flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0F1320]">
@@ -213,26 +184,43 @@ const Wallet = () => {
             <div className={`flex items-center gap-3 mb-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
               <WalletIcon className="w-8 h-8 text-primary" />
               <h1 className="text-4xl md:text-5xl font-bold text-white">
-                {t('wallet')}
+                {isRTL ? 'المحفظة' : 'Wallet'}
               </h1>
             </div>
+          </div>
+
+          {/* Currency Display */}
+          <div className="mb-6">
+            <Badge variant="outline" className="text-primary border-primary">
+              {currency} - {currency === 'AED' ? 'UAE Dirham' : currency === 'SAR' ? 'Saudi Riyal' : 'US Dollar'}
+            </Badge>
           </div>
 
           {/* Balance Card */}
           <div className="mb-8">
             <Card className="bg-card border-border">
               <CardHeader>
-                <CardTitle className={`flex items-center gap-2 text-foreground ${isRTL ? 'flex-row-reverse' : ''}`}>
-                  <CreditCard className="w-6 h-6 text-primary" />
-                  {t('currentBalance')}
+                <CardTitle className={`flex items-center justify-between text-foreground ${isRTL ? 'flex-row-reverse' : ''}`}>
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="w-6 h-6 text-primary" />
+                    {isRTL ? 'الرصيد الحالي' : 'Current Balance'}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={refreshCredits}
+                    disabled={creditsLoading}
+                  >
+                    <RefreshCw className={`w-4 h-4 ${creditsLoading ? 'animate-spin' : ''}`} />
+                  </Button>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-4xl font-bold text-primary mb-2">
-                  120 {t('credits')}
+                  {credits.toLocaleString()} {isRTL ? 'رصيد' : 'Credits'}
                 </div>
                 <p className="text-muted-foreground text-sm">
-                  {t('creditsExpireIn90')}
+                  {isRTL ? 'الرصيد لا ينتهي' : 'Credits never expire'}
                 </p>
               </CardContent>
             </Card>
@@ -242,28 +230,65 @@ const Wallet = () => {
           <div className="mb-8">
             <Card className="bg-card border-border">
               <CardHeader>
-                <CardTitle className="text-foreground">{t('buyCredits')}</CardTitle>
+                <CardTitle className="text-foreground">
+                  {isRTL ? 'شراء رصيد' : 'Purchase Credits'}
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <Tabs defaultValue="one-time" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="one-time">{t('oneTime')}</TabsTrigger>
-                    <TabsTrigger value="subscription">{t('subscription')}</TabsTrigger>
+                <Tabs defaultValue="packages" className="w-full">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="packages">{isRTL ? 'الباقات' : 'Packages'}</TabsTrigger>
+                    <TabsTrigger value="custom">{isRTL ? 'مخصص' : 'Custom'}</TabsTrigger>
+                    <TabsTrigger value="subscription">{isRTL ? 'الاشتراك' : 'Subscription'}</TabsTrigger>
                   </TabsList>
                   
-                  {/* One-time Purchase Tab */}
-                  <TabsContent value="one-time" className="space-y-6 mt-6">
+                  {/* Credit Packages Tab */}
+                  <TabsContent value="packages" className="space-y-6 mt-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {creditPackages.map((pkg) => (
+                        <Card 
+                          key={pkg.id}
+                          className="border-2 border-border hover:border-primary/50 transition-colors cursor-pointer"
+                          onClick={() => handlePackagePurchase(pkg)}
+                        >
+                          <CardHeader className="pb-3">
+                            <CardTitle className="flex items-center justify-between">
+                              <span>{pkg.name}</span>
+                              <Package className="w-5 h-5 text-primary" />
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="text-2xl font-bold text-primary mb-2">
+                              {pkg.credits} Credits
+                            </div>
+                            <div className="text-xl font-semibold text-foreground">
+                              {formatPrice(getPrice(pkg))}
+                            </div>
+                            <Button 
+                              className="w-full mt-4" 
+                              disabled={paymentLoading}
+                            >
+                              {paymentLoading ? <LoadingSpinner /> : (isRTL ? 'شراء الآن' : 'Buy Now')}
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </TabsContent>
+
+                  {/* Custom Credits Tab */}
+                  <TabsContent value="custom" className="space-y-6 mt-6">
                     <div>
-                      <label className="text-foreground font-medium mb-4 block">
-                        {t('howManyCredits')}
-                      </label>
+                      <Label className="text-foreground font-medium mb-4 block">
+                        {isRTL ? 'كم عدد الرصيد المطلوب؟ (الحد الأدنى 10)' : 'How many credits? (Minimum 10)'}
+                      </Label>
                       
                       {/* Preset buttons */}
                       <div className={`flex flex-wrap gap-2 mb-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
                         {[50, 100, 200, 400].map((amount) => (
                           <Button
                             key={amount}
-                            variant={credits === amount ? "default" : "outline"}
+                            variant={customCredits === amount ? "default" : "outline"}
                             size="sm"
                             onClick={() => handlePresetClick(amount)}
                             className="text-sm"
@@ -276,7 +301,7 @@ const Wallet = () => {
                       {/* Slider and Input */}
                       <div className="space-y-4">
                         <Slider
-                          value={[credits]}
+                          value={[customCredits]}
                           onValueChange={handleCreditsChange}
                           min={10}
                           max={1000}
@@ -285,8 +310,8 @@ const Wallet = () => {
                         />
                         <Input
                           type="number"
-                          value={credits}
-                          onChange={(e) => setCredits(parseInt(e.target.value) || 10)}
+                          value={customCredits}
+                          onChange={(e) => setCustomCredits(Math.max(10, parseInt(e.target.value) || 10))}
                           min={10}
                           max={1000}
                           step={10}
@@ -297,120 +322,78 @@ const Wallet = () => {
 
                     {/* Price calculation */}
                     <div className="text-xl font-semibold text-foreground">
-                      {t('total')}: {credits} AED
+                      {isRTL ? 'المجموع:' : 'Total:'} {formatPrice(customCredits * (currency === 'USD' ? 0.27 : 1))}
                     </div>
-
-                    {/* Promo code - conditional rendering based on feature flag */}
-                    {featureFlags.PROMO_CODES_ENABLED && (
-                      <div>
-                        <Input
-                          placeholder={t('promoCode')}
-                          value={promoCode}
-                          onChange={(e) => setPromoCode(e.target.value)}
-                          className="w-full max-w-xs"
-                        />
-                      </div>
-                    )}
 
                     {/* Checkout button */}
-                    <div className="space-y-2">
-                      <Button
-                        onClick={handleOneTimeCheckout}
-                        className="bg-gradient-auth hover:opacity-90 text-white border-0 w-full sm:w-auto"
-                        size="lg"
-                      >
-                        {t('payWithStripe')}
-                      </Button>
-                      <p className="text-sm text-muted-foreground">
-                        {t('securePayment')}
-                      </p>
-                    </div>
+                    <Button
+                      onClick={handleCustomPurchase}
+                      className="bg-gradient-auth hover:opacity-90 text-white border-0 w-full sm:w-auto"
+                      size="lg"
+                      disabled={paymentLoading || customCredits < 10}
+                    >
+                      {paymentLoading ? <LoadingSpinner /> : (isRTL ? 'الدفع بـ Stripe' : 'Pay with Stripe')}
+                    </Button>
                   </TabsContent>
 
                   {/* Subscription Tab */}
                   <TabsContent value="subscription" className="space-y-6 mt-6">
-                    {/* Interval selector */}
-                    <div>
-                      <label className="text-foreground font-medium mb-3 block">
-                        {t('billedEach')}
-                      </label>
-                      <div className={`flex gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                        <Button
-                          variant={selectedInterval === 'monthly' ? "default" : "outline"}
-                          onClick={() => setSelectedInterval('monthly')}
-                          size="sm"
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {subscriptionPlans.map((plan) => (
+                        <Card
+                          key={plan.id}
+                          className={`border-2 transition-colors cursor-pointer ${
+                            selectedPlan === plan.id
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border hover:border-primary/50'
+                          }`}
+                          onClick={() => setSelectedPlan(plan.id)}
                         >
-                          {t('monthly')}
-                        </Button>
-                        {WEEKLY_SUBS_ENABLED && (
-                          <Button
-                            variant={selectedInterval === 'weekly' ? "default" : "outline"}
-                            onClick={() => setSelectedInterval('weekly')}
-                            size="sm"
-                          >
-                            {t('weekly')}
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Plan selector */}
-                    <div>
-                      <label className="text-foreground font-medium mb-3 block">
-                        Plan Size
-                      </label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {plans.map((plan) => (
-                          <Card
-                            key={plan.key}
-                            className={`cursor-pointer border-2 transition-colors ${
-                              selectedPlan === plan.key
-                                ? 'border-primary bg-primary/10'
-                                : 'border-border hover:border-primary/50'
-                            }`}
-                            onClick={() => setSelectedPlan(plan.key)}
-                          >
-                            <CardContent className="p-4 text-center">
-                              <div className={`flex items-center justify-center mb-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                                <h3 className="font-semibold text-foreground">{plan.name}</h3>
-                                {selectedPlan === plan.key && (
-                                  <Check className="w-4 h-4 text-primary ml-2" />
-                                )}
+                          <CardHeader>
+                            <CardTitle className="flex items-center justify-between">
+                              <span className="flex items-center gap-2">
+                                {plan.name === 'Pro Weekly' && <Star className="w-5 h-5 text-primary" />}
+                                {plan.name === 'Studio Weekly' && <Crown className="w-5 h-5 text-primary" />}
+                                {plan.name === 'Creator Weekly' && <Zap className="w-5 h-5 text-primary" />}
+                                {plan.name}
+                              </span>
+                              {selectedPlan === plan.id && <Check className="w-5 h-5 text-primary" />}
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-2 mb-4">
+                              <div className="text-2xl font-bold text-primary">
+                                {plan.credits_per_week} Credits/Week
                               </div>
-                              <p className="text-2xl font-bold text-primary">{plan.credits}</p>
-                              <p className="text-sm text-muted-foreground">{t('credits')}</p>
-                              <p className="text-lg font-semibold text-foreground mt-2">
-                                {plan.price} AED
-                              </p>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
+                              <div className="text-xl font-semibold text-foreground">
+                                {formatPrice(getPrice(plan))}/week
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                Saves {Math.round((1 - getPrice(plan) / plan.credits_per_week) * 100)}% vs one-time
+                              </div>
+                            </div>
+                            <Button 
+                              className="w-full" 
+                              onClick={() => handleSubscriptionPurchase(plan)}
+                              disabled={paymentLoading}
+                            >
+                              {paymentLoading ? <LoadingSpinner /> : (isRTL ? 'اشترك الآن' : 'Subscribe Now')}
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      ))}
                     </div>
 
-                    {/* Subscription checkout */}
-                    <div className="space-y-4">
-                      <div className="text-lg text-foreground">
-                        {t('billedEach')} {selectedInterval === 'monthly' ? t('monthly') : t('weekly')}
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Button
-                          onClick={handleSubscriptionCheckout}
-                          className="bg-gradient-auth hover:opacity-90 text-white border-0 w-full sm:w-auto"
-                          size="lg"
-                        >
-                          {t('startSubscription')}
-                        </Button>
-                        <div className={`flex gap-4 text-sm ${isRTL ? 'flex-row-reverse' : ''}`}>
-                          <a
-                            href="/app/billing"
-                            className="text-primary hover:underline"
-                          >
-                            {t('manageBilling')}
-                          </a>
-                        </div>
-                      </div>
+                    {/* Customer Portal Button */}
+                    <div className="flex justify-center">
+                      <Button
+                        variant="outline"
+                        onClick={openCustomerPortal}
+                        className="flex items-center gap-2"
+                      >
+                        <Settings className="w-4 h-4" />
+                        {isRTL ? 'إدارة الاشتراك' : 'Manage Subscription'}
+                      </Button>
                     </div>
                   </TabsContent>
                 </Tabs>
@@ -421,49 +404,82 @@ const Wallet = () => {
           {/* Transactions Card */}
           <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-foreground">{t('transactionHistory')}</CardTitle>
+              <CardTitle className="text-foreground flex items-center justify-between">
+                {isRTL ? 'سجل المعاملات' : 'Transaction History'}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={refreshCredits}
+                  disabled={creditsLoading}
+                >
+                  <RefreshCw className={`w-4 h-4 ${creditsLoading ? 'animate-spin' : ''}`} />
+                </Button>
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-foreground">{t('transactionType')}</TableHead>
-                    <TableHead className="text-foreground">{t('transactionAmount')}</TableHead>
-                    <TableHead className="text-foreground">{t('transactionDate')}</TableHead>
-                    <TableHead className="text-foreground">Description</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {transactions.map((transaction) => (
-                    <TableRow key={transaction.id}>
-                      <TableCell className="text-foreground font-medium">
-                        <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                          {transaction.amount > 0 ? (
-                            <Plus className="w-4 h-4 text-green-500" />
-                          ) : (
-                            <Minus className="w-4 h-4 text-red-500" />
-                          )}
-                          {transaction.type === 'purchase' || transaction.type === 'subscription'
-                            ? t('purchase')
-                            : t('generation')}
-                        </div>
-                      </TableCell>
-                      <TableCell className={`font-medium ${
-                        transaction.amount > 0 ? 'text-green-500' : 'text-red-500'
-                      }`}>
-                        {transaction.amount > 0 ? '+' : ''}{Math.abs(transaction.amount)} 
-                        {transaction.currency && ` ${transaction.currency}`}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {new Date(transaction.date).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {transaction.description}
-                      </TableCell>
+              {transactions.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-foreground">{isRTL ? 'النوع' : 'Type'}</TableHead>
+                      <TableHead className="text-foreground">{isRTL ? 'الرصيد' : 'Credits'}</TableHead>
+                      <TableHead className="text-foreground">{isRTL ? 'المبلغ' : 'Amount'}</TableHead>
+                      <TableHead className="text-foreground">{isRTL ? 'التاريخ' : 'Date'}</TableHead>
+                      <TableHead className="text-foreground">{isRTL ? 'الإجراءات' : 'Actions'}</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {transactions.map((transaction) => (
+                      <TableRow key={transaction.id}>
+                        <TableCell className="text-foreground font-medium">
+                          <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                            {transaction.credits_amount > 0 ? (
+                              <Plus className="w-4 h-4 text-green-500" />
+                            ) : (
+                              <Minus className="w-4 h-4 text-red-500" />
+                            )}
+                            {transaction.type === 'purchase' ? 
+                              (isRTL ? 'شراء' : 'Purchase') :
+                              transaction.type === 'subscription_credit' ?
+                              (isRTL ? 'اشتراك' : 'Subscription') :
+                              (isRTL ? 'استهلاك' : 'Usage')
+                            }
+                          </div>
+                        </TableCell>
+                        <TableCell className={`font-medium ${
+                          transaction.credits_amount > 0 ? 'text-green-500' : 'text-red-500'
+                        }`}>
+                          {transaction.credits_amount > 0 ? '+' : ''}{transaction.credits_amount}
+                        </TableCell>
+                        <TableCell className="text-foreground">
+                          {transaction.amount_paid ? 
+                            `${transaction.amount_paid} ${transaction.currency}` : 
+                            '-'
+                          }
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {new Date(transaction.created_at).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>
+                          {transaction.amount_paid && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => downloadInvoice(transaction.id)}
+                            >
+                              <Download className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  {isRTL ? 'لا توجد معاملات بعد' : 'No transactions yet'}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

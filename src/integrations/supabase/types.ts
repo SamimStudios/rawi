@@ -171,6 +171,95 @@ export type Database = {
           },
         ]
       }
+      credit_packages: {
+        Row: {
+          active: boolean
+          created_at: string
+          credits: number
+          id: string
+          name: string
+          price_aed: number
+          price_sar: number
+          price_usd: number
+          stripe_price_id_aed: string | null
+          stripe_price_id_sar: string | null
+          stripe_price_id_usd: string | null
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          credits: number
+          id?: string
+          name: string
+          price_aed: number
+          price_sar: number
+          price_usd: number
+          stripe_price_id_aed?: string | null
+          stripe_price_id_sar?: string | null
+          stripe_price_id_usd?: string | null
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          credits?: number
+          id?: string
+          name?: string
+          price_aed?: number
+          price_sar?: number
+          price_usd?: number
+          stripe_price_id_aed?: string | null
+          stripe_price_id_sar?: string | null
+          stripe_price_id_usd?: string | null
+        }
+        Relationships: []
+      }
+      invoices: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          id: string
+          invoice_number: string
+          pdf_url: string | null
+          status: string
+          stripe_invoice_id: string | null
+          transaction_id: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency: string
+          id?: string
+          invoice_number: string
+          pdf_url?: string | null
+          status?: string
+          stripe_invoice_id?: string | null
+          transaction_id?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          invoice_number?: string
+          pdf_url?: string | null
+          status?: string
+          stripe_invoice_id?: string | null
+          transaction_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jobs: {
         Row: {
           accent: string | null
@@ -493,6 +582,48 @@ export type Database = {
           },
         ]
       }
+      subscription_plans: {
+        Row: {
+          active: boolean
+          created_at: string
+          credits_per_week: number
+          id: string
+          name: string
+          price_aed: number
+          price_sar: number
+          price_usd: number
+          stripe_price_id_aed: string | null
+          stripe_price_id_sar: string | null
+          stripe_price_id_usd: string | null
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          credits_per_week: number
+          id?: string
+          name: string
+          price_aed: number
+          price_sar: number
+          price_usd: number
+          stripe_price_id_aed?: string | null
+          stripe_price_id_sar?: string | null
+          stripe_price_id_usd?: string | null
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          credits_per_week?: number
+          id?: string
+          name?: string
+          price_aed?: number
+          price_sar?: number
+          price_usd?: number
+          stripe_price_id_aed?: string | null
+          stripe_price_id_sar?: string | null
+          stripe_price_id_usd?: string | null
+        }
+        Relationships: []
+      }
       templates: {
         Row: {
           created_at: string | null
@@ -526,11 +657,92 @@ export type Database = {
         }
         Relationships: []
       }
+      transactions: {
+        Row: {
+          amount_paid: number | null
+          created_at: string
+          credits_amount: number
+          currency: string
+          description: string | null
+          id: string
+          metadata: Json | null
+          stripe_payment_intent_id: string | null
+          stripe_session_id: string | null
+          stripe_subscription_id: string | null
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          amount_paid?: number | null
+          created_at?: string
+          credits_amount: number
+          currency?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          stripe_payment_intent_id?: string | null
+          stripe_session_id?: string | null
+          stripe_subscription_id?: string | null
+          type: string
+          user_id?: string | null
+        }
+        Update: {
+          amount_paid?: number | null
+          created_at?: string
+          credits_amount?: number
+          currency?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          stripe_payment_intent_id?: string | null
+          stripe_session_id?: string | null
+          stripe_subscription_id?: string | null
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      user_credits: {
+        Row: {
+          created_at: string
+          credits: number
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          credits?: number
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          credits?: number
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      add_credits: {
+        Args: {
+          p_amount_paid?: number
+          p_credits: number
+          p_currency?: string
+          p_description?: string
+          p_stripe_session_id?: string
+          p_type?: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       add_updated_at_trigger: {
         Args: { p_schema: string; p_table: string }
         Returns: undefined
@@ -538,6 +750,10 @@ export type Database = {
       cleanup_old_guest_jobs: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      consume_credits: {
+        Args: { p_credits: number; p_description?: string; p_user_id: string }
+        Returns: boolean
       }
       generate_guest_session_id: {
         Args: Record<PropertyKey, never>
