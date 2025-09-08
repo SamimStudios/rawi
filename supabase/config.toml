@@ -17,3 +17,9 @@ verify_jwt = false
 
 [functions.stripe-webhook]
 verify_jwt = false
+
+[functions.create-storyboard-job]
+verify_jwt = false
+
+[functions.retry-storyboard-job]
+verify_jwt = false

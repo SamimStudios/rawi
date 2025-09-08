@@ -36,6 +36,7 @@ import Wallet from "./pages/app/Wallet";
 import Settings from "./pages/app/Settings";
 import StoryboardPlayground from "./pages/app/StoryboardPlayground";
 import JobStatus from "./pages/app/JobStatus";
+import StoryboardJobStatus from "./pages/app/StoryboardJobStatus";
 import Result from "./pages/app/Result";
 
 const queryClient = new QueryClient();
@@ -105,13 +106,13 @@ const MainApp = () => (
                        <Footer />
                      </div>
                    } />
-                   <Route path="/app/storyboard-status/:id" element={
-                     <div>
-                       <Header />
-                       <JobStatus />
-                       <Footer />
-                     </div>
-                   } />
+                    <Route path="/app/storyboard-status/:id" element={
+                      <div>
+                        <Header />
+                        <StoryboardJobStatus />
+                        <Footer />
+                      </div>
+                    } />
                    <Route path="/app/jobs/:id" element={
                     <div>
                       <Header />
