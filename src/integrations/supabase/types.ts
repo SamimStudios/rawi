@@ -544,7 +544,7 @@ export type Database = {
         Returns: string
       }
       link_guest_jobs_to_user: {
-        Args: { p_email: string }
+        Args: { p_email: string } | { p_email: string; p_session_id: string }
         Returns: undefined
       }
     }
