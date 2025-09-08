@@ -195,6 +195,7 @@ export type Database = {
           progress: string | null
           props: Json | null
           result_data: Json | null
+          session_id: string | null
           shots: Json | null
           stage: number | null
           template: string | null
@@ -226,6 +227,7 @@ export type Database = {
           progress?: string | null
           props?: Json | null
           result_data?: Json | null
+          session_id?: string | null
           shots?: Json | null
           stage?: number | null
           template?: string | null
@@ -257,6 +259,7 @@ export type Database = {
           progress?: string | null
           props?: Json | null
           result_data?: Json | null
+          session_id?: string | null
           shots?: Json | null
           stage?: number | null
           template?: string | null
@@ -531,6 +534,14 @@ export type Database = {
       add_updated_at_trigger: {
         Args: { p_schema: string; p_table: string }
         Returns: undefined
+      }
+      cleanup_old_guest_jobs: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      generate_guest_session_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
       }
       link_guest_jobs_to_user: {
         Args: { p_email: string }

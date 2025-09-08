@@ -1,16 +1,19 @@
 import { useState, useEffect, createContext, useContext } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { useGuestSession } from './useGuestSession';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  guestSessionId: string | null;
   signInWithOAuth: (provider: 'google' | 'facebook') => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string) => Promise<{ error: any }>;
   resetPassword: (email: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+  linkGuestJobsToUser: (email: string) => Promise<{ error: any }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -19,6 +22,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const { sessionId: guestSessionId, clearSession } = useGuestSession();
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -83,16 +87,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (error) throw error;
   };
 
+  const linkGuestJobsToUser = async (email: string) => {
+    try {
+      const { error } = await supabase.rpc('link_guest_jobs_to_user', {
+        p_email: email,
+        p_session_id: guestSessionId
+      });
+      
+      if (!error) {
+        // Clear guest session after successful linking
+        clearSession();
+      }
+      
+      return { error };
+    } catch (error) {
+      return { error };
+    }
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
       session,
       loading,
+      guestSessionId,
       signInWithOAuth,
       signInWithEmail,
       signUp,
       resetPassword,
-      signOut
+      signOut,
+      linkGuestJobsToUser
     }}>
       {children}
     </AuthContext.Provider>
