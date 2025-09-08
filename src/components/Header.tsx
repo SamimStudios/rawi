@@ -39,20 +39,18 @@ const Header = () => {
   return (
     <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
       <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
-          {/* Logo - positioned based on language direction */}
-          <div className={cn("flex items-center", isRTL ? "order-3" : "order-1")}>
-            <Link to="/" className="flex items-center">
-              <img 
-                src={logoSrc}
-                alt="Rawi App" 
-                className="h-8 md:h-10"
-              />
-            </Link>
-          </div>
+        <div className={cn("flex h-16 items-center", isRTL ? "flex-row-reverse" : "")}>
+          {/* Logo - always first in flex order */}
+          <Link to="/" className="flex items-center">
+            <img 
+              src={logoSrc}
+              alt="Rawi App" 
+              className="h-8 md:h-10"
+            />
+          </Link>
 
-          {/* Center: Navigation (Desktop) */}
-          <nav className={cn("hidden md:flex items-center flex-1 justify-center", isRTL ? "order-2 space-x-reverse space-x-8" : "order-2 space-x-8")}>
+          {/* Center: Navigation (Desktop) - grows to take available space */}
+          <nav className={cn("hidden md:flex items-center flex-1 justify-center", isRTL ? "space-x-reverse space-x-8" : "space-x-8")}>
             {navItems.map((item) => (
               <Link
                 key={item.key}
@@ -64,8 +62,8 @@ const Header = () => {
             ))}
           </nav>
 
-          {/* Actions - positioned based on language direction */}
-          <div className={cn("flex items-center", isRTL ? "order-1 space-x-reverse space-x-4" : "order-3 space-x-4")}>
+          {/* Actions - always last in flex order */}
+          <div className={cn("flex items-center", isRTL ? "space-x-reverse space-x-4" : "space-x-4")}>
             {/* Language Toggle */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
