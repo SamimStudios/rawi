@@ -28,6 +28,7 @@ import App from "./pages/App";
 import Terms from "./pages/legal/Terms";
 import Privacy from "./pages/legal/Privacy";
 import Consent from "./pages/legal/Consent";
+import Refund from "./pages/legal/Refund";
 import Dashboard from "./pages/app/Dashboard";
 import History from "./pages/app/History";
 import Wallet from "./pages/app/Wallet";
@@ -126,6 +127,13 @@ const MainApp = () => (
                     <div>
                       <Header />
                       <Consent />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/legal/refund" element={
+                    <div>
+                      <Header />
+                      <Refund />
                       <Footer />
                     </div>
                   } />

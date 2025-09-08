@@ -12,6 +12,7 @@ const Footer = () => {
     { key: 'terms', href: '/legal/terms' },
     { key: 'privacy', href: '/legal/privacy' },
     { key: 'consent', href: '/legal/consent' },
+    { key: 'refund', href: '/legal/refund' },
     { key: 'help', href: '/help' },
   ];
 
