@@ -185,7 +185,14 @@ const SEODemo = () => {
                           target.style.display = 'none';
                           const parent = target.parentElement;
                           if (parent) {
-                            parent.innerHTML = '<div class="flex items-center justify-center h-full text-white"><ImageIcon class="w-12 h-12" /></div>';
+                            // Create fallback element safely without innerHTML
+                            const fallbackDiv = document.createElement('div');
+                            fallbackDiv.className = 'flex items-center justify-center h-full text-white';
+                            const iconDiv = document.createElement('div');
+                            iconDiv.className = 'w-12 h-12';
+                            iconDiv.setAttribute('aria-label', 'Image placeholder');
+                            fallbackDiv.appendChild(iconDiv);
+                            parent.appendChild(fallbackDiv);
                           }
                         }}
                       />
