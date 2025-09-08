@@ -11,7 +11,8 @@ const SignIn = () => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
-  const { signInWithOAuth, signInWithEmail, user } = useAuth();
+  const [showResetForm, setShowResetForm] = useState(false);
+  const { signInWithOAuth, signInWithEmail, resetPassword, user } = useAuth();
   const { language, setLanguage, t } = useLanguage();
   const navigate = useNavigate();
 
@@ -49,6 +50,26 @@ const SignIn = () => {
       }
     } catch (error: any) {
       toast.error(error.message || 'Sign in failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    
+    try {
+      const { error } = await resetPassword(email);
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success(language === 'ar' ? 'تم إرسال رابط إعادة تعيين كلمة المرور إلى إيميلك' : 'Password reset link sent to your email');
+        setShowResetForm(false);
+        setShowEmailForm(false);
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Reset password failed');
     } finally {
       setIsLoading(false);
     }
@@ -142,6 +163,40 @@ const SignIn = () => {
               {language === 'ar' ? 'تسجيل الدخول بالإيميل' : 'Sign in with Email'}
             </Button>
           </div>
+        ) : showResetForm ? (
+          <form onSubmit={handleResetPassword} className="space-y-4">
+            <div className="text-center mb-4">
+              <h2 className="text-xl font-semibold text-white mb-2">
+                {language === 'ar' ? 'إعادة تعيين كلمة المرور' : 'Reset Password'}
+              </h2>
+              <p className="text-white/70 text-sm">
+                {language === 'ar' ? 'أدخل إيميلك لإرسال رابط إعادة تعيين كلمة المرور' : 'Enter your email to receive a password reset link'}
+              </p>
+            </div>
+            <Input
+              type="email"
+              placeholder={language === 'ar' ? 'الإيميل' : 'Email'}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="bg-white/5 border-white/20 text-white placeholder:text-white/50"
+            />
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-gradient-auth hover:opacity-90 text-white border-0"
+            >
+              {language === 'ar' ? 'إرسال رابط إعادة التعيين' : 'Send Reset Link'}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setShowResetForm(false)}
+              className="w-full text-white/70"
+            >
+              {language === 'ar' ? 'رجوع' : 'Back'}
+            </Button>
+          </form>
         ) : (
           <form onSubmit={handleEmailSignIn} className="space-y-4">
             <Input
@@ -160,6 +215,15 @@ const SignIn = () => {
               required
               className="bg-white/5 border-white/20 text-white placeholder:text-white/50"
             />
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowResetForm(true)}
+                className="text-white/70 hover:text-white text-sm underline hover:no-underline"
+              >
+                {language === 'ar' ? 'نسيت كلمة المرور؟' : 'Forgot password?'}
+              </button>
+            </div>
             <Button
               type="submit"
               disabled={isLoading}

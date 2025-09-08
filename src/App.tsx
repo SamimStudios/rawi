@@ -24,6 +24,7 @@ import AnalyticsDemo from "./pages/AnalyticsDemo";
 import MediaPlayerDemo from "./pages/MediaPlayerDemo";
 import SignIn from "./pages/auth/SignIn";
 import SignUp from "./pages/auth/SignUp";
+import ResetPassword from "./pages/auth/ResetPassword";
 import App from "./pages/App";
 import Terms from "./pages/legal/Terms";
 import Privacy from "./pages/legal/Privacy";
@@ -51,8 +52,9 @@ const MainApp = () => (
                 <AuthProvider>
                   <div className="min-h-screen bg-background">
                     <Routes>
-                  <Route path="/auth/sign-in" element={<SignIn />} />
-                  <Route path="/auth/sign-up" element={<SignUp />} />
+                   <Route path="/auth/sign-in" element={<SignIn />} />
+                   <Route path="/auth/sign-up" element={<SignUp />} />
+                   <Route path="/auth/reset-password" element={<ResetPassword />} />
                   <Route path="/404" element={
                     <div>
                       <Header />
