@@ -16,7 +16,7 @@ const StyleGuideline = () => {
     '--grad-1': '#2F7BFF',
     '--grad-2': '#8A53F8',
     '--grad-3': '#FF5AA0',
-    '--radius': '16px',
+    '--radius': '8px',
 
     // Semantic Colors (HSL)
     '--background': '217 29% 8%',
