@@ -618,6 +618,66 @@ export type Database = {
           },
         ]
       }
+      storyboard_jobs: {
+        Row: {
+          accent: string
+          created_at: string
+          face_ref_url: string | null
+          genres: string[]
+          id: string
+          language: string
+          lead_gender: string
+          lead_name: string
+          n8n_response: Json | null
+          n8n_webhook_sent: boolean
+          prompt: string | null
+          result_data: Json | null
+          session_id: string | null
+          stage: string
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          accent: string
+          created_at?: string
+          face_ref_url?: string | null
+          genres?: string[]
+          id?: string
+          language: string
+          lead_gender: string
+          lead_name: string
+          n8n_response?: Json | null
+          n8n_webhook_sent?: boolean
+          prompt?: string | null
+          result_data?: Json | null
+          session_id?: string | null
+          stage?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          accent?: string
+          created_at?: string
+          face_ref_url?: string | null
+          genres?: string[]
+          id?: string
+          language?: string
+          lead_gender?: string
+          lead_name?: string
+          n8n_response?: Json | null
+          n8n_webhook_sent?: boolean
+          prompt?: string | null
+          result_data?: Json | null
+          session_id?: string | null
+          stage?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       subscription_plans: {
         Row: {
           active: boolean

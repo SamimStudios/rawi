@@ -34,6 +34,7 @@ import Dashboard from "./pages/app/Dashboard";
 import History from "./pages/app/History";
 import Wallet from "./pages/app/Wallet";
 import Settings from "./pages/app/Settings";
+import StoryboardPlayground from "./pages/app/StoryboardPlayground";
 import JobStatus from "./pages/app/JobStatus";
 import Result from "./pages/app/Result";
 
@@ -97,7 +98,21 @@ const MainApp = () => (
                       <Footer />
                     </div>
                   } />
-                  <Route path="/app/jobs/:id" element={
+                   <Route path="/app/storyboard" element={
+                     <div>
+                       <Header />
+                       <StoryboardPlayground />
+                       <Footer />
+                     </div>
+                   } />
+                   <Route path="/app/storyboard-status/:id" element={
+                     <div>
+                       <Header />
+                       <JobStatus />
+                       <Footer />
+                     </div>
+                   } />
+                   <Route path="/app/jobs/:id" element={
                     <div>
                       <Header />
                       <JobStatus />
