@@ -18,9 +18,10 @@ const ResetPassword = () => {
     // Check if we have the required tokens from the URL
     const accessToken = searchParams.get('access_token');
     const refreshToken = searchParams.get('refresh_token');
+    const type = searchParams.get('type');
     
-    if (!accessToken || !refreshToken) {
-      toast.error('Invalid reset link');
+    if (!accessToken || !refreshToken || type !== 'recovery') {
+      toast.error('Invalid or expired reset link');
       navigate('/auth/sign-in');
       return;
     }
@@ -29,6 +30,10 @@ const ResetPassword = () => {
     supabase.auth.setSession({
       access_token: accessToken,
       refresh_token: refreshToken
+    }).catch((error) => {
+      console.error('Session error:', error);
+      toast.error('Invalid reset link');
+      navigate('/auth/sign-in');
     });
   }, [searchParams, navigate]);
 

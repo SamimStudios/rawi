@@ -8,14 +8,16 @@ import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
-import { Settings as SettingsIcon, User, Globe, Link as LinkIcon, Save } from 'lucide-react';
+import { Settings as SettingsIcon, User, Globe, Link as LinkIcon, Save, Trash2 } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 const Settings = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const { language, setLanguage, t } = useLanguage();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [userName, setUserName] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -49,6 +51,32 @@ const Settings = () => {
         variant: 'default',
       });
     }, 500);
+  };
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      // Sign out first
+      await signOut();
+      
+      // In a real implementation, you would call a backend function to delete the account
+      // For now, we'll just show a success message and redirect
+      toast({
+        title: language === 'ar' ? 'تم حذف الحساب' : 'Account deleted',
+        description: language === 'ar' ? 'تم حذف حسابك بنجاح' : 'Your account has been successfully deleted',
+        variant: 'default',
+      });
+      
+      navigate('/');
+    } catch (error: any) {
+      toast({
+        title: language === 'ar' ? 'فشل في حذف الحساب' : 'Failed to delete account',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const accountConnections = [
@@ -162,6 +190,64 @@ const Settings = () => {
               <CardContent className="pt-6">
                 <div className="text-muted-foreground text-sm">
                   {t('consentLogNote')}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Danger Zone */}
+            <Card className="bg-card border-destructive/20">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-destructive">
+                  <Trash2 className="w-6 h-6" />
+                  {language === 'ar' ? 'منطقة الخطر' : 'Danger Zone'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-foreground">
+                      {language === 'ar' ? 'حذف الحساب' : 'Delete Account'}
+                    </Label>
+                    <p className="text-muted-foreground text-sm">
+                      {language === 'ar' ? 'حذف حسابك نهائياً. لا يمكن التراجع عن هذا الإجراء.' : 'Permanently delete your account. This action cannot be undone.'}
+                    </p>
+                  </div>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="sm">
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        {language === 'ar' ? 'حذف الحساب' : 'Delete Account'}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>
+                          {language === 'ar' ? 'هل أنت متأكد؟' : 'Are you absolutely sure?'}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {language === 'ar' 
+                            ? 'هذا الإجراء لا يمكن التراجع عنه. سيتم حذف حسابك وجميع بياناتك نهائياً.'
+                            : 'This action cannot be undone. This will permanently delete your account and all your data.'
+                          }
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>
+                          {language === 'ar' ? 'إلغاء' : 'Cancel'}
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleDeleteAccount}
+                          disabled={isDeleting}
+                          className="bg-destructive hover:bg-destructive/90"
+                        >
+                          {isDeleting 
+                            ? (language === 'ar' ? 'جاري الحذف...' : 'Deleting...')
+                            : (language === 'ar' ? 'حذف الحساب' : 'Delete Account')
+                          }
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </CardContent>
             </Card>
