@@ -235,6 +235,33 @@ const translations = {
     faq6Answer: 'Yes, as long as you own the uploads and respect our Terms.',
     faq7Question: 'What languages are supported?',
     faq7Answer: 'English + Arabic. More coming soon.',
+    
+    // Common UI Elements
+    loading: 'Loading...',
+    error: 'Error',
+    success: 'Success',
+    cancel: 'Cancel',
+    confirm: 'Confirm',
+    delete: 'Delete',
+    edit: 'Edit',
+    view: 'View',
+    close: 'Close',
+    next: 'Next',
+    previous: 'Previous',
+    back: 'Back',
+    continue: 'Continue',
+    apply: 'Apply',
+    reset: 'Reset',
+    refresh: 'Refresh',
+    
+    // Form Elements
+    email: 'Email',
+    password: 'Password',
+    confirmPassword: 'Confirm Password',
+    submit: 'Submit',
+    required: 'Required',
+    optional: 'Optional',
+    placeholder: 'Enter text...',
   },
   ar: {
     // Navigation & Header (Arabic)
@@ -458,6 +485,33 @@ const translations = {
     faq6Answer: 'نعم، طالما أنك تملك الملفات المرفوعة وتحترم الشروط.',
     faq7Question: 'ما هي اللغات المدعومة؟',
     faq7Answer: 'العربية والإنجليزية. المزيد قريبًا.',
+    
+    // Common UI Elements (Arabic)
+    loading: 'جارٍ التحميل...',
+    error: 'خطأ',
+    success: 'نجح',
+    cancel: 'إلغاء',
+    confirm: 'تأكيد',
+    delete: 'حذف',
+    edit: 'تعديل',
+    view: 'عرض',
+    close: 'إغلاق',
+    next: 'التالي',
+    previous: 'السابق',
+    back: 'رجوع',
+    continue: 'متابعة',
+    apply: 'تطبيق',
+    reset: 'إعادة تعيين',
+    refresh: 'تحديث',
+    
+    // Form Elements (Arabic)
+    email: 'البريد الإلكتروني',
+    password: 'كلمة المرور',
+    confirmPassword: 'تأكيد كلمة المرور',
+    submit: 'إرسال',
+    required: 'مطلوب',
+    optional: 'اختياري',
+    placeholder: 'أدخل النص...',
   }
 };
 
