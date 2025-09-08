@@ -39,9 +39,9 @@ const Header = () => {
   return (
     <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
       <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center">
-          {/* Logo - positioned conditionally based on RTL */}
-          <Link to="/" className={cn("flex items-center", isRTL && "ml-auto order-3")}>
+        <div className={cn("flex h-16 items-center", isRTL && "flex-row-reverse")}>
+          {/* Logo */}
+          <Link to="/" className="flex items-center">
             <img 
               src={logoSrc}
               alt="Rawi App" 
@@ -49,8 +49,8 @@ const Header = () => {
             />
           </Link>
 
-          {/* Center: Navigation (Desktop) - always centered */}
-          <nav className={cn("hidden md:flex items-center flex-1 justify-center order-2", isRTL ? "space-x-reverse space-x-8" : "space-x-8")}>
+          {/* Center: Navigation (Desktop) */}
+          <nav className={cn("hidden md:flex items-center flex-1 justify-center", isRTL ? "space-x-reverse space-x-8" : "space-x-8")}>
             {navItems.map((item) => (
               <Link
                 key={item.key}
@@ -62,8 +62,8 @@ const Header = () => {
             ))}
           </nav>
 
-          {/* Actions - positioned conditionally based on RTL */}
-          <div className={cn("flex items-center", isRTL ? "mr-auto order-1 space-x-reverse space-x-4" : "ml-auto order-3 space-x-4")}>
+          {/* Actions */}
+          <div className={cn("flex items-center", isRTL ? "space-x-reverse space-x-4" : "space-x-4")}>
             {/* Language Toggle */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
