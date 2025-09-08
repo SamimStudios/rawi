@@ -304,6 +304,67 @@ const translations = {
     
     // Guest Registration Full
     saveYourResultCreate: 'Save Your Result - Create Account',
+    
+    // Storyboard Page
+    storyboardPlayground: 'Storyboard Playground',
+    createPersonalizedStoryboard: 'Create your personalized storyboard by filling out the details below',
+    storyboardTemplate: 'Template',
+    loadingTemplates: 'Loading templates...',
+    selectTemplate: 'Select a template',
+    leadCharacter: 'Lead Character',
+    leadName: 'Name',
+    enterLeadCharacterName: 'Enter the lead character\'s name',
+    gender: 'Gender',
+    selectGender: 'Select gender',
+    male: 'Male',
+    female: 'Female',
+    aiGeneratedCharacter: 'AI Generated Character',
+    faceReferenceImage: 'Face Reference Image',
+    uploadFaceReference: 'Upload a face reference image',
+    chooseImage: 'Choose Image',
+    supportingCharacters: 'Supporting Characters',
+    supportingCharactersDesc: 'Supporting characters will be automatically generated based on your plot and template.',
+    supportingCharacter: 'Supporting Character',
+    figureFromPlot: 'Figure from plot',
+    aiGeneratedFace: 'AI Generated Face',
+    addSupportingCharacter: 'Add Supporting Character',
+    genres: 'Genres',
+    selectGenresDesc: 'Select up to 3 genres that match your story',
+    voiceAndLanguage: 'Voice & Language',
+    accent: 'Accent',
+    storyPrompt: 'Story Prompt',
+    describeStoryScene: 'Describe your story or scene in detail',
+    createStoryboard: 'Create Storyboard',
+    creating: 'Creating...',
+    
+    // Error Messages - Storyboard
+    fileTooLarge: 'File too large',
+    imageUnder5MB: 'Please select an image under 5MB',
+    missingFields: 'Missing fields',
+    fillAllRequired: 'Please fill in all required fields including template selection',
+    missingGenres: 'Missing genres',
+    selectAtLeastOneGenre: 'Please select at least one genre',
+    insufficientCredits: 'Insufficient Credits',
+    needCreditsMessage: 'You need {credits} credits to start this job. Please purchase more credits.',
+    storyboardJobCreated: 'Storyboard job created!',
+    processingRedirecting: 'Your storyboard is being processed. Redirecting to status page...',
+    unexpectedError: 'An unexpected error occurred. Please try again.',
+    
+    // Common Status Messages
+    warning: 'Warning',
+    couldNotLoadTemplates: 'Could not load templates. You can still proceed without selecting a template.',
+    
+    // Additional Storyboard Elements
+    maxTwoSupportingChars: '(Max 2)',
+    supportingCharCount: '({count}/2)',
+    voiceLanguage: 'Language',
+    selectLanguage: 'Select language',
+    selectAccent: 'Select accent',
+    genresMax3: 'Genres * (Max 3)',
+    selectedGenres: 'Selected: {genres} ({count}/3)',
+    plotInstructions: 'Plot & Instructions (Optional)',
+    plotPlaceholder: 'Describe your story plot or provide specific instructions. Example: \'A thriller about a detective in Paris\' or \'Title: The Last Stand - A sci-fi adventure...\'',
+    creatingStoryboard: 'Creating Storyboard...',
   },
   ar: {
     // Navigation & Header (Arabic)
@@ -596,6 +657,67 @@ const translations = {
     
     // Guest Registration Full (Arabic)
     saveYourResultCreate: 'احفظ نتيجتك - إنشاء حساب',
+    
+    // Storyboard Page (Arabic)
+    storyboardPlayground: 'ملعب القصة المصورة',
+    createPersonalizedStoryboard: 'أنشئ قصتك المصورة الشخصية من خلال ملء التفاصيل أدناه',
+    storyboardTemplate: 'القالب',
+    loadingTemplates: 'جارٍ تحميل القوالب...',
+    selectTemplate: 'اختر قالباً',
+    leadCharacter: 'الشخصية الرئيسية',
+    leadName: 'الاسم',
+    enterLeadCharacterName: 'أدخل اسم الشخصية الرئيسية',
+    gender: 'الجنس',
+    selectGender: 'اختر الجنس',
+    male: 'ذكر',
+    female: 'أنثى',
+    aiGeneratedCharacter: 'شخصية مولدة بالذكاء الاصطناعي',
+    faceReferenceImage: 'صورة مرجعية للوجه',
+    uploadFaceReference: 'ارفع صورة مرجعية للوجه',
+    chooseImage: 'اختر صورة',
+    supportingCharacters: 'الشخصيات المساعدة',
+    supportingCharactersDesc: 'سيتم إنشاء الشخصيات المساعدة تلقائياً بناءً على الحبكة والقالب.',
+    supportingCharacter: 'الشخصية المساعدة',
+    figureFromPlot: 'شخصية من الحبكة',
+    aiGeneratedFace: 'وجه مولد بالذكاء الاصطناعي',
+    addSupportingCharacter: 'أضف شخصية مساعدة',
+    genres: 'الأنواع',
+    selectGenresDesc: 'اختر حتى 3 أنواع تناسب قصتك',
+    voiceAndLanguage: 'الصوت واللغة',
+    accent: 'اللهجة',
+    storyPrompt: 'موجه القصة',
+    describeStoryScene: 'صف قصتك أو مشهدك بالتفصيل',
+    createStoryboard: 'أنشئ القصة المصورة',
+    creating: 'جارٍ الإنشاء...',
+    
+    // Error Messages - Storyboard (Arabic)
+    fileTooLarge: 'الملف كبير جداً',
+    imageUnder5MB: 'يرجى اختيار صورة أقل من 5 ميجابايت',
+    missingFields: 'حقول مفقودة',
+    fillAllRequired: 'يرجى ملء جميع الحقول المطلوبة بما في ذلك اختيار القالب',
+    missingGenres: 'أنواع مفقودة',
+    selectAtLeastOneGenre: 'يرجى اختيار نوع واحد على الأقل',
+    insufficientCredits: 'رصيد غير كافٍ',
+    needCreditsMessage: 'تحتاج إلى {credits} رصيد لبدء هذه المهمة. يرجى شراء المزيد من الرصيد.',
+    storyboardJobCreated: 'تم إنشاء مهمة القصة المصورة!',
+    processingRedirecting: 'قصتك المصورة قيد المعالجة. جارٍ التوجيه إلى صفحة الحالة...',
+    unexpectedError: 'حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.',
+    
+    // Common Status Messages (Arabic)
+    warning: 'تحذير',
+    couldNotLoadTemplates: 'لا يمكن تحميل القوالب. يمكنك المتابعة دون اختيار قالب.',
+    
+    // Additional Storyboard Elements (Arabic)
+    maxTwoSupportingChars: '(حد أقصى 2)',
+    supportingCharCount: '({count}/2)',
+    voiceLanguage: 'اللغة',
+    selectLanguage: 'اختر اللغة',
+    selectAccent: 'اختر اللهجة',
+    genresMax3: 'الأنواع * (حد أقصى 3)',
+    selectedGenres: 'المختار: {genres} ({count}/3)',
+    plotInstructions: 'الحبكة والتعليمات (اختياري)',
+    plotPlaceholder: 'صف حبكة قصتك أو قدم تعليمات محددة. مثال: \'إثارة حول محقق في باريس\' أو \'العنوان: الموقف الأخير - مغامرة خيال علمي...\'',
+    creatingStoryboard: 'جارٍ إنشاء القصة المصورة...',
   }
 };
 
