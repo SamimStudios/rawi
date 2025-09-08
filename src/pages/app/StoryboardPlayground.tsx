@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useGuestSession } from '@/hooks/useGuestSession';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const LANGUAGES = [
   'English', 'Arabic'
@@ -33,6 +34,7 @@ export default function StoryboardPlayground() {
   const { user } = useAuth();
   const { sessionId } = useGuestSession();
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const [formData, setFormData] = useState({
     template: '',
@@ -71,8 +73,8 @@ export default function StoryboardPlayground() {
         if (error) {
           console.error('Error fetching templates:', error);
           toast({
-            title: "Warning",
-            description: "Could not load templates. You can still proceed without selecting a template.",
+            title: t('storyboard.warning'),
+            description: t('storyboard.templatesLoadError'),
             variant: "destructive"
           });
         } else {
@@ -135,8 +137,8 @@ export default function StoryboardPlayground() {
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
         toast({
-          title: "File too large",
-          description: "Please select an image under 5MB",
+          title: t('storyboard.fileTooLarge'),
+          description: t('storyboard.fileSizeLimit'),
           variant: "destructive"
         });
         return;
@@ -161,8 +163,8 @@ export default function StoryboardPlayground() {
     
     if (!formData.leadName || !formData.leadGender || !formData.language || !formData.accent || !formData.template) {
       toast({
-        title: "Missing fields",
-        description: "Please fill in all required fields including template selection",
+        title: t('storyboard.missingFields'),
+        description: t('storyboard.missingFieldsDescription'),
         variant: "destructive"
       });
       return;
@@ -170,8 +172,8 @@ export default function StoryboardPlayground() {
 
     if (selectedGenres.length === 0) {
       toast({
-        title: "Missing genres",
-        description: "Please select at least one genre",
+        title: t('storyboard.missingGenres'),
+        description: t('storyboard.missingGenresDescription'),
         variant: "destructive"
       });
       return;
@@ -208,14 +210,14 @@ export default function StoryboardPlayground() {
         if (error.message?.includes('Insufficient credits')) {
           const requiredCredits = error.required_credits || 10;
           toast({
-            title: "Insufficient Credits",
-            description: `You need ${requiredCredits} credits to start this job. Please purchase more credits.`,
+            title: t('storyboard.insufficientCredits'),
+            description: `${t('storyboard.youNeed')} ${requiredCredits} ${t('storyboard.creditsToStart')}`,
             variant: "destructive",
           });
         } else {
           toast({
-            title: "Error",
-            description: error.message || "Failed to create storyboard job. Please try again.",
+            title: t('storyboard.error'),
+            description: error.message || t('storyboard.failedToCreate'),
             variant: "destructive"
           });
         }
@@ -223,8 +225,8 @@ export default function StoryboardPlayground() {
       }
 
       toast({
-        title: "Storyboard job created!",
-        description: "Your storyboard is being processed. Redirecting to status page..."
+        title: t('storyboard.jobCreated'),
+        description: t('storyboard.processingRedirect')
       });
 
       // Navigate to job status page
@@ -233,8 +235,8 @@ export default function StoryboardPlayground() {
     } catch (error) {
       console.error('Error:', error);
       toast({
-        title: "Error",
-        description: "An unexpected error occurred. Please try again.",
+        title: t('storyboard.error'),
+        description: t('storyboard.unexpectedError'),
         variant: "destructive"
       });
     } finally {
@@ -255,19 +257,19 @@ export default function StoryboardPlayground() {
     <div className="container mx-auto px-4 py-8 max-w-2xl">
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl font-bold text-center">Storyboard Playground</CardTitle>
+          <CardTitle className="text-2xl font-bold text-center">{t('storyboard.title')}</CardTitle>
           <p className="text-muted-foreground text-center">
-            Create your personalized storyboard by filling out the details below
+            {t('storyboard.subtitle')}
           </p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Template */}
             <div className="space-y-2">
-              <Label htmlFor="template">Template *</Label>
+              <Label htmlFor="template">{t('storyboard.template')} *</Label>
               <Select onValueChange={(value) => handleInputChange('template', value)} required>
                 <SelectTrigger>
-                  <SelectValue placeholder={templatesLoading ? "Loading templates..." : "Select a template"} />
+                  <SelectValue placeholder={templatesLoading ? t('storyboard.loadingTemplates') : t('storyboard.selectTemplate')} />
                 </SelectTrigger>
                 <SelectContent className="max-w-[calc(100vw-2rem)] w-full">
                   {templates.map(template => (
@@ -286,29 +288,29 @@ export default function StoryboardPlayground() {
 
             {/* Lead Character */}
             <div className="space-y-4 border rounded-lg p-4">
-              <h3 className="text-lg font-semibold">Lead Character</h3>
+              <h3 className="text-lg font-semibold">{t('storyboard.leadCharacter')}</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="leadName">Name *</Label>
+                  <Label htmlFor="leadName">{t('storyboard.name')} *</Label>
                   <Input
                     id="leadName"
                     value={formData.leadName}
                     onChange={(e) => handleInputChange('leadName', e.target.value)}
-                    placeholder="Enter the lead character's name"
+                    placeholder={t('storyboard.enterLeadName')}
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="leadGender">Gender *</Label>
+                  <Label htmlFor="leadGender">{t('storyboard.gender')} *</Label>
                   <Select onValueChange={(value) => handleInputChange('leadGender', value)} required>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select gender" />
+                      <SelectValue placeholder={t('storyboard.selectGender')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="male">Male</SelectItem>
-                      <SelectItem value="female">Female</SelectItem>
+                      <SelectItem value="male">{t('storyboard.male')}</SelectItem>
+                      <SelectItem value="female">{t('storyboard.female')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -320,18 +322,18 @@ export default function StoryboardPlayground() {
                   checked={formData.leadAiCharacter}
                   onCheckedChange={(checked) => handleInputChange('leadAiCharacter', checked.toString())}
                 />
-                <Label htmlFor="leadAiCharacter">AI Generated Character</Label>
+                <Label htmlFor="leadAiCharacter">{t('storyboard.aiGeneratedCharacter')}</Label>
               </div>
 
               {!formData.leadAiCharacter && (
                 <div className="space-y-2">
-                  <Label htmlFor="faceImage">Face Reference Image</Label>
+                  <Label htmlFor="faceImage">{t('storyboard.faceReferenceImage')}</Label>
                   <div className="space-y-4">
                     {faceImagePreview ? (
                       <div className="relative inline-block">
                         <img 
                           src={faceImagePreview} 
-                          alt="Face reference" 
+                          alt={t('storyboard.faceReference')} 
                           className="w-32 h-32 object-cover rounded-lg border"
                         />
                         <Button
@@ -347,7 +349,7 @@ export default function StoryboardPlayground() {
                     ) : (
                       <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
                         <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground mb-2">Upload a face reference image</p>
+                        <p className="text-sm text-muted-foreground mb-2">{t('storyboard.uploadFaceReference')}</p>
                         <Input
                           id="faceImage"
                           type="file"
@@ -360,7 +362,7 @@ export default function StoryboardPlayground() {
                           variant="outline"
                           onClick={() => document.getElementById('faceImage')?.click()}
                         >
-                          Choose Image
+                          {t('storyboard.chooseImage')}
                         </Button>
                       </div>
                     )}
@@ -373,20 +375,20 @@ export default function StoryboardPlayground() {
             <Collapsible open={!supportingCollapsed} onOpenChange={(open) => setSupportingCollapsed(!open)}>
               <CollapsibleTrigger asChild>
                 <Button variant="outline" className="w-full justify-between">
-                  <span>Supporting Characters</span>
+                  <span>{t('storyboard.supportingCharacters')}</span>
                   {supportingCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
                 </Button>
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-4 mt-4">
                 <div className="text-sm text-muted-foreground">
-                  Supporting characters will be automatically generated based on your plot and template.
+                  {t('storyboard.supportingCharactersDescription')}
                 </div>
                 
                 <div className="space-y-4">
                   {supportingCharacters.map((character, index) => (
                     <div key={character.id} className="border rounded-lg p-4 space-y-4">
                       <div className="flex items-center justify-between">
-                        <h4 className="font-medium">Supporting Character {index + 1}</h4>
+                        <h4 className="font-medium">{t('storyboard.supportingCharacter')} {index + 1}</h4>
                         <Button
                           type="button"
                           variant="ghost"
@@ -401,7 +403,7 @@ export default function StoryboardPlayground() {
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label>Name</Label>
+                          <Label>{t('storyboard.name')}</Label>
                           <Input
                             value={character.name}
                             onChange={(e) => {
@@ -409,12 +411,12 @@ export default function StoryboardPlayground() {
                                 c.id === character.id ? { ...c, name: e.target.value } : c
                               ));
                             }}
-                            placeholder="Figure from plot"
+                            placeholder={t('storyboard.figureFromPlot')}
                           />
                         </div>
                         
                         <div className="space-y-2">
-                          <Label>Gender</Label>
+                          <Label>{t('storyboard.gender')}</Label>
                           <Select 
                             value={character.gender} 
                             onValueChange={(value) => {
@@ -424,11 +426,11 @@ export default function StoryboardPlayground() {
                             }}
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Figure from plot" />
+                              <SelectValue placeholder={t('storyboard.figureFromPlot')} />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="male">Male</SelectItem>
-                              <SelectItem value="female">Female</SelectItem>
+                              <SelectItem value="male">{t('storyboard.male')}</SelectItem>
+                              <SelectItem value="female">{t('storyboard.female')}</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -443,18 +445,18 @@ export default function StoryboardPlayground() {
                             ));
                           }}
                         />
-                        <Label>AI Generated Face</Label>
+                        <Label>{t('storyboard.aiGeneratedFace')}</Label>
                       </div>
 
                       {!character.aiFace && (
                         <div className="space-y-2">
-                          <Label>Face Reference Image</Label>
+                          <Label>{t('storyboard.faceReferenceImage')}</Label>
                           <div className="space-y-4">
                             {character.faceImagePreview ? (
                               <div className="relative inline-block">
                                 <img 
                                   src={character.faceImagePreview} 
-                                  alt="Face reference" 
+                                  alt={t('storyboard.faceReference')} 
                                   className="w-32 h-32 object-cover rounded-lg border"
                                 />
                                 <Button
@@ -474,7 +476,7 @@ export default function StoryboardPlayground() {
                             ) : (
                               <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
                                 <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                                <p className="text-sm text-muted-foreground mb-2">Upload a face reference image</p>
+                                <p className="text-sm text-muted-foreground mb-2">{t('storyboard.uploadFaceReference')}</p>
                                 <Input
                                   id={`faceImage-${character.id}`}
                                   type="file"
@@ -484,8 +486,8 @@ export default function StoryboardPlayground() {
                                     if (file) {
                                       if (file.size > 5 * 1024 * 1024) {
                                         toast({
-                                          title: "File too large",
-                                          description: "Please select an image under 5MB",
+                                          title: t('storyboard.fileTooLarge'),
+                                          description: t('storyboard.fileSizeLimit'),
                                           variant: "destructive"
                                         });
                                         return;
@@ -511,7 +513,7 @@ export default function StoryboardPlayground() {
                                   variant="outline"
                                   onClick={() => document.getElementById(`faceImage-${character.id}`)?.click()}
                                 >
-                                  Choose Image
+                                  {t('storyboard.chooseImage')}
                                 </Button>
                               </div>
                             )}
@@ -535,7 +537,7 @@ export default function StoryboardPlayground() {
                     className="w-full"
                     disabled={supportingCharacters.length >= 2}
                   >
-                    Add Supporting Character {supportingCharacters.length >= 2 ? '(Max 2)' : `(${supportingCharacters.length}/2)`}
+                    {t('storyboard.addSupportingCharacter')} {supportingCharacters.length >= 2 ? t('storyboard.max2') : `(${supportingCharacters.length}/2)`}
                   </Button>
                 </div>
               </CollapsibleContent>
@@ -543,10 +545,10 @@ export default function StoryboardPlayground() {
 
             {/* Language */}
             <div className="space-y-2">
-              <Label htmlFor="language">Language *</Label>
+              <Label htmlFor="language">{t('storyboard.language')} *</Label>
               <Select onValueChange={(value) => handleInputChange('language', value)} defaultValue="English" required>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select language" />
+                  <SelectValue placeholder={t('storyboard.selectLanguage')} />
                 </SelectTrigger>
                 <SelectContent>
                   {LANGUAGES.map(lang => (
@@ -558,14 +560,14 @@ export default function StoryboardPlayground() {
 
             {/* Accent */}
             <div className="space-y-2">
-              <Label htmlFor="accent">Accent *</Label>
+              <Label htmlFor="accent">{t('storyboard.accent')} *</Label>
               <Select 
                 onValueChange={(value) => handleInputChange('accent', value)} 
                 value={formData.accent}
                 required
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select accent" />
+                  <SelectValue placeholder={t('storyboard.selectAccent')} />
                 </SelectTrigger>
                 <SelectContent>
                   {formData.language && ACCENTS[formData.language as keyof typeof ACCENTS]?.map(accent => (
@@ -577,7 +579,7 @@ export default function StoryboardPlayground() {
 
             {/* Genres */}
             <div className="space-y-2">
-              <Label>Genres * (Max 3)</Label>
+              <Label>{t('storyboard.genres')} * ({t('storyboard.max3')})</Label>
               <div className="flex flex-wrap gap-2">
                 {GENRE_OPTIONS.map(genre => (
                   <Badge
@@ -596,19 +598,19 @@ export default function StoryboardPlayground() {
               </div>
               {selectedGenres.length > 0 && (
                 <p className="text-sm text-muted-foreground">
-                  Selected: {selectedGenres.join(', ')} ({selectedGenres.length}/3)
+                  {t('storyboard.selected')}: {selectedGenres.join(', ')} ({selectedGenres.length}/3)
                 </p>
               )}
             </div>
 
             {/* Prompt */}
             <div className="space-y-2">
-              <Label htmlFor="prompt">Plot & Instructions (Optional)</Label>
+              <Label htmlFor="prompt">{t('storyboard.plotInstructions')}</Label>
               <Textarea
                 id="prompt"
                 value={formData.prompt}
                 onChange={(e) => handleInputChange('prompt', e.target.value)}
-                placeholder="Describe your story plot or provide specific instructions. Example: 'A thriller about a detective in Paris' or 'Title: The Last Stand - A sci-fi adventure...'"
+                placeholder={t('storyboard.plotPlaceholder')}
                 rows={4}
               />
             </div>
@@ -622,10 +624,10 @@ export default function StoryboardPlayground() {
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating Storyboard...
+                  {t('storyboard.creating')}
                 </>
               ) : (
-                'Create Storyboard'
+                t('storyboard.createStoryboard')
               )}
             </Button>
           </form>
