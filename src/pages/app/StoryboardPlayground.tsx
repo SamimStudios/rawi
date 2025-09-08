@@ -88,6 +88,16 @@ export default function StoryboardPlayground() {
     fetchTemplates();
   }, [toast]);
 
+  // Update lead name when user data becomes available
+  useEffect(() => {
+    if (user?.user_metadata?.full_name && !formData.leadName) {
+      setFormData(prev => ({
+        ...prev,
+        leadName: user.user_metadata.full_name
+      }));
+    }
+  }, [user, formData.leadName]);
+
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => {
       const newData = { ...prev, [field]: value };
