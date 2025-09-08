@@ -190,7 +190,7 @@ const translations = {
     privacyRights: 'Your Privacy Rights',
     privacyRightsContent: 'You have the right to access, correct, or delete your personal information. You may request data portability or restrict processing. To exercise these rights, contact support@rawiapp.io. We will respond within 30 days.',
      privacyContact: 'Privacy Contact Information',
-     privacyContactContent: 'For privacy-related inquiries, complaints, or requests: Email: support@rawiapp.io | Address: SAMIM STUDIOS L.L.C-FZ, UAE | Phone: Available upon request through support channels.',
+     privacyContactContent: 'For privacy-related inquiries, complaints, or requests: Email: support@rawiapp.io | Address: SAMIM STUDIOS L.L.C-FZ, Meydan Grandstand, 6th floor, Meydan Road, Nad Al Sheba, Dubai, U.A.E. | Phone: Available upon request through support channels.',
      privacyDeletion: 'User Data Deletion',
      privacyDeletionContent: 'You have the right to request complete deletion of your account and associated data. To request account deletion, contact support@rawiapp.io with your account details. Upon verification, SAMIM STUDIOS L.L.C-FZ will permanently delete your account, uploaded content, generated outputs, and personal information within 30 days. Backup copies may be retained for up to 90 days for recovery purposes, after which they are permanently destroyed. Please note that some data may be retained longer if required by law or for legitimate business purposes such as preventing fraud.',
     
@@ -603,7 +603,7 @@ const translations = {
     privacyRights: 'حقوق الخصوصية الخاصة بك',
     privacyRightsContent: 'لديك الحق في الوصول إلى معلوماتك الشخصية أو تصحيحها أو حذفها. يمكنك طلب نقل البيانات أو تقييد المعالجة. لممارسة هذه الحقوق، تواصل مع support@rawiapp.io. سنرد خلال ٣٠ يومًا.',
      privacyContact: 'معلومات التواصل للخصوصية',
-     privacyContactContent: 'للاستفسارات أو الشكاوى أو الطلبات المتعلقة بالخصوصية: البريد الإلكتروني: support@rawiapp.io | العنوان: ﺻﻤﻴﻢ ﺳﺘﻮدﻳﻮز ش.ذ.م.م-ﻣﻨﻄﻘﺔ ﺣﺮة، الإمارات العربية المتحدة | الهاتف: متاح عند الطلب عبر قنوات الدعم.',
+     privacyContactContent: 'للاستفسارات أو الشكاوى أو الطلبات المتعلقة بالخصوصية: البريد الإلكتروني: support@rawiapp.io | العنوان: ﺻﻤﻴﻢ ﺳﺘﻮدﻳﻮز ش.ذ.م.م-ﻣﻨﻄﻘﺔ ﺣﺮة، ﻣﻴﺪان ﺟﺮاﻧﺪ ﺳﺘﺎﻧﺪ، اﻟﻄﺎﺑﻖ اﻟﺴﺎدس، ﺷﺎرع اﻟﻤﻴﺪان، ﻧﺪ اﻟﺸﺒﺎ، دﺑﻲ، اﻹﻣﺎرات اﻟﻌﺮﺑﻴﺔ اﻟﻤﺘﺤﺪة | الهاتف: متاح عند الطلب عبر قنوات الدعم.',
      privacyDeletion: 'حذف بيانات المستخدم',
      privacyDeletionContent: 'لديك الحق في طلب الحذف الكامل لحسابك والبيانات المرتبطة به. لطلب حذف الحساب، تواصل مع support@rawiapp.io مع تفاصيل حسابك. بعد التحقق، ستقوم ﺻﻤﻴﻢ ﺳﺘﻮدﻳﻮز ش.ذ.م.م-ﻣﻨﻄﻘﺔ ﺣﺮة بحذف حسابك ومحتواك المرفوع والنتائج المُنتجة والمعلومات الشخصية نهائياً خلال ٣٠ يوماً. قد تُحتفظ بنسخ احتياطية لمدة تصل إلى ٩٠ يوماً لأغراض الاستعادة، وبعدها يتم تدميرها نهائياً. يُرجى ملاحظة أن بعض البيانات قد تُحتفظ بها لفترة أطول إذا كان ذلك مطلوباً بموجب القانون أو لأغراض تجارية مشروعة مثل منع الاحتيال.',
     
