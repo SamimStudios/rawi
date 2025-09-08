@@ -7,7 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { X, Upload, Loader2 } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Switch } from '@/components/ui/switch';
+import { X, Upload, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useGuestSession } from '@/hooks/useGuestSession';
 import { supabase } from '@/integrations/supabase/client';
@@ -33,17 +35,27 @@ export default function StoryboardPlayground() {
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
+    template: '',
     leadName: user?.user_metadata?.full_name || '',
     leadGender: '',
+    leadAiCharacter: false,
     language: 'English',
     accent: 'American',
-    prompt: '',
-    template: ''
+    prompt: ''
   });
 
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [faceImage, setFaceImage] = useState<File | null>(null);
   const [faceImagePreview, setFaceImagePreview] = useState<string | null>(null);
+  const [supportingCharacters, setSupportingCharacters] = useState<Array<{
+    id: string;
+    name: string;
+    gender: string;
+    aiFace: boolean;
+    faceImage?: File;
+    faceImagePreview?: string;
+  }>>([]);
+  const [supportingCollapsed, setSupportingCollapsed] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [templates, setTemplates] = useState<Array<{id: string, name: string, description: string}>>([]);
   const [templatesLoading, setTemplatesLoading] = useState(true);
@@ -82,6 +94,10 @@ export default function StoryboardPlayground() {
       // Reset accent when language changes
       if (field === 'language') {
         newData.accent = '';
+      }
+      // Handle boolean fields
+      if (field === 'leadAiCharacter') {
+        newData.leadAiCharacter = value === 'true';
       }
       return newData;
     });
@@ -220,75 +236,131 @@ export default function StoryboardPlayground() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Lead Name */}
+            {/* Template */}
             <div className="space-y-2">
-              <Label htmlFor="leadName">Lead Name *</Label>
-              <Input
-                id="leadName"
-                value={formData.leadName}
-                onChange={(e) => handleInputChange('leadName', e.target.value)}
-                placeholder="Enter the lead character's name"
-                required
-              />
-            </div>
-
-            {/* Lead Gender */}
-            <div className="space-y-2">
-              <Label htmlFor="leadGender">Lead Gender *</Label>
-              <Select onValueChange={(value) => handleInputChange('leadGender', value)} required>
+              <Label htmlFor="template">Template *</Label>
+              <Select onValueChange={(value) => handleInputChange('template', value)} required>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select gender" />
+                  <SelectValue placeholder={templatesLoading ? "Loading templates..." : "Select a template"} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="male">Male</SelectItem>
-                  <SelectItem value="female">Female</SelectItem>
+                  {templates.map(template => (
+                    <SelectItem key={template.id} value={template.id}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{template.name}</span>
+                        {template.description && (
+                          <span className="text-xs text-muted-foreground">{template.description}</span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Face Reference Image */}
-            <div className="space-y-2">
-              <Label htmlFor="faceImage">Face Reference Image</Label>
-              <div className="space-y-4">
-                {faceImagePreview ? (
-                  <div className="relative inline-block">
-                    <img 
-                      src={faceImagePreview} 
-                      alt="Face reference" 
-                      className="w-32 h-32 object-cover rounded-lg border"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
-                      onClick={removeImage}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
-                    <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground mb-2">Upload a face reference image</p>
-                    <Input
-                      id="faceImage"
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => document.getElementById('faceImage')?.click()}
-                    >
-                      Choose Image
-                    </Button>
-                  </div>
-                )}
+            {/* Lead Character */}
+            <div className="space-y-4 border rounded-lg p-4">
+              <h3 className="text-lg font-semibold">Lead Character</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="leadName">Name *</Label>
+                  <Input
+                    id="leadName"
+                    value={formData.leadName}
+                    onChange={(e) => handleInputChange('leadName', e.target.value)}
+                    placeholder="Enter the lead character's name"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="leadGender">Gender *</Label>
+                  <Select onValueChange={(value) => handleInputChange('leadGender', value)} required>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="male">Male</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="leadAiCharacter"
+                  checked={formData.leadAiCharacter}
+                  onCheckedChange={(checked) => handleInputChange('leadAiCharacter', checked.toString())}
+                />
+                <Label htmlFor="leadAiCharacter">AI Generated Character</Label>
+              </div>
+
+              {!formData.leadAiCharacter && (
+                <div className="space-y-2">
+                  <Label htmlFor="faceImage">Face Reference Image</Label>
+                  <div className="space-y-4">
+                    {faceImagePreview ? (
+                      <div className="relative inline-block">
+                        <img 
+                          src={faceImagePreview} 
+                          alt="Face reference" 
+                          className="w-32 h-32 object-cover rounded-lg border"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+                          onClick={removeImage}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+                        <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground mb-2">Upload a face reference image</p>
+                        <Input
+                          id="faceImage"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => document.getElementById('faceImage')?.click()}
+                        >
+                          Choose Image
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Supporting Characters */}
+            <Collapsible open={!supportingCollapsed} onOpenChange={(open) => setSupportingCollapsed(!open)}>
+              <CollapsibleTrigger asChild>
+                <Button variant="outline" className="w-full justify-between">
+                  <span>Supporting Characters</span>
+                  {supportingCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4 mt-4">
+                <div className="text-sm text-muted-foreground">
+                  Supporting characters will be automatically generated based on your plot. You can customize them here if needed.
+                </div>
+                {/* Supporting character inputs would go here - for now just placeholder */}
+                <div className="p-4 border rounded-lg bg-muted/50">
+                  <p className="text-sm text-muted-foreground">Supporting characters will be auto-generated from your plot and template.</p>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             {/* Language */}
             <div className="space-y-2">
@@ -324,28 +396,6 @@ export default function StoryboardPlayground() {
               </Select>
             </div>
 
-            {/* Template */}
-            <div className="space-y-2">
-              <Label htmlFor="template">Template *</Label>
-              <Select onValueChange={(value) => handleInputChange('template', value)} required>
-                <SelectTrigger>
-                  <SelectValue placeholder={templatesLoading ? "Loading templates..." : "Select a template"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {templates.map(template => (
-                    <SelectItem key={template.id} value={template.id}>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{template.name}</span>
-                        {template.description && (
-                          <span className="text-xs text-muted-foreground">{template.description}</span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             {/* Genres */}
             <div className="space-y-2">
               <Label>Genres * (Max 3)</Label>
@@ -374,12 +424,12 @@ export default function StoryboardPlayground() {
 
             {/* Prompt */}
             <div className="space-y-2">
-              <Label htmlFor="prompt">Additional Prompt (Optional)</Label>
+              <Label htmlFor="prompt">Plot & Instructions</Label>
               <Textarea
                 id="prompt"
                 value={formData.prompt}
                 onChange={(e) => handleInputChange('prompt', e.target.value)}
-                placeholder="Add any specific details or requirements for your storyboard..."
+                placeholder="Describe your story plot, suggest a title, or provide specific instructions for your storyboard. For example: 'A thriller about a detective solving a mystery in Paris' or 'Create an action sequence with car chases and explosions' or 'Title: The Last Stand - A sci-fi story about...'"
                 rows={4}
               />
             </div>
