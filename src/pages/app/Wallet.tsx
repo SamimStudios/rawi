@@ -36,7 +36,7 @@ import { useUserCredits } from '@/hooks/useUserCredits';
 import { usePayments, type CreditPackage, type SubscriptionPlan } from '@/hooks/usePayments';
 import { useCurrency } from '@/hooks/useCurrency';
 import { supabase } from '@/integrations/supabase/client';
-import { SetupStripeProducts } from '@/components/SetupStripeProducts';
+
 
 const Wallet = () => {
   const [customCredits, setCustomCredits] = useState(50);
@@ -70,31 +70,57 @@ const Wallet = () => {
       return;
     }
 
-    // Check URL parameters for success/cancel messages
+    // Check URL parameters for payment verification
     const urlParams = new URLSearchParams(window.location.search);
     const success = urlParams.get('success');
     const canceled = urlParams.get('canceled');
-    const creditsAmount = urlParams.get('credits');
+    const sessionId = urlParams.get('session_id');
     const subscription = urlParams.get('subscription');
 
-    if (success === 'true') {
-      if (subscription === 'true') {
-        toast({
-          title: isRTL ? 'تم تفعيل الاشتراك!' : 'Subscription Activated!',
-          description: isRTL ? 'اشتراكك الآن نشط.' : 'Your subscription is now active.',
+    const verifyPayment = async (sessionId: string) => {
+      try {
+        const { data, error } = await supabase.functions.invoke('check-payment-status', {
+          body: { sessionId }
         });
-      } else {
+
+        if (error) throw error;
+
+        if (data?.success) {
+          if (subscription === 'true') {
+            toast({
+              title: isRTL ? 'تم تفعيل الاشتراك!' : 'Subscription Activated!',
+              description: isRTL ? 'اشتراكك الآن نشط.' : 'Your subscription is now active.',
+            });
+          } else {
+            toast({
+              title: isRTL ? 'تم الدفع بنجاح!' : 'Payment Successful!',
+              description: isRTL ? 
+                `تم إضافة ${data.credits} رصيد إلى حسابك.` : 
+                `${data.credits} credits have been added to your account.`,
+            });
+          }
+          
+          // Refresh credits after successful payment verification
+          setTimeout(refreshCredits, 1000);
+        } else {
+          toast({
+            title: isRTL ? 'فشل في التحقق من الدفع' : 'Payment Verification Failed',
+            description: isRTL ? 'يرجى المحاولة مرة أخرى أو الاتصال بالدعم' : 'Please try again or contact support',
+            variant: 'destructive'
+          });
+        }
+      } catch (error) {
+        console.error('Payment verification error:', error);
         toast({
-          title: isRTL ? 'تم الدفع بنجاح!' : 'Payment Successful!',
-          description: isRTL ? 
-            `تم إضافة ${creditsAmount} رصيد إلى حسابك.` : 
-            `${creditsAmount} credits have been added to your account.`,
+          title: isRTL ? 'خطأ في التحقق' : 'Verification Error',
+          description: isRTL ? 'حدث خطأ أثناء التحقق من الدفع' : 'An error occurred while verifying payment',
+          variant: 'destructive'
         });
       }
-      
-      // Refresh credits after successful payment
-      refreshCredits();
-      
+    };
+
+    if (success === 'true' && sessionId) {
+      verifyPayment(sessionId);
       // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
     }
@@ -229,10 +255,6 @@ const Wallet = () => {
             </Card>
           </div>
 
-          {/* Setup Required Notice */}
-          <div className="mb-8">
-            <SetupStripeProducts />
-          </div>
 
           {/* Purchase Card */}
           <div className="mb-8">

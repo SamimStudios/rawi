@@ -73,7 +73,7 @@ serve(async (req) => {
         },
       ],
       mode: "subscription",
-      success_url: `${req.headers.get("origin")}/app/wallet?success=true&subscription=true`,
+      success_url: `${req.headers.get("origin")}/app/wallet?success=true&subscription=true&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${req.headers.get("origin")}/app/wallet?canceled=true`,
       metadata: {
         user_id: user.id,
