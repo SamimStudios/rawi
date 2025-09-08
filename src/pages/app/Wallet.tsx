@@ -1,47 +1,66 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Slider } from '@/components/ui/slider';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { 
-  CreditCard, 
-  Package, 
-  Calendar, 
-  TrendingUp, 
-  Download,
-  RefreshCw,
-  Crown,
-  Star,
-  Zap,
-  Building2,
-  Settings,
-  Plus,
-  Minus,
-  Check,
-  Wallet as WalletIcon
-} from 'lucide-react';
-import { RTLWrapper } from '@/components/ui/rtl-wrapper';
-import { useLanguage } from '@/contexts/LanguageContext';
-import { useAuth } from '@/hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
-import { useToast } from '@/hooks/use-toast';
-import { useCommerceTracking } from '@/hooks/useAnalytics';
-import { useUserCredits } from '@/hooks/useUserCredits';
-import { usePayments, type CreditPackage, type SubscriptionPlan } from '@/hooks/usePayments';
-import { useCurrency } from '@/hooks/useCurrency';
-import { supabase } from '@/integrations/supabase/client';
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { useAuth } from "@/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
+import { useCommerceTracking } from "@/hooks/useAnalytics";
+import { useUserCredits } from "@/hooks/useUserCredits";
+import { usePayments } from "@/hooks/usePayments";
+import { useCurrency } from "@/hooks/useCurrency";
+import { supabase } from "@/integrations/supabase/client";
+import { CreditCard, Loader2, Download, ExternalLink } from "lucide-react";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { format } from "date-fns";
+import { CreditPackage, SubscriptionPlan } from "@/hooks/usePayments";
 
+// Dynamic pricing calculation helper
+const calculateDynamicPrice = (credits: number, currency: string) => {
+  let baseRate;
+  
+  // Base rates per credit
+  switch (currency) {
+    case "AED":
+    case "SAR":
+      baseRate = 1.00;
+      break;
+    case "USD":
+      baseRate = 0.27;
+      break;
+    default:
+      baseRate = 1.00;
+  }
+
+  // Apply discount tiers
+  let discountRate = 0;
+  if (credits >= 250) {
+    discountRate = 0.30; // 30% off
+  } else if (credits >= 100) {
+    discountRate = 0.20; // 20% off
+  } else if (credits >= 50) {
+    discountRate = 0.10; // 10% off
+  }
+  // 0-49 credits = 0% off
+
+  const discountedRate = baseRate * (1 - discountRate);
+  const totalPrice = credits * discountedRate;
+  
+  return {
+    totalPrice,
+    perCreditRate: discountedRate,
+    discountPercent: Math.round(discountRate * 100)
+  };
+};
 
 const Wallet = () => {
   const [customCredits, setCustomCredits] = useState(50);
-  const [promoCode, setPromoCode] = useState('');
-  const [selectedPlan, setSelectedPlan] = useState<string>('');
   const [creditPackages, setCreditPackages] = useState<CreditPackage[]>([]);
   const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>([]);
   
@@ -49,10 +68,10 @@ const Wallet = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { trackPurchase, trackViewItem, trackPurchaseStarted } = useCommerceTracking();
+  const { trackPurchase, trackViewItem } = useCommerceTracking();
   const { credits, transactions, loading: creditsLoading, refresh: refreshCredits } = useUserCredits();
   const { 
-    loading: paymentLoading,
+    loading,
     packageLoading,
     subscriptionLoading,
     createCheckout, 
@@ -79,23 +98,21 @@ const Wallet = () => {
 
     if (success === 'true') {
       toast({
-        title: isRTL ? 'تم الدفع بنجاح!' : 'Payment Successful!',
-        description: isRTL ? 'سيتم إضافة الرصيد إلى حسابك خلال دقائق.' : 'Credits will be added to your account within minutes.',
+        title: 'Payment Successful!',
+        description: 'Credits will be added to your account within minutes.',
       });
-      // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
     if (canceled === 'true') {
       toast({
-        title: isRTL ? 'تم إلغاء الدفع' : 'Payment Canceled',
-        description: isRTL ? 'لم يتم خصم أي مبلغ من حسابك.' : 'No charge was made to your account.',
+        title: 'Payment Canceled',
+        description: 'No charge was made to your account.',
         variant: 'destructive'
       });
-      // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, [toast, isRTL]);
+  }, [toast]);
 
   // Fetch credit packages and subscription plans
   useEffect(() => {
@@ -116,32 +133,21 @@ const Wallet = () => {
     fetchPackagesAndPlans();
   }, []);
 
-  const handleCreditsChange = (value: number[]) => {
-    setCustomCredits(value[0]);
-  };
-
-  const handlePresetClick = (amount: number) => {
-    setCustomCredits(amount);
-  };
-
-  const handlePackagePurchase = async (pkg: CreditPackage) => {
+  const handlePackagePurchase = async (packageId: string) => {
     try {
-      trackViewItem(pkg.name, pkg.credits, getPrice(pkg));
-      
       const { data, error } = await createCheckout({
-        packageId: pkg.id,
+        packageId,
         currency: currency,
       });
 
       if (error) throw error;
 
-      // Redirect to Stripe checkout in the same tab
       window.location.href = data.url;
     } catch (error) {
       console.error('Checkout error:', error);
       toast({
-        title: isRTL ? 'خطأ' : 'Error',
-        description: isRTL ? 'حدث خطأ أثناء إنشاء جلسة الدفع' : 'An error occurred while creating the checkout session',
+        title: 'Error',
+        description: 'An error occurred while creating the checkout session',
         variant: 'destructive'
       });
     }
@@ -150,8 +156,8 @@ const Wallet = () => {
   const handleCustomPurchase = async () => {
     if (customCredits < 10) {
       toast({
-        title: isRTL ? 'الحد الأدنى للرصيد' : 'Minimum Credits',
-        description: isRTL ? 'الحد الأدنى للشراء 10 أرصدة' : 'Minimum purchase is 10 credits',
+        title: 'Minimum Credits',
+        description: 'Minimum purchase is 10 credits',
         variant: "destructive"
       });
       return;
@@ -166,34 +172,28 @@ const Wallet = () => {
 
       if (error) throw error;
 
-      // Redirect to Stripe checkout in the same tab
       window.location.href = data.url;
     } catch (error) {
       console.error('Checkout error:', error);
       toast({
-        title: isRTL ? 'خطأ' : 'Error',
-        description: isRTL ? 'حدث خطأ أثناء إنشاء جلسة الدفع' : 'An error occurred while creating the checkout session',
+        title: 'Error',
+        description: 'An error occurred while creating the checkout session',
         variant: 'destructive'
       });
     }
   };
 
-  const handleSubscriptionPurchase = async (plan: SubscriptionPlan) => {
+  const handleSubscription = async (planId: string) => {
     try {
-      if (!selectedPlan) {
-        setSelectedPlan(plan.id);
-      }
-
-      const { data, error } = await createSubscription(plan.id, currency);
+      const { data, error } = await createSubscription(planId, currency);
       if (error) throw error;
 
-      // Redirect to Stripe checkout in the same tab
       window.location.href = data.url;
     } catch (error) {
       console.error('Subscription error:', error);
       toast({
-        title: isRTL ? 'خطأ' : 'Error',
-        description: isRTL ? 'حدث خطأ أثناء إنشاء الاشتراك' : 'An error occurred while creating the subscription',
+        title: 'Error',
+        description: 'An error occurred while creating the subscription',
         variant: 'destructive'
       });
     }
@@ -201,297 +201,294 @@ const Wallet = () => {
 
   if (creditsLoading || currencyLoading) {
     return (
-      <div className="min-h-screen bg-[#0F1320] flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <LoadingSpinner />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0F1320]">
-      <main className="container mx-auto px-4 py-16">
-        <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-background">
+      <main className="container mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto">
           {/* Page Header */}
-          <div className="mb-12">
-            <div className={`flex items-center gap-3 mb-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
-              <WalletIcon className="w-8 h-8 text-primary" />
-              <h1 className="text-4xl md:text-5xl font-bold text-white">
-                {isRTL ? 'المحفظة' : 'Wallet'}
-              </h1>
-            </div>
-          </div>
-
-          {/* Currency Display */}
-          <div className="mb-6">
-            <Badge variant="outline" className="text-primary border-primary">
-              {currency} - {currency === 'AED' ? 'UAE Dirham' : currency === 'SAR' ? 'Saudi Riyal' : 'US Dollar'}
-            </Badge>
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold mb-2">Wallet</h1>
+            <p className="text-muted-foreground">Manage your credits and subscriptions</p>
           </div>
 
           {/* Balance Card */}
-          <div className="mb-8">
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className={`flex items-center justify-between text-foreground ${isRTL ? 'flex-row-reverse' : ''}`}>
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="w-6 h-6 text-primary" />
-                    {isRTL ? 'الرصيد الحالي' : 'Current Balance'}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={refreshCredits}
-                    disabled={creditsLoading}
-                  >
-                    <RefreshCw className={`w-4 h-4 ${creditsLoading ? 'animate-spin' : ''}`} />
-                  </Button>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-4xl font-bold text-primary mb-2">
-                  {credits.toLocaleString()} {isRTL ? 'رصيد' : 'Credits'}
-                </div>
-                <p className="text-muted-foreground text-sm">
-                  {isRTL ? 'الرصيد لا ينتهي' : 'Credits never expire'}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-
-          {/* Purchase Card */}
-          <div className="mb-8">
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-foreground">
-                  {isRTL ? 'شراء رصيد' : 'Purchase Credits'}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Tabs defaultValue="packages" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="packages">{isRTL ? 'الباقات' : 'Packages'}</TabsTrigger>
-                    <TabsTrigger value="custom">{isRTL ? 'مخصص' : 'Custom'}</TabsTrigger>
-                    <TabsTrigger value="subscription">{isRTL ? 'الاشتراك' : 'Subscription'}</TabsTrigger>
-                  </TabsList>
-                  
-                  {/* Credit Packages Tab */}
-                  <TabsContent value="packages" className="space-y-6 mt-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {creditPackages.map((pkg) => (
-                        <Card 
-                          key={pkg.id}
-                          className="border-2 border-border hover:border-primary/50 transition-colors cursor-pointer"
-                          onClick={() => handlePackagePurchase(pkg)}
-                        >
-                          <CardHeader className="pb-3">
-                            <CardTitle className="flex items-center justify-between">
-                              <span>{pkg.name}</span>
-                              <Package className="w-5 h-5 text-primary" />
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="text-2xl font-bold text-primary mb-2">
-                              {pkg.credits} Credits
-                            </div>
-                            <div className="text-xl font-semibold text-foreground">
-                              {formatPrice(getPrice(pkg))}
-                            </div>
-                            <Button 
-                              className="w-full mt-4" 
-                              disabled={packageLoading === pkg.id}
-                            >
-                              {packageLoading === pkg.id ? <LoadingSpinner /> : (isRTL ? 'شراء الآن' : 'Buy Now')}
-                            </Button>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </TabsContent>
-
-                  {/* Custom Credits Tab */}
-                  <TabsContent value="custom" className="space-y-6 mt-6">
-                    <div>
-                      <Label className="text-foreground font-medium mb-4 block">
-                        {isRTL ? 'كم عدد الرصيد المطلوب؟ (الحد الأدنى 10)' : 'How many credits? (Minimum 10)'}
-                      </Label>
-                      
-                      {/* Preset buttons */}
-                      <div className={`flex flex-wrap gap-2 mb-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                        {[50, 100, 200, 400].map((amount) => (
-                          <Button
-                            key={amount}
-                            variant={customCredits === amount ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => handlePresetClick(amount)}
-                            className="text-sm"
-                          >
-                            {amount}
-                          </Button>
-                        ))}
-                      </div>
-
-                      {/* Slider and Input */}
-                      <div className="space-y-4">
-                        <Slider
-                          value={[customCredits]}
-                          onValueChange={handleCreditsChange}
-                          min={10}
-                          max={1000}
-                          step={10}
-                          className="w-full"
-                        />
-                        <Input
-                          type="number"
-                          value={customCredits}
-                          onChange={(e) => setCustomCredits(Math.max(10, parseInt(e.target.value) || 10))}
-                          min={10}
-                          max={1000}
-                          step={10}
-                          className="w-32"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Price calculation */}
-                    <div className="text-xl font-semibold text-foreground">
-                      {isRTL ? 'المجموع:' : 'Total:'} {formatPrice(customCredits * (currency === 'USD' ? 0.27 : 1))}
-                    </div>
-
-                    {/* Checkout button */}
-                    <Button
-                      onClick={handleCustomPurchase}
-                      className="bg-gradient-auth hover:opacity-90 text-white border-0 w-full sm:w-auto"
-                      size="lg"
-                      disabled={paymentLoading || customCredits < 10}
-                    >
-                      {paymentLoading ? <LoadingSpinner /> : (isRTL ? 'الدفع بـ Stripe' : 'Pay with Stripe')}
-                    </Button>
-                  </TabsContent>
-
-                  {/* Subscription Tab */}
-                  <TabsContent value="subscription" className="space-y-6 mt-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {subscriptionPlans.map((plan) => (
-                        <Card
-                          key={plan.id}
-                          className={`border-2 transition-colors cursor-pointer ${
-                            selectedPlan === plan.id
-                              ? 'border-primary bg-primary/10'
-                              : 'border-border hover:border-primary/50'
-                          }`}
-                          onClick={() => setSelectedPlan(plan.id)}
-                        >
-                          <CardHeader>
-                            <CardTitle className="flex items-center justify-between">
-                              <span className="flex items-center gap-2">
-                                {plan.name === 'Pro Weekly' && <Star className="w-5 h-5 text-primary" />}
-                                {plan.name === 'Studio Weekly' && <Crown className="w-5 h-5 text-primary" />}
-                                {plan.name === 'Creator Weekly' && <Zap className="w-5 h-5 text-primary" />}
-                                {plan.name}
-                              </span>
-                              {selectedPlan === plan.id && <Check className="w-5 h-5 text-primary" />}
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-2 mb-4">
-                              <div className="text-2xl font-bold text-primary">
-                                {plan.credits_per_week} Credits/Week
-                              </div>
-                              <div className="text-xl font-semibold text-foreground">
-                                {formatPrice(getPrice(plan))}/week
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                Saves {Math.round((1 - getPrice(plan) / plan.credits_per_week) * 100)}% vs one-time
-                              </div>
-                            </div>
-                             <Button 
-                              className="w-full" 
-                              onClick={() => handleSubscriptionPurchase(plan)}
-                              disabled={subscriptionLoading === plan.id}
-                            >
-                              {subscriptionLoading === plan.id ? <LoadingSpinner /> : (isRTL ? 'اشترك الآن' : 'Subscribe Now')}
-                            </Button>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-
-                    {/* Customer Portal Button */}
-                    <div className="flex justify-center">
-                      <Button
-                        variant="outline"
-                        onClick={openCustomerPortal}
-                        className="flex items-center gap-2"
-                      >
-                        <Settings className="w-4 h-4" />
-                        {isRTL ? 'إدارة الاشتراك' : 'Manage Subscription'}
-                      </Button>
-                    </div>
-                  </TabsContent>
-                </Tabs>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Transactions Card */}
-          <Card className="bg-card border-border">
+          <Card className="mb-8">
             <CardHeader>
-              <CardTitle className="text-foreground flex items-center justify-between">
-                {isRTL ? 'سجل المعاملات' : 'Transaction History'}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={refreshCredits}
-                  disabled={creditsLoading}
-                >
-                  <RefreshCw className={`w-4 h-4 ${creditsLoading ? 'animate-spin' : ''}`} />
-                </Button>
+              <CardTitle className="flex items-center justify-between">
+                <span>Current Balance</span>
+                <Badge variant="outline">{currency}</Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {transactions.length > 0 ? (
+              <div className="text-4xl font-bold text-primary mb-2">
+                {credits.toLocaleString()} Credits
+              </div>
+              <p className="text-muted-foreground">
+                Credits never expire
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Purchase Options */}
+          <Tabs defaultValue="packages" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="packages">🔹 One-Time Credit Packs</TabsTrigger>
+              <TabsTrigger value="subscription">🔹 Subscriptions (Weekly)</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="packages" className="space-y-4">
+              {/* Discount Rules Display */}
+              <Card className="bg-gradient-to-r from-primary/10 to-secondary/10">
+                <CardContent className="pt-6">
+                  <h4 className="font-semibold mb-2">Discount Rules:</h4>
+                  <div className="text-sm space-y-1">
+                    <p>• 0–49 cr → 0% off ({formatPrice(1.00)}/cr)</p>
+                    <p>• 50–99 cr → 10% off ({formatPrice(0.90)}/cr)</p>
+                    <p>• 100–249 cr → 20% off ({formatPrice(0.80)}/cr)</p>
+                    <p>• 250+ cr → 30% off ({formatPrice(0.70)}/cr)</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Predefined Packages */}
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {creditPackages.map((pkg) => {
+                  const pricing = calculateDynamicPrice(pkg.credits, currency);
+                  return (
+                    <Card key={pkg.id} className="relative hover:shadow-lg transition-shadow">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-lg">{pkg.credits} Credits</CardTitle>
+                        {pricing.discountPercent > 0 && (
+                          <Badge variant="secondary" className="w-fit">
+                            {pricing.discountPercent}% off
+                          </Badge>
+                        )}
+                        <CardDescription>
+                          {formatPrice(pricing.totalPrice)} • {formatPrice(pricing.perCreditRate)}/cr
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <Button
+                          onClick={() => handlePackagePurchase(pkg.id)}
+                          disabled={packageLoading === pkg.id}
+                          className="w-full"
+                        >
+                          {packageLoading === pkg.id ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Processing...
+                            </>
+                          ) : (
+                            <>
+                              <CreditCard className="mr-2 h-4 w-4" />
+                              Buy Now
+                            </>
+                          )}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+
+              {/* Custom Amount Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Custom Amount</CardTitle>
+                  <CardDescription>
+                    Choose exactly how many credits you need (minimum 10)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="credits">Credits</Label>
+                    <Slider
+                      id="credits"
+                      min={10}
+                      max={1000}
+                      step={5}
+                      value={[customCredits]}
+                      onValueChange={(value) => setCustomCredits(value[0])}
+                      className="w-full"
+                    />
+                    <div className="flex items-center justify-between text-sm text-muted-foreground">
+                      <span>10 credits</span>
+                      <span>1000 credits</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="custom-input">Or enter exact amount</Label>
+                    <Input
+                      id="custom-input"
+                      type="number"
+                      min={10}
+                      max={1000}
+                      value={customCredits}
+                      onChange={(e) => setCustomCredits(Math.max(10, parseInt(e.target.value) || 10))}
+                      placeholder="Enter credits"
+                    />
+                  </div>
+                  <div className="p-4 bg-muted rounded-lg">
+                    {(() => {
+                      const pricing = calculateDynamicPrice(customCredits, currency);
+                      return (
+                        <div>
+                          <p className="text-sm font-medium">Order Summary</p>
+                          <p className="text-lg font-bold">
+                            {customCredits} credits = {formatPrice(pricing.totalPrice)}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Rate: {formatPrice(pricing.perCreditRate)}/cr
+                            {pricing.discountPercent > 0 && (
+                              <Badge variant="secondary" className="ml-2">
+                                {pricing.discountPercent}% off
+                              </Badge>
+                            )}
+                          </p>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  <Button
+                    onClick={handleCustomPurchase}
+                    disabled={loading || customCredits < 10}
+                    className="w-full"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="mr-2 h-4 w-4" />
+                        Purchase {customCredits} Credits
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="subscription" className="space-y-4">
+              {/* Subscription Benefits Display */}
+              <Card className="bg-gradient-to-r from-secondary/10 to-primary/10">
+                <CardContent className="pt-6">
+                  <h4 className="font-semibold mb-2">📈 Always ~10% cheaper than one-time packs!</h4>
+                  <div className="text-sm space-y-1">
+                    <p>• Weekly auto-renewal with higher discounts (up to 40%)</p>
+                    <p>• Same 20cr entry point for accessibility</p>
+                    <p>• Cancel anytime through customer portal</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="mb-4">
+                <Button
+                  variant="outline"
+                  onClick={openCustomerPortal}
+                  className="mb-4"
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Manage Subscriptions
+                </Button>
+              </div>
+              
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {subscriptionPlans.map((plan) => {
+                  // Calculate equivalent one-time rate for comparison
+                  const oneTimePricing = calculateDynamicPrice(plan.credits_per_week, currency);
+                  const subscriptionPrice = getPrice(plan);
+                  const perCreditRate = subscriptionPrice / plan.credits_per_week;
+                  const savingsPercent = Math.round((1 - (perCreditRate / oneTimePricing.perCreditRate)) * 100);
+                  
+                  return (
+                    <Card key={plan.id} className="relative hover:shadow-lg transition-shadow">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-lg">{plan.name}</CardTitle>
+                        <Badge variant="secondary" className="w-fit mb-2">
+                          {savingsPercent}% cheaper than one-time
+                        </Badge>
+                        <CardDescription>
+                          {formatPrice(subscriptionPrice)}/week • {plan.credits_per_week} credits
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="pt-0 space-y-2">
+                        <div className="text-sm text-muted-foreground">
+                          Per credit: {formatPrice(perCreditRate)} (vs {formatPrice(oneTimePricing.perCreditRate)} one-time)
+                        </div>
+                        <Button
+                          onClick={() => handleSubscription(plan.id)}
+                          disabled={subscriptionLoading === plan.id}
+                          className="w-full"
+                        >
+                          {subscriptionLoading === plan.id ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Processing...
+                            </>
+                          ) : (
+                            'Subscribe Now'
+                          )}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          {/* Transaction History */}
+          <Card className="mt-8">
+            <CardHeader>
+              <CardTitle>Transaction History</CardTitle>
+              <CardDescription>
+                View your recent credit purchases and subscriptions
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {transactions.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No transactions yet
+                </div>
+              ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="text-foreground">{isRTL ? 'النوع' : 'Type'}</TableHead>
-                      <TableHead className="text-foreground">{isRTL ? 'الرصيد' : 'Credits'}</TableHead>
-                      <TableHead className="text-foreground">{isRTL ? 'المبلغ' : 'Amount'}</TableHead>
-                      <TableHead className="text-foreground">{isRTL ? 'التاريخ' : 'Date'}</TableHead>
-                      <TableHead className="text-foreground">{isRTL ? 'الإجراءات' : 'Actions'}</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Credits</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {transactions.map((transaction) => (
                       <TableRow key={transaction.id}>
-                        <TableCell className="text-foreground font-medium">
-                          <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                            {transaction.credits_amount > 0 ? (
-                              <Plus className="w-4 h-4 text-green-500" />
-                            ) : (
-                              <Minus className="w-4 h-4 text-red-500" />
-                            )}
-                            {transaction.type === 'purchase' ? 
-                              (isRTL ? 'شراء' : 'Purchase') :
-                              transaction.type === 'subscription_credit' ?
-                              (isRTL ? 'اشتراك' : 'Subscription') :
-                              (isRTL ? 'استهلاك' : 'Usage')
-                            }
-                          </div>
+                        <TableCell className="capitalize">
+                          {transaction.type.replace('_', ' ')}
                         </TableCell>
-                        <TableCell className={`font-medium ${
-                          transaction.credits_amount > 0 ? 'text-green-500' : 'text-red-500'
-                        }`}>
-                          {transaction.credits_amount > 0 ? '+' : ''}{transaction.credits_amount}
+                        <TableCell>
+                          <Badge variant={transaction.credits_amount > 0 ? "default" : "secondary"}>
+                            {transaction.credits_amount > 0 ? '+' : ''}{transaction.credits_amount}
+                          </Badge>
                         </TableCell>
-                        <TableCell className="text-foreground">
-                          {transaction.amount_paid ? 
-                            `${transaction.amount_paid} ${transaction.currency}` : 
+                        <TableCell>
+                          {transaction.amount_paid ? (
+                            formatPrice(transaction.amount_paid, transaction.currency as any)
+                          ) : (
                             '-'
-                          }
+                          )}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {new Date(transaction.created_at).toLocaleDateString()}
+                        <TableCell>
+                          {format(new Date(transaction.created_at), 'MMM dd, yyyy')}
                         </TableCell>
                         <TableCell>
                           {transaction.amount_paid && (
@@ -500,7 +497,8 @@ const Wallet = () => {
                               size="sm"
                               onClick={() => downloadInvoice(transaction.id)}
                             >
-                              <Download className="w-4 h-4" />
+                              <Download className="mr-1 h-3 w-3" />
+                              Invoice
                             </Button>
                           )}
                         </TableCell>
@@ -508,10 +506,6 @@ const Wallet = () => {
                     ))}
                   </TableBody>
                 </Table>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  {isRTL ? 'لا توجد معاملات بعد' : 'No transactions yet'}
-                </div>
               )}
             </CardContent>
           </Card>

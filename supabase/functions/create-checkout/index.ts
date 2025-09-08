@@ -7,6 +7,44 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Dynamic pricing calculation with discount tiers
+const calculateDynamicPrice = (credits: number, currency: string) => {
+  let baseRate;
+  
+  // Base rates per credit
+  switch (currency.toLowerCase()) {
+    case "aed":
+    case "sar":
+      baseRate = 1.00;
+      break;
+    case "usd":
+      baseRate = 0.27;
+      break;
+    default:
+      throw new Error("Unsupported currency");
+  }
+
+  // Apply discount tiers
+  let discountRate = 0;
+  if (credits >= 250) {
+    discountRate = 0.30; // 30% off
+  } else if (credits >= 100) {
+    discountRate = 0.20; // 20% off
+  } else if (credits >= 50) {
+    discountRate = 0.10; // 10% off
+  }
+  // 0-49 credits = 0% off
+
+  const discountedRate = baseRate * (1 - discountRate);
+  const totalPrice = credits * discountedRate;
+  
+  return {
+    totalPrice: Math.round(totalPrice * 100), // Convert to cents
+    perCreditRate: discountedRate,
+    discountPercent: Math.round(discountRate * 100)
+  };
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -14,92 +52,102 @@ serve(async (req) => {
 
   try {
     const { credits, currency = "AED", customAmount, packageId } = await req.json();
-    
-    const supabase = createClient(
+
+    // Get user
+    const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? ""
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
     );
 
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header");
+    const authHeader = req.headers.get("Authorization")!;
+    const token = authHeader.replace("Bearer ", "");
+    const { data } = await supabaseClient.auth.getUser(token);
+    const user = data.user;
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace("Bearer ", "")
-    );
-    if (authError || !user) throw new Error("Authentication failed");
+    if (!user?.email) {
+      throw new Error("User not authenticated");
+    }
 
+    // Initialize Stripe
     const stripe = new Stripe(Deno.env.get("STRIPE_TEST_SECRET") || "", {
       apiVersion: "2023-10-16",
     });
 
-    let priceId: string;
-    let amount: number;
-    let creditsAmount: number;
+    let priceId, amount, creditsAmount;
 
     if (packageId) {
-      // Use predefined package
-      const { data: pkg } = await supabase
+      // Get package details from Supabase
+      const { data: packageData, error: packageError } = await supabaseClient
         .from("credit_packages")
         .select("*")
         .eq("id", packageId)
         .single();
+
+      if (packageError) throw packageError;
+
+      creditsAmount = packageData.credits;
       
-      if (!pkg) throw new Error("Package not found");
-      
-      const currencyField = `stripe_price_id_${currency.toLowerCase()}`;
-      priceId = pkg[currencyField];
-      
-      if (!priceId) {
-        throw new Error(`No Stripe price ID found for package ${pkg.name} in currency ${currency}. Please run setup-stripe-products first.`);
+      // Get the appropriate Stripe price ID based on currency
+      switch (currency.toLowerCase()) {
+        case "aed":
+          priceId = packageData.stripe_price_id_aed;
+          amount = packageData.price_aed * 100; // Convert to cents
+          break;
+        case "sar":
+          priceId = packageData.stripe_price_id_sar;
+          amount = packageData.price_sar * 100;
+          break;
+        case "usd":
+          priceId = packageData.stripe_price_id_usd;
+          amount = packageData.price_usd * 100;
+          break;
+        default:
+          throw new Error("Unsupported currency");
       }
-      
-      creditsAmount = pkg.credits;
-      amount = pkg[`price_${currency.toLowerCase()}`] * 100;
     } else {
-      // Custom credits (minimum 10)
-      if (!credits || credits < 10) throw new Error("Minimum 10 credits required");
-      
+      // Custom amount with dynamic pricing
+      if (!credits || credits < 10) {
+        throw new Error("Minimum 10 credits required for custom purchase");
+      }
+
       creditsAmount = credits;
-      // 1 credit = 1 AED, with currency conversion
-      const rates = { AED: 1, SAR: 1, USD: 0.27 };
-      amount = Math.round(credits * rates[currency as keyof typeof rates] * 100);
       
-      // Create on-demand price for custom amount
+      // Calculate dynamic pricing
+      const pricing = calculateDynamicPrice(credits, currency);
+      amount = pricing.totalPrice;
+
+      // Create a new product for this custom amount
       const product = await stripe.products.create({
-        name: `${credits} Rawi Credits`,
+        name: `${credits} Rawi Credits (${pricing.discountPercent}% off)`,
+        description: `Custom credit package: ${credits} credits at ${pricing.perCreditRate.toFixed(2)} ${currency}/credit`,
       });
-      
+
       const price = await stripe.prices.create({
-        product: product.id,
         unit_amount: amount,
         currency: currency.toLowerCase(),
-        metadata: {
-          credits: credits.toString(),
-          custom: "true",
-        },
+        product: product.id,
       });
-      
+
       priceId = price.id;
     }
 
-    // Check if customer exists
-    const customers = await stripe.customers.list({ 
-      email: user.email, 
-      limit: 1 
+    // Get or create Stripe customer
+    const customers = await stripe.customers.list({
+      email: user.email,
+      limit: 1,
     });
-    
-    let customerId: string;
+
+    let customerId;
     if (customers.data.length > 0) {
       customerId = customers.data[0].id;
     } else {
       const customer = await stripe.customers.create({
         email: user.email,
-        metadata: { user_id: user.id },
       });
       customerId = customer.id;
     }
 
-    // Create checkout session
+    // Create checkout session with automatic tax and invoicing
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       line_items: [
@@ -109,29 +157,36 @@ serve(async (req) => {
         },
       ],
       mode: "payment",
-      success_url: `${req.headers.get("origin")}/app/wallet`,
-      cancel_url: `${req.headers.get("origin")}/app/wallet`,
+      success_url: `${req.headers.get("origin")}/app/wallet?success=true&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${req.headers.get("origin")}/app/wallet?canceled=true`,
       metadata: {
         user_id: user.id,
         credits: creditsAmount.toString(),
         currency: currency,
+        type: "credit_purchase",
+      },
+      invoice_creation: {
+        enabled: true,
       },
     });
 
     return new Response(
       JSON.stringify({ 
         url: session.url,
-        sessionId: session.id
+        sessionId: session.id 
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      }
     );
   } catch (error) {
-    console.error("Checkout error:", error);
+    console.error("Error:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
-      { 
+      {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 500 
+        status: 500,
       }
     );
   }

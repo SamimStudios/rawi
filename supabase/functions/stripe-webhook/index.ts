@@ -43,18 +43,30 @@ serve(async (req) => {
 
     console.log("Processing webhook event:", event.type);
 
-    // Handle checkout.session.completed (one-time payments)
-    if (event.type === "checkout.session.completed") {
-      const session = event.data.object as Stripe.Checkout.Session;
+    // Handle successful payment events
+    if (['checkout.session.completed', 'invoice.payment_succeeded', 'payment_intent.succeeded'].includes(event.type)) {
+      console.log(`Processing successful payment event: ${event.type}`);
       
-      console.log("Checkout session completed:", {
-        id: session.id,
-        payment_status: session.payment_status,
-        metadata: session.metadata
-      });
-
-      if (session.payment_status === "paid" && session.metadata?.user_id) {
-        await processCreditsAddition(session.metadata, session.id, session.amount_total);
+      let metadata, paymentId, amount, stripeInvoiceId;
+      
+      if (event.type === 'checkout.session.completed') {
+        metadata = event.data.object.metadata;
+        paymentId = event.data.object.id;
+        amount = event.data.object.amount_total;
+        stripeInvoiceId = event.data.object.invoice; // Stripe invoice ID
+      } else if (event.type === 'invoice.payment_succeeded') {
+        metadata = event.data.object.metadata;
+        paymentId = event.data.object.id;
+        amount = event.data.object.amount_paid;
+        stripeInvoiceId = event.data.object.id;
+      } else if (event.type === 'payment_intent.succeeded') {
+        metadata = event.data.object.metadata;
+        paymentId = event.data.object.id;
+        amount = event.data.object.amount;
+      }
+      
+      if (metadata && metadata.user_id) {
+        await processCreditsAddition(metadata, paymentId, amount, stripeInvoiceId);
       }
     }
 
@@ -236,55 +248,69 @@ serve(async (req) => {
       metadata: any, 
       paymentId: string, 
       amount: number | null, 
+      stripeInvoiceId?: string,
       type: string = "purchase"
     ) {
-      const userId = metadata.user_id;
-      const credits = parseInt(metadata.credits || "0");
-      const currency = metadata.currency || "AED";
-      const amountPaid = amount ? amount / 100 : null;
+      try {
+        console.log('Processing credits addition:', { metadata, paymentId, amount, stripeInvoiceId, type });
+        
+        const supabaseAdmin = createClient(
+          Deno.env.get("SUPABASE_URL") ?? "",
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+          { auth: { persistSession: false } }
+        );
 
-      console.log("Adding credits:", { userId, credits, currency, amountPaid, type });
-
-      // Use service role key to bypass RLS
-      const supabase = createClient(
-        Deno.env.get("SUPABASE_URL") ?? "",
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-        { auth: { persistSession: false } }
-      );
-
-      // Add credits using the existing database function
-      const { data, error } = await supabase.rpc("add_credits", {
-        p_user_id: userId,
-        p_credits: credits,
-        p_type: type,
-        p_description: `${type === "subscription_renewal" ? "Weekly credits" : "Credit purchase"} - ${credits} credits`,
-        p_stripe_session_id: paymentId,
-        p_amount_paid: amountPaid,
-        p_currency: currency,
-      });
-
-      if (error) {
-        console.error("Error adding credits:", error);
-        throw new Error("Database error");
-      }
-
-      console.log(`Credits added successfully via webhook (${type})`);
-
-      // Generate invoice for purchases (not renewals)
-      if (type !== "subscription_renewal") {
-        try {
-          await supabase.functions.invoke("generate-invoice", {
-            body: {
-              userId: userId,
-              sessionId: paymentId,
-              type: type,
-            }
-          });
-          console.log("Invoice generated successfully");
-        } catch (invoiceError) {
-          console.error("Invoice generation failed:", invoiceError);
-          // Don't fail the webhook for invoice errors
+        const credits = parseInt(metadata.credits) || 0;
+        const currency = metadata.currency || 'AED';
+        const userId = metadata.user_id;
+        
+        if (!userId || credits <= 0) {
+          console.error('Invalid user ID or credits amount');
+          return;
         }
+
+        // Add credits using the RPC function
+        const { error: addCreditsError } = await supabaseAdmin.rpc("add_credits", {
+          p_user_id: userId,
+          p_credits: credits,
+          p_type: type,
+          p_description: `Credit ${type} - ${credits} credits`,
+          p_stripe_session_id: paymentId,
+          p_amount_paid: amount ? (amount / 100) : null, // Convert from cents
+          p_currency: currency
+        });
+
+        if (addCreditsError) {
+          console.error('Error adding credits:', addCreditsError);
+          throw addCreditsError;
+        }
+
+        console.log(`Successfully added ${credits} credits to user ${userId}`);
+
+        // Store Stripe invoice reference if available (no need to generate our own)
+        if (stripeInvoiceId && type === "purchase") {
+          try {
+            // Update transaction with Stripe invoice ID
+            const { error: updateError } = await supabaseAdmin
+              .from('transactions')
+              .update({ 
+                metadata: { stripe_invoice_id: stripeInvoiceId }
+              })
+              .eq('stripe_session_id', paymentId);
+
+            if (updateError) {
+              console.error('Error updating transaction with invoice ID:', updateError);
+            } else {
+              console.log(`Linked Stripe invoice ${stripeInvoiceId} to transaction`);
+            }
+          } catch (err) {
+            console.error('Failed to link Stripe invoice:', err);
+          }
+        }
+
+      } catch (error) {
+        console.error('Error in processCreditsAddition:', error);
+        throw error;
       }
     }
 

@@ -367,6 +367,42 @@ export type Database = {
           },
         ]
       }
+      rewards: {
+        Row: {
+          active: boolean
+          conditions: Json | null
+          created_at: string
+          credits_amount: number
+          description: string | null
+          id: string
+          name: string
+          reward_type: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          conditions?: Json | null
+          created_at?: string
+          credits_amount: number
+          description?: string | null
+          id?: string
+          name: string
+          reward_type: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          conditions?: Json | null
+          created_at?: string
+          credits_amount?: number
+          description?: string | null
+          id?: string
+          name?: string
+          reward_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       shot_gen: {
         Row: {
           action: string | null
