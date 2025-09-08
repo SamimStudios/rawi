@@ -110,6 +110,127 @@ serve(async (req) => {
       }
     }
 
+    // ============ FAILURE EVENT HANDLERS ============
+
+    // Handle checkout session async payment failures
+    else if (event.type === "checkout.session.async_payment_failed") {
+      const session = event.data.object as Stripe.Checkout.Session;
+      
+      console.error("Checkout session async payment failed:", {
+        id: session.id,
+        customer: session.customer,
+        metadata: session.metadata,
+        payment_status: session.payment_status
+      });
+
+      // Log failed payment attempt
+      if (session.metadata?.user_id) {
+        await logFailedPayment(session.metadata.user_id, "checkout_async_failed", session.id, {
+          session_id: session.id,
+          amount: session.amount_total,
+          currency: session.currency
+        });
+      }
+    }
+
+    // Handle invoice payment failures
+    else if (event.type === "invoice.payment_failed") {
+      const invoice = event.data.object as Stripe.Invoice;
+      
+      console.error("Invoice payment failed:", {
+        id: invoice.id,
+        subscription: invoice.subscription,
+        customer: invoice.customer,
+        amount_due: invoice.amount_due,
+        attempt_count: invoice.attempt_count
+      });
+
+      // For subscription failures, log but don't immediately suspend
+      if (invoice.subscription) {
+        const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
+        if (subscription.metadata?.user_id) {
+          await logFailedPayment(subscription.metadata.user_id, "subscription_payment_failed", invoice.id, {
+            invoice_id: invoice.id,
+            subscription_id: invoice.subscription,
+            amount_due: invoice.amount_due,
+            attempt_count: invoice.attempt_count
+          });
+        }
+      }
+    }
+
+    // Handle payment intent failures
+    else if (event.type === "payment_intent.payment_failed") {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+      
+      console.error("Payment intent failed:", {
+        id: paymentIntent.id,
+        amount: paymentIntent.amount,
+        last_payment_error: paymentIntent.last_payment_error,
+        metadata: paymentIntent.metadata
+      });
+
+      if (paymentIntent.metadata?.user_id) {
+        await logFailedPayment(paymentIntent.metadata.user_id, "payment_intent_failed", paymentIntent.id, {
+          payment_intent_id: paymentIntent.id,
+          amount: paymentIntent.amount,
+          currency: paymentIntent.currency,
+          error: paymentIntent.last_payment_error
+        });
+      }
+    }
+
+    // Handle chargebacks/disputes
+    else if (event.type === "charge.dispute.created") {
+      const dispute = event.data.object as Stripe.Dispute;
+      
+      console.error("Chargeback/dispute created:", {
+        id: dispute.id,
+        charge: dispute.charge,
+        amount: dispute.amount,
+        reason: dispute.reason,
+        status: dispute.status
+      });
+
+      // Get charge details to find user
+      const charge = await stripe.charges.retrieve(dispute.charge);
+      if (charge.metadata?.user_id) {
+        await logFailedPayment(charge.metadata.user_id, "chargeback_created", dispute.id, {
+          dispute_id: dispute.id,
+          charge_id: dispute.charge,
+          amount: dispute.amount,
+          reason: dispute.reason,
+          status: dispute.status
+        });
+
+        // Optionally: Suspend account or deduct credits for disputed amount
+        console.log(`CHARGEBACK ALERT: User ${charge.metadata.user_id} has a dispute for ${dispute.amount/100} ${dispute.currency}`);
+      }
+    }
+
+    // Handle subscription deletions/cancellations
+    else if (event.type === "customer.subscription.deleted") {
+      const subscription = event.data.object as Stripe.Subscription;
+      
+      console.log("Subscription cancelled:", {
+        id: subscription.id,
+        customer: subscription.customer,
+        status: subscription.status,
+        canceled_at: subscription.canceled_at,
+        metadata: subscription.metadata
+      });
+
+      if (subscription.metadata?.user_id) {
+        await logFailedPayment(subscription.metadata.user_id, "subscription_cancelled", subscription.id, {
+          subscription_id: subscription.id,
+          canceled_at: subscription.canceled_at,
+          cancel_at_period_end: subscription.cancel_at_period_end
+        });
+
+        console.log(`Subscription cancelled for user ${subscription.metadata.user_id}`);
+      }
+    }
+
     // Helper function to process credits addition
     async function processCreditsAddition(
       metadata: any, 
@@ -164,6 +285,41 @@ serve(async (req) => {
           console.error("Invoice generation failed:", invoiceError);
           // Don't fail the webhook for invoice errors
         }
+      }
+    }
+
+    // Helper function to log failed payments
+    async function logFailedPayment(
+      userId: string,
+      failureType: string,
+      paymentId: string,
+      details: any
+    ) {
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+        { auth: { persistSession: false } }
+      );
+
+      try {
+        // Log failed payment in transactions table with negative amount
+        const { error } = await supabase.from("transactions").insert({
+          user_id: userId,
+          type: failureType,
+          credits_amount: 0, // No credits added for failures
+          description: `Payment failure: ${failureType}`,
+          stripe_session_id: paymentId,
+          metadata: details,
+          currency: details.currency || "AED"
+        });
+
+        if (error) {
+          console.error("Error logging failed payment:", error);
+        } else {
+          console.log(`Failed payment logged for user ${userId}: ${failureType}`);
+        }
+      } catch (error) {
+        console.error("Error in logFailedPayment:", error);
       }
     }
 
