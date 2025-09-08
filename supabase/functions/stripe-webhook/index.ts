@@ -287,24 +287,54 @@ serve(async (req) => {
 
         console.log(`Successfully added ${credits} credits to user ${userId}`);
 
-        // Store Stripe invoice reference if available (no need to generate our own)
+        // Store Stripe invoice reference and PDF URL if available
         if (stripeInvoiceId && type === "purchase") {
           try {
-            // Update transaction with Stripe invoice ID
+            // Fetch the invoice PDF URL from Stripe
+            let invoicePdfUrl = null;
+            
+            // Try to get the PDF URL based on the event type and payment structure
+            if (stripeInvoiceId.startsWith('in_')) {
+              // It's a Stripe invoice
+              const stripe = new Stripe(Deno.env.get("STRIPE_TEST_SECRET") || "", {
+                apiVersion: "2023-10-16",
+              });
+              const invoice = await stripe.invoices.retrieve(stripeInvoiceId);
+              invoicePdfUrl = invoice.invoice_pdf;
+              console.log(`Retrieved invoice PDF URL: ${invoicePdfUrl}`);
+            } else if (stripeInvoiceId.startsWith('cs_')) {
+              // It's a checkout session, get the payment intent and charge receipt
+              const stripe = new Stripe(Deno.env.get("STRIPE_TEST_SECRET") || "", {
+                apiVersion: "2023-10-16",
+              });
+              const session = await stripe.checkout.sessions.retrieve(stripeInvoiceId);
+              if (session.payment_intent) {
+                const paymentIntent = await stripe.paymentIntents.retrieve(session.payment_intent as string);
+                if (paymentIntent.charges?.data?.[0]) {
+                  invoicePdfUrl = paymentIntent.charges.data[0].receipt_url;
+                  console.log(`Retrieved receipt URL from session: ${invoicePdfUrl}`);
+                }
+              }
+            }
+            
+            // Update transaction with Stripe invoice ID and PDF URL
+            const metadata = { 
+              stripe_invoice_id: stripeInvoiceId,
+              ...(invoicePdfUrl && { invoice_pdf_url: invoicePdfUrl })
+            };
+            
             const { error: updateError } = await supabaseAdmin
               .from('transactions')
-              .update({ 
-                metadata: { stripe_invoice_id: stripeInvoiceId }
-              })
+              .update({ metadata })
               .eq('stripe_session_id', paymentId);
 
             if (updateError) {
-              console.error('Error updating transaction with invoice ID:', updateError);
+              console.error('Error updating transaction with invoice data:', updateError);
             } else {
-              console.log(`Linked Stripe invoice ${stripeInvoiceId} to transaction`);
+              console.log(`Linked Stripe invoice ${stripeInvoiceId} and PDF URL to transaction`);
             }
           } catch (err) {
-            console.error('Failed to link Stripe invoice:', err);
+            console.error('Failed to fetch and link Stripe invoice data:', err);
           }
         }
 

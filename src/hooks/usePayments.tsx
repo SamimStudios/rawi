@@ -144,6 +144,34 @@ export const usePayments = () => {
 
   const downloadInvoice = async (transactionId: string) => {
     try {
+      // First try to get the invoice URL from the transaction metadata
+      const { data: transaction, error: fetchError } = await supabase
+        .from('transactions')
+        .select('metadata')
+        .eq('id', transactionId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      let invoiceUrl = null;
+      
+      // Check if we have the PDF URL stored in metadata
+      const metadata = transaction?.metadata as Record<string, any> | null;
+      if (metadata?.invoice_pdf_url) {
+        invoiceUrl = metadata.invoice_pdf_url;
+        console.log('Using stored invoice PDF URL:', invoiceUrl);
+        
+        // Open the Stripe invoice/receipt URL in a new tab
+        window.open(invoiceUrl, '_blank');
+        toast({
+          title: "Invoice Opened",
+          description: "Your invoice has been opened in a new tab."
+        });
+        return;
+      }
+      
+      // Fallback to generate-invoice function if no stored URL
+      console.log('No stored PDF URL found, calling generate-invoice function');
       const { data, error } = await supabase.functions.invoke('generate-invoice', {
         body: { 
           userId: user?.id,
