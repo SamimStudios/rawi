@@ -66,7 +66,7 @@ const Wallet = () => {
 
   useEffect(() => {
     if (!user) {
-      navigate('/auth/signin');
+      navigate('/auth/sign-in');
       return;
     }
 
