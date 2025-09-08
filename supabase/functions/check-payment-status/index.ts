@@ -14,7 +14,9 @@ serve(async (req) => {
 
   try {
     const { sessionId } = await req.json();
+    console.log("=== PAYMENT STATUS CHECK START ===");
     console.log("Processing payment status check for session:", sessionId);
+    console.log("Request body received:", JSON.stringify(await req.clone().json()));
     
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -66,6 +68,19 @@ serve(async (req) => {
         }
         
         console.log("Credits added successfully:", addResult);
+
+        // Verify credits were actually added
+        const { data: verifyCredits, error: verifyError } = await supabase
+          .from("user_credits")
+          .select("credits")
+          .eq("user_id", user.id)
+          .single();
+        
+        if (verifyError) {
+          console.error("Error verifying credits:", verifyError);
+        } else {
+          console.log("Current user credits after addition:", verifyCredits);
+        }
 
         // Generate invoice
         await supabase.functions.invoke("generate-invoice", {

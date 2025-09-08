@@ -77,21 +77,37 @@ const Wallet = () => {
     const sessionId = urlParams.get('session_id');
     const subscription = urlParams.get('subscription');
 
+    console.log("=== WALLET PAYMENT VERIFICATION DEBUG ===");
+    console.log("URL params:", { success, canceled, sessionId, subscription });
+    console.log("Current URL:", window.location.href);
+    console.log("User authenticated:", !!user);
+
     const verifyPayment = async (sessionId: string) => {
       try {
+        console.log("=== STARTING PAYMENT VERIFICATION ===");
+        console.log("Session ID:", sessionId);
+        console.log("About to call check-payment-status function...");
+        
         const { data, error } = await supabase.functions.invoke('check-payment-status', {
           body: { sessionId }
         });
 
+        console.log("=== PAYMENT VERIFICATION RESPONSE ===");
+        console.log("Data:", data);
+        console.log("Error:", error);
+
         if (error) throw error;
 
         if (data?.success) {
+          console.log("Payment verification successful!");
           if (subscription === 'true') {
+            console.log("Processing subscription success...");
             toast({
               title: isRTL ? 'تم تفعيل الاشتراك!' : 'Subscription Activated!',
               description: isRTL ? 'اشتراكك الآن نشط.' : 'Your subscription is now active.',
             });
           } else {
+            console.log("Processing one-time payment success...", data.credits);
             toast({
               title: isRTL ? 'تم الدفع بنجاح!' : 'Payment Successful!',
               description: isRTL ? 
@@ -100,9 +116,14 @@ const Wallet = () => {
             });
           }
           
+          console.log("Refreshing credits in 1 second...");
           // Refresh credits after successful payment verification
-          setTimeout(refreshCredits, 1000);
+          setTimeout(() => {
+            console.log("Calling refreshCredits...");
+            refreshCredits();
+          }, 1000);
         } else {
+          console.log("Payment verification failed - data.success is false");
           toast({
             title: isRTL ? 'فشل في التحقق من الدفع' : 'Payment Verification Failed',
             description: isRTL ? 'يرجى المحاولة مرة أخرى أو الاتصال بالدعم' : 'Please try again or contact support',
@@ -120,6 +141,8 @@ const Wallet = () => {
     };
 
     if (success === 'true' && sessionId) {
+      console.log("=== TRIGGERING PAYMENT VERIFICATION ===");
+      console.log("Success parameter found, calling verifyPayment...");
       verifyPayment(sessionId);
       // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
