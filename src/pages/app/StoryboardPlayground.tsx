@@ -445,8 +445,9 @@ export default function StoryboardPlayground() {
                       }]);
                     }}
                     className="w-full"
+                    disabled={supportingCharacters.length >= 2}
                   >
-                    Add Supporting Character
+                    Add Supporting Character {supportingCharacters.length >= 2 ? '(Max 2)' : `(${supportingCharacters.length}/2)`}
                   </Button>
                 </div>
               </CollapsibleContent>
