@@ -87,6 +87,8 @@ const Wallet = () => {
         console.log("=== STARTING PAYMENT VERIFICATION ===");
         console.log("Session ID:", sessionId);
         console.log("About to call check-payment-status function...");
+        console.log("Supabase client initialized:", !!supabase);
+        console.log("Request body:", { sessionId });
         
         const { data, error } = await supabase.functions.invoke('check-payment-status', {
           body: { sessionId }
@@ -143,9 +145,26 @@ const Wallet = () => {
     if (success === 'true' && sessionId) {
       console.log("=== TRIGGERING PAYMENT VERIFICATION ===");
       console.log("Success parameter found, calling verifyPayment...");
+      console.log("Auth user exists:", !!user);
+      console.log("User ID:", user?.id);
+      
+      // Add a manual test of the function call
+      console.log("Testing direct function call...");
+      supabase.functions.invoke('check-payment-status', {
+        body: { sessionId }
+      }).then(result => {
+        console.log("Direct function call result:", result);
+      }).catch(err => {
+        console.error("Direct function call error:", err);
+      });
+      
       verifyPayment(sessionId);
       // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
+    } else {
+      console.log("=== NO PAYMENT VERIFICATION TRIGGERED ===");
+      console.log("Success:", success, "SessionId:", sessionId);
+      console.log("Conditions not met for payment verification");
     }
 
     if (canceled === 'true') {
