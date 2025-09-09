@@ -317,6 +317,7 @@ export default function StoryboardWorkspace() {
     if (!jobId) return;
     
     setGeneratingMovieInfo(true);
+    setMovieInfoOpen(true); // Open the movie info section immediately
     
     try {
       // Get the movie info generation function ID (assuming it's stored in functions table)
@@ -1030,31 +1031,27 @@ export default function StoryboardWorkspace() {
           </Collapsible>
         </Card>
 
-        {/* Movie Information Section - Only show if has movie info OR show generate button if doesn't */}
-        {!hasMovieInfo ? (
+        {/* Movie Information Section - Show generate button if no movie info and not generating */}
+        {!hasMovieInfo && !generatingMovieInfo ? (
           <div className="flex flex-col items-center gap-4">
             <Button 
               size="lg"
               variant="type_1"
               className="text-lg px-8 py-4 relative"
               onClick={handleGenerateMovieInfo}
-              disabled={generatingMovieInfo || isAnyEditMode}
+              disabled={isAnyEditMode}
             >
-              {generatingMovieInfo ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  {t('loading')}...
-                </>
-              ) : (
-                t('generateMovieInfo')
-              )}
+              {t('generateMovieInfo')}
             </Button>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Info className="h-3 w-3" />
               <span>{t('priceLabel')}: 0.05 {t('credits')}</span>
             </div>
           </div>
-        ) : (
+        ) : null}
+
+        {/* Movie Information Section - Show if has movie info OR currently generating */}
+        {(hasMovieInfo || generatingMovieInfo) && (
           <Card className={cn("transition-all", isEditing && "ring-2 ring-primary/50 bg-primary/5")}>
             <Collapsible open={movieInfoOpen} onOpenChange={(open) => !isAnyEditMode && setMovieInfoOpen(open)}>
               <CollapsibleTrigger asChild>
@@ -1135,6 +1132,15 @@ export default function StoryboardWorkspace() {
                         <Button onClick={handleEditToggle} variant="outline">
                           {t('cancel')}
                         </Button>
+                      </div>
+                    </div>
+                  ) : generatingMovieInfo && !hasMovieInfo ? (
+                    // Loading state while generating
+                    <div className="flex flex-col items-center justify-center py-8 space-y-4">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      <div className="text-center">
+                        <p className="font-medium">{t('loading')}...</p>
+                        <p className="text-sm text-muted-foreground">{t('pleaseWait')}</p>
                       </div>
                     </div>
                   ) : (
