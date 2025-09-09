@@ -508,6 +508,15 @@ const translations = {
     notAvailable: 'Not Available',
     movieInformation: 'Movie Information',
     priceLabel: 'Price',
+    movieTitle: 'Movie Title',
+    movieLogline: 'Movie Logline',
+    movieWorld: 'Movie World',
+    movieLook: 'Movie Look',
+    enterMovieTitle: 'Enter movie title',
+    enterMovieLogline: 'Enter movie logline',
+    enterMovieWorld: 'Enter movie world',
+    enterMovieLook: 'Enter movie look',
+    regenerateStoryboard: 'Regenerate Storyboard',
   },
   ar: {
     // Navigation & Header (Arabic)
@@ -1005,6 +1014,15 @@ const translations = {
     notAvailable: 'غير متوفر',
     movieInformation: 'معلومات الفيلم',
     priceLabel: 'السعر',
+    movieTitle: 'عنوان الفيلم',
+    movieLogline: 'ملخص الفيلم',
+    movieWorld: 'عالم الفيلم',
+    movieLook: 'مظهر الفيلم',
+    enterMovieTitle: 'أدخل عنوان الفيلم',
+    enterMovieLogline: 'أدخل ملخص الفيلم',
+    enterMovieWorld: 'أدخل عالم الفيلم',
+    enterMovieLook: 'أدخل مظهر الفيلم',
+    regenerateStoryboard: 'إعادة إنشاء القصة المصورة',
   }
 };
 

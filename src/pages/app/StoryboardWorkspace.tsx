@@ -1012,8 +1012,31 @@ export default function StoryboardWorkspace() {
           </Collapsible>
         </Card>
 
-        {/* Movie Information - Only after first generation */}
-        {firstGenerated && (
+        {/* Movie Information Section - Only show if has movie info OR show generate button if doesn't */}
+        {!hasMovieInfo ? (
+          <div className="flex flex-col items-center gap-4">
+            <Button 
+              size="lg"
+              variant="type_1"
+              className="text-lg px-8 py-4 relative"
+              onClick={handleGenerateMovieInfo}
+              disabled={generatingMovieInfo || isAnyEditMode}
+            >
+              {generatingMovieInfo ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {t('loading')}...
+                </>
+              ) : (
+                t('generateMovieInfo')
+              )}
+            </Button>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Info className="h-3 w-3" />
+              <span>{t('priceLabel')}: 0.05 {t('credits')}</span>
+            </div>
+          </div>
+        ) : (
           <Card className={cn("transition-all", isEditing && "ring-2 ring-primary/50 bg-primary/5")}>
             <Collapsible open={movieInfoOpen} onOpenChange={(open) => !isAnyEditMode && setMovieInfoOpen(open)}>
               <CollapsibleTrigger asChild>
@@ -1021,10 +1044,10 @@ export default function StoryboardWorkspace() {
                   <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center gap-2">
                       {movieInfoOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                      {t('Movie Information')}
+                      {t('movieInformation')}
                       {isEditing && (
                         <Badge variant="secondary" className="ml-2">
-                          {t('Editing')}
+                          {t('editing')}
                         </Badge>
                       )}
                     </CardTitle>
@@ -1050,46 +1073,46 @@ export default function StoryboardWorkspace() {
                     // Edit Mode
                     <div className="space-y-4">
                       <div>
-                        <Label htmlFor="title">{t('Movie Title')}</Label>
+                        <Label htmlFor="title">{t('movieTitle')}</Label>
                         <Input
                           id="title"
                           value={movieData.title}
                           onChange={(e) => setMovieData({ ...movieData, title: e.target.value })}
-                          placeholder={t('Enter movie title')}
+                          placeholder={t('enterMovieTitle')}
                         />
                       </div>
                       <div>
-                        <Label htmlFor="logline">{t('Logline')}</Label>
+                        <Label htmlFor="logline">{t('movieLogline')}</Label>
                         <Textarea
                           id="logline"
                           value={movieData.logline}
                           onChange={(e) => setMovieData({ ...movieData, logline: e.target.value })}
-                          placeholder={t('Enter movie logline')}
+                          placeholder={t('enterMovieLogline')}
                           rows={3}
                         />
                       </div>
                       <div>
-                        <Label htmlFor="world">{t('World')}</Label>
+                        <Label htmlFor="world">{t('movieWorld')}</Label>
                         <Input
                           id="world"
                           value={movieData.world}
                           onChange={(e) => setMovieData({ ...movieData, world: e.target.value })}
-                          placeholder={t('Enter movie world')}
+                          placeholder={t('enterMovieWorld')}
                         />
                       </div>
                       <div>
-                        <Label htmlFor="look">{t('Look')}</Label>
+                        <Label htmlFor="look">{t('movieLook')}</Label>
                         <Input
                           id="look"
                           value={movieData.look}
                           onChange={(e) => setMovieData({ ...movieData, look: e.target.value })}
-                          placeholder={t('Enter movie look')}
+                          placeholder={t('enterMovieLook')}
                         />
                       </div>
                       <div className="flex gap-2">
                         <Button onClick={handleSave} variant="type_1">
                           <Save className="h-4 w-4 mr-2" />
-                          {t('Save')}
+                          {t('save')}
                         </Button>
                         <Button onClick={handleEditToggle} variant="outline">
                           {t('cancel')}
@@ -1098,22 +1121,31 @@ export default function StoryboardWorkspace() {
                     </div>
                   ) : (
                     // Read-only view
-                    <div className="space-y-3">
-                      <div>
-                        <span className="font-medium">{t('Movie Title')}: </span>
-                        <span>{movieData.title || t('Not specified')}</span>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="font-medium">{t('movieTitle')}: </span>
+                          <span>{movieData.title || t('notAvailable')}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium">{t('movieWorld')}: </span>
+                          <span>{movieData.world || t('notAvailable')}</span>
+                        </div>
+                        <div className="md:col-span-2">
+                          <span className="font-medium">{t('movieLook')}: </span>
+                          <span>{movieData.look || t('notAvailable')}</span>
+                        </div>
                       </div>
-                      <div>
-                        <span className="font-medium">{t('Logline')}: </span>
-                        <p className="text-sm text-muted-foreground mt-1">{movieData.logline || t('Not specified')}</p>
-                      </div>
-                      <div>
-                        <span className="font-medium">{t('World')}: </span>
-                        <span>{movieData.world || t('Not specified')}</span>
-                      </div>
-                      <div>
-                        <span className="font-medium">{t('Look')}: </span>
-                        <span>{movieData.look || t('Not specified')}</span>
+                      
+                      {movieData.logline && (
+                        <div>
+                          <span className="font-medium">{t('movieLogline')}: </span>
+                          <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{movieData.logline}</p>
+                        </div>
+                      )}
+                      
+                      <div className="text-xs text-muted-foreground">
+                        {t('lastUpdated')}: {job?.updated_at ? new Date(job.updated_at).toLocaleString() : t('notAvailable')}
                       </div>
                     </div>
                   )}
@@ -1123,15 +1155,17 @@ export default function StoryboardWorkspace() {
           </Card>
         )}
 
-        {/* Regenerate Button - Only after first generation */}
-        {firstGenerated && (
+        {/* Regenerate Button - Only show after first generation and movie info exists */}
+        {firstGenerated && hasMovieInfo && (
           <div className="flex justify-center">
             <Button 
-              variant="type_2_red"
+              size="lg"
+              variant="type_1"
+              className="text-lg px-8 py-4"
               onClick={handleGenerate}
               disabled={isAnyEditMode}
             >
-              {t('Regenerate Storyboard')}
+              {t('regenerateStoryboard')}
             </Button>
           </div>
         )}
