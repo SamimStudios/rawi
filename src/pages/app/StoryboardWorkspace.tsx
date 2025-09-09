@@ -1,90 +1,22 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { LoadingSpinner } from '@/components/ui/loading';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { toast } from '@/hooks/use-toast';
-import { 
-  Edit2, 
-  Save, 
-  X, 
-  ArrowLeft, 
-  Clock, 
-  User, 
-  Globe, 
-  Eye,
-  Palette,
-  Target,
-  Film,
-  AlertTriangle,
-  Coins,
-  Play,
-  Music,
-  Users,
-  Loader2,
-  CheckCircle
-} from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
+import { Switch } from '@/components/ui/switch';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ChevronDown, ChevronRight, ChevronUp, Edit2, Save, X, Upload, Info, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { useUserCredits } from '@/hooks/useUserCredits';
+import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
 import { useGuestSession } from '@/hooks/useGuestSession';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { cn } from '@/lib/utils';
-
-// Progressive section configuration - titles will be localized using t()
-const getSections = (t: any) => [
-  {
-    key: 'movie_info',
-    title: t('movieInformation'),
-    icon: Film,
-    generateFunctionId: 'e9ec8814-cef4-4e3d-adf1-deaa16d47dd0', // generate-movie-info
-    editFunctionId: '17c13967-cf25-484d-87a2-16895116b408', // edit-movie-info
-    nextButton: t('generateCharacters'),
-    fields: ['title', 'logline', 'world', 'look']
-  },
-  {
-    key: 'characters', 
-    title: t('characters'),
-    icon: Users,
-    generateFunctionId: null, // Will be set when function is available
-    editFunctionId: null,
-    nextButton: t('generateProps'),
-    fields: ['lead', 'supporting']
-  },
-  {
-    key: 'props',
-    title: t('propsAndItems'),
-    icon: Target,
-    generateFunctionId: null,
-    editFunctionId: null,
-    nextButton: t('generateTimeline'),
-    fields: []
-  },
-  {
-    key: 'timeline',
-    title: t('timelineAndShots'),
-    icon: Play,
-    generateFunctionId: null,
-    editFunctionId: null,
-    nextButton: t('generateMusic'),
-    fields: ['clips']
-  },
-  {
-    key: 'music',
-    title: t('musicAndAudio'),
-    icon: Music,
-    generateFunctionId: null,
-    editFunctionId: null,
-    nextButton: t('completeGeneration'),
-    fields: ['prefs', 'music_url']
-  }
-];
+import { useUserCredits } from '@/hooks/useUserCredits';
+import { cn } from "@/lib/utils";
 
 const LANGUAGES = [
   { key: 'englishLang', value: 'English' }, 
@@ -121,11 +53,7 @@ const GENRE_OPTIONS = [
 interface StoryboardJob {
   id: string;
   user_input: any;
-  movie_info?: any;
-  characters?: any;
-  props?: any;
-  timeline?: any;
-  music?: any;
+  movie_info: any;
   status: string;
   stage: string;
   result_data: any;
@@ -134,39 +62,34 @@ interface StoryboardJob {
   updated_at: string;
   input_updated_at?: string;
   movie_info_updated_at?: string;
-  characters_updated_at?: string;
-  props_updated_at?: string;
-  timeline_updated_at?: string;
-  music_updated_at?: string;
-}
-
-interface FunctionData {
-  id: string;
-  name: string;
-  price: number;
 }
 
 export default function StoryboardWorkspace() {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
-  const { t, isRTL } = useLanguage();
+  const { t, isRTL, language } = useLanguage();
   const { user } = useAuth();
   const { sessionId } = useGuestSession();
   const { credits } = useUserCredits();
   
-  // Main state
   const [job, setJob] = useState<StoryboardJob | null>(null);
-  const [functions, setFunctions] = useState<Record<string, FunctionData>>({});
   const [loading, setLoading] = useState(true);
-  
-  // Section states
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    input: true
+  const [jobInfoOpen, setJobInfoOpen] = useState(false);
+  const [movieInfoOpen, setMovieInfoOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false); // For movie info editing
+  const [isEditingJobInfo, setIsEditingJobInfo] = useState(false);
+  const [generatingMovieInfo, setGeneratingMovieInfo] = useState(false);
+  const [hasMovieInfoResponse, setHasMovieInfoResponse] = useState(false);
+  const [webhookFailed, setWebhookFailed] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [movieData, setMovieData] = useState({
+    title: '',
+    logline: '',
+    world: '',
+    look: ''
   });
-  const [editingSections, setEditingSections] = useState<Record<string, boolean>>({});
-  const [loadingSections, setLoadingSections] = useState<Record<string, boolean>>({});
-  
-  // Initial input state (exact same structure as StoryboardPlayground)
+
+  // Use exact same structure as StoryboardPlayground
   const [formData, setFormData] = useState({
     template: '',
     leadName: '',
@@ -177,6 +100,7 @@ export default function StoryboardWorkspace() {
     size: '',
     prompt: ''
   });
+
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [faceImage, setFaceImage] = useState<File | null>(null);
   const [faceImagePreview, setFaceImagePreview] = useState<string | null>(null);
@@ -188,161 +112,127 @@ export default function StoryboardWorkspace() {
     faceImage?: File;
     faceImagePreview?: string;
   }>>([]);
+  const [supportingCollapsed, setSupportingCollapsed] = useState(true);
   const [templates, setTemplates] = useState<Array<{id: string, name: string, description: string}>>([]);
-  
-  // Section data states
-  const [movieData, setMovieData] = useState({
-    title: '',
-    logline: '',
-    world: '',
-    look: ''
-  });
-  
-  // Warning dialog state
-  const [showEditWarning, setShowEditWarning] = useState(false);
-  const [pendingEdit, setPendingEdit] = useState<{ section: string; hasLaterData: boolean } | null>(null);
 
-  console.log('🚀 StoryboardWorkspace render:', {
-    jobId,
-    job: job ? {
-      id: job.id,
-      has_movie_info: !!job.movie_info && Object.keys(job.movie_info).length > 0,
-      has_characters: !!job.characters && Object.keys(job.characters).length > 0,
-      has_props: !!job.props && Object.keys(job.props).length > 0,
-      has_timeline: !!job.timeline && Object.keys(job.timeline).length > 0,
-      has_music: !!job.music && Object.keys(job.music).length > 0,
-      user_input_language: (job.user_input as any)?.language,
-      timestamps: {
-        input_updated_at: job.input_updated_at,
-        movie_info_updated_at: job.movie_info_updated_at,
-        characters_updated_at: job.characters_updated_at,
-        props_updated_at: job.props_updated_at,
-        timeline_updated_at: job.timeline_updated_at,
-        music_updated_at: job.music_updated_at
-      }
-    } : null,
-    functions: Object.keys(functions),
-    credits,
-    openSections,
-    editingSections,
-    loadingSections
-  });
-
-  // Helper to get user input language (not site language)
-  const getUserInputLanguage = () => {
-    return (job?.user_input as any)?.language || 'English';
-  };
-
-  // Helper to get localized content based on user input language
-  const getLocalizedContent = (data: any, userLanguage: string) => {
-    if (!data) return {};
+  // Helper function to get localized movie info based on USER INPUT language (not site language)
+  const getLocalizedMovieInfo = (movieInfo: any, userInputLanguage: string) => {
+    console.log('🎬 getLocalizedMovieInfo called:', { movieInfo, userInputLanguage });
     
-    const isArabic = userLanguage === 'Arabic';
-    if (isArabic && data.ar) {
-      return data.ar;
+    // Use user input language to determine localization
+    const isArabic = userInputLanguage === 'Arabic';
+    
+    if (isArabic && movieInfo.ar) {
+      const result = {
+        title: movieInfo.ar.title || movieInfo.title || '',
+        logline: movieInfo.ar.logline || movieInfo.logline || '',
+        world: movieInfo.ar.world || movieInfo.world || '',
+        look: movieInfo.ar.look || movieInfo.look || ''
+      };
+      console.log('🎬 Returning Arabic movie info:', result);
+      return result;
     }
-    return data;
+    
+    const result = {
+      title: movieInfo.title || '',
+      logline: movieInfo.logline || '',
+      world: movieInfo.world || '',
+      look: movieInfo.look || ''
+    };
+    console.log('🎬 Returning English movie info:', result);
+    return result;
   };
 
-  // Helper to get localized display value
-  const getLocalizedValue = (data: any, field: string, defaultValue: string = '') => {
-    const userLanguage = getUserInputLanguage();
-    const localizedData = getLocalizedContent(data, userLanguage);
-    return localizedData[field] || defaultValue;
+  // Helper function to get translated genre names
+  const getTranslatedGenres = (genreValues: string[]) => {
+    return genreValues.map(value => {
+      const genreOption = GENRE_OPTIONS.find(g => g.value === value);
+      return genreOption ? t(genreOption.key) : value;
+    });
   };
 
-  // Progressive section visibility logic
-  const getSectionVisibility = () => {
-    if (!job) return { visibleSections: ['input'], nextSection: null };
-    
-    const visibleSections = ['input'];
-    let nextSection = null;
-    
-    // Check each section progressively
-    if (job.movie_info && Object.keys(job.movie_info).length > 0) {
-      visibleSections.push('movie_info');
-      
-      if (job.characters && Object.keys(job.characters).length > 0) {
-        visibleSections.push('characters');
-        
-        if (job.props && Object.keys(job.props).length > 0) {
-          visibleSections.push('props');
-          
-          if (job.timeline && Object.keys(job.timeline).length > 0) {
-            visibleSections.push('timeline');
-            
-            if (job.music && Object.keys(job.music).length > 0) {
-              visibleSections.push('music');
-            } else {
-              nextSection = 'music';
-            }
-          } else {
-            nextSection = 'timeline';
-          }
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => {
+      const newData = { ...prev, [field]: value };
+      // Reset accent when language changes and set default for Arabic
+      if (field === 'language') {
+        if (value === 'Arabic') {
+          newData.accent = 'MSA'; // Default to MSA for Arabic
+        } else if (value === 'English') {
+          newData.accent = 'US'; // Default to US for English
         } else {
-          nextSection = 'props';
+          newData.accent = '';
         }
-      } else {
-        nextSection = 'characters';
       }
-    } else {
-      nextSection = 'movie_info';
-    }
-    
-    return { visibleSections, nextSection };
-  };
-
-  // Check if editing a section would affect later sections
-  const checkEditImpact = (sectionKey: string) => {
-    if (!job) return false;
-    
-    const sectionIndex = SECTIONS.findIndex(s => s.key === sectionKey);
-    if (sectionIndex === -1) return false;
-    
-    // Check if any later sections have data
-    for (let i = sectionIndex + 1; i < SECTIONS.length; i++) {
-      const laterSection = SECTIONS[i];
-      const laterData = job[laterSection.key as keyof StoryboardJob];
-      if (laterData && typeof laterData === 'object' && Object.keys(laterData).length > 0) {
-        return true;
+      // Handle boolean fields
+      if (field === 'leadAiCharacter') {
+        newData.leadAiCharacter = value === 'true';
       }
-    }
-    
-    return false;
+      return newData;
+    });
   };
 
-  // Fetch functions from database
-  const fetchFunctions = async () => {
-    try {
-      console.log('🔍 Fetching functions from database...');
-      const { data, error } = await supabase
-        .from('functions')
-        .select('id, name, price')
-        .eq('active', true);
+  const handleGenreToggle = (genreValue: string) => {
+    setSelectedGenres(prev => {
+      if (prev.includes(genreValue)) {
+        return prev.filter(g => g !== genreValue);
+      } else if (prev.length < 3) {
+        return [...prev, genreValue];
+      }
+      return prev; // Don't add if already at max
+    });
+  };
 
-      if (error) throw error;
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(t('imageUnder5MB'));
+        return;
+      }
 
-      const functionsMap: Record<string, FunctionData> = {};
-      data.forEach(func => {
-        functionsMap[func.name] = func;
-      });
-
-      console.log('📡 Functions fetched:', functionsMap);
-      setFunctions(functionsMap);
-    } catch (error) {
-      console.error('❌ Error fetching functions:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load function information",
-        variant: "destructive"
-      });
+      setFaceImage(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setFaceImagePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
-  // Fetch job data
+  const removeImage = () => {
+    setFaceImage(null);
+    setFaceImagePreview(null);
+  };
+
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('templates')
+          .select('id, name, description')
+          .order('name');
+
+        if (error) {
+          console.error('Error fetching templates:', error);
+        } else {
+          setTemplates(data || []);
+        }
+      } catch (error) {
+        console.error('Error fetching templates:', error);
+      }
+    };
+
+    fetchTemplates();
+  }, []);
+
+  useEffect(() => {
+    if (jobId) {
+      fetchJob();
+    }
+  }, [jobId]);
+
   const fetchJob = async () => {
-    if (!jobId) return;
-    
     console.log('🔄 fetchJob called for jobId:', jobId);
     try {
       setLoading(true);
@@ -357,11 +247,7 @@ export default function StoryboardWorkspace() {
 
       if (error) {
         console.error('❌ Error fetching storyboard job:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load storyboard job",
-          variant: "destructive"
-        });
+        toast.error(t('Failed to load storyboard job'));
         navigate('/app/dashboard');
         return;
       }
@@ -369,11 +255,253 @@ export default function StoryboardWorkspace() {
       console.log('✅ Job data fetched successfully:', data);
       setJob(data);
       
-      // Initialize form data from user_input
+      // Initialize movie data from the job using USER INPUT language (not site language)
+      const userLanguage = (data.user_input as any)?.language || 'English';
+      console.log('🌐 Using user input language for movie info:', userLanguage);
+      
+      if (data.movie_info && typeof data.movie_info === 'object') {
+        const localizedMovieInfo = getLocalizedMovieInfo(data.movie_info, userLanguage);
+        console.log('🎬 Setting movie data from existing movie_info:', localizedMovieInfo);
+        setMovieData(localizedMovieInfo);
+        setHasMovieInfoResponse(true);
+      } else {
+        console.log('🎬 No movie_info exists, waiting for response');
+        // If no movie_info exists, we haven't received a response yet
+        setHasMovieInfoResponse(false);
+      }
+      
+      // Initialize form data from user_input using exact same structure as StoryboardPlayground
       if (data.user_input && typeof data.user_input === 'object') {
         const userInput = data.user_input as any;
         console.log('📝 Initializing form data from user_input:', userInput);
         
+        const formDataToSet = {
+          template: userInput.template || '',
+          leadName: userInput.leadName || '',
+          leadGender: userInput.leadGender || '',
+          leadAiCharacter: userInput.leadAiCharacter || false,
+          language: userInput.language || 'English',
+          accent: userInput.accent || 'US',
+          size: userInput.size || '',
+          prompt: userInput.prompt || ''
+        };
+        
+        console.log('📝 Setting form data:', formDataToSet);
+        setFormData(formDataToSet);
+        
+        console.log('🎭 Setting selected genres:', userInput.genres || []);
+        setSelectedGenres(userInput.genres || []);
+        
+        // Handle face image
+        if (userInput.faceImage) {
+          console.log('📸 Setting face image preview');
+          setFaceImagePreview(userInput.faceImage);
+        }
+        
+        // Handle supporting characters
+        console.log('👥 Setting supporting characters:', userInput.supportingCharacters || []);
+        setSupportingCharacters(userInput.supportingCharacters || []);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error in fetchJob:', error);
+      toast.error(t('An unexpected error occurred'));
+      navigate('/app/dashboard');
+    } finally {
+      console.log('🔄 fetchJob completed, setting loading to false');
+      setLoading(false);
+    }
+  };
+  
+  // Set up realtime subscription for the storyboard_jobs table
+  useEffect(() => {
+    if (!jobId) return;
+
+    const channel = supabase
+      .channel('storyboard-job-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'storyboard_jobs',
+          filter: `id=eq.${jobId}`
+        },
+        (payload) => {
+          console.log('🔔 Realtime update received:', payload);
+          const newData = payload.new as StoryboardJob;
+          console.log('📊 New job data from realtime:', newData);
+          setJob(newData);
+          
+          // Handle movie_info updates using USER INPUT language (not site language)
+          if (newData.movie_info && Object.keys(newData.movie_info).length > 0) {
+            const userLanguage = (newData.user_input as any)?.language || 'English';
+            console.log('🌐 Using user input language for realtime movie info update:', userLanguage);
+            
+            const localizedMovieInfo = getLocalizedMovieInfo(newData.movie_info, userLanguage);
+            console.log('🎬 Setting movie data from realtime update:', localizedMovieInfo);
+            setMovieData(localizedMovieInfo);
+            setHasMovieInfoResponse(true);
+            setWebhookFailed(false);
+            
+            // Hide loading state if we were generating
+            if (generatingMovieInfo) {
+              console.log('✅ Movie info generation completed via realtime');
+              setGeneratingMovieInfo(false);
+              toast.success(t('Movie information generated successfully!'));
+            }
+          }
+          
+          // Handle webhook response
+          if (newData.n8n_response) {
+            console.log('📡 N8N response received:', newData.n8n_response);
+            const response = newData.n8n_response;
+            if (response.accepted === false) {
+              console.log('❌ N8N webhook failed:', response);
+              setGeneratingMovieInfo(false);
+              setWebhookFailed(true);
+              toast.error(response.error_message || t('Failed to generate movie information'));
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [jobId, generatingMovieInfo, t, language]);
+
+  // Update movie data when USER INPUT language changes (not site language)
+  useEffect(() => {
+    console.log('🔄 Movie data language effect triggered');
+    if (job?.movie_info && typeof job.movie_info === 'object') {
+      const userLanguage = (job.user_input as any)?.language || 'English';
+      console.log('🌐 Updating movie data with user input language:', userLanguage);
+      const localizedMovieInfo = getLocalizedMovieInfo(job.movie_info, userLanguage);
+      console.log('🎬 Updated movie data:', localizedMovieInfo);
+      setMovieData(localizedMovieInfo);
+    }
+  }, [job?.movie_info, job?.user_input]);
+
+  const handleGenerateMovieInfo = async () => {
+    console.log('🚀 handleGenerateMovieInfo called for jobId:', jobId);
+    if (!jobId) {
+      console.log('❌ No jobId provided');
+      return;
+    }
+    
+    console.log('⏳ Setting generatingMovieInfo to true');
+    setGeneratingMovieInfo(true);
+    
+    try {
+      console.log('🔍 Fetching movie info generation function...');
+      // Get the movie info generation function ID (assuming it's stored in functions table)
+      const { data: functionData, error: functionError } = await supabase
+        .from('functions')
+        .select('id, price')
+        .eq('name', 'generate-movie-info')
+        .eq('active', true)
+        .single();
+
+      console.log('📡 Function lookup response:', { functionData, functionError });
+
+      if (functionError || !functionData) {
+        throw new Error('Movie info generation function not available');
+      }
+
+      console.log('💰 Function price:', functionData.price, '| User credits:', credits);
+
+      console.log('🎯 Invoking execute-function edge function...');
+      const { data, error } = await supabase.functions.invoke('execute-function', {
+        body: {
+          function_id: functionData.id,
+          payload: {
+            table_id: 'storyboard_jobs',
+            row_id: jobId
+          },
+          user_id: user?.id || null
+        }
+      });
+
+      console.log('📡 Execute-function response:', { data, error });
+
+      if (error) {
+        console.log('❌ Execute-function error:', error);
+        throw new Error(error.message || 'Failed to start movie info generation');
+      }
+      
+      if (!data?.success) {
+        console.log('❌ Execute-function not successful:', data);
+        if (data?.error === 'Insufficient credits') {
+          toast.error(`Insufficient credits. Required: ${data.required_credits || functionData.price} credits`);
+          return;
+        }
+        throw new Error(data?.error || 'Movie info generation was rejected');
+      }
+      
+      console.log('✅ Movie info generation started successfully');
+      // Only show section after webhook success
+      setMovieInfoOpen(true);
+      toast.success(t('Movie info generation started...'));
+      
+    } catch (error) {
+      console.error('❌ Error generating movie info:', error);
+      toast.error(t('Failed to generate movie information'));
+      console.log('⏳ Setting generatingMovieInfo to false due to error');
+      setGeneratingMovieInfo(false);
+    }
+  };
+
+  // Check if job has movie_info populated (not empty object) AND we have received webhook response
+  const hasMovieInfo = job?.movie_info && Object.keys(job.movie_info).length > 0 && hasMovieInfoResponse;
+
+  // Check if first generation has happened
+  const hasFirstGeneration = (job: StoryboardJob | null): boolean => {
+    if (!job) return false;
+    
+    return (
+      (job.result_data && Object.keys(job.result_data).length > 0) ||
+      (job.status !== 'pending' && job.status !== 'created') ||
+      (job.stage !== 'created') ||
+      (job.n8n_response && Object.keys(job.n8n_response).length > 0)
+    );
+  };
+
+  const handleEditToggle = () => {
+    console.log('✏️ handleEditToggle called', { movieInfoOpen, isEditing, hasMovieInfo });
+    if (!movieInfoOpen && !isEditing) {
+      console.log('❌ Cannot edit - section is collapsed');
+      return; // Can't edit if section is collapsed
+    }
+    if (!hasMovieInfo) {
+      console.log('❌ Cannot edit - movie information not available yet');
+      toast.error(t('Movie information not available yet'));
+      return;
+    }
+
+    if (isEditing) {
+      console.log('↩️ Canceling edit - resetting data using USER INPUT language');
+      // Reset data when canceling edit using USER INPUT language (not site language)
+      if (job?.movie_info && typeof job.movie_info === 'object') {
+        const userLanguage = (job.user_input as any)?.language || 'English';
+        console.log('🌐 Using user input language for reset:', userLanguage);
+        const localizedMovieInfo = getLocalizedMovieInfo(job.movie_info, userLanguage);
+        console.log('🎬 Resetting movie data:', localizedMovieInfo);
+        setMovieData(localizedMovieInfo);
+      }
+    }
+    
+    console.log('✏️ Toggling edit mode:', !isEditing);
+    setIsEditing(!isEditing);
+  };
+
+  const handleEditJobInfoToggle = () => {
+    if (!jobInfoOpen && !isEditingJobInfo) return; // Can't edit if section is collapsed
+    if (isEditingJobInfo) {
+      // Reset data when canceling edit
+      if (job?.user_input && typeof job.user_input === 'object') {
+        const userInput = job.user_input as any;
         setFormData({
           template: userInput.template || '',
           leadName: userInput.leadName || '',
@@ -393,206 +521,114 @@ export default function StoryboardWorkspace() {
         
         setSupportingCharacters(userInput.supportingCharacters || []);
       }
-      
-      // Initialize movie data using user input language
-      if (data.movie_info && typeof data.movie_info === 'object') {
-        const userLanguage = getUserInputLanguage();
-        const localizedMovieInfo = getLocalizedContent(data.movie_info, userLanguage);
-        console.log('🎬 Setting movie data:', localizedMovieInfo);
-        setMovieData({
-          title: localizedMovieInfo.title || '',
-          logline: localizedMovieInfo.logline || '',
-          world: localizedMovieInfo.world || '',
-          look: localizedMovieInfo.look || ''
-        });
-      }
-      
-    } catch (error) {
-      console.error('❌ Error in fetchJob:', error);
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred",
-        variant: "destructive"
-      });
-      navigate('/app/dashboard');
-    } finally {
-      setLoading(false);
     }
+    setIsEditingJobInfo(!isEditingJobInfo);
   };
 
-  // Fetch templates
-  const fetchTemplates = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('templates')
-        .select('id, name, description')
-        .order('name');
-
-      if (error) {
-        console.error('Error fetching templates:', error);
-      } else {
-        setTemplates(data || []);
-      }
-    } catch (error) {
-      console.error('Error fetching templates:', error);
-    }
-  };
-
-  // Execute function via execute-function edge function
-  const executeFunction = async (functionName: string, payload: any) => {
-    console.log(`🎯 Executing function: ${functionName}`, { payload });
-    
-    const functionData = functions[functionName];
-    if (!functionData) {
-      throw new Error(`Function ${functionName} not found`);
-    }
-
-    console.log('💰 Function details:', functionData, '| User credits:', credits);
-
-    const { data, error } = await supabase.functions.invoke('execute-function', {
-      body: {
-        function_id: functionData.id,
-        payload: {
-          table_id: 'storyboard_jobs',
-          row_id: jobId,
-          ...payload
-        },
-        user_id: user?.id || null
-      }
-    });
-
-    console.log('📡 Execute-function response:', { data, error });
-
-    if (error) {
-      throw new Error(error.message || `Failed to execute ${functionName}`);
-    }
-    
-    if (!data?.success) {
-      if (data?.error === 'Insufficient credits') {
-        throw new Error(`Insufficient credits. Required: ${data.required_credits || functionData.price} credits`);
-      }
-      throw new Error(data?.error || `${functionName} execution was rejected`);
-    }
-    
-    return data;
-  };
-
-  // Generate section handler
-  const handleGenerate = async (sectionKey: string) => {
-    const section = SECTIONS.find(s => s.key === sectionKey);
-    if (!section) return;
-
-    console.log(`🚀 Generating section: ${sectionKey}`);
-    
-    setLoadingSections(prev => ({ ...prev, [sectionKey]: true }));
-    
-    try {
-      await executeFunction('generate-movie-info', {});
-      
-      // Open the section after successful generation
-      setOpenSections(prev => ({ ...prev, [sectionKey]: true }));
-      
-      toast({
-        title: "Success",
-        description: `${section.title} generation started...`,
-      });
-      
-    } catch (error) {
-      console.error(`❌ Error generating ${sectionKey}:`, error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : `Failed to generate ${section.title}`,
-        variant: "destructive"
-      });
-    } finally {
-      setLoadingSections(prev => ({ ...prev, [sectionKey]: false }));
-    }
-  };
-
-  // Edit toggle with warning system
-  const handleEditToggle = (sectionKey: string) => {
-    const isCurrentlyEditing = editingSections[sectionKey];
-    
-    if (isCurrentlyEditing) {
-      // Cancel editing - reset data
-      if (sectionKey === 'input') {
-        // Reset input data
-        if (job?.user_input) {
-          const userInput = job.user_input as any;
-          setFormData({
-            template: userInput.template || '',
-            leadName: userInput.leadName || '',
-            leadGender: userInput.leadGender || '',
-            leadAiCharacter: userInput.leadAiCharacter || false,
-            language: userInput.language || 'English',
-            accent: userInput.accent || 'US',
-            size: userInput.size || '',
-            prompt: userInput.prompt || ''
-          });
-          setSelectedGenres(userInput.genres || []);
-          if (userInput.faceImage) {
-            setFaceImagePreview(userInput.faceImage);
-          }
-          setSupportingCharacters(userInput.supportingCharacters || []);
-        }
-      } else if (sectionKey === 'movie_info') {
-        // Reset movie data using user input language
-        if (job?.movie_info) {
-          const userLanguage = getUserInputLanguage();
-          const localizedMovieInfo = getLocalizedContent(job.movie_info, userLanguage);
-          setMovieData({
-            title: localizedMovieInfo.title || '',
-            logline: localizedMovieInfo.logline || '',
-            world: localizedMovieInfo.world || '',
-            look: localizedMovieInfo.look || ''
-          });
-        }
-      }
-      
-      setEditingSections(prev => ({ ...prev, [sectionKey]: false }));
+  const handleSave = async () => {
+    console.log('💾 handleSave called for jobId:', jobId);
+    if (!jobId) {
+      console.log('❌ No jobId provided');
       return;
     }
-
-    // Starting to edit - check for impact
-    const hasLaterData = checkEditImpact(sectionKey);
     
-    if (hasLaterData) {
-      setPendingEdit({ section: sectionKey, hasLaterData });
-      setShowEditWarning(true);
-    } else {
-      setEditingSections(prev => ({ ...prev, [sectionKey]: true }));
-    }
-  };
-
-  // Handle warning dialog actions
-  const handleEditWarningAction = (action: 'discard' | 'delete' | 'override') => {
-    if (!pendingEdit) return;
-    
-    const { section } = pendingEdit;
-    
-    if (action === 'discard') {
-      // Just close dialog, don't start editing
-      setShowEditWarning(false);
-      setPendingEdit(null);
-    } else if (action === 'delete') {
-      // TODO: Implement deletion of progressive data
-      console.log('TODO: Delete progressive data after', section);
-      setEditingSections(prev => ({ ...prev, [section]: true }));
-      setShowEditWarning(false);
-      setPendingEdit(null);
-    } else if (action === 'override') {
-      // Start editing with warning acknowledged
-      setEditingSections(prev => ({ ...prev, [section]: true }));
-      setShowEditWarning(false);
-      setPendingEdit(null);
-    }
-  };
-
-  // Save handlers
-  const handleSaveInput = async () => {
-    console.log('💾 Saving input data...');
+    console.log('⏳ Setting isSaving to true');
+    setIsSaving(true);
     
     try {
+      console.log('📝 Saving movie data:', movieData);
+      // First save the movie info data
+      const { error: updateError } = await supabase
+        .from('storyboard_jobs')
+        .update({ 
+          movie_info: movieData,
+          movie_info_updated_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', jobId);
+
+      console.log('📡 Update response:', { updateError });
+
+      if (updateError) {
+        console.error('❌ Error saving movie data:', updateError);
+        toast.error(t('Failed to save movie information'));
+        return;
+      }
+
+      console.log('✅ Movie data saved successfully');
+
+      // Execute the function after saving
+      try {
+        console.log('🔍 Looking up edit-movie-info function...');
+        const { data: functionData, error: functionError } = await supabase
+          .from('functions')
+          .select('id, price')
+          .eq('id', '17c13967-cf25-484d-87a2-16895116b408')
+          .eq('active', true)
+          .single();
+
+        console.log('📡 Function lookup response:', { functionData, functionError });
+
+        if (functionError || !functionData) {
+          console.warn('⚠️ Function not available, skipping execution');
+        } else {
+          console.log('💰 Function price:', functionData.price, '| User credits:', credits);
+          // Check credits before executing
+          if (credits < functionData.price) {
+            console.log('❌ Insufficient credits for function execution');
+            toast.error(t(`Insufficient credits. Required: ${functionData.price} credits`));
+            return;
+          }
+
+          console.log('🎯 Executing edit-movie-info function...');
+          const { data, error } = await supabase.functions.invoke('execute-function', {
+            body: {
+              function_id: functionData.id,
+              payload: {
+                table_id: 'storyboard_jobs',
+                row_id: jobId,
+                edits: movieData
+              },
+              user_id: user?.id || null
+            }
+          });
+
+          console.log('📡 Function execution response:', { data, error });
+
+          if (error) {
+            console.warn('❌ Function execution failed:', error);
+            toast.error(t('Function execution failed'));
+          } else if (!data?.success) {
+            console.warn('❌ Function execution not successful:', data?.error);
+            toast.error(data?.error || t('Function execution was rejected'));
+          } else {
+            console.log('✅ Function executed successfully');
+            toast.success(t(`Movie information saved and processed. ${functionData.price} credits consumed.`));
+          }
+        }
+      } catch (funcError) {
+        console.warn('❌ Error executing function:', funcError);
+        // Don't fail the save operation if function execution fails
+      }
+
+      console.log('✅ Setting isEditing to false');
+      setIsEditing(false);
+      console.log('🔄 Refreshing job data...');
+      fetchJob(); // Refresh job data
+    } catch (error) {
+      console.error('❌ Error in handleSave:', error);
+      toast.error(t('An unexpected error occurred'));
+    } finally {
+      console.log('⏳ Setting isSaving to false');
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveJobInfo = async () => {
+    console.log('💾 handleSaveJobInfo called');
+    try {
+      console.log('🔄 Processing supporting characters...');
+      // Convert supporting characters to JSON-serializable format matching StoryboardPlayground structure
       const processedSupportingCharacters = supportingCharacters.map(char => ({
         id: char.id,
         name: char.name,
@@ -602,6 +638,8 @@ export default function StoryboardWorkspace() {
         faceImageType: char.faceImage?.type || null
       }));
 
+      console.log('📝 Creating job data structure...');
+      // Create the exact same structure as StoryboardPlayground sends
       const jobData = {
         ...formData,
         genres: selectedGenres,
@@ -612,6 +650,9 @@ export default function StoryboardWorkspace() {
         sessionId: sessionId || null
       };
 
+      console.log('📝 Job data to save:', jobData);
+
+      console.log('📡 Saving job input data to Supabase...');
       const { error } = await supabase
         .from('storyboard_jobs')
         .update({ 
@@ -620,175 +661,40 @@ export default function StoryboardWorkspace() {
         })
         .eq('id', jobId);
 
-      if (error) throw error;
+      console.log('📡 Save response:', { error });
 
-      toast({
-        title: "Success",
-        description: "Job information saved successfully",
-      });
-      
-      setEditingSections(prev => ({ ...prev, input: false }));
-      fetchJob(); // Refresh data
-      
+      if (error) {
+        console.error('❌ Error saving job input data:', error);
+        toast.error(t('Failed to save job information'));
+        return;
+      }
+
+      console.log('✅ Job information saved successfully');
+      toast.success(t('Job information saved'));
+      setIsEditingJobInfo(false);
+      console.log('🔄 Refreshing job data...');
+      fetchJob(); // Refresh job data
     } catch (error) {
-      console.error('❌ Error saving input:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save job information",
-        variant: "destructive"
-      });
+      console.error('❌ Error in handleSaveJobInfo:', error);
+      toast.error(t('An unexpected error occurred'));
     }
   };
 
-  const handleSaveMovieInfo = async () => {
-    console.log('💾 Saving movie info...');
-    
-    try {
-      const { error: updateError } = await supabase
-        .from('storyboard_jobs')
-        .update({ 
-          movie_info: movieData,
-          movie_info_updated_at: new Date().toISOString()
-        })
-        .eq('id', jobId);
-
-      if (updateError) throw updateError;
-
-      // Execute edit function if available
-      const editFunction = functions['edit-movie-info'];
-      if (editFunction && credits >= editFunction.price) {
-        try {
-          await executeFunction('edit-movie-info', { edits: movieData });
-          toast({
-            title: "Success",
-            description: `Movie information saved and processed. ${editFunction.price} credits consumed.`,
-          });
-        } catch (funcError) {
-          console.warn('Function execution failed:', funcError);
-          toast({
-            title: "Partial Success",
-            description: "Movie information saved but processing failed",
-            variant: "destructive"
-          });
-        }
-      } else {
-        toast({
-          title: "Success",
-          description: "Movie information saved",
-        });
-      }
-
-      setEditingSections(prev => ({ ...prev, movie_info: false }));
-      fetchJob(); // Refresh data
-      
-    } catch (error) {
-      console.error('❌ Error saving movie info:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save movie information",
-        variant: "destructive"
-      });
-    }
+  const handleGenerate = () => {
+    console.log('🎬 handleGenerate called - Generate storyboard');
+    // TODO: Implement generate function - user will specify this later
+    toast.info(t('Generate function will be implemented'));
   };
-
-  // Input change handlers
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => {
-      const newData = { ...prev, [field]: value };
-      if (field === 'language') {
-        if (value === 'Arabic') {
-          newData.accent = 'MSA';
-        } else if (value === 'English') {
-          newData.accent = 'US';
-        } else {
-          newData.accent = '';
-        }
-      }
-      if (field === 'leadAiCharacter') {
-        newData.leadAiCharacter = value === 'true';
-      }
-      return newData;
-    });
-  };
-
-  const handleGenreToggle = (genreValue: string) => {
-    setSelectedGenres(prev => {
-      if (prev.includes(genreValue)) {
-        return prev.filter(g => g !== genreValue);
-      } else if (prev.length < 3) {
-        return [...prev, genreValue];
-      }
-      return prev;
-    });
-  };
-
-  // Set up real-time subscriptions
-  useEffect(() => {
-    if (!jobId) return;
-
-    const channel = supabase
-      .channel('storyboard-job-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'storyboard_jobs',
-          filter: `id=eq.${jobId}`
-        },
-        (payload) => {
-          console.log('🔔 Realtime update received:', payload);
-          const newData = payload.new as StoryboardJob;
-          setJob(newData);
-          
-          // Update section data if new data arrives
-          if (newData.movie_info && Object.keys(newData.movie_info).length > 0) {
-            const userLanguage = getUserInputLanguage();
-            const localizedMovieInfo = getLocalizedContent(newData.movie_info, userLanguage);
-            setMovieData({
-              title: localizedMovieInfo.title || '',
-              logline: localizedMovieInfo.logline || '',
-              world: localizedMovieInfo.world || '',
-              look: localizedMovieInfo.look || ''
-            });
-            
-            // Stop loading if we were waiting for this section
-            setLoadingSections(prev => ({ ...prev, movie_info: false }));
-          }
-          
-          // Handle other sections similarly
-          Object.keys(loadingSections).forEach(sectionKey => {
-            if (loadingSections[sectionKey] && newData[sectionKey as keyof StoryboardJob]) {
-              setLoadingSections(prev => ({ ...prev, [sectionKey]: false }));
-              toast({
-                title: "Success",
-                description: `${SECTIONS.find(s => s.key === sectionKey)?.title} generated successfully!`,
-              });
-            }
-          });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [jobId, loadingSections]);
-
-  // Initialize data on mount
-  useEffect(() => {
-    fetchFunctions();
-    fetchTemplates();
-    if (jobId) {
-      fetchJob();
-    }
-  }, [jobId]);
 
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
-          <LoadingSpinner size="lg" />
+          <div className="animate-pulse">
+            <div className="h-8 bg-muted rounded w-1/3 mb-4"></div>
+            <div className="h-32 bg-muted rounded mb-4"></div>
+            <div className="h-64 bg-muted rounded"></div>
+          </div>
         </div>
       </div>
     );
@@ -798,19 +704,61 @@ export default function StoryboardWorkspace() {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-2xl font-bold mb-4">{t('storyboardNotFound')}</h1>
-          <Button onClick={() => navigate('/app/dashboard')} variant="default">
-            {t('backToDashboard')}
+          <h1 className="text-2xl font-bold mb-4">{t('Storyboard not found')}</h1>
+          <Button onClick={() => navigate('/app/dashboard')} variant="type_3_blue">
+            {t('Back to Dashboard')}
           </Button>
         </div>
       </div>
     );
   }
 
-  const { visibleSections, nextSection } = getSectionVisibility();
-  const isAnyEditMode = Object.values(editingSections).some(Boolean);
-  const userLanguage = getUserInputLanguage();
-  const SECTIONS = getSections(t);
+  const firstGenerated = hasFirstGeneration(job);
+  const isAnyEditMode = isEditingJobInfo || isEditing;
+  
+  // Comprehensive debug logging
+  console.log('🚨 FULL DEBUG STATE:', {
+    // Job Data
+    jobId,
+    job: job ? {
+      id: job.id,
+      status: job.status,
+      stage: job.stage,
+      created_at: job.created_at,
+      updated_at: job.updated_at,
+      input_updated_at: job.input_updated_at,
+      movie_info_updated_at: job.movie_info_updated_at,
+      user_input_language: (job.user_input as any)?.language,
+      has_movie_info: job.movie_info && Object.keys(job.movie_info).length > 0,
+      has_user_input: job.user_input && Object.keys(job.user_input).length > 0,
+      has_n8n_response: job.n8n_response && Object.keys(job.n8n_response).length > 0
+    } : null,
+    
+    // State Variables
+    loading,
+    movieData,
+    formData,
+    selectedGenres,
+    supportingCharacters: supportingCharacters.length,
+    
+    // UI State
+    jobInfoOpen,
+    movieInfoOpen,
+    isEditing,
+    isEditingJobInfo,
+    isAnyEditMode,
+    generatingMovieInfo,
+    hasMovieInfoResponse,
+    hasMovieInfo,
+    webhookFailed,
+    isSaving,
+    firstGenerated,
+    
+    // User & Credits
+    user: user ? { id: user.id } : null,
+    credits,
+    sessionId
+  });
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -818,335 +766,725 @@ export default function StoryboardWorkspace() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">{t('storyboardWorkspace')}</h1>
+            <h1 className="text-3xl font-bold">{t('Storyboard Workspace')}</h1>
             <p className="text-muted-foreground mt-1">
-              {t('jobId')}: {job.id.slice(0, 8)}... • {t('status')}: <Badge variant="outline">{job.status}</Badge> • {t('credits')}: <span className="font-medium text-primary">{credits}</span>
+              {t('Job ID')}: {job.id.slice(0, 8)}... • {t('Status')}: <Badge variant="outline">{job.status}</Badge>
             </p>
           </div>
           <Button 
-            variant="outline"
+            variant="type_3_blue"
             onClick={() => navigate('/app/dashboard')}
             disabled={isAnyEditMode}
           >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            {t('backToDashboard')}
+            {t('Back to Dashboard')}
           </Button>
         </div>
 
-        {/* Initial Input Section */}
-        <Card className={cn("transition-all", editingSections.input && "ring-2 ring-primary/50")}>
-          <CardHeader 
-            className="cursor-pointer hover:bg-muted/50 transition-colors"
-            onClick={() => !isAnyEditMode && setOpenSections(prev => ({ ...prev, input: !prev.input }))}
-          >
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
-                {t('initialInput')}
-                {editingSections.input && <Badge variant="secondary">{t('editing')}</Badge>}
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                {job.input_updated_at && (
-                  <div className="text-xs text-muted-foreground">
-                    <Clock className="h-3 w-3 inline mr-1" />
-                    {new Date(job.input_updated_at).toLocaleString()}
-                  </div>
-                )}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleEditToggle('input');
-                  }}
-                  disabled={isAnyEditMode && !editingSections.input}
-                >
-                  {editingSections.input ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          
-          {openSections.input && (
-            <CardContent className="space-y-4">
-              {editingSections.input ? (
-                <div className="space-y-4">
-                  {/* Edit form - same as original but simplified */}
-                  <div>
-                    <label className="text-sm font-medium">{t('leadCharacterName')} *</label>
-                    <Input
-                      value={formData.leadName}
-                      onChange={(e) => handleInputChange('leadName', e.target.value)}
-                      placeholder={t('enterLeadCharacterName')}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium">{t('language')} *</label>
-                    <Select value={formData.language} onValueChange={(value) => handleInputChange('language', value)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {LANGUAGES.map(lang => (
-                          <SelectItem key={lang.value} value={lang.value}>{t(lang.key)}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium">{t('prompt')}</label>
-                    <Textarea
-                      value={formData.prompt}
-                      onChange={(e) => handleInputChange('prompt', e.target.value)}
-                      placeholder={t('describeYourStory')}
-                      rows={3}
-                    />
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <Button onClick={handleSaveInput} variant="default">
-                      <Save className="h-4 w-4 mr-2" />
-                      {t('save')}
-                    </Button>
-                    <Button onClick={() => handleEditToggle('input')} variant="outline">
-                      {t('cancel')}
+        {/* Job Information - Collapsible and editable */}
+        <Card className={cn("transition-all", isEditingJobInfo && "ring-2 ring-primary/50 bg-primary/5")}>
+          <Collapsible open={jobInfoOpen} onOpenChange={(open) => !isAnyEditMode && setJobInfoOpen(open)}>
+            <CollapsibleTrigger asChild>
+              <CardHeader className={cn("cursor-pointer hover:bg-muted/50 transition-colors", isEditingJobInfo && "cursor-default")}>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    {jobInfoOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    {t('initialInput')}
+                    {isEditingJobInfo && (
+                      <Badge variant="secondary" className="ml-2">
+                        {t('Editing')}
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="type_4_blue"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditJobInfoToggle();
+                      }}
+                      disabled={(!jobInfoOpen && !isEditingJobInfo) || (isAnyEditMode && !isEditingJobInfo)}
+                    >
+                      {isEditingJobInfo ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  <div>
-                    <div className="text-sm font-medium text-primary">{t('leadCharacter')}</div>
-                    <div className="text-lg font-semibold">{formData.leadName || t('notSpecified')}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-primary">{t('language')}</div>
-                    <div>{formData.language} ({formData.accent})</div>
-                  </div>
-                  {formData.prompt && (
-                    <div>
-                      <div className="text-sm font-medium text-primary">{t('storyPrompt')}</div>
-                      <div className="text-sm">{formData.prompt}</div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="space-y-4">
+                {isEditingJobInfo ? (
+                  // Edit Mode - Using exact form structure from StoryboardPlayground
+                  <div className="space-y-6">
+                    {/* Template */}
+                    <div className="space-y-2">
+                      <Label htmlFor="template">{t('storyboardTemplate')} *</Label>
+                      <Select value={formData.template} onValueChange={(value) => handleInputChange('template', value)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder={t('selectTemplate')} />
+                        </SelectTrigger>
+                        <SelectContent className="max-w-[calc(100vw-2rem)] w-full">
+                          {templates.map(template => (
+                            <SelectItem key={template.id} value={template.id}>
+                              <div className="flex flex-col max-w-full">
+                                <span className="font-medium truncate">{template.name}</span>
+                                {template.description && (
+                                  <span className="text-xs text-muted-foreground truncate">{template.description}</span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          )}
-        </Card>
 
-        {/* Progressive Sections */}
-        {SECTIONS.map((section, index) => {
-          const isVisible = visibleSections.includes(section.key);
-          const isNext = nextSection === section.key;
-          const sectionData = job[section.key as keyof StoryboardJob];
-          const hasData = sectionData && typeof sectionData === 'object' && Object.keys(sectionData).length > 0;
-          const isLoading = loadingSections[section.key];
-          const isEditing = editingSections[section.key];
-          const updatedAtKey = `${section.key}_updated_at` as keyof StoryboardJob;
-          const lastUpdated = job[updatedAtKey] as string;
-          
-          if (!isVisible && !isNext) return null;
+                    {/* Size Option */}
+                    <div className="space-y-2">
+                      <Label htmlFor="size">{t('sizeOption')}</Label>
+                      <Select value={formData.size} onValueChange={(value) => handleInputChange('size', value)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder={t('selectSize')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="portrait">{t('sizePortrait')}</SelectItem>
+                          <SelectItem value="landscape">{t('sizeLandscape')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-          // Generate button for next section
-          if (isNext && !hasData && !isLoading) {
-            const functionData = functions['generate-movie-info'];
-            return (
-              <div key={section.key} className="flex flex-col items-center gap-4">
-                <Button 
-                  size="lg"
-                  variant="default"
-                  className="text-lg px-8 py-4"
-                  onClick={() => handleGenerate(section.key)}
-                  disabled={isAnyEditMode}
-                >
-                  <section.icon className="h-5 w-5 mr-2" />
-                  {t('generate')} {section.title}
-                </Button>
-                {functionData && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Coins className="h-3 w-3" />
-                    <span>{t('cost')}: {functionData.price} {t('credits')} • {t('balance')}: {credits} {t('credits')}</span>
-                  </div>
-                )}
-              </div>
-            );
-          }
+                    {/* Lead Character */}
+                    <div className="space-y-4 border rounded-lg p-4">
+                      <h3 className="text-lg font-semibold">{t('leadCharacter')}</h3>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="leadName">{t('leadName')} *</Label>
+                          <Input
+                            id="leadName"
+                            value={formData.leadName}
+                            onChange={(e) => handleInputChange('leadName', e.target.value)}
+                            placeholder={t('enterLeadCharacterName')}
+                          />
+                        </div>
 
-          // Loading state
-          if (isLoading) {
-            return (
-              <Card key={section.key}>
-                <CardContent className="flex flex-col items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin mb-4" />
-                  <p className="text-lg font-medium">{t('generating')} {section.title}...</p>
-                  <p className="text-sm text-muted-foreground">{t('pleaseWaitMoment')}</p>
-                </CardContent>
-              </Card>
-            );
-          }
+                        <div className="space-y-2">
+                          <Label htmlFor="leadGender">{t('gender')} *</Label>
+                          <Select value={formData.leadGender} onValueChange={(value) => handleInputChange('leadGender', value)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder={t('selectGender')} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="male">{t('male')}</SelectItem>
+                              <SelectItem value="female">{t('female')}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
 
-          // Section with data
-          if (hasData) {
-            return (
-              <Card key={section.key} className={cn("transition-all", isEditing && "ring-2 ring-primary/50")}>
-                <CardHeader 
-                  className="cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={() => !isAnyEditMode && setOpenSections(prev => ({ ...prev, [section.key]: !prev[section.key] }))}
-                >
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <section.icon className="h-5 w-5" />
-                      {section.title}
-                      {isEditing && <Badge variant="secondary">{t('editing')}</Badge>}
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                    </CardTitle>
-                    <div className="flex items-center gap-2">
-                      {lastUpdated && (
-                        <div className="text-xs text-muted-foreground">
-                          <Clock className="h-3 w-3 inline mr-1" />
-                          {new Date(lastUpdated).toLocaleString()}
+                      <div className={cn("flex items-center", isRTL ? "space-x-reverse space-x-2" : "space-x-2")}>
+                        <Switch
+                          id="leadAiCharacter"
+                          checked={formData.leadAiCharacter}
+                          onCheckedChange={(checked) => handleInputChange('leadAiCharacter', checked.toString())}
+                        />
+                        <Label htmlFor="leadAiCharacter">{t('aiGeneratedCharacter')}</Label>
+                      </div>
+
+                      {!formData.leadAiCharacter && (
+                        <div className="space-y-2">
+                          <Label htmlFor="faceImage">{t('faceReferenceImage')}</Label>
+                          <div className="space-y-4">
+                            {faceImagePreview ? (
+                              <div className="relative inline-block">
+                                <img 
+                                  src={faceImagePreview} 
+                                  alt={t('faceReferenceImage')} 
+                                  className="w-32 h-32 object-cover rounded-lg border"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  size="sm"
+                                  className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+                                  onClick={removeImage}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+                                <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                                <p className="text-sm text-muted-foreground mb-2">{t('uploadFaceReference')}</p>
+                                <Input
+                                  id="faceImage"
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleImageUpload}
+                                  className="hidden"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => document.getElementById('faceImage')?.click()}
+                                >
+                                  {t('chooseImage')}
+                                </Button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
-                      {!isEditing && functions['edit-movie-info'] && (
-                        <div className="text-xs text-muted-foreground mr-2">
-                          <Coins className="h-3 w-3 inline mr-1" />
-                          {functions['edit-movie-info'].price} {t('credits')}
+                    </div>
+
+                    {/* Supporting Characters */}
+                    <Collapsible open={!supportingCollapsed} onOpenChange={(open) => setSupportingCollapsed(!open)}>
+                      <CollapsibleTrigger asChild>
+                        <Button variant="type_3_blue" className="w-full justify-between">
+                          <span>{t('supportingCharacters')}</span>
+                          {supportingCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="space-y-4 mt-4">
+                        <div className="text-sm text-muted-foreground">
+                          {t('supportingCharactersDesc')}
                         </div>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEditToggle(section.key);
-                        }}
-                        disabled={isAnyEditMode && !isEditing}
+                        
+                        <div className="space-y-4">
+                          {supportingCharacters.map((character, index) => (
+                            <div key={character.id} className="border rounded-lg p-4 space-y-4">
+                              <div className="flex items-center justify-between">
+                                <h4 className="font-medium">{t('supportingCharacter')} {index + 1}</h4>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSupportingCharacters(prev => prev.filter(c => c.id !== character.id));
+                                  }}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label>{t('leadName')}</Label>
+                                  <Input
+                                    value={character.name}
+                                    onChange={(e) => {
+                                      setSupportingCharacters(prev => prev.map(c => 
+                                        c.id === character.id ? { ...c, name: e.target.value } : c
+                                      ));
+                                    }}
+                                    placeholder={t('enterLeadCharacterName')}
+                                  />
+                                </div>
+                               
+                                <div className="space-y-2">
+                                  <Label>{t('gender')}</Label>
+                                  <Select 
+                                    value={character.gender} 
+                                    onValueChange={(value) => {
+                                      setSupportingCharacters(prev => prev.map(c => 
+                                        c.id === character.id ? { ...c, gender: value } : c
+                                      ));
+                                    }}
+                                   >
+                                     <SelectTrigger>
+                                       <SelectValue placeholder={t('selectGender')} />
+                                     </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="male">{t('male')}</SelectItem>
+                                      <SelectItem value="female">{t('female')}</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                              
+                              <div className={cn("flex items-center", isRTL ? "space-x-reverse space-x-2" : "space-x-2")}>
+                                <Switch
+                                  checked={character.aiFace}
+                                  onCheckedChange={(checked) => {
+                                    setSupportingCharacters(prev => prev.map(c => 
+                                      c.id === character.id ? { ...c, aiFace: checked } : c
+                                    ));
+                                  }}
+                                />
+                                <Label>{t('aiGeneratedFace')}</Label>
+                              </div>
+
+                              {!character.aiFace && (
+                                <div className="space-y-2">
+                                  <Label>Face Reference Image</Label>
+                                  <div className="space-y-4">
+                                    {character.faceImagePreview ? (
+                                      <div className="relative inline-block">
+                                        <img 
+                                          src={character.faceImagePreview} 
+                                          alt="Face reference" 
+                                          className="w-32 h-32 object-cover rounded-lg border"
+                                        />
+                                        <Button
+                                          type="button"
+                                          variant="destructive"
+                                          size="sm"
+                                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+                                          onClick={() => {
+                                            setSupportingCharacters(prev => prev.map(c => 
+                                              c.id === character.id ? { ...c, faceImage: undefined, faceImagePreview: undefined } : c
+                                            ));
+                                          }}
+                                        >
+                                          <X className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+                                        <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                                        <p className="text-sm text-muted-foreground mb-2">Upload a face reference image</p>
+                                        <Input
+                                          id={`faceImage-${character.id}`}
+                                          type="file"
+                                          accept="image/*"
+                                          onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                              if (file.size > 5 * 1024 * 1024) {
+                                                toast.error("Please select an image under 5MB");
+                                                return;
+                                              }
+
+                                              const reader = new FileReader();
+                                              reader.onload = (e) => {
+                                                setSupportingCharacters(prev => prev.map(c => 
+                                                  c.id === character.id ? { 
+                                                    ...c, 
+                                                    faceImage: file, 
+                                                    faceImagePreview: e.target?.result as string 
+                                                  } : c
+                                                ));
+                                              };
+                                              reader.readAsDataURL(file);
+                                            }
+                                          }}
+                                          className="hidden"
+                                        />
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          onClick={() => document.getElementById(`faceImage-${character.id}`)?.click()}
+                                        >
+                                          {t('chooseImage')}
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              setSupportingCharacters(prev => [...prev, {
+                                id: crypto.randomUUID(),
+                                name: '',
+                                gender: '',
+                                aiFace: true
+                              }]);
+                            }}
+                            className="w-full"
+                            disabled={supportingCharacters.length >= 1}
+                          >
+                            {t('addSupportingCharacter')} {supportingCharacters.length >= 1 ? t('maxOneSupportingChar') : t('supportingCharCount').replace('{count}', supportingCharacters.length.toString())}
+                          </Button>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+
+                    {/* Language */}
+                    <div className="space-y-2">
+                      <Label htmlFor="language">{t('voiceLanguage')} *</Label>
+                      <Select value={formData.language} onValueChange={(value) => handleInputChange('language', value)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder={t('selectLanguage')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {LANGUAGES.map(lang => (
+                            <SelectItem key={lang.value} value={lang.value}>{t(lang.key)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Accent */}
+                    <div className="space-y-2">
+                      <Label htmlFor="accent">{t('accent')} *</Label>
+                      <Select 
+                        onValueChange={(value) => handleInputChange('accent', value)} 
+                        value={formData.accent}
                       >
-                        {isEditing ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
+                        <SelectTrigger>
+                          <SelectValue placeholder={t('selectAccent')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {formData.language && ACCENTS[formData.language as keyof typeof ACCENTS]?.map(accent => (
+                            <SelectItem key={accent.value} value={accent.value}>{t(accent.key)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Genres */}
+                    <div className="space-y-2">
+                      <Label>{t('genresMax3')}</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {GENRE_OPTIONS.map(genre => (
+                          <Badge
+                            key={genre.value}
+                            variant={selectedGenres.includes(genre.value) ? "default" : "outline"}
+                            className={`cursor-pointer ${
+                              !selectedGenres.includes(genre.value) && selectedGenres.length >= 3 
+                                ? 'opacity-50 cursor-not-allowed' 
+                                : ''
+                            }`}
+                            onClick={() => handleGenreToggle(genre.value)}
+                          >
+                            {t(genre.key)}
+                          </Badge>
+                        ))}
+                      </div>
+                      {selectedGenres.length > 0 && (
+                        <p className="text-sm text-muted-foreground">
+                          {t('selectedGenres').replace('{genres}', getTranslatedGenres(selectedGenres).join(', ')).replace('{count}', selectedGenres.length.toString())}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Prompt */}
+                    <div className="space-y-2">
+                      <Label htmlFor="prompt">{t('plotInstructions')}</Label>
+                      <Textarea
+                        id="prompt"
+                        value={formData.prompt}
+                        onChange={(e) => handleInputChange('prompt', e.target.value)}
+                        placeholder={t('plotPlaceholder')}
+                        rows={4}
+                      />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button onClick={handleSaveJobInfo} variant="type_1">
+                        <Save className="h-4 w-4 mr-2" />
+                        {t('Save')}
+                      </Button>
+                      <Button onClick={handleEditJobInfoToggle} variant="outline">
+                        {t('cancel')}
                       </Button>
                     </div>
                   </div>
-                </CardHeader>
-                
-                {openSections[section.key] && (
-                  <CardContent>
-                    {section.key === 'movie_info' && isEditing ? (
-                      <div className="space-y-4">
+                ) : (
+                  // Read-only view with improved design
+                  <div className="space-y-6">
+                    {/* Important fields - full row, bigger font, bolder */}
+                    <div className="space-y-4">
+                      <div>
+                        <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-1">{t('leadCharacter')}</div>
+                        <div className="text-xl font-bold text-foreground">{formData.leadName || t('notSpecified')}</div>
+                      </div>
+                      
+                      {formData.prompt && (
                         <div>
-                          <label className="text-sm font-medium">{t('title')}</label>
-                          <Input
-                            value={movieData.title}
-                            onChange={(e) => setMovieData({ ...movieData, title: e.target.value })}
-                          />
+                          <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-1">{t('prompt')}</div>
+                          <div className="text-lg font-semibold text-foreground leading-relaxed">{formData.prompt}</div>
                         </div>
-                        <div>
-                          <label className="text-sm font-medium">{t('logline')}</label>
-                          <Textarea
-                            value={movieData.logline}
-                            onChange={(e) => setMovieData({ ...movieData, logline: e.target.value })}
-                            rows={3}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">{t('world')}</label>
-                          <Input
-                            value={movieData.world}
-                            onChange={(e) => setMovieData({ ...movieData, world: e.target.value })}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">{t('look')}</label>
-                          <Input
-                            value={movieData.look}
-                            onChange={(e) => setMovieData({ ...movieData, look: e.target.value })}
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <Button onClick={handleSaveMovieInfo} variant="default">
-                            <Save className="h-4 w-4 mr-2" />
-                            {t('save')}
-                          </Button>
-                          <Button onClick={() => handleEditToggle('movie_info')} variant="outline">
-                            {t('cancel')}
-                          </Button>
+                      )}
+                    </div>
+                    
+                    {/* Regular importance fields */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-1">{t('gender')}</div>
+                        <div className="text-base text-foreground">{formData.leadGender ? t(formData.leadGender) : t('notSpecified')}</div>
+                      </div>
+                      
+                      <div>
+                        <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-1">{t('language')}</div>
+                        <div className="text-base text-foreground">{formData.language ? t(LANGUAGES.find(l => l.value === formData.language)?.key || formData.language) : t('notSpecified')}</div>
+                      </div>
+                      
+                      <div>
+                        <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-1">{t('accent')}</div>
+                        <div className="text-base text-foreground">{formData.accent || t('notSpecified')}</div>
+                      </div>
+                      
+                      <div>
+                        <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-1">{t('aiGeneratedCharacter')}</div>
+                        <div className="text-base text-foreground">{formData.leadAiCharacter ? t('yes') : t('no')}</div>
+                      </div>
+                    </div>
+                    
+                    {/* Genres section */}
+                    {selectedGenres.length > 0 && (
+                      <div>
+                        <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-2">{t('genres')}</div>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedGenres.map(genre => (
+                            <Badge key={genre} variant="outline" className="text-sm">
+                              {t(GENRE_OPTIONS.find(g => g.value === genre)?.key || genre)}
+                            </Badge>
+                          ))}
                         </div>
                       </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {section.key === 'movie_info' ? (
-                          <>
-                            <div>
-                              <div className="text-sm font-medium text-primary">{t('title')}</div>
-                              <div className="text-lg font-semibold">{getLocalizedValue(job.movie_info, 'title', t('notAvailable'))}</div>
-                            </div>
-                            <div>
-                              <div className="text-sm font-medium text-primary">{t('logline')}</div>
-                              <div>{getLocalizedValue(job.movie_info, 'logline', t('notAvailable'))}</div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <div className="text-sm font-medium text-primary">{t('world')}</div>
-                                <div>{getLocalizedValue(job.movie_info, 'world', t('notAvailable'))}</div>
-                              </div>
-                              <div>
-                                <div className="text-sm font-medium text-primary">{t('look')}</div>
-                                <div>{getLocalizedValue(job.movie_info, 'look', t('notAvailable'))}</div>
+                    )}
+
+                    {/* Supporting Characters section */}
+                    {supportingCharacters.length > 0 && (
+                      <div>
+                        <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-2">{t('supportingCharacters')}</div>
+                        <div className="space-y-2">
+                          {supportingCharacters.map((char, index) => (
+                            <div key={char.id} className="bg-muted/30 rounded-lg p-3 border">
+                              <div className="font-medium text-foreground">{char.name}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {t(char.gender)} • {char.aiFace ? t('aiGenerated') : t('faceReference')}
                               </div>
                             </div>
-                          </>
-                        ) : (
-                          <div className="text-center text-muted-foreground">
-                            {section.title} {t('contentWillBeDisplayedHere')}
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                     {/* Less important info - smaller, lighter */}
+                     <div className="pt-2 border-t border-border">
+                       <div className="text-xs text-muted-foreground">
+                         {t('Last Updated')}: {job?.input_updated_at ? new Date(job.input_updated_at).toLocaleString() : job?.updated_at ? new Date(job.updated_at).toLocaleString() : t('Not Available')}
+                       </div>
+                     </div>
+                  </div>
+                )}
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
+        </Card>
+
+        {/* Movie Information Section - Show generate button if no movie info and not generating */}
+        {!hasMovieInfo && !generatingMovieInfo && !webhookFailed ? (
+          <div className="flex flex-col items-center gap-4">
+            <Button 
+              size="lg"
+              variant="type_1"
+              className="text-lg px-8 py-4 relative"
+              onClick={handleGenerateMovieInfo}
+              disabled={isAnyEditMode}
+            >
+              {t('generateMovieInfo')}
+            </Button>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Info className="h-3 w-3" />
+              <span>{t('priceLabel')}: 0.05 {t('credits')} • {t('Your balance')}: {credits} {t('credits')}</span>
+            </div>
+          </div>
+        ) : null}
+
+        {/* Show error state if webhook failed */}
+        {webhookFailed && !generatingMovieInfo && (
+          <div className="flex flex-col items-center gap-4">
+            <div className="text-center">
+              <p className="text-destructive font-medium">{t('Movie info generation failed')}</p>
+              <p className="text-sm text-muted-foreground">{t('Please try again')}</p>
+            </div>
+            <Button 
+              size="lg"
+              variant="type_1"
+              className="text-lg px-8 py-4 relative"
+              onClick={() => {
+                setWebhookFailed(false);
+                handleGenerateMovieInfo();
+              }}
+              disabled={isAnyEditMode}
+            >
+              {t('Try Again')}
+            </Button>
+          </div>
+        )}
+
+        {/* Loading state - show when generating and waiting for response */}
+        {generatingMovieInfo && (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin mb-4" />
+              <p className="text-lg font-medium">{t('Generating movie information...')}</p>
+              <p className="text-sm text-muted-foreground">{t('Please wait, this may take a moment')}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Movie Information Section - Show when generating, has response, or has movie info */}
+        {(generatingMovieInfo || hasMovieInfoResponse || hasMovieInfo) && (
+          <Card className={cn("transition-all", isEditing && "ring-2 ring-primary/50 bg-primary/5")}>
+            <Collapsible open={movieInfoOpen} onOpenChange={(open) => !isAnyEditMode && setMovieInfoOpen(open)}>
+              <CollapsibleTrigger asChild>
+                <CardHeader className={cn("cursor-pointer hover:bg-muted/50 transition-colors", isEditing && "cursor-default")}>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      {movieInfoOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      {t('movieInformation')}
+                      {isEditing && (
+                        <Badge variant="secondary" className="ml-2">
+                          {t('editing')}
+                        </Badge>
+                      )}
+                    </CardTitle>
+                     <div className="flex items-center gap-2">
+                       {!isEditing && (
+                         <div className="text-xs text-muted-foreground mr-2">
+                           0.03 {t('credits')} • {t('Balance')}: {credits}
+                         </div>
+                       )}
+                       <Button
+                         size="sm"
+                         variant="type_4_blue"
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           handleEditToggle();
+                         }}
+                         disabled={(!movieInfoOpen && !isEditing) || (isAnyEditMode && !isEditing) || isSaving}
+                       >
+                         {isEditing ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
+                       </Button>
+                     </div>
+                  </div>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="space-y-4">
+                  {isEditing ? (
+                    // Edit Mode
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="title">{t('movieTitle')}</Label>
+                        <Input
+                          id="title"
+                          value={movieData.title}
+                          onChange={(e) => setMovieData({ ...movieData, title: e.target.value })}
+                          placeholder={t('enterMovieTitle')}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="logline">{t('movieLogline')}</Label>
+                        <Textarea
+                          id="logline"
+                          value={movieData.logline}
+                          onChange={(e) => setMovieData({ ...movieData, logline: e.target.value })}
+                          placeholder={t('enterMovieLogline')}
+                          rows={3}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="world">{t('movieWorld')}</Label>
+                        <Input
+                          id="world"
+                          value={movieData.world}
+                          onChange={(e) => setMovieData({ ...movieData, world: e.target.value })}
+                          placeholder={t('enterMovieWorld')}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="look">{t('movieLook')}</Label>
+                        <Input
+                          id="look"
+                          value={movieData.look}
+                          onChange={(e) => setMovieData({ ...movieData, look: e.target.value })}
+                          placeholder={t('enterMovieLook')}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button onClick={handleSave} variant="type_1" disabled={isSaving}>
+                          {isSaving ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Save className="h-4 w-4 mr-2" />
+                          )}
+                          {isSaving ? t('Saving...') : t('save')}
+                        </Button>
+                        <Button onClick={handleEditToggle} variant="outline" disabled={isSaving}>
+                          {t('cancel')}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : generatingMovieInfo && !hasMovieInfo ? (
+                    // Loading state while generating
+                    <div className="flex flex-col items-center justify-center py-8 space-y-4">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      <div className="text-center">
+                        <p className="font-medium">{t('loading')}...</p>
+                        <p className="text-sm text-muted-foreground">{t('pleaseWait')}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    // Read-only view with improved design
+                    <div className="space-y-6">
+                      {/* Important fields - full row, bigger font, bolder */}
+                      <div className="space-y-4">
+                        <div>
+                          <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-1">{t('movieTitle')}</div>
+                          <div className="text-xl font-bold text-foreground">{movieData.title || t('notAvailable')}</div>
+                        </div>
+                        
+                        {movieData.logline && (
+                          <div>
+                            <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-1">{t('movieLogline')}</div>
+                            <div className="text-lg font-semibold text-foreground leading-relaxed">{movieData.logline}</div>
                           </div>
                         )}
                       </div>
-                    )}
-                  </CardContent>
-                )}
-              </Card>
-            );
-          }
+                      
+                      {/* Regular importance fields */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-1">{t('movieWorld')}</div>
+                          <div className="text-base text-foreground">{movieData.world || t('notAvailable')}</div>
+                        </div>
+                        
+                        <div>
+                          <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-1">{t('movieLook')}</div>
+                          <div className="text-base text-foreground">{movieData.look || t('notAvailable')}</div>
+                        </div>
+                      </div>
+                      
+                       {/* Less important info - smaller, lighter */}
+                       <div className="pt-2 border-t border-border">
+                         <div className="text-xs text-muted-foreground">
+                           {t('lastUpdated')}: {job?.movie_info_updated_at ? new Date(job.movie_info_updated_at).toLocaleString() : job?.updated_at ? new Date(job.updated_at).toLocaleString() : t('notAvailable')}
+                         </div>
+                       </div>
+                    </div>
+                  )}
+                </CardContent>
+              </CollapsibleContent>
+            </Collapsible>
+          </Card>
+        )}
 
-          return null;
-        })}
+        {/* Regenerate Button - Only show after first generation and movie info exists */}
+        {firstGenerated && hasMovieInfo && (
+          <div className="flex justify-center">
+            <Button 
+              size="lg"
+              variant="type_1"
+              className="text-lg px-8 py-4"
+              onClick={handleGenerate}
+              disabled={isAnyEditMode}
+            >
+              {t('regenerateStoryboard')}
+            </Button>
+          </div>
+        )}
 
-        {/* Edit Warning Dialog */}
-        <AlertDialog open={showEditWarning} onOpenChange={setShowEditWarning}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-amber-500" />
-                {t('warningEditImpact')}
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                {t('editingSectionMayAffect')}
-                
-                <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
-                  <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                    {t('whatWouldYouLikeToDo')}
-                  </p>
-                </div>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-              <AlertDialogCancel onClick={() => handleEditWarningAction('discard')}>
-                {t('discardChanges')}
-              </AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={() => handleEditWarningAction('delete')}
-                className="bg-red-600 hover:bg-red-700"
-              >
-                {t('editAndDeleteProgressiveData')}
-              </AlertDialogAction>
-              <AlertDialogAction onClick={() => handleEditWarningAction('override')}>
-                {t('overrideMyResponsibility')}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {/* Results section will be added here later */}
       </div>
     </div>
   );
