@@ -662,52 +662,76 @@ export type Database = {
       }
       storyboard_jobs: {
         Row: {
+          characters: Json | null
+          characters_updated_at: string | null
           created_at: string
           function_id: string
           id: string
           input_updated_at: string | null
           movie_info: Json | null
           movie_info_updated_at: string | null
+          music: Json | null
+          music_updated_at: string | null
           n8n_response: Json | null
           n8n_webhook_sent: boolean
+          props: Json | null
+          props_updated_at: string | null
           result_data: Json | null
           session_id: string | null
           stage: string
           status: string
+          timeline: Json | null
+          timeline_updated_at: string | null
           updated_at: string
           user_id: string | null
           user_input: Json
         }
         Insert: {
+          characters?: Json | null
+          characters_updated_at?: string | null
           created_at?: string
           function_id: string
           id?: string
           input_updated_at?: string | null
           movie_info?: Json | null
           movie_info_updated_at?: string | null
+          music?: Json | null
+          music_updated_at?: string | null
           n8n_response?: Json | null
           n8n_webhook_sent?: boolean
+          props?: Json | null
+          props_updated_at?: string | null
           result_data?: Json | null
           session_id?: string | null
           stage?: string
           status?: string
+          timeline?: Json | null
+          timeline_updated_at?: string | null
           updated_at?: string
           user_id?: string | null
           user_input?: Json
         }
         Update: {
+          characters?: Json | null
+          characters_updated_at?: string | null
           created_at?: string
           function_id?: string
           id?: string
           input_updated_at?: string | null
           movie_info?: Json | null
           movie_info_updated_at?: string | null
+          music?: Json | null
+          music_updated_at?: string | null
           n8n_response?: Json | null
           n8n_webhook_sent?: boolean
+          props?: Json | null
+          props_updated_at?: string | null
           result_data?: Json | null
           session_id?: string | null
           stage?: string
           status?: string
+          timeline?: Json | null
+          timeline_updated_at?: string | null
           updated_at?: string
           user_id?: string | null
           user_input?: Json
