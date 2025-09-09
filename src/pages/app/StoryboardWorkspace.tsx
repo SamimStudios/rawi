@@ -553,7 +553,10 @@ export default function StoryboardWorkspace() {
       return;
     }
 
-    // Starting to edit - check for impact
+    // Starting to edit - ensure section is expanded
+    setOpenSections(prev => ({ ...prev, [sectionKey]: true }));
+
+    // Check for impact on later sections
     const hasLaterData = checkEditImpact(sectionKey);
     
     if (hasLaterData) {
@@ -577,11 +580,14 @@ export default function StoryboardWorkspace() {
     } else if (action === 'delete') {
       // TODO: Implement deletion of progressive data
       console.log('TODO: Delete progressive data after', section);
+      // Ensure section is expanded when editing starts
+      setOpenSections(prev => ({ ...prev, [section]: true }));
       setEditingSections(prev => ({ ...prev, [section]: true }));
       setShowEditWarning(false);
       setPendingEdit(null);
     } else if (action === 'override') {
-      // Start editing with warning acknowledged
+      // Start editing with warning acknowledged and ensure section is expanded
+      setOpenSections(prev => ({ ...prev, [section]: true }));
       setEditingSections(prev => ({ ...prev, [section]: true }));
       setShowEditWarning(false);
       setPendingEdit(null);
