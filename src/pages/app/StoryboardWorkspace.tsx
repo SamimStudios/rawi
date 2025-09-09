@@ -60,6 +60,8 @@ interface StoryboardJob {
   n8n_response: any;
   created_at: string;
   updated_at: string;
+  input_updated_at?: string;
+  movie_info_updated_at?: string;
 }
 
 export default function StoryboardWorkspace() {
@@ -113,23 +115,32 @@ export default function StoryboardWorkspace() {
   const [supportingCollapsed, setSupportingCollapsed] = useState(true);
   const [templates, setTemplates] = useState<Array<{id: string, name: string, description: string}>>([]);
 
-  // Helper function to get localized movie info based on current language
-  const getLocalizedMovieInfo = (movieInfo: any, currentLanguage: 'ar' | 'en') => {
-    if (currentLanguage === 'ar' && movieInfo.ar) {
-      return {
+  // Helper function to get localized movie info based on USER INPUT language (not site language)
+  const getLocalizedMovieInfo = (movieInfo: any, userInputLanguage: string) => {
+    console.log('🎬 getLocalizedMovieInfo called:', { movieInfo, userInputLanguage });
+    
+    // Use user input language to determine localization
+    const isArabic = userInputLanguage === 'Arabic';
+    
+    if (isArabic && movieInfo.ar) {
+      const result = {
         title: movieInfo.ar.title || movieInfo.title || '',
         logline: movieInfo.ar.logline || movieInfo.logline || '',
         world: movieInfo.ar.world || movieInfo.world || '',
         look: movieInfo.ar.look || movieInfo.look || ''
       };
+      console.log('🎬 Returning Arabic movie info:', result);
+      return result;
     }
     
-    return {
+    const result = {
       title: movieInfo.title || '',
       logline: movieInfo.logline || '',
       world: movieInfo.world || '',
       look: movieInfo.look || ''
     };
+    console.log('🎬 Returning English movie info:', result);
+    return result;
   };
 
   // Helper function to get translated genre names
@@ -222,6 +233,7 @@ export default function StoryboardWorkspace() {
   }, [jobId]);
 
   const fetchJob = async () => {
+    console.log('🔄 fetchJob called for jobId:', jobId);
     try {
       setLoading(true);
       
@@ -231,21 +243,29 @@ export default function StoryboardWorkspace() {
         .eq('id', jobId)
         .single();
 
+      console.log('📡 Supabase fetchJob response:', { data, error });
+
       if (error) {
-        console.error('Error fetching storyboard job:', error);
+        console.error('❌ Error fetching storyboard job:', error);
         toast.error(t('Failed to load storyboard job'));
         navigate('/app/dashboard');
         return;
       }
 
+      console.log('✅ Job data fetched successfully:', data);
       setJob(data);
       
-      // Initialize movie data from the job using localized content
+      // Initialize movie data from the job using USER INPUT language (not site language)
+      const userLanguage = (data.user_input as any)?.language || 'English';
+      console.log('🌐 Using user input language for movie info:', userLanguage);
+      
       if (data.movie_info && typeof data.movie_info === 'object') {
-        const localizedMovieInfo = getLocalizedMovieInfo(data.movie_info, language);
+        const localizedMovieInfo = getLocalizedMovieInfo(data.movie_info, userLanguage);
+        console.log('🎬 Setting movie data from existing movie_info:', localizedMovieInfo);
         setMovieData(localizedMovieInfo);
         setHasMovieInfoResponse(true);
       } else {
+        console.log('🎬 No movie_info exists, waiting for response');
         // If no movie_info exists, we haven't received a response yet
         setHasMovieInfoResponse(false);
       }
@@ -253,7 +273,9 @@ export default function StoryboardWorkspace() {
       // Initialize form data from user_input using exact same structure as StoryboardPlayground
       if (data.user_input && typeof data.user_input === 'object') {
         const userInput = data.user_input as any;
-        setFormData({
+        console.log('📝 Initializing form data from user_input:', userInput);
+        
+        const formDataToSet = {
           template: userInput.template || '',
           leadName: userInput.leadName || '',
           leadGender: userInput.leadGender || '',
@@ -262,24 +284,31 @@ export default function StoryboardWorkspace() {
           accent: userInput.accent || 'US',
           size: userInput.size || '',
           prompt: userInput.prompt || ''
-        });
+        };
         
+        console.log('📝 Setting form data:', formDataToSet);
+        setFormData(formDataToSet);
+        
+        console.log('🎭 Setting selected genres:', userInput.genres || []);
         setSelectedGenres(userInput.genres || []);
         
         // Handle face image
         if (userInput.faceImage) {
+          console.log('📸 Setting face image preview');
           setFaceImagePreview(userInput.faceImage);
         }
         
         // Handle supporting characters
+        console.log('👥 Setting supporting characters:', userInput.supportingCharacters || []);
         setSupportingCharacters(userInput.supportingCharacters || []);
       }
       
     } catch (error) {
-      console.error('Error in fetchJob:', error);
+      console.error('❌ Error in fetchJob:', error);
       toast.error(t('An unexpected error occurred'));
       navigate('/app/dashboard');
     } finally {
+      console.log('🔄 fetchJob completed, setting loading to false');
       setLoading(false);
     }
   };
@@ -299,18 +328,25 @@ export default function StoryboardWorkspace() {
           filter: `id=eq.${jobId}`
         },
         (payload) => {
+          console.log('🔔 Realtime update received:', payload);
           const newData = payload.new as StoryboardJob;
+          console.log('📊 New job data from realtime:', newData);
           setJob(newData);
           
-          // Handle movie_info updates using localized content
+          // Handle movie_info updates using USER INPUT language (not site language)
           if (newData.movie_info && Object.keys(newData.movie_info).length > 0) {
-            const localizedMovieInfo = getLocalizedMovieInfo(newData.movie_info, language);
+            const userLanguage = (newData.user_input as any)?.language || 'English';
+            console.log('🌐 Using user input language for realtime movie info update:', userLanguage);
+            
+            const localizedMovieInfo = getLocalizedMovieInfo(newData.movie_info, userLanguage);
+            console.log('🎬 Setting movie data from realtime update:', localizedMovieInfo);
             setMovieData(localizedMovieInfo);
             setHasMovieInfoResponse(true);
             setWebhookFailed(false);
             
             // Hide loading state if we were generating
             if (generatingMovieInfo) {
+              console.log('✅ Movie info generation completed via realtime');
               setGeneratingMovieInfo(false);
               toast.success(t('Movie information generated successfully!'));
             }
@@ -318,8 +354,10 @@ export default function StoryboardWorkspace() {
           
           // Handle webhook response
           if (newData.n8n_response) {
+            console.log('📡 N8N response received:', newData.n8n_response);
             const response = newData.n8n_response;
             if (response.accepted === false) {
+              console.log('❌ N8N webhook failed:', response);
               setGeneratingMovieInfo(false);
               setWebhookFailed(true);
               toast.error(response.error_message || t('Failed to generate movie information'));
@@ -334,20 +372,30 @@ export default function StoryboardWorkspace() {
     };
   }, [jobId, generatingMovieInfo, t, language]);
 
-  // Update movie data when language changes
+  // Update movie data when USER INPUT language changes (not site language)
   useEffect(() => {
+    console.log('🔄 Movie data language effect triggered');
     if (job?.movie_info && typeof job.movie_info === 'object') {
-      const localizedMovieInfo = getLocalizedMovieInfo(job.movie_info, language);
+      const userLanguage = (job.user_input as any)?.language || 'English';
+      console.log('🌐 Updating movie data with user input language:', userLanguage);
+      const localizedMovieInfo = getLocalizedMovieInfo(job.movie_info, userLanguage);
+      console.log('🎬 Updated movie data:', localizedMovieInfo);
       setMovieData(localizedMovieInfo);
     }
-  }, [language, job?.movie_info]);
+  }, [job?.movie_info, job?.user_input]);
 
   const handleGenerateMovieInfo = async () => {
-    if (!jobId) return;
+    console.log('🚀 handleGenerateMovieInfo called for jobId:', jobId);
+    if (!jobId) {
+      console.log('❌ No jobId provided');
+      return;
+    }
     
+    console.log('⏳ Setting generatingMovieInfo to true');
     setGeneratingMovieInfo(true);
     
     try {
+      console.log('🔍 Fetching movie info generation function...');
       // Get the movie info generation function ID (assuming it's stored in functions table)
       const { data: functionData, error: functionError } = await supabase
         .from('functions')
@@ -356,10 +404,15 @@ export default function StoryboardWorkspace() {
         .eq('active', true)
         .single();
 
+      console.log('📡 Function lookup response:', { functionData, functionError });
+
       if (functionError || !functionData) {
         throw new Error('Movie info generation function not available');
       }
 
+      console.log('💰 Function price:', functionData.price, '| User credits:', credits);
+
+      console.log('🎯 Invoking execute-function edge function...');
       const { data, error } = await supabase.functions.invoke('execute-function', {
         body: {
           function_id: functionData.id,
@@ -371,11 +424,15 @@ export default function StoryboardWorkspace() {
         }
       });
 
+      console.log('📡 Execute-function response:', { data, error });
+
       if (error) {
+        console.log('❌ Execute-function error:', error);
         throw new Error(error.message || 'Failed to start movie info generation');
       }
       
       if (!data?.success) {
+        console.log('❌ Execute-function not successful:', data);
         if (data?.error === 'Insufficient credits') {
           toast.error(`Insufficient credits. Required: ${data.required_credits || functionData.price} credits`);
           return;
@@ -383,13 +440,15 @@ export default function StoryboardWorkspace() {
         throw new Error(data?.error || 'Movie info generation was rejected');
       }
       
+      console.log('✅ Movie info generation started successfully');
       // Only show section after webhook success
       setMovieInfoOpen(true);
       toast.success(t('Movie info generation started...'));
       
     } catch (error) {
-      console.error('Error generating movie info:', error);
+      console.error('❌ Error generating movie info:', error);
       toast.error(t('Failed to generate movie information'));
+      console.log('⏳ Setting generatingMovieInfo to false due to error');
       setGeneratingMovieInfo(false);
     }
   };
@@ -410,19 +469,30 @@ export default function StoryboardWorkspace() {
   };
 
   const handleEditToggle = () => {
-    if (!movieInfoOpen && !isEditing) return; // Can't edit if section is collapsed
+    console.log('✏️ handleEditToggle called', { movieInfoOpen, isEditing, hasMovieInfo });
+    if (!movieInfoOpen && !isEditing) {
+      console.log('❌ Cannot edit - section is collapsed');
+      return; // Can't edit if section is collapsed
+    }
     if (!hasMovieInfo) {
+      console.log('❌ Cannot edit - movie information not available yet');
       toast.error(t('Movie information not available yet'));
       return;
     }
 
     if (isEditing) {
-      // Reset data when canceling edit using localized content
+      console.log('↩️ Canceling edit - resetting data using USER INPUT language');
+      // Reset data when canceling edit using USER INPUT language (not site language)
       if (job?.movie_info && typeof job.movie_info === 'object') {
-        const localizedMovieInfo = getLocalizedMovieInfo(job.movie_info, language);
+        const userLanguage = (job.user_input as any)?.language || 'English';
+        console.log('🌐 Using user input language for reset:', userLanguage);
+        const localizedMovieInfo = getLocalizedMovieInfo(job.movie_info, userLanguage);
+        console.log('🎬 Resetting movie data:', localizedMovieInfo);
         setMovieData(localizedMovieInfo);
       }
     }
+    
+    console.log('✏️ Toggling edit mode:', !isEditing);
     setIsEditing(!isEditing);
   };
 
@@ -456,11 +526,17 @@ export default function StoryboardWorkspace() {
   };
 
   const handleSave = async () => {
-    if (!jobId) return;
+    console.log('💾 handleSave called for jobId:', jobId);
+    if (!jobId) {
+      console.log('❌ No jobId provided');
+      return;
+    }
     
+    console.log('⏳ Setting isSaving to true');
     setIsSaving(true);
     
     try {
+      console.log('📝 Saving movie data:', movieData);
       // First save the movie info data
       const { error: updateError } = await supabase
         .from('storyboard_jobs')
@@ -471,14 +547,19 @@ export default function StoryboardWorkspace() {
         })
         .eq('id', jobId);
 
+      console.log('📡 Update response:', { updateError });
+
       if (updateError) {
-        console.error('Error saving movie data:', updateError);
+        console.error('❌ Error saving movie data:', updateError);
         toast.error(t('Failed to save movie information'));
         return;
       }
 
+      console.log('✅ Movie data saved successfully');
+
       // Execute the function after saving
       try {
+        console.log('🔍 Looking up edit-movie-info function...');
         const { data: functionData, error: functionError } = await supabase
           .from('functions')
           .select('id, price')
@@ -486,53 +567,67 @@ export default function StoryboardWorkspace() {
           .eq('active', true)
           .single();
 
+        console.log('📡 Function lookup response:', { functionData, functionError });
+
         if (functionError || !functionData) {
-          console.warn('Function not available, skipping execution');
+          console.warn('⚠️ Function not available, skipping execution');
         } else {
+          console.log('💰 Function price:', functionData.price, '| User credits:', credits);
           // Check credits before executing
           if (credits < functionData.price) {
+            console.log('❌ Insufficient credits for function execution');
             toast.error(t(`Insufficient credits. Required: ${functionData.price} credits`));
             return;
           }
 
+          console.log('🎯 Executing edit-movie-info function...');
           const { data, error } = await supabase.functions.invoke('execute-function', {
             body: {
               function_id: functionData.id,
               payload: {
                 table_id: 'storyboard_jobs',
-                row_id: jobId
+                row_id: jobId,
+                edits: movieData
               },
               user_id: user?.id || null
             }
           });
 
+          console.log('📡 Function execution response:', { data, error });
+
           if (error) {
-            console.warn('Function execution failed:', error);
+            console.warn('❌ Function execution failed:', error);
             toast.error(t('Function execution failed'));
           } else if (!data?.success) {
-            console.warn('Function execution not successful:', data?.error);
+            console.warn('❌ Function execution not successful:', data?.error);
             toast.error(data?.error || t('Function execution was rejected'));
           } else {
+            console.log('✅ Function executed successfully');
             toast.success(t(`Movie information saved and processed. ${functionData.price} credits consumed.`));
           }
         }
       } catch (funcError) {
-        console.warn('Error executing function:', funcError);
+        console.warn('❌ Error executing function:', funcError);
         // Don't fail the save operation if function execution fails
       }
 
+      console.log('✅ Setting isEditing to false');
       setIsEditing(false);
+      console.log('🔄 Refreshing job data...');
       fetchJob(); // Refresh job data
     } catch (error) {
-      console.error('Error in handleSave:', error);
+      console.error('❌ Error in handleSave:', error);
       toast.error(t('An unexpected error occurred'));
     } finally {
+      console.log('⏳ Setting isSaving to false');
       setIsSaving(false);
     }
   };
 
   const handleSaveJobInfo = async () => {
+    console.log('💾 handleSaveJobInfo called');
     try {
+      console.log('🔄 Processing supporting characters...');
       // Convert supporting characters to JSON-serializable format matching StoryboardPlayground structure
       const processedSupportingCharacters = supportingCharacters.map(char => ({
         id: char.id,
@@ -543,6 +638,7 @@ export default function StoryboardWorkspace() {
         faceImageType: char.faceImage?.type || null
       }));
 
+      console.log('📝 Creating job data structure...');
       // Create the exact same structure as StoryboardPlayground sends
       const jobData = {
         ...formData,
@@ -554,6 +650,9 @@ export default function StoryboardWorkspace() {
         sessionId: sessionId || null
       };
 
+      console.log('📝 Job data to save:', jobData);
+
+      console.log('📡 Saving job input data to Supabase...');
       const { error } = await supabase
         .from('storyboard_jobs')
         .update({ 
@@ -562,24 +661,28 @@ export default function StoryboardWorkspace() {
         })
         .eq('id', jobId);
 
+      console.log('📡 Save response:', { error });
+
       if (error) {
-        console.error('Error saving job input data:', error);
+        console.error('❌ Error saving job input data:', error);
         toast.error(t('Failed to save job information'));
         return;
       }
 
+      console.log('✅ Job information saved successfully');
       toast.success(t('Job information saved'));
       setIsEditingJobInfo(false);
+      console.log('🔄 Refreshing job data...');
       fetchJob(); // Refresh job data
     } catch (error) {
-      console.error('Error in handleSaveJobInfo:', error);
+      console.error('❌ Error in handleSaveJobInfo:', error);
       toast.error(t('An unexpected error occurred'));
     }
   };
 
   const handleGenerate = () => {
+    console.log('🎬 handleGenerate called - Generate storyboard');
     // TODO: Implement generate function - user will specify this later
-    console.log('Generate storyboard');
     toast.info(t('Generate function will be implemented'));
   };
 
@@ -613,18 +716,48 @@ export default function StoryboardWorkspace() {
   const firstGenerated = hasFirstGeneration(job);
   const isAnyEditMode = isEditingJobInfo || isEditing;
   
-  // Debug logging
-  console.log('Movie Info Debug:', {
-    hasJobMovieInfo: job?.movie_info && Object.keys(job.movie_info).length > 0,
-    hasMovieInfoResponse,
-    hasMovieInfo,
+  // Comprehensive debug logging
+  console.log('🚨 FULL DEBUG STATE:', {
+    // Job Data
+    jobId,
+    job: job ? {
+      id: job.id,
+      status: job.status,
+      stage: job.stage,
+      created_at: job.created_at,
+      updated_at: job.updated_at,
+      input_updated_at: job.input_updated_at,
+      movie_info_updated_at: job.movie_info_updated_at,
+      user_input_language: (job.user_input as any)?.language,
+      has_movie_info: job.movie_info && Object.keys(job.movie_info).length > 0,
+      has_user_input: job.user_input && Object.keys(job.user_input).length > 0,
+      has_n8n_response: job.n8n_response && Object.keys(job.n8n_response).length > 0
+    } : null,
+    
+    // State Variables
+    loading,
+    movieData,
+    formData,
+    selectedGenres,
+    supportingCharacters: supportingCharacters.length,
+    
+    // UI State
+    jobInfoOpen,
     movieInfoOpen,
     isEditing,
+    isEditingJobInfo,
     isAnyEditMode,
     generatingMovieInfo,
+    hasMovieInfoResponse,
+    hasMovieInfo,
     webhookFailed,
     isSaving,
-    firstGenerated
+    firstGenerated,
+    
+    // User & Credits
+    user: user ? { id: user.id } : null,
+    credits,
+    sessionId
   });
 
   return (
@@ -1124,12 +1257,12 @@ export default function StoryboardWorkspace() {
                       </div>
                     )}
                     
-                    {/* Less important info - smaller, lighter */}
-                    <div className="pt-2 border-t border-border">
-                      <div className="text-xs text-muted-foreground">
-                        {t('Last Updated')}: {job?.updated_at ? new Date(job.updated_at).toLocaleString() : t('Not Available')}
-                      </div>
-                    </div>
+                     {/* Less important info - smaller, lighter */}
+                     <div className="pt-2 border-t border-border">
+                       <div className="text-xs text-muted-foreground">
+                         {t('Last Updated')}: {job?.input_updated_at ? new Date(job.input_updated_at).toLocaleString() : job?.updated_at ? new Date(job.updated_at).toLocaleString() : t('Not Available')}
+                       </div>
+                     </div>
                   </div>
                 )}
               </CardContent>
@@ -1151,7 +1284,7 @@ export default function StoryboardWorkspace() {
             </Button>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Info className="h-3 w-3" />
-              <span>{t('priceLabel')}: 0.05 {t('credits')}</span>
+              <span>{t('priceLabel')}: 0.05 {t('credits')} • {t('Your balance')}: {credits} {t('credits')}</span>
             </div>
           </div>
         ) : null}
@@ -1205,19 +1338,24 @@ export default function StoryboardWorkspace() {
                         </Badge>
                       )}
                     </CardTitle>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="type_4_blue"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEditToggle();
-                        }}
-                        disabled={(!movieInfoOpen && !isEditing) || (isAnyEditMode && !isEditing) || isSaving}
-                      >
-                        {isEditing ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
-                      </Button>
-                    </div>
+                     <div className="flex items-center gap-2">
+                       {!isEditing && (
+                         <div className="text-xs text-muted-foreground mr-2">
+                           0.03 {t('credits')} • {t('Balance')}: {credits}
+                         </div>
+                       )}
+                       <Button
+                         size="sm"
+                         variant="type_4_blue"
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           handleEditToggle();
+                         }}
+                         disabled={(!movieInfoOpen && !isEditing) || (isAnyEditMode && !isEditing) || isSaving}
+                       >
+                         {isEditing ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
+                       </Button>
+                     </div>
                   </div>
                 </CardHeader>
               </CollapsibleTrigger>
@@ -1317,12 +1455,12 @@ export default function StoryboardWorkspace() {
                         </div>
                       </div>
                       
-                      {/* Less important info - smaller, lighter */}
-                      <div className="pt-2 border-t border-border">
-                        <div className="text-xs text-muted-foreground">
-                          {t('lastUpdated')}: {job?.updated_at ? new Date(job.updated_at).toLocaleString() : t('notAvailable')}
-                        </div>
-                      </div>
+                       {/* Less important info - smaller, lighter */}
+                       <div className="pt-2 border-t border-border">
+                         <div className="text-xs text-muted-foreground">
+                           {t('lastUpdated')}: {job?.movie_info_updated_at ? new Date(job.movie_info_updated_at).toLocaleString() : job?.updated_at ? new Date(job.updated_at).toLocaleString() : t('notAvailable')}
+                         </div>
+                       </div>
                     </div>
                   )}
                 </CardContent>
