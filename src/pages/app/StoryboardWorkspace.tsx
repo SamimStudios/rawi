@@ -411,8 +411,8 @@ export default function StoryboardWorkspace() {
 
   const handleEditToggle = () => {
     if (!movieInfoOpen && !isEditing) return; // Can't edit if section is collapsed
-    if (!hasFirstGeneration(job)) {
-      toast.error(t('Complete first generation to view/edit details'));
+    if (!hasMovieInfo) {
+      toast.error(t('Movie information not available yet'));
       return;
     }
 
@@ -1189,8 +1189,8 @@ export default function StoryboardWorkspace() {
           </Card>
         )}
 
-        {/* Movie Information Section - Show only if has movie info AND received response */}
-        {hasMovieInfo && (
+        {/* Movie Information Section - Show when generating, has response, or has movie info */}
+        {(generatingMovieInfo || hasMovieInfoResponse || hasMovieInfo) && (
           <Card className={cn("transition-all", isEditing && "ring-2 ring-primary/50 bg-primary/5")}>
             <Collapsible open={movieInfoOpen} onOpenChange={(open) => !isAnyEditMode && setMovieInfoOpen(open)}>
               <CollapsibleTrigger asChild>
