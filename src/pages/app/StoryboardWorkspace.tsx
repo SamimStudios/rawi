@@ -644,34 +644,29 @@ export default function StoryboardWorkspace() {
     console.log('💾 Saving movie info...');
     
     try {
-      const { error: updateError } = await supabase
-        .from('storyboard_jobs')
-        .update({ 
-          movie_info: movieData,
-          movie_info_updated_at: new Date().toISOString()
-        })
-        .eq('id', jobId);
-
-      if (updateError) throw updateError;
-
-      // Execute edit function if available
       const editFunction = functions['edit-movie-info'];
+      
+      // If edit function is available and user has credits, use it instead of direct DB save
       if (editFunction && credits >= editFunction.price) {
-        try {
-          await executeFunction('edit-movie-info', { edits: movieData });
-          toast({
-            title: "Success",
-            description: `Movie information saved and processed. ${editFunction.price} credits consumed.`,
-          });
-        } catch (funcError) {
-          console.warn('Function execution failed:', funcError);
-          toast({
-            title: "Partial Success",
-            description: "Movie information saved but processing failed",
-            variant: "destructive"
-          });
-        }
+        console.log('🎯 Using edit function instead of direct save');
+        await executeFunction('edit-movie-info', { edits: movieData });
+        toast({
+          title: "Success",
+          description: `Movie information processed and saved. ${editFunction.price} credits consumed.`,
+        });
       } else {
+        // No function available or insufficient credits - save directly to DB
+        console.log('💾 Saving directly to database');
+        const { error: updateError } = await supabase
+          .from('storyboard_jobs')
+          .update({ 
+            movie_info: movieData,
+            movie_info_updated_at: new Date().toISOString()
+          })
+          .eq('id', jobId);
+
+        if (updateError) throw updateError;
+
         toast({
           title: "Success",
           description: "Movie information saved",
