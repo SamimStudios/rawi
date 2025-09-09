@@ -500,6 +500,14 @@ const translations = {
     walletSubscribeNow: 'Subscribe Now',
     walletTransactionHistory: 'Transaction History',
     walletTransactionHistoryDescription: 'View your recent credit purchases and subscriptions',
+    
+    // Storyboard Workspace
+    initialInput: 'Initial Input',
+    generateMovieInfo: 'Generate Movie Info',
+    lastUpdated: 'Last Updated',
+    notAvailable: 'Not Available',
+    movieInformation: 'Movie Information',
+    priceLabel: 'Price',
   },
   ar: {
     // Navigation & Header (Arabic)
@@ -989,6 +997,14 @@ const translations = {
     walletSubscribeNow: 'اشترك الآن',
     walletTransactionHistory: 'تاريخ المعاملات',
     walletTransactionHistoryDescription: 'عرض مشتريات النقاط والاشتراكات الأخيرة',
+    
+    // Storyboard Workspace (Arabic)
+    initialInput: 'المدخل الأولي',
+    generateMovieInfo: 'إنشاء معلومات الفيلم',
+    lastUpdated: 'آخر تحديث',
+    notAvailable: 'غير متوفر',
+    movieInformation: 'معلومات الفيلم',
+    priceLabel: 'السعر',
   }
 };
 

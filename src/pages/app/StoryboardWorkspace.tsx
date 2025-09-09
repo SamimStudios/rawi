@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, ChevronRight, ChevronUp, Edit2, Save, X, Upload } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronUp, Edit2, Save, X, Upload, Info, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
@@ -74,6 +74,7 @@ export default function StoryboardWorkspace() {
   const [movieInfoOpen, setMovieInfoOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false); // For movie info editing
   const [isEditingJobInfo, setIsEditingJobInfo] = useState(false);
+  const [generatingMovieInfo, setGeneratingMovieInfo] = useState(false);
   const [movieData, setMovieData] = useState({
     title: '',
     logline: '',
@@ -259,6 +260,93 @@ export default function StoryboardWorkspace() {
       setLoading(false);
     }
   };
+  
+  // Set up realtime subscription for the storyboard_jobs table
+  useEffect(() => {
+    if (!jobId) return;
+
+    const channel = supabase
+      .channel('storyboard-job-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'storyboard_jobs',
+          filter: `id=eq.${jobId}`
+        },
+        (payload) => {
+          const newData = payload.new as StoryboardJob;
+          setJob(newData);
+          
+          // Handle movie_info updates
+          if (newData.movie_info && Object.keys(newData.movie_info).length > 0) {
+            const movieInfo = newData.movie_info as any;
+            setMovieData({
+              title: movieInfo.title || '',
+              logline: movieInfo.logline || '',
+              world: movieInfo.world || '',
+              look: movieInfo.look || ''
+            });
+            
+            // Hide loading state if we were generating
+            if (generatingMovieInfo) {
+              setGeneratingMovieInfo(false);
+              toast.success(t('Movie information generated successfully!'));
+            }
+          }
+          
+          // Handle webhook response
+          if (newData.n8n_response) {
+            const response = newData.n8n_response;
+            if (response.accepted === false) {
+              setGeneratingMovieInfo(false);
+              toast.error(response.error_message || t('Failed to generate movie information'));
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [jobId, generatingMovieInfo, t]);
+
+  const handleGenerateMovieInfo = async () => {
+    if (!jobId) return;
+    
+    setGeneratingMovieInfo(true);
+    
+    try {
+      const response = await fetch('https://samim-studios.app.n8n.cloud/webhook-test/movie-info', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          table_id: 'storyboard_jobs',
+          row_id: jobId
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (!response.ok || result.accepted === false) {
+        throw new Error(result.error_message || 'Failed to start movie info generation');
+      }
+      
+      toast.success(t('Movie info generation started...'));
+      
+    } catch (error) {
+      console.error('Error generating movie info:', error);
+      toast.error(t('Failed to generate movie information'));
+      setGeneratingMovieInfo(false);
+    }
+  };
+
+  // Check if job has movie_info populated (not empty object)
+  const hasMovieInfo = job?.movie_info && Object.keys(job.movie_info).length > 0;
 
   // Check if first generation has happened
   const hasFirstGeneration = (job: StoryboardJob | null): boolean => {
@@ -273,6 +361,7 @@ export default function StoryboardWorkspace() {
   };
 
   const handleEditToggle = () => {
+    if (!movieInfoOpen && !isEditing) return; // Can't edit if section is collapsed
     if (!hasFirstGeneration(job)) {
       toast.error(t('Complete first generation to view/edit details'));
       return;
@@ -291,6 +380,35 @@ export default function StoryboardWorkspace() {
       }
     }
     setIsEditing(!isEditing);
+  };
+
+  const handleEditJobInfoToggle = () => {
+    if (!jobInfoOpen && !isEditingJobInfo) return; // Can't edit if section is collapsed
+    if (isEditingJobInfo) {
+      // Reset data when canceling edit
+      if (job?.user_input && typeof job.user_input === 'object') {
+        const userInput = job.user_input as any;
+        setFormData({
+          template: userInput.template || '',
+          leadName: userInput.leadName || '',
+          leadGender: userInput.leadGender || '',
+          leadAiCharacter: userInput.leadAiCharacter || false,
+          language: userInput.language || 'English',
+          accent: userInput.accent || 'US',
+          size: userInput.size || '',
+          prompt: userInput.prompt || ''
+        });
+        
+        setSelectedGenres(userInput.genres || []);
+        
+        if (userInput.faceImage) {
+          setFaceImagePreview(userInput.faceImage);
+        }
+        
+        setSupportingCharacters(userInput.supportingCharacters || []);
+      }
+    }
+    setIsEditingJobInfo(!isEditingJobInfo);
   };
 
   const handleSave = async () => {
@@ -364,34 +482,6 @@ export default function StoryboardWorkspace() {
     }
   };
 
-  const handleEditJobInfoToggle = () => {
-    if (isEditingJobInfo) {
-      // Reset data when canceling edit
-      if (job?.user_input && typeof job.user_input === 'object') {
-        const userInput = job.user_input as any;
-        setFormData({
-          template: userInput.template || '',
-          leadName: userInput.leadName || '',
-          leadGender: userInput.leadGender || '',
-          leadAiCharacter: userInput.leadAiCharacter || false,
-          language: userInput.language || 'English',
-          accent: userInput.accent || 'US',
-          size: userInput.size || '',
-          prompt: userInput.prompt || ''
-        });
-        
-        setSelectedGenres(userInput.genres || []);
-        
-        if (userInput.faceImage) {
-          setFaceImagePreview(userInput.faceImage);
-        }
-        
-        setSupportingCharacters(userInput.supportingCharacters || []);
-      }
-    }
-    setIsEditingJobInfo(!isEditingJobInfo);
-  };
-
   const handleGenerate = () => {
     // TODO: Implement generate function - user will specify this later
     console.log('Generate storyboard');
@@ -456,7 +546,7 @@ export default function StoryboardWorkspace() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
                     {jobInfoOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                    {t('Initial Input')}
+                    {t('initialInput')}
                     {isEditingJobInfo && (
                       <Badge variant="secondary" className="ml-2">
                         {t('Editing')}
