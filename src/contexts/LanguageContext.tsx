@@ -517,6 +517,11 @@ const translations = {
     enterMovieWorld: 'Enter movie world',
     enterMovieLook: 'Enter movie look',
     regenerateStoryboard: 'Regenerate Storyboard',
+    
+    // Simple field labels
+    logline: 'Logline',
+    world: 'World',
+    look: 'Look',
   },
   ar: {
     // Navigation & Header (Arabic)
@@ -1041,6 +1046,11 @@ const translations = {
     enterMovieWorld: 'أدخل عالم الفيلم',
     enterMovieLook: 'أدخل مظهر الفيلم',
     regenerateStoryboard: 'إعادة إنشاء القصة المصورة',
+    
+    // Simple field labels (Arabic)
+    logline: 'الملخص',
+    world: 'العالم',
+    look: 'المظهر',
   }
 };
 
