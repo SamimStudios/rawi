@@ -198,6 +198,12 @@ export default function StoryboardWorkspace() {
     look: ''
   });
   
+  // Validation states
+  const [validationStatus, setValidationStatus] = useState<'validating' | 'valid' | 'invalid' | null>(null);
+  const [validationReason, setValidationReason] = useState<{ ar?: string; en?: string } | null>(null);
+  const [suggestedFix, setSuggestedFix] = useState<{ movie_title?: string; logline?: string; world?: string; look?: string } | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
+  
   // Warning dialog state
   const [showEditWarning, setShowEditWarning] = useState(false);
   const [pendingEdit, setPendingEdit] = useState<{ section: string; hasLaterData: boolean } | null>(null);
@@ -632,43 +638,135 @@ export default function StoryboardWorkspace() {
     }
   };
 
-  const handleSaveMovieInfo = async () => {
-    console.log('💾 Saving movie info...');
-    
-    // Set loading state
-    setLoadingSections(prev => ({ ...prev, movie_info: true }));
-    
+  // Validate movie info handler
+  const handleValidateMovieInfo = async () => {
     try {
-      const editFunction = functions['edit-movie-info'];
+      setIsValidating(true);
       
-      // If edit function is available and user has credits, use it instead of direct DB save
-      if (editFunction && credits >= editFunction.price) {
-        console.log('🎯 Using edit function instead of direct save');
-        await executeFunction('edit-movie-info', { edits: movieData });
+      const validateFunction = functions['edit-movie-info'];
+      if (!validateFunction) {
         toast({
-          title: "Success",
-          description: `Movie information processed and saved. ${editFunction.price} credits consumed.`,
+          title: "Error",
+          description: "Validation function not available",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      const hasCredits = credits >= validateFunction.price;
+      if (!hasCredits) {
+        toast({
+          title: "Insufficient Credits",
+          description: `You need ${validateFunction.price} credits for validation`,
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      setValidationStatus('validating');
+      
+      const result = await executeFunction(validateFunction.id, {
+        movie_info: movieData,
+        job_id: jobId
+      });
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Validation failed');
+      }
+      
+      const response = result.data;
+      
+      if (response.valid) {
+        setValidationStatus('valid');
+        setValidationReason(null);
+        setSuggestedFix(null);
+        toast({
+          title: t('validationPassed'),
+          description: "Movie information is valid",
         });
       } else {
-        // No function available or insufficient credits - save directly to DB
-        console.log('💾 Saving directly to database');
-        const { error: updateError } = await supabase
-          .from('storyboard_jobs')
-          .update({ 
-            movie_info: movieData,
-            movie_info_updated_at: new Date().toISOString()
-          })
-          .eq('id', jobId);
-
-        if (updateError) throw updateError;
-
+        setValidationStatus('invalid');
+        setValidationReason(response.reason || null);
+        setSuggestedFix(response.suggested_fix || null);
+        
+        const currentLanguage = (job?.user_input as any)?.language === 'Arabic' ? 'ar' : 'en';
+        const reasonText = response.reason?.[currentLanguage] || response.reason?.en || 'Validation failed';
+        
         toast({
-          title: "Success",
-          description: "Movie information saved",
+          title: t('validationFailed'),
+          description: reasonText,
+          variant: "destructive"
         });
       }
+      
+    } catch (error) {
+      console.error('❌ Error validating movie info:', error);
+      setValidationStatus('invalid');
+      toast({
+        title: "Error",
+        description: "Failed to validate movie information",
+        variant: "destructive"
+      });
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  // Apply suggested fixes
+  const handleApplySuggestions = () => {
+    if (suggestedFix) {
+      setMovieData({
+        title: suggestedFix.movie_title || movieData.title,
+        logline: suggestedFix.logline || movieData.logline,
+        world: suggestedFix.world || movieData.world,
+        look: suggestedFix.look || movieData.look
+      });
+      // Clear validation status when user applies suggestions
+      setValidationStatus(null);
+      setValidationReason(null);
+      setSuggestedFix(null);
+    }
+  };
+
+  // Save movie info handler (direct save without validation function)
+  const handleSaveMovieInfo = async () => {
+    try {
+      // Check if validation is required
+      const validateFunction = functions['edit-movie-info'];
+      if (validateFunction && validationStatus !== 'valid') {
+        toast({
+          title: t('validationRequired'),
+          description: "Please validate your movie information first",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Set loading state
+      setLoadingSections(prev => ({ ...prev, movie_info: true }));
+      
+      // Always save directly to DB (no credits consumed)
+      console.log('💾 Saving directly to database');
+      const { error: updateError } = await supabase
+        .from('storyboard_jobs')
+        .update({ 
+          movie_info: movieData,
+          movie_info_updated_at: new Date().toISOString()
+        })
+        .eq('id', jobId);
+
+      if (updateError) throw updateError;
+
+      toast({
+        title: "Success",
+        description: "Movie information saved",
+      });
 
       setEditingSections(prev => ({ ...prev, movie_info: false }));
+      // Reset validation status after successful save
+      setValidationStatus(null);
+      setValidationReason(null);
+      setSuggestedFix(null);
       fetchJob(); // Refresh data
       
     } catch (error) {
@@ -1177,37 +1275,159 @@ export default function StoryboardWorkspace() {
                           <label className="text-sm font-medium">{t('title')}</label>
                           <Input
                             value={movieData.title}
-                            onChange={(e) => setMovieData({ ...movieData, title: e.target.value })}
+                            onChange={(e) => {
+                              setMovieData({ ...movieData, title: e.target.value });
+                              // Clear validation status when user manually edits
+                              if (validationStatus) {
+                                setValidationStatus(null);
+                                setValidationReason(null);
+                                setSuggestedFix(null);
+                              }
+                            }}
+                            disabled={isValidating}
                           />
                         </div>
                         <div>
                           <label className="text-sm font-medium">{t('logline')}</label>
                           <Textarea
                             value={movieData.logline}
-                            onChange={(e) => setMovieData({ ...movieData, logline: e.target.value })}
+                            onChange={(e) => {
+                              setMovieData({ ...movieData, logline: e.target.value });
+                              // Clear validation status when user manually edits
+                              if (validationStatus) {
+                                setValidationStatus(null);
+                                setValidationReason(null);
+                                setSuggestedFix(null);
+                              }
+                            }}
                             rows={3}
+                            disabled={isValidating}
                           />
                         </div>
                         <div>
                           <label className="text-sm font-medium">{t('world')}</label>
                           <Input
                             value={movieData.world}
-                            onChange={(e) => setMovieData({ ...movieData, world: e.target.value })}
+                            onChange={(e) => {
+                              setMovieData({ ...movieData, world: e.target.value });
+                              // Clear validation status when user manually edits
+                              if (validationStatus) {
+                                setValidationStatus(null);
+                                setValidationReason(null);
+                                setSuggestedFix(null);
+                              }
+                            }}
+                            disabled={isValidating}
                           />
                         </div>
                         <div>
                           <label className="text-sm font-medium">{t('look')}</label>
                           <Input
                             value={movieData.look}
-                            onChange={(e) => setMovieData({ ...movieData, look: e.target.value })}
+                            onChange={(e) => {
+                              setMovieData({ ...movieData, look: e.target.value });
+                              // Clear validation status when user manually edits
+                              if (validationStatus) {
+                                setValidationStatus(null);
+                                setValidationReason(null);
+                                setSuggestedFix(null);
+                              }
+                            }}
+                            disabled={isValidating}
                           />
                         </div>
-                        <div className="flex gap-2 items-center">
+                        
+                        {/* Validation Status Display */}
+                        {validationStatus && (
+                          <div className={cn(
+                            "p-3 rounded-lg border",
+                            validationStatus === 'valid' ? "bg-green-50 border-green-200 text-green-800" :
+                            validationStatus === 'invalid' ? "bg-red-50 border-red-200 text-red-800" :
+                            "bg-blue-50 border-blue-200 text-blue-800"
+                          )}>
+                            {validationStatus === 'valid' && (
+                              <div className="flex items-center gap-2">
+                                <CheckCircle className="h-4 w-4" />
+                                <span className="font-medium">{t('validationPassed')}</span>
+                              </div>
+                            )}
+                            {validationStatus === 'invalid' && validationReason && (
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <X className="h-4 w-4" />
+                                  <span className="font-medium">{t('validationFailed')}</span>
+                                </div>
+                                <p className="text-sm">
+                                  {validationReason[(job?.user_input as any)?.language === 'Arabic' ? 'ar' : 'en'] || validationReason.en}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        {/* Suggested Fixes */}
+                        {suggestedFix && validationStatus === 'invalid' && (
+                          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-medium text-amber-800">Suggested Improvements:</span>
+                              <Button 
+                                onClick={handleApplySuggestions}
+                                size="sm"
+                                variant="outline"
+                              >
+                                {t('applySuggestions')}
+                              </Button>
+                            </div>
+                            <div className="space-y-1 text-sm text-amber-700">
+                              {suggestedFix.movie_title && (
+                                <div><strong>Title:</strong> {suggestedFix.movie_title}</div>
+                              )}
+                              {suggestedFix.logline && (
+                                <div><strong>Logline:</strong> {suggestedFix.logline}</div>
+                              )}
+                              {suggestedFix.world && (
+                                <div><strong>World:</strong> {suggestedFix.world}</div>
+                              )}
+                              {suggestedFix.look && (
+                                <div><strong>Look:</strong> {suggestedFix.look}</div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        
+                        <div className="flex gap-2 items-center flex-wrap">
+                          {/* Validate Button */}
+                          {functions['edit-movie-info'] && (
+                            <Button 
+                              onClick={handleValidateMovieInfo} 
+                              variant="outline" 
+                              className="flex items-center gap-2"
+                              disabled={isValidating || loadingSections.movie_info}
+                            >
+                              {isValidating ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <CheckCircle className="h-4 w-4" />
+                              )}
+                              {isValidating ? t('validating') : t('validate')}
+                              {!isValidating && (
+                                <span className="text-xs opacity-75">
+                                  ({functions['edit-movie-info'].price} {t('credits')})
+                                </span>
+                              )}
+                            </Button>
+                          )}
+                          
+                          {/* Save Button */}
                           <Button 
                             onClick={handleSaveMovieInfo} 
                             variant="default" 
                             className="flex items-center gap-2"
-                            disabled={loadingSections.movie_info}
+                            disabled={
+                              loadingSections.movie_info || 
+                              isValidating ||
+                              (functions['edit-movie-info'] && validationStatus !== 'valid')
+                            }
                           >
                             {loadingSections.movie_info ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -1215,16 +1435,23 @@ export default function StoryboardWorkspace() {
                               <Save className="h-4 w-4" />
                             )}
                             {loadingSections.movie_info ? t('saving') : t('save')}
-                            {functions['edit-movie-info'] && !loadingSections.movie_info && (
+                            {functions['edit-movie-info'] && validationStatus !== 'valid' && (
                               <span className="text-xs opacity-75">
-                                ({functions['edit-movie-info'].price} {t('credits')})
+                                ({t('validationRequired')})
                               </span>
                             )}
                           </Button>
+                          
                           <Button 
-                            onClick={() => handleEditToggle('movie_info')} 
+                            onClick={() => {
+                              handleEditToggle('movie_info');
+                              // Reset validation state when canceling
+                              setValidationStatus(null);
+                              setValidationReason(null);
+                              setSuggestedFix(null);
+                            }} 
                             variant="outline"
-                            disabled={loadingSections.movie_info}
+                            disabled={loadingSections.movie_info || isValidating}
                           >
                             {t('cancel')}
                           </Button>
