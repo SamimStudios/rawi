@@ -643,6 +643,9 @@ export default function StoryboardWorkspace() {
   const handleSaveMovieInfo = async () => {
     console.log('💾 Saving movie info...');
     
+    // Set loading state
+    setLoadingSections(prev => ({ ...prev, movie_info: true }));
+    
     try {
       const editFunction = functions['edit-movie-info'];
       
@@ -683,6 +686,9 @@ export default function StoryboardWorkspace() {
         description: "Failed to save movie information",
         variant: "destructive"
       });
+    } finally {
+      // Clear loading state
+      setLoadingSections(prev => ({ ...prev, movie_info: false }));
     }
   };
 
@@ -1206,16 +1212,29 @@ export default function StoryboardWorkspace() {
                           />
                         </div>
                         <div className="flex gap-2 items-center">
-                          <Button onClick={handleSaveMovieInfo} variant="default" className="flex items-center gap-2">
-                            <Save className="h-4 w-4" />
-                            {t('save')}
-                            {functions['edit-movie-info'] && (
+                          <Button 
+                            onClick={handleSaveMovieInfo} 
+                            variant="default" 
+                            className="flex items-center gap-2"
+                            disabled={loadingSections.movie_info}
+                          >
+                            {loadingSections.movie_info ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Save className="h-4 w-4" />
+                            )}
+                            {loadingSections.movie_info ? t('saving') : t('save')}
+                            {functions['edit-movie-info'] && !loadingSections.movie_info && (
                               <span className="text-xs opacity-75">
                                 ({functions['edit-movie-info'].price} {t('credits')})
                               </span>
                             )}
                           </Button>
-                          <Button onClick={() => handleEditToggle('movie_info')} variant="outline">
+                          <Button 
+                            onClick={() => handleEditToggle('movie_info')} 
+                            variant="outline"
+                            disabled={loadingSections.movie_info}
+                          >
                             {t('cancel')}
                           </Button>
                         </div>

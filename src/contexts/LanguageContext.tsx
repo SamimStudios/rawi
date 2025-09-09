@@ -522,6 +522,7 @@ const translations = {
     logline: 'Logline',
     world: 'World',
     look: 'Look',
+    saving: 'Saving...',
   },
   ar: {
     // Navigation & Header (Arabic)
@@ -1051,6 +1052,7 @@ const translations = {
     logline: 'الملخص',
     world: 'العالم',
     look: 'المظهر',
+    saving: 'جاري الحفظ...',
   }
 };
 
