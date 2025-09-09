@@ -37,51 +37,51 @@ import { useGuestSession } from '@/hooks/useGuestSession';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 
-// Progressive section configuration
-const SECTIONS = [
+// Progressive section configuration - titles will be localized using t()
+const getSections = (t: any) => [
   {
     key: 'movie_info',
-    title: 'Movie Information',
+    title: t('movieInformation'),
     icon: Film,
     generateFunctionId: 'e9ec8814-cef4-4e3d-adf1-deaa16d47dd0', // generate-movie-info
     editFunctionId: '17c13967-cf25-484d-87a2-16895116b408', // edit-movie-info
-    nextButton: 'Generate Characters',
+    nextButton: t('generateCharacters'),
     fields: ['title', 'logline', 'world', 'look']
   },
   {
     key: 'characters', 
-    title: 'Characters',
+    title: t('characters'),
     icon: Users,
     generateFunctionId: null, // Will be set when function is available
     editFunctionId: null,
-    nextButton: 'Generate Props',
+    nextButton: t('generateProps'),
     fields: ['lead', 'supporting']
   },
   {
     key: 'props',
-    title: 'Props & Items',
+    title: t('propsAndItems'),
     icon: Target,
     generateFunctionId: null,
     editFunctionId: null,
-    nextButton: 'Generate Timeline',
+    nextButton: t('generateTimeline'),
     fields: []
   },
   {
     key: 'timeline',
-    title: 'Timeline & Shots',
+    title: t('timelineAndShots'),
     icon: Play,
     generateFunctionId: null,
     editFunctionId: null,
-    nextButton: 'Generate Music',
+    nextButton: t('generateMusic'),
     fields: ['clips']
   },
   {
     key: 'music',
-    title: 'Music & Audio',
+    title: t('musicAndAudio'),
     icon: Music,
     generateFunctionId: null,
     editFunctionId: null,
-    nextButton: 'Complete Generation',
+    nextButton: t('completeGeneration'),
     fields: ['prefs', 'music_url']
   }
 ];
@@ -242,6 +242,13 @@ export default function StoryboardWorkspace() {
       return data.ar;
     }
     return data;
+  };
+
+  // Helper to get localized display value
+  const getLocalizedValue = (data: any, field: string, defaultValue: string = '') => {
+    const userLanguage = getUserInputLanguage();
+    const localizedData = getLocalizedContent(data, userLanguage);
+    return localizedData[field] || defaultValue;
   };
 
   // Progressive section visibility logic
@@ -791,9 +798,9 @@ export default function StoryboardWorkspace() {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-2xl font-bold mb-4">Storyboard not found</h1>
+          <h1 className="text-2xl font-bold mb-4">{t('storyboardNotFound')}</h1>
           <Button onClick={() => navigate('/app/dashboard')} variant="default">
-            Back to Dashboard
+            {t('backToDashboard')}
           </Button>
         </div>
       </div>
@@ -803,6 +810,7 @@ export default function StoryboardWorkspace() {
   const { visibleSections, nextSection } = getSectionVisibility();
   const isAnyEditMode = Object.values(editingSections).some(Boolean);
   const userLanguage = getUserInputLanguage();
+  const SECTIONS = getSections(t);
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -810,9 +818,9 @@ export default function StoryboardWorkspace() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Storyboard Workspace</h1>
+            <h1 className="text-3xl font-bold">{t('storyboardWorkspace')}</h1>
             <p className="text-muted-foreground mt-1">
-              Job ID: {job.id.slice(0, 8)}... • Status: <Badge variant="outline">{job.status}</Badge> • Credits: <span className="font-medium text-primary">{credits}</span>
+              {t('jobId')}: {job.id.slice(0, 8)}... • {t('status')}: <Badge variant="outline">{job.status}</Badge> • {t('credits')}: <span className="font-medium text-primary">{credits}</span>
             </p>
           </div>
           <Button 
@@ -821,7 +829,7 @@ export default function StoryboardWorkspace() {
             disabled={isAnyEditMode}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
+            {t('backToDashboard')}
           </Button>
         </div>
 
@@ -834,8 +842,8 @@ export default function StoryboardWorkspace() {
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <User className="h-5 w-5" />
-                Initial Input
-                {editingSections.input && <Badge variant="secondary">Editing</Badge>}
+                {t('initialInput')}
+                {editingSections.input && <Badge variant="secondary">{t('editing')}</Badge>}
               </CardTitle>
               <div className="flex items-center gap-2">
                 {job.input_updated_at && (
@@ -865,34 +873,34 @@ export default function StoryboardWorkspace() {
                 <div className="space-y-4">
                   {/* Edit form - same as original but simplified */}
                   <div>
-                    <label className="text-sm font-medium">Lead Character Name *</label>
+                    <label className="text-sm font-medium">{t('leadCharacterName')} *</label>
                     <Input
                       value={formData.leadName}
                       onChange={(e) => handleInputChange('leadName', e.target.value)}
-                      placeholder="Enter lead character name"
+                      placeholder={t('enterLeadCharacterName')}
                     />
                   </div>
                   
                   <div>
-                    <label className="text-sm font-medium">Language *</label>
+                    <label className="text-sm font-medium">{t('language')} *</label>
                     <Select value={formData.language} onValueChange={(value) => handleInputChange('language', value)}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         {LANGUAGES.map(lang => (
-                          <SelectItem key={lang.value} value={lang.value}>{lang.value}</SelectItem>
+                          <SelectItem key={lang.value} value={lang.value}>{t(lang.key)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   
                   <div>
-                    <label className="text-sm font-medium">Prompt</label>
+                    <label className="text-sm font-medium">{t('prompt')}</label>
                     <Textarea
                       value={formData.prompt}
                       onChange={(e) => handleInputChange('prompt', e.target.value)}
-                      placeholder="Describe your story..."
+                      placeholder={t('describeYourStory')}
                       rows={3}
                     />
                   </div>
@@ -900,26 +908,26 @@ export default function StoryboardWorkspace() {
                   <div className="flex gap-2">
                     <Button onClick={handleSaveInput} variant="default">
                       <Save className="h-4 w-4 mr-2" />
-                      Save
+                      {t('save')}
                     </Button>
                     <Button onClick={() => handleEditToggle('input')} variant="outline">
-                      Cancel
+                      {t('cancel')}
                     </Button>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-3">
                   <div>
-                    <div className="text-sm font-medium text-primary">Lead Character</div>
-                    <div className="text-lg font-semibold">{formData.leadName || 'Not specified'}</div>
+                    <div className="text-sm font-medium text-primary">{t('leadCharacter')}</div>
+                    <div className="text-lg font-semibold">{formData.leadName || t('notSpecified')}</div>
                   </div>
                   <div>
-                    <div className="text-sm font-medium text-primary">Language</div>
+                    <div className="text-sm font-medium text-primary">{t('language')}</div>
                     <div>{formData.language} ({formData.accent})</div>
                   </div>
                   {formData.prompt && (
                     <div>
-                      <div className="text-sm font-medium text-primary">Story Prompt</div>
+                      <div className="text-sm font-medium text-primary">{t('storyPrompt')}</div>
                       <div className="text-sm">{formData.prompt}</div>
                     </div>
                   )}
@@ -955,12 +963,12 @@ export default function StoryboardWorkspace() {
                   disabled={isAnyEditMode}
                 >
                   <section.icon className="h-5 w-5 mr-2" />
-                  Generate {section.title}
+                  {t('generate')} {section.title}
                 </Button>
                 {functionData && (
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Coins className="h-3 w-3" />
-                    <span>Cost: {functionData.price} credits • Balance: {credits} credits</span>
+                    <span>{t('cost')}: {functionData.price} {t('credits')} • {t('balance')}: {credits} {t('credits')}</span>
                   </div>
                 )}
               </div>
@@ -973,8 +981,8 @@ export default function StoryboardWorkspace() {
               <Card key={section.key}>
                 <CardContent className="flex flex-col items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin mb-4" />
-                  <p className="text-lg font-medium">Generating {section.title}...</p>
-                  <p className="text-sm text-muted-foreground">Please wait, this may take a moment</p>
+                  <p className="text-lg font-medium">{t('generating')} {section.title}...</p>
+                  <p className="text-sm text-muted-foreground">{t('pleaseWaitMoment')}</p>
                 </CardContent>
               </Card>
             );
@@ -992,7 +1000,7 @@ export default function StoryboardWorkspace() {
                     <CardTitle className="flex items-center gap-2">
                       <section.icon className="h-5 w-5" />
                       {section.title}
-                      {isEditing && <Badge variant="secondary">Editing</Badge>}
+                      {isEditing && <Badge variant="secondary">{t('editing')}</Badge>}
                       <CheckCircle className="h-4 w-4 text-green-500" />
                     </CardTitle>
                     <div className="flex items-center gap-2">
@@ -1005,7 +1013,7 @@ export default function StoryboardWorkspace() {
                       {!isEditing && functions['edit-movie-info'] && (
                         <div className="text-xs text-muted-foreground mr-2">
                           <Coins className="h-3 w-3 inline mr-1" />
-                          {functions['edit-movie-info'].price} credits
+                          {functions['edit-movie-info'].price} {t('credits')}
                         </div>
                       )}
                       <Button
@@ -1028,14 +1036,14 @@ export default function StoryboardWorkspace() {
                     {section.key === 'movie_info' && isEditing ? (
                       <div className="space-y-4">
                         <div>
-                          <label className="text-sm font-medium">Title</label>
+                          <label className="text-sm font-medium">{t('title')}</label>
                           <Input
                             value={movieData.title}
                             onChange={(e) => setMovieData({ ...movieData, title: e.target.value })}
                           />
                         </div>
                         <div>
-                          <label className="text-sm font-medium">Logline</label>
+                          <label className="text-sm font-medium">{t('logline')}</label>
                           <Textarea
                             value={movieData.logline}
                             onChange={(e) => setMovieData({ ...movieData, logline: e.target.value })}
@@ -1043,14 +1051,14 @@ export default function StoryboardWorkspace() {
                           />
                         </div>
                         <div>
-                          <label className="text-sm font-medium">World</label>
+                          <label className="text-sm font-medium">{t('world')}</label>
                           <Input
                             value={movieData.world}
                             onChange={(e) => setMovieData({ ...movieData, world: e.target.value })}
                           />
                         </div>
                         <div>
-                          <label className="text-sm font-medium">Look</label>
+                          <label className="text-sm font-medium">{t('look')}</label>
                           <Input
                             value={movieData.look}
                             onChange={(e) => setMovieData({ ...movieData, look: e.target.value })}
@@ -1059,10 +1067,10 @@ export default function StoryboardWorkspace() {
                         <div className="flex gap-2">
                           <Button onClick={handleSaveMovieInfo} variant="default">
                             <Save className="h-4 w-4 mr-2" />
-                            Save
+                            {t('save')}
                           </Button>
                           <Button onClick={() => handleEditToggle('movie_info')} variant="outline">
-                            Cancel
+                            {t('cancel')}
                           </Button>
                         </div>
                       </div>
@@ -1071,27 +1079,27 @@ export default function StoryboardWorkspace() {
                         {section.key === 'movie_info' ? (
                           <>
                             <div>
-                              <div className="text-sm font-medium text-primary">Title</div>
-                              <div className="text-lg font-semibold">{movieData.title || 'Not available'}</div>
+                              <div className="text-sm font-medium text-primary">{t('title')}</div>
+                              <div className="text-lg font-semibold">{getLocalizedValue(job.movie_info, 'title', t('notAvailable'))}</div>
                             </div>
                             <div>
-                              <div className="text-sm font-medium text-primary">Logline</div>
-                              <div>{movieData.logline || 'Not available'}</div>
+                              <div className="text-sm font-medium text-primary">{t('logline')}</div>
+                              <div>{getLocalizedValue(job.movie_info, 'logline', t('notAvailable'))}</div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                               <div>
-                                <div className="text-sm font-medium text-primary">World</div>
-                                <div>{movieData.world || 'Not available'}</div>
+                                <div className="text-sm font-medium text-primary">{t('world')}</div>
+                                <div>{getLocalizedValue(job.movie_info, 'world', t('notAvailable'))}</div>
                               </div>
                               <div>
-                                <div className="text-sm font-medium text-primary">Look</div>
-                                <div>{movieData.look || 'Not available'}</div>
+                                <div className="text-sm font-medium text-primary">{t('look')}</div>
+                                <div>{getLocalizedValue(job.movie_info, 'look', t('notAvailable'))}</div>
                               </div>
                             </div>
                           </>
                         ) : (
                           <div className="text-center text-muted-foreground">
-                            {section.title} content will be displayed here
+                            {section.title} {t('contentWillBeDisplayedHere')}
                           </div>
                         )}
                       </div>
@@ -1111,31 +1119,30 @@ export default function StoryboardWorkspace() {
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-amber-500" />
-                Warning: Edit Impact
+                {t('warningEditImpact')}
               </AlertDialogTitle>
               <AlertDialogDescription>
-                Editing this section may affect the following sections that have already been generated. 
-                This could cause inconsistencies in your final storyboard.
+                {t('editingSectionMayAffect')}
                 
                 <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
                   <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                    What would you like to do?
+                    {t('whatWouldYouLikeToDo')}
                   </p>
                 </div>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter className="flex-col sm:flex-row gap-2">
               <AlertDialogCancel onClick={() => handleEditWarningAction('discard')}>
-                Discard Changes
+                {t('discardChanges')}
               </AlertDialogCancel>
               <AlertDialogAction 
                 onClick={() => handleEditWarningAction('delete')}
                 className="bg-red-600 hover:bg-red-700"
               >
-                Edit & Delete Progressive Data
+                {t('editAndDeleteProgressiveData')}
               </AlertDialogAction>
               <AlertDialogAction onClick={() => handleEditWarningAction('override')}>
-                Override (My Responsibility)
+                {t('overrideMyResponsibility')}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
