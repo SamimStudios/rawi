@@ -448,21 +448,6 @@ export default function StoryboardWorkspace() {
           </Button>
         </div>
 
-        {/* Generate/Regenerate Button - Dominant until first generation */}
-        {!firstGenerated && (
-          <div className="flex justify-center">
-            <Button 
-              size="lg"
-              variant="type_1"
-              className="text-lg px-8 py-4"
-              onClick={handleGenerate}
-              disabled={isAnyEditMode}
-            >
-              {t('Generate Storyboard')}
-            </Button>
-          </div>
-        )}
-
         {/* Job Information - Collapsible and editable */}
         <Card className={cn("transition-all", isEditingJobInfo && "ring-2 ring-primary/50 bg-primary/5")}>
           <Collapsible open={jobInfoOpen} onOpenChange={(open) => !isAnyEditMode && setJobInfoOpen(open)}>
@@ -471,7 +456,7 @@ export default function StoryboardWorkspace() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
                     {jobInfoOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                    {t('Job Information')}
+                    {t('Initial Input')}
                     {isEditingJobInfo && (
                       <Badge variant="secondary" className="ml-2">
                         {t('Editing')}
@@ -486,7 +471,7 @@ export default function StoryboardWorkspace() {
                         e.stopPropagation();
                         handleEditJobInfoToggle();
                       }}
-                      disabled={isAnyEditMode && !isEditingJobInfo}
+                      disabled={(!jobInfoOpen && !isEditingJobInfo) || (isAnyEditMode && !isEditingJobInfo)}
                     >
                       {isEditingJobInfo ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
                     </Button>
@@ -861,7 +846,7 @@ export default function StoryboardWorkspace() {
                     <div className="flex gap-2">
                       <Button onClick={handleSaveJobInfo} variant="type_1">
                         <Save className="h-4 w-4 mr-2" />
-                        {t('saveJobInfo')}
+                        {t('Save')}
                       </Button>
                       <Button onClick={handleEditJobInfoToggle} variant="outline">
                         {t('cancel')}
@@ -928,7 +913,7 @@ export default function StoryboardWorkspace() {
                     )}
                     
                     <div className="text-xs text-muted-foreground">
-                      {t('lastUpdated')}: {job?.updated_at ? new Date(job.updated_at).toLocaleString() : t('notAvailable')}
+                      {t('Last Updated')}: {job?.updated_at ? new Date(job.updated_at).toLocaleString() : t('Not Available')}
                     </div>
                   </div>
                 )}
@@ -961,7 +946,7 @@ export default function StoryboardWorkspace() {
                           e.stopPropagation();
                           handleEditToggle();
                         }}
-                        disabled={isAnyEditMode && !isEditing}
+                        disabled={(!movieInfoOpen && !isEditing) || (isAnyEditMode && !isEditing)}
                       >
                         {isEditing ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
                       </Button>
@@ -1014,7 +999,7 @@ export default function StoryboardWorkspace() {
                       <div className="flex gap-2">
                         <Button onClick={handleSave} variant="type_1">
                           <Save className="h-4 w-4 mr-2" />
-                          {t('saveMovie')}
+                          {t('Save')}
                         </Button>
                         <Button onClick={handleEditToggle} variant="outline">
                           {t('cancel')}
