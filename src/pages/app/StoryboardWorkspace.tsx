@@ -813,8 +813,14 @@ export default function StoryboardWorkspace() {
       setValidationStatus('validating');
       
       const result = await executeFunction('validate-movie-info', {
-        movie_info: movieData,
-        job_id: jobId
+        table_id: 'storyboard_jobs',
+        row_id: jobId,
+        edits: {
+          title: movieData.title,
+          logline: movieData.logline,
+          world: movieData.world,
+          look: movieData.look
+        }
       });
       
       if (!result.success) {
@@ -962,8 +968,14 @@ export default function StoryboardWorkspace() {
       };
       
       const result = await executeFunction('validate-movie-info', {
-        movie_info: currentMovieData,
-        job_id: jobId
+        table_id: 'storyboard_jobs',
+        row_id: jobId,
+        edits: {
+          title: currentMovieData.title,
+          logline: currentMovieData.logline,
+          world: currentMovieData.world,
+          look: currentMovieData.look
+        }
       });
       
       if (!result.success) {
