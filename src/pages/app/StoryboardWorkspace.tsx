@@ -180,6 +180,7 @@ export default function StoryboardWorkspace() {
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [faceImage, setFaceImage] = useState<File | null>(null);
   const [faceImagePreview, setFaceImagePreview] = useState<string | null>(null);
+  const [isUploadingFaceImage, setIsUploadingFaceImage] = useState(false);
   const [supportingCharacters, setSupportingCharacters] = useState<Array<{
     id: string;
     name: string;
@@ -243,6 +244,75 @@ export default function StoryboardWorkspace() {
   const getMovieInfoValue = (data: any, field: string, defaultValue: string = '') => {
     if (!data) return defaultValue;
     return data[field] || defaultValue;
+  };
+
+  const uploadImageToStorage = async (file: File): Promise<string> => {
+    const fileExtension = file.type.split('/')[1] || 'jpg';
+    const fileName = `face_ref_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExtension}`;
+    
+    // Create folder structure based on user/session
+    const folder = user?.id ? `users/${user.id}/face-refs` : `guests/${sessionId}/face-refs`;
+    const filePath = `${folder}/${fileName}`;
+
+    const { data, error } = await supabase.storage
+      .from('ai-scenes-uploads')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (error) {
+      console.error('Upload error:', error);
+      throw new Error('Failed to upload image');
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('ai-scenes-uploads')
+      .getPublicUrl(filePath);
+
+    return publicUrl;
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please select an image under 5MB",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsUploadingFaceImage(true);
+    
+    try {
+      const imageUrl = await uploadImageToStorage(file);
+      setFaceImagePreview(imageUrl);
+      setFaceImage(file);
+      
+      toast({
+        title: t('imageUploaded'),
+        description: t('imageUploadedSuccessfully')
+      });
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast({
+        title: "Error",
+        description: t('imageUploadFailed'),
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploadingFaceImage(false);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setFaceImage(null);
+    setFaceImagePreview(null);
   };
 
   // Progressive section visibility logic
@@ -370,8 +440,8 @@ export default function StoryboardWorkspace() {
         
         setFormData({
           template: userInput.template || '',
-          leadName: userInput.leadName || '',
-          leadGender: userInput.leadGender || '',
+          leadName: userInput.lead_name || '',
+          leadGender: userInput.lead_gender || '',
           leadAiCharacter: userInput.leadAiCharacter || false,
           language: userInput.language || 'English',
           accent: userInput.accent || 'US',
@@ -381,11 +451,11 @@ export default function StoryboardWorkspace() {
         
         setSelectedGenres(userInput.genres || []);
         
-        if (userInput.faceImage) {
-          setFaceImagePreview(userInput.faceImage);
+        if (userInput.face_ref_url) {
+          setFaceImagePreview(userInput.face_ref_url);
         }
         
-        setSupportingCharacters(userInput.supportingCharacters || []);
+        setSupportingCharacters(userInput.supporting_characters || []);
       }
       
       // Initialize movie data using user input language
@@ -600,20 +670,23 @@ export default function StoryboardWorkspace() {
         faceImageType: char.faceImage?.type || null
       }));
 
-      const jobData = {
-        ...formData,
+      const inputPayload = {
+        template: formData.template,
+        lead_name: formData.leadName,
+        lead_gender: formData.leadGender,
+        language: formData.language,
+        accent: formData.accent,
         genres: selectedGenres,
-        supportingCharacters: processedSupportingCharacters,
-        faceImage: faceImagePreview,
-        faceImageType: faceImage?.type || null,
-        userId: user?.id || null,
-        sessionId: sessionId || null
+        prompt: formData.prompt,
+        size: formData.size,
+        face_ref_url: faceImagePreview,
+        supporting_characters: processedSupportingCharacters
       };
 
       const { error } = await supabase
         .from('storyboard_jobs')
         .update({ 
-          user_input: jobData,
+          user_input: inputPayload,
           input_updated_at: new Date().toISOString()
         })
         .eq('id', jobId);
@@ -1020,9 +1093,61 @@ export default function StoryboardWorkspace() {
                          </Select>
                        </div>
                     </div>
-                  </div>
-                  
-                  {/* Language & Accent */}
+                   </div>
+                   
+                   {/* Face Reference Image */}
+                   <div className="space-y-2">
+                     <label className="text-sm font-medium">{t('faceReferenceImage')}</label>
+                     {faceImagePreview && !formData.leadAiCharacter ? (
+                       <div className="flex items-center gap-4">
+                         <img src={faceImagePreview} alt={t('faceReferenceImage')} className="w-20 h-20 rounded-lg object-cover border" />
+                         <div className="space-y-2">
+                           <p className="text-sm text-muted-foreground">{t('faceImageUploaded')}</p>
+                           <Button
+                             type="button"
+                             variant="outline"
+                             size="sm"
+                             onClick={handleRemoveImage}
+                           >
+                             {t('remove')}
+                           </Button>
+                         </div>
+                       </div>
+                     ) : (
+                       <div className="space-y-2">
+                         <p className="text-sm text-muted-foreground">{t('uploadFaceReference')}</p>
+                         <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+                           {isUploadingFaceImage ? (
+                             <div className="flex flex-col items-center gap-2">
+                               <Loader2 className="h-6 w-6 animate-spin" />
+                               <p className="text-sm">{t('uploading')}...</p>
+                             </div>
+                           ) : (
+                             <>
+                               <input
+                                 id="face-image-upload"
+                                 type="file"
+                                 accept="image/*"
+                                 className="hidden"
+                                 onChange={handleImageUpload}
+                                 disabled={isUploadingFaceImage}
+                               />
+                               <Button
+                                 type="button"
+                                 variant="outline"
+                                 onClick={() => document.getElementById('face-image-upload')?.click()}
+                                 disabled={isUploadingFaceImage}
+                               >
+                                 {t('uploadImage')}
+                               </Button>
+                             </>
+                           )}
+                         </div>
+                       </div>
+                     )}
+                   </div>
+                   
+                   {/* Language & Accent */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-medium">{t('language')} *</label>

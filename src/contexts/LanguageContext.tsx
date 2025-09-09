@@ -418,6 +418,8 @@ const translations = {
     'Image Uploaded': 'Image Uploaded',
     'Image uploaded successfully': 'Image uploaded successfully',
     'Failed to upload image': 'Failed to upload image',
+    'Upload Image': 'Upload Image',
+    'Remove': 'Remove',
     'Uploading': 'Uploading...',
     'Lead Character': 'Lead Character',
     'Language': 'Language',
@@ -1076,6 +1078,8 @@ const translations = {
     'Image Uploaded': 'تم رفع الصورة',
     'Image uploaded successfully': 'تم رفع الصورة بنجاح',
     'Failed to upload image': 'فشل في رفع الصورة',
+    'Upload Image': 'رفع صورة',
+    'Remove': 'إزالة',
     'Uploading': 'جاري الرفع...',
   }
 };
