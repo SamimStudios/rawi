@@ -161,7 +161,7 @@ export default function StoryboardWorkspace() {
   
   // Section states
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    input: true
+    input: false
   });
   const [editingSections, setEditingSections] = useState<Record<string, boolean>>({});
   const [loadingSections, setLoadingSections] = useState<Record<string, boolean>>({});
@@ -904,24 +904,26 @@ export default function StoryboardWorkspace() {
                   <div className="space-y-2">
                     <label className="text-sm font-medium">{t('leadCharacter')}</label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Input
-                          value={formData.leadName}
-                          onChange={(e) => handleInputChange('leadName', e.target.value)}
-                          placeholder={t('enterLeadCharacterName')}
-                        />
-                      </div>
-                      <div>
-                        <Select value={formData.leadGender} onValueChange={(value) => handleInputChange('leadGender', value)}>
-                          <SelectTrigger>
-                            <SelectValue placeholder={t('selectGender')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="male">{t('male')}</SelectItem>
-                            <SelectItem value="female">{t('female')}</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                       <div>
+                         <label className="text-sm font-medium">{t('leadName')} *</label>
+                         <Input
+                           value={formData.leadName}
+                           onChange={(e) => handleInputChange('leadName', e.target.value)}
+                           placeholder={t('enterLeadCharacterName')}
+                         />
+                       </div>
+                       <div>
+                         <label className="text-sm font-medium">{t('gender')} *</label>
+                         <Select value={formData.leadGender} onValueChange={(value) => handleInputChange('leadGender', value)}>
+                           <SelectTrigger>
+                             <SelectValue placeholder={t('selectGender')} />
+                           </SelectTrigger>
+                           <SelectContent>
+                             <SelectItem value="male">{t('male')}</SelectItem>
+                             <SelectItem value="female">{t('female')}</SelectItem>
+                           </SelectContent>
+                         </Select>
+                       </div>
                     </div>
                   </div>
                   
@@ -973,7 +975,7 @@ export default function StoryboardWorkspace() {
                   </div>
                   
                   <div>
-                    <label className="text-sm font-medium">{t('prompt')}</label>
+                    <label className="text-sm font-medium">{t('storyPrompt')}</label>
                     <Textarea
                       value={formData.prompt}
                       onChange={(e) => handleInputChange('prompt', e.target.value)}

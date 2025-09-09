@@ -971,6 +971,26 @@ const translations = {
     genreDocumentary: 'وثائقي',
     genreAnimation: 'رسوم متحركة',
     
+    // Additional Storyboard Workspace keys (Arabic)
+    storyboardWorkspace: 'مساحة عمل اللوحة المصورة',
+    initialInput: 'المدخلات الأولية',
+    editing: 'تحرير',
+    notSpecified: 'غير محدد',
+    movieInformation: 'معلومات الفيلم',
+    characters: 'الشخصيات',
+    propsAndItems: 'الدعائم والعناصر',
+    timelineAndShots: 'الجدول الزمني واللقطات',
+    musicAndAudio: 'الموسيقى والصوت',
+    generateCharacters: 'توليد الشخصيات',
+    generateProps: 'توليد الدعائم',
+    generateTimeline: 'توليد الجدول الزمني',
+    generateMusic: 'توليد الموسيقى',
+    completeGeneration: 'إكمال التوليد',
+    backToDashboard: 'العودة إلى لوحة التحكم',
+    cost: 'التكلفة',
+    balance: 'الرصيد',
+    describeYourStory: 'اصف قصتك',
+    
     // Wallet (Arabic)
     walletTitle: 'محفظة',
     walletDescription: 'إدارة رصيدك واشتراكاتك',
@@ -1008,11 +1028,9 @@ const translations = {
     walletTransactionHistoryDescription: 'عرض مشتريات النقاط والاشتراكات الأخيرة',
     
     // Storyboard Workspace (Arabic)
-    initialInput: 'المدخل الأولي',
     generateMovieInfo: 'إنشاء معلومات الفيلم',
     lastUpdated: 'آخر تحديث',
     notAvailable: 'غير متوفر',
-    movieInformation: 'معلومات الفيلم',
     priceLabel: 'السعر',
     movieTitle: 'عنوان الفيلم',
     movieLogline: 'ملخص الفيلم',
