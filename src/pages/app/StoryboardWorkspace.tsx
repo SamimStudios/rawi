@@ -319,10 +319,26 @@ export default function StoryboardWorkspace() {
     setGeneratingMovieInfo(true);
     
     try {
-      const { data, error } = await supabase.functions.invoke('generate-movie-info', {
+      // Get the movie info generation function ID (assuming it's stored in functions table)
+      const { data: functionData, error: functionError } = await supabase
+        .from('functions')
+        .select('id, price')
+        .eq('name', 'generate-movie-info')
+        .eq('active', true)
+        .single();
+
+      if (functionError || !functionData) {
+        throw new Error('Movie info generation function not available');
+      }
+
+      const { data, error } = await supabase.functions.invoke('execute-function', {
         body: {
-          table_id: 'storyboard_jobs',
-          row_id: jobId
+          function_id: functionData.id,
+          payload: {
+            table_id: 'storyboard_jobs',
+            row_id: jobId
+          },
+          user_id: user?.id || null
         }
       });
 
@@ -330,8 +346,12 @@ export default function StoryboardWorkspace() {
         throw new Error(error.message || 'Failed to start movie info generation');
       }
       
-      if (data?.accepted === false) {
-        throw new Error(data.error_message || 'Movie info generation was rejected');
+      if (!data?.success) {
+        if (data?.error === 'Insufficient credits') {
+          toast.error(`Insufficient credits. Required: ${data.required_credits || functionData.price} credits`);
+          return;
+        }
+        throw new Error(data?.error || 'Movie info generation was rejected');
       }
       
       toast.success(t('Movie info generation started...'));

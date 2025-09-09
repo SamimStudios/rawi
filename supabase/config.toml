@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.retry-storyboard-job]
 verify_jwt = false
+
+[functions.execute-function]
+verify_jwt = false
