@@ -140,11 +140,12 @@ serve(async (req) => {
       console.log('Webhook response headers:', Object.fromEntries(webhookResponse.headers.entries()));
 
       if (!webhookResponse.ok) {
-        console.error('Webhook failed:', webhookResponse.status, webhookResponse.statusText);
+        const responseText = await webhookResponse.text();
+        console.error('Webhook failed with response:', responseText);
         return new Response(
           JSON.stringify({ 
             success: false, 
-            error: `Webhook failed with status ${webhookResponse.status}` 
+            error: `Webhook failed with status ${webhookResponse.status}: ${responseText}` 
           }),
           { 
             status: 502,
@@ -153,8 +154,17 @@ serve(async (req) => {
         );
       }
 
-      webhookResult = await webhookResponse.json();
-      console.log('Webhook result:', webhookResult);
+      const responseText = await webhookResponse.text();
+      console.log('Raw webhook response:', responseText);
+      
+      try {
+        webhookResult = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse webhook response as JSON:', parseError);
+        webhookResult = { raw_response: responseText };
+      }
+      
+      console.log('Parsed webhook result:', webhookResult);
     } catch (webhookError) {
       console.error('Error calling webhook:', webhookError);
       return new Response(
