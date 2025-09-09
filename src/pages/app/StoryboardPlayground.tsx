@@ -427,7 +427,7 @@ export default function StoryboardPlayground() {
             {/* Supporting Characters */}
             <Collapsible open={!supportingCollapsed} onOpenChange={(open) => setSupportingCollapsed(!open)}>
               <CollapsibleTrigger asChild>
-                <Button variant="outline" className="w-full justify-between">
+                <Button variant="type_3_blue" className="w-full justify-between">
                   <span>{t('supportingCharacters')}</span>
                   {supportingCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
                 </Button>
@@ -708,6 +708,7 @@ export default function StoryboardPlayground() {
             {/* Submit Button */}
             <Button 
               type="submit" 
+              variant="type_1"
               className="w-full" 
               disabled={isLoading}
             >

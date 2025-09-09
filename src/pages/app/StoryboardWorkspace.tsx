@@ -153,7 +153,7 @@ export default function StoryboardWorkspace() {
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto text-center">
           <h1 className="text-2xl font-bold mb-4">{t('Storyboard not found')}</h1>
-          <Button onClick={() => navigate('/app/dashboard')}>
+          <Button onClick={() => navigate('/app/dashboard')} variant="type_3_blue">
             {t('Back to Dashboard')}
           </Button>
         </div>
@@ -175,7 +175,7 @@ export default function StoryboardWorkspace() {
             </p>
           </div>
           <Button 
-            variant="outline" 
+            variant="type_3_blue"
             onClick={() => navigate('/app/dashboard')}
           >
             {t('Back to Dashboard')}
@@ -187,6 +187,7 @@ export default function StoryboardWorkspace() {
           <div className="flex justify-center">
             <Button 
               size="lg"
+              variant="type_1"
               className="text-lg px-8 py-4"
               onClick={handleGenerate}
             >
@@ -255,7 +256,7 @@ export default function StoryboardWorkspace() {
                     {firstGenerated && (
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant="type_2_blue"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleGenerate();
@@ -267,7 +268,7 @@ export default function StoryboardWorkspace() {
                     {firstGenerated && (
                       <Button
                         size="sm"
-                        variant="ghost"
+                        variant="type_4_blue"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleEditToggle();
@@ -324,11 +325,11 @@ export default function StoryboardWorkspace() {
                       />
                     </div>
                     <div className="flex gap-2 pt-2">
-                      <Button onClick={handleSave} size="sm">
+                      <Button onClick={handleSave} variant="type_2_blue" size="sm">
                         <Save className="h-4 w-4 mr-2" />
                         {t('Save')}
                       </Button>
-                      <Button onClick={handleEditToggle} variant="outline" size="sm">
+                      <Button onClick={handleEditToggle} variant="type_3_blue" size="sm">
                         {t('Cancel')}
                       </Button>
                     </div>

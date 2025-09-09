@@ -9,6 +9,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        // Legacy variants
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         outline: "border border-input bg-transparent text-foreground hover:bg-secondary/50",
@@ -16,6 +17,15 @@ const buttonVariants = cva(
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
         primary: "bg-gradient-primary text-white hover:shadow-glow font-semibold",
+        
+        // New button system
+        type_1: "bg-gradient-primary text-white font-bold hover:shadow-glow transition-all duration-300",
+        type_2_blue: "bg-primary text-white hover:bg-primary/80 transition-colors duration-200",
+        type_2_red: "bg-accent text-white hover:bg-accent/80 transition-colors duration-200",
+        type_3_blue: "bg-transparent border border-primary/30 text-foreground hover:bg-primary hover:text-white hover:border-primary transition-all duration-200",
+        type_3_red: "bg-transparent border border-accent/30 text-foreground hover:bg-accent hover:text-white hover:border-accent transition-all duration-200",
+        type_4_blue: "bg-transparent text-foreground hover:text-primary hover:bg-primary/10 transition-all duration-200",
+        type_4_red: "bg-transparent text-foreground hover:text-accent hover:bg-accent/10 transition-all duration-200",
       },
       size: {
         default: "h-10 px-4 py-2 rounded-[var(--radius)]",

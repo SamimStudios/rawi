@@ -67,7 +67,7 @@ const Header = () => {
             {/* Language Toggle */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                <Button variant="type_4_blue" size="sm" className="flex items-center gap-2">
                   <Globe className="h-4 w-4" />
                   <span className="hidden sm:inline">{language.toUpperCase()}</span>
                 </Button>
@@ -100,7 +100,7 @@ const Header = () => {
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="hidden sm:flex items-center gap-2">
+                  <Button variant="type_4_blue" size="sm" className="hidden sm:flex items-center gap-2">
                     <User className="h-4 w-4" />
                     <span className="hidden md:inline">{user.email?.split('@')[0]}</span>
                   </Button>
@@ -123,7 +123,7 @@ const Header = () => {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button variant="outline" size="sm" className="hidden sm:flex" asChild>
+              <Button variant="type_3_blue" size="sm" className="hidden sm:flex" asChild>
                 <Link to="/auth/sign-in">
                   {t('signIn')}
                 </Link>
@@ -132,7 +132,7 @@ const Header = () => {
 
             {/* Mobile Menu Toggle */}
             <Button
-              variant="ghost"
+              variant="type_4_blue"
               size="sm"
               className="md:hidden"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -164,11 +164,11 @@ const Header = () => {
                   </div>
                 </Link>
                 {user ? (
-                  <Button variant="outline" size="sm" asChild>
+                  <Button variant="type_3_blue" size="sm" asChild>
                     <Link to="/app/settings">{t('settings')}</Link>
                   </Button>
                 ) : (
-                  <Button variant="outline" size="sm" asChild>
+                  <Button variant="type_3_blue" size="sm" asChild>
                     <Link to="/auth/sign-in">{t('signIn')}</Link>
                   </Button>
                 )}
