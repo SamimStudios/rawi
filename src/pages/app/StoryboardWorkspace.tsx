@@ -233,22 +233,10 @@ export default function StoryboardWorkspace() {
     return (job?.user_input as any)?.language || 'English';
   };
 
-  // Helper to get localized content based on user input language
-  const getLocalizedContent = (data: any, userLanguage: string) => {
-    if (!data) return {};
-    
-    const isArabic = userLanguage === 'Arabic';
-    if (isArabic && data.ar) {
-      return data.ar;
-    }
-    return data;
-  };
-
-  // Helper to get localized display value
-  const getLocalizedValue = (data: any, field: string, defaultValue: string = '') => {
-    const userLanguage = getUserInputLanguage();
-    const localizedData = getLocalizedContent(data, userLanguage);
-    return localizedData[field] || defaultValue;
+  // Helper to get movie info values directly (no language nesting)
+  const getMovieInfoValue = (data: any, field: string, defaultValue: string = '') => {
+    if (!data) return defaultValue;
+    return data[field] || defaultValue;
   };
 
   // Progressive section visibility logic
@@ -396,14 +384,13 @@ export default function StoryboardWorkspace() {
       
       // Initialize movie data using user input language
       if (data.movie_info && typeof data.movie_info === 'object') {
-        const userLanguage = getUserInputLanguage();
-        const localizedMovieInfo = getLocalizedContent(data.movie_info, userLanguage);
-        console.log('🎬 Setting movie data:', localizedMovieInfo);
+        const movieInfo = data.movie_info;
+        console.log('🎬 Setting movie data:', movieInfo);
         setMovieData({
-          title: localizedMovieInfo.title || '',
-          logline: localizedMovieInfo.logline || '',
-          world: localizedMovieInfo.world || '',
-          look: localizedMovieInfo.look || ''
+          title: (movieInfo as any).title || '',
+          logline: (movieInfo as any).logline || '',
+          world: (movieInfo as any).world || '',
+          look: (movieInfo as any).look || ''
         });
       }
       
@@ -538,13 +525,12 @@ export default function StoryboardWorkspace() {
       } else if (sectionKey === 'movie_info') {
         // Reset movie data using user input language
         if (job?.movie_info) {
-          const userLanguage = getUserInputLanguage();
-          const localizedMovieInfo = getLocalizedContent(job.movie_info, userLanguage);
+          const movieInfo = job.movie_info;
           setMovieData({
-            title: localizedMovieInfo.title || '',
-            logline: localizedMovieInfo.logline || '',
-            world: localizedMovieInfo.world || '',
-            look: localizedMovieInfo.look || ''
+            title: (movieInfo as any).title || '',
+            logline: (movieInfo as any).logline || '',
+            world: (movieInfo as any).world || '',
+            look: (movieInfo as any).look || ''
           });
         }
       }
@@ -750,13 +736,12 @@ export default function StoryboardWorkspace() {
           
           // Update section data if new data arrives
           if (newData.movie_info && Object.keys(newData.movie_info).length > 0) {
-            const userLanguage = getUserInputLanguage();
-            const localizedMovieInfo = getLocalizedContent(newData.movie_info, userLanguage);
+            const movieInfo = newData.movie_info;
             setMovieData({
-              title: localizedMovieInfo.title || '',
-              logline: localizedMovieInfo.logline || '',
-              world: localizedMovieInfo.world || '',
-              look: localizedMovieInfo.look || ''
+              title: (movieInfo as any).title || '',
+              logline: (movieInfo as any).logline || '',
+              world: (movieInfo as any).world || '',
+              look: (movieInfo as any).look || ''
             });
             
             // Stop loading if we were waiting for this section
@@ -1251,20 +1236,20 @@ export default function StoryboardWorkspace() {
                           <>
                             <div>
                               <div className="text-sm font-medium text-primary">{t('title')}</div>
-                              <div className="text-lg font-semibold">{getLocalizedValue(job.movie_info, 'title', t('notAvailable'))}</div>
+                              <div className="text-lg font-semibold">{getMovieInfoValue(job.movie_info, 'title', t('notAvailable'))}</div>
                             </div>
                             <div>
                               <div className="text-sm font-medium text-primary">{t('logline')}</div>
-                              <div>{getLocalizedValue(job.movie_info, 'logline', t('notAvailable'))}</div>
+                              <div>{getMovieInfoValue(job.movie_info, 'logline', t('notAvailable'))}</div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                               <div>
                                 <div className="text-sm font-medium text-primary">{t('world')}</div>
-                                <div>{getLocalizedValue(job.movie_info, 'world', t('notAvailable'))}</div>
+                                <div>{getMovieInfoValue(job.movie_info, 'world', t('notAvailable'))}</div>
                               </div>
                               <div>
                                 <div className="text-sm font-medium text-primary">{t('look')}</div>
-                                <div>{getLocalizedValue(job.movie_info, 'look', t('notAvailable'))}</div>
+                                <div>{getMovieInfoValue(job.movie_info, 'look', t('notAvailable'))}</div>
                               </div>
                             </div>
                           </>
