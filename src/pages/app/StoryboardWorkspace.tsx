@@ -846,10 +846,15 @@ export default function StoryboardWorkspace() {
                 {editingSections.input && <Badge variant="secondary">{t('editing')}</Badge>}
               </CardTitle>
               <div className="flex items-center gap-2">
-                {job.input_updated_at && (
+                {job.input_updated_at ? (
                   <div className="text-xs text-muted-foreground">
                     <Clock className="h-3 w-3 inline mr-1" />
                     {new Date(job.input_updated_at).toLocaleString()}
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">
+                    <Clock className="h-3 w-3 inline mr-1" />
+                    {t('lastUpdated')}: {t('notAvailable')}
                   </div>
                 )}
                 <Button
@@ -984,9 +989,9 @@ export default function StoryboardWorkspace() {
                     />
                   </div>
                   
-                  <div className="flex gap-2">
-                    <Button onClick={handleSaveInput} variant="default">
-                      <Save className="h-4 w-4 mr-2" />
+                  <div className="flex gap-2 items-center">
+                    <Button onClick={handleSaveInput} variant="default" className="flex items-center gap-2">
+                      <Save className="h-4 w-4" />
                       {t('save')}
                     </Button>
                     <Button onClick={() => handleEditToggle('input')} variant="outline">
@@ -1157,12 +1162,6 @@ export default function StoryboardWorkspace() {
                           {new Date(lastUpdated).toLocaleString()}
                         </div>
                       )}
-                      {!isEditing && functions['edit-movie-info'] && (
-                        <div className="text-xs text-muted-foreground mr-2">
-                          <Coins className="h-3 w-3 inline mr-1" />
-                          {functions['edit-movie-info'].price} {t('credits')}
-                        </div>
-                      )}
                       <Button
                         size="sm"
                         variant="ghost"
@@ -1211,10 +1210,15 @@ export default function StoryboardWorkspace() {
                             onChange={(e) => setMovieData({ ...movieData, look: e.target.value })}
                           />
                         </div>
-                        <div className="flex gap-2">
-                          <Button onClick={handleSaveMovieInfo} variant="default">
-                            <Save className="h-4 w-4 mr-2" />
+                        <div className="flex gap-2 items-center">
+                          <Button onClick={handleSaveMovieInfo} variant="default" className="flex items-center gap-2">
+                            <Save className="h-4 w-4" />
                             {t('save')}
+                            {functions['edit-movie-info'] && (
+                              <span className="text-xs opacity-75">
+                                ({functions['edit-movie-info'].price} {t('credits')})
+                              </span>
+                            )}
                           </Button>
                           <Button onClick={() => handleEditToggle('movie_info')} variant="outline">
                             {t('cancel')}
