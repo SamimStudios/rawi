@@ -230,36 +230,38 @@ export default function StoryboardPlayground() {
         }))
       );
 
-      const { data, error } = await supabase.functions.invoke('create-storyboard-job', {
-        body: {
-          ...formData,
-          genres: selectedGenres,
-          supportingCharacters: processedSupportingCharacters,
-          faceImage: faceImage ? await convertFileToBase64(faceImage) : null,
-          faceImageType: faceImage?.type || null,
-          userId: user?.id || null,
-          sessionId: sessionId || null
-        }
-      });
+      // Create job data structure
+      const jobData = {
+        ...formData,
+        genres: selectedGenres,
+        supportingCharacters: processedSupportingCharacters,
+        faceImage: faceImage ? await convertFileToBase64(faceImage) : null,
+        faceImageType: faceImage?.type || null,
+        userId: user?.id || null,
+        sessionId: sessionId || null
+      };
+
+      // Directly insert into storyboard_jobs table
+      const { data, error } = await supabase
+        .from('storyboard_jobs')
+        .insert({
+          user_id: user?.id || null,
+          session_id: sessionId || null,
+          user_input: jobData,
+          status: 'pending',
+          stage: 'created',
+          function_id: crypto.randomUUID() // Required field but not used
+        })
+        .select()
+        .single();
 
       if (error) {
         console.error('Error creating storyboard job:', error);
-        
-        // Handle specific credit errors
-        if (error.message?.includes('Insufficient credits')) {
-          const requiredCredits = error.required_credits || 10;
-          toast({
-            title: t('insufficientCredits'),
-            description: t('needCreditsMessage').replace('{credits}', requiredCredits.toString()),
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: t('error'),
-            description: error.message || t('unexpectedError'),
-            variant: "destructive"
-          });
-        }
+        toast({
+          title: t('error'),
+          description: error.message || t('unexpectedError'),
+          variant: "destructive"
+        });
         return;
       }
 
@@ -269,7 +271,7 @@ export default function StoryboardPlayground() {
       });
 
       // Navigate to storyboard workspace
-      navigate(`/app/storyboard/${data.jobId}`);
+      navigate(`/app/storyboard/${data.id}`);
 
     } catch (error) {
       console.error('Error:', error);
