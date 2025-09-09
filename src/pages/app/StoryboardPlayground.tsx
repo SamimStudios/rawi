@@ -71,6 +71,7 @@ export default function StoryboardPlayground() {
     leadAiCharacter: false,
     language: 'English',
     accent: 'American',
+    size: '',
     prompt: ''
   });
 
@@ -190,7 +191,7 @@ export default function StoryboardPlayground() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.leadName || !formData.leadGender || !formData.language || !formData.accent || !formData.template) {
+    if (!formData.leadName || !formData.leadGender || !formData.language || !formData.accent || !formData.template || !formData.size) {
       toast({
         title: t('missingFields'),
         description: t('fillAllRequired'),
@@ -267,8 +268,8 @@ export default function StoryboardPlayground() {
         description: t('processingRedirecting')
       });
 
-      // Navigate to job status page
-      navigate(`/app/storyboard-status/${data.jobId}`);
+      // Navigate to storyboard workspace
+      navigate(`/app/storyboard/${data.jobId}`);
 
     } catch (error) {
       console.error('Error:', error);
@@ -320,6 +321,20 @@ export default function StoryboardPlayground() {
                       </div>
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Size Option */}
+            <div className="space-y-2">
+              <Label htmlFor="size">{t('sizeOption')}</Label>
+              <Select onValueChange={(value) => handleInputChange('size', value)} required>
+                <SelectTrigger>
+                  <SelectValue placeholder={t('selectSize')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="portrait">{t('sizePortrait')}</SelectItem>
+                  <SelectItem value="landscape">{t('sizeLandscape')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -440,18 +455,18 @@ export default function StoryboardPlayground() {
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>{t('leadName')}</Label>
-                          <Input
-                            value={character.name}
-                            onChange={(e) => {
-                              setSupportingCharacters(prev => prev.map(c => 
-                                c.id === character.id ? { ...c, name: e.target.value } : c
-                              ));
-                            }}
-                            placeholder={t('figureFromPlot')}
-                          />
-                        </div>
+                         <div className="space-y-2">
+                           <Label>{t('leadName')}</Label>
+                           <Input
+                             value={character.name}
+                             onChange={(e) => {
+                               setSupportingCharacters(prev => prev.map(c => 
+                                 c.id === character.id ? { ...c, name: e.target.value } : c
+                               ));
+                             }}
+                             placeholder={t('enterLeadCharacterName')}
+                           />
+                         </div>
                         
                         <div className="space-y-2">
                           <Label>{t('gender')}</Label>
@@ -462,10 +477,10 @@ export default function StoryboardPlayground() {
                                 c.id === character.id ? { ...c, gender: value } : c
                               ));
                             }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder={t('figureFromPlot')} />
-                            </SelectTrigger>
+                           >
+                             <SelectTrigger>
+                               <SelectValue placeholder={t('selectGender')} />
+                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="male">{t('male')}</SelectItem>
                               <SelectItem value="female">{t('female')}</SelectItem>

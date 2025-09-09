@@ -19,6 +19,8 @@ interface StoryboardJob {
   movie_info: any;
   status: string;
   stage: string;
+  result_data: any;
+  n8n_response: any;
   created_at: string;
 }
 
@@ -31,7 +33,8 @@ export default function StoryboardWorkspace() {
   
   const [job, setJob] = useState<StoryboardJob | null>(null);
   const [loading, setLoading] = useState(true);
-  const [movieInfoOpen, setMovieInfoOpen] = useState(true);
+  const [jobInfoOpen, setJobInfoOpen] = useState(false); // Collapsed by default
+  const [movieInfoOpen, setMovieInfoOpen] = useState(false); // Collapsed by default
   const [isEditing, setIsEditing] = useState(false);
   const [movieData, setMovieData] = useState({
     title: '',
@@ -85,7 +88,24 @@ export default function StoryboardWorkspace() {
     }
   };
 
+  // Check if first generation has happened
+  const hasFirstGeneration = (job: StoryboardJob | null): boolean => {
+    if (!job) return false;
+    
+    return (
+      (job.result_data && Object.keys(job.result_data).length > 0) ||
+      (job.status !== 'pending' && job.status !== 'created') ||
+      (job.stage !== 'created') ||
+      (job.n8n_response && Object.keys(job.n8n_response).length > 0)
+    );
+  };
+
   const handleEditToggle = () => {
+    if (!hasFirstGeneration(job)) {
+      toast.error(t('Complete first generation to view/edit details'));
+      return;
+    }
+
     if (isEditing) {
       // Reset data when canceling edit
       if (job?.movie_info && typeof job.movie_info === 'object') {
@@ -141,6 +161,8 @@ export default function StoryboardWorkspace() {
     );
   }
 
+  const firstGenerated = hasFirstGeneration(job);
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto space-y-6">
@@ -160,44 +182,66 @@ export default function StoryboardWorkspace() {
           </Button>
         </div>
 
-        {/* Basic Job Info */}
+        {/* Generate/Regenerate Button - Dominant until first generation */}
+        {!firstGenerated && (
+          <div className="flex justify-center">
+            <Button 
+              size="lg"
+              className="text-lg px-8 py-4"
+              onClick={handleGenerate}
+            >
+              {t('Generate Storyboard')}
+            </Button>
+          </div>
+        )}
+
+        {/* Job Information - Collapsible and collapsed by default */}
         <Card>
-          <CardHeader>
-            <CardTitle>{t('Job Information')}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">{t('Lead Character')}</label>
-                <p className="text-sm">{job.user_input?.leadName || t('Not specified')}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">{t('Gender')}</label>
-                <p className="text-sm">{job.user_input?.leadGender || t('Not specified')}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">{t('Language')}</label>
-                <p className="text-sm">{job.user_input?.language || t('Not specified')}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">{t('Accent')}</label>
-                <p className="text-sm">{job.user_input?.accent || t('Not specified')}</p>
-              </div>
-            </div>
-            {job.user_input?.genres && (
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">{t('Genres')}</label>
-                <div className="flex flex-wrap gap-2 mt-1">
-                  {job.user_input.genres.map((genre: string) => (
-                    <Badge key={genre} variant="secondary">{genre}</Badge>
-                  ))}
+          <Collapsible open={jobInfoOpen} onOpenChange={setJobInfoOpen}>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                <CardTitle className="flex items-center gap-2">
+                  {jobInfoOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  {t('Job Information')}
+                </CardTitle>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">{t('Lead Character')}</label>
+                    <p className="text-sm">{job.user_input?.leadName || t('Not specified')}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">{t('Gender')}</label>
+                    <p className="text-sm">{job.user_input?.leadGender || t('Not specified')}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">{t('Language')}</label>
+                    <p className="text-sm">{job.user_input?.language || t('Not specified')}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">{t('Accent')}</label>
+                    <p className="text-sm">{job.user_input?.accent || t('Not specified')}</p>
+                  </div>
                 </div>
-              </div>
-            )}
-          </CardContent>
+                {job.user_input?.genres && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">{t('Genres')}</label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {job.user_input.genres.map((genre: string) => (
+                        <Badge key={genre} variant="secondary">{genre}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
         </Card>
 
-        {/* Movie Information Section */}
+        {/* Movie Information Section - Locked until first generation */}
         <Card>
           <Collapsible open={movieInfoOpen} onOpenChange={setMovieInfoOpen}>
             <CollapsibleTrigger asChild>
@@ -208,33 +252,42 @@ export default function StoryboardWorkspace() {
                     {t('Movie Information')}
                   </CardTitle>
                   <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleGenerate();
-                      }}
-                    >
-                      {t('Generate')}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEditToggle();
-                      }}
-                    >
-                      {isEditing ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
-                    </Button>
+                    {firstGenerated && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleGenerate();
+                        }}
+                      >
+                        {t('Regenerate')}
+                      </Button>
+                    )}
+                    {firstGenerated && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditToggle();
+                        }}
+                      >
+                        {isEditing ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardHeader>
             </CollapsibleTrigger>
             <CollapsibleContent>
               <CardContent className="space-y-4">
-                {isEditing ? (
+                {!firstGenerated ? (
+                  // Locked state
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">{t('Complete first generation to view/edit details')}</p>
+                  </div>
+                ) : isEditing ? (
                   // Edit Mode
                   <div className="space-y-4">
                     <div>
@@ -306,42 +359,46 @@ export default function StoryboardWorkspace() {
           </Collapsible>
         </Card>
 
-        {/* Other sections will be added later */}
-        <Card>
-          <Collapsible>
-            <CollapsibleTrigger asChild>
-              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                <CardTitle className="flex items-center gap-2">
-                  <ChevronRight className="h-4 w-4" />
-                  {t('Character Development')}
-                </CardTitle>
-              </CardHeader>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <CardContent>
-                <p className="text-muted-foreground">{t('Character development section - coming soon')}</p>
-              </CardContent>
-            </CollapsibleContent>
-          </Collapsible>
-        </Card>
+        {/* Other sections - only show after first generation */}
+        {firstGenerated && (
+          <>
+            <Card>
+              <Collapsible>
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                    <CardTitle className="flex items-center gap-2">
+                      <ChevronRight className="h-4 w-4" />
+                      {t('Character Development')}
+                    </CardTitle>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent>
+                    <p className="text-muted-foreground">{t('Character development section - coming soon')}</p>
+                  </CardContent>
+                </CollapsibleContent>
+              </Collapsible>
+            </Card>
 
-        <Card>
-          <Collapsible>
-            <CollapsibleTrigger asChild>
-              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                <CardTitle className="flex items-center gap-2">
-                  <ChevronRight className="h-4 w-4" />
-                  {t('Scene Planning')}
-                </CardTitle>
-              </CardHeader>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <CardContent>
-                <p className="text-muted-foreground">{t('Scene planning section - coming soon')}</p>
-              </CardContent>
-            </CollapsibleContent>
-          </Collapsible>
-        </Card>
+            <Card>
+              <Collapsible>
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                    <CardTitle className="flex items-center gap-2">
+                      <ChevronRight className="h-4 w-4" />
+                      {t('Scene Planning')}
+                    </CardTitle>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent>
+                    <p className="text-muted-foreground">{t('Scene planning section - coming soon')}</p>
+                  </CardContent>
+                </CollapsibleContent>
+              </Collapsible>
+            </Card>
+          </>
+        )}
       </div>
     </div>
   );

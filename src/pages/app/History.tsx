@@ -1,25 +1,76 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
+import { useGuestSession } from '@/hooks/useGuestSession';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { supabase } from '@/integrations/supabase/client';
 import { History as HistoryIcon } from 'lucide-react';
+
+interface StoryboardJob {
+  id: string;
+  user_input: any;
+  status: string;
+  stage: string;
+  created_at: string;
+  result_data: any;
+  n8n_response: any;
+}
 
 const History = () => {
   const { user, loading } = useAuth();
+  const { sessionId } = useGuestSession();
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const [jobs, setJobs] = useState<StoryboardJob[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!loading && !user && !sessionId) {
       navigate('/auth/sign-in');
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, sessionId, navigate]);
 
-  if (loading) {
+  useEffect(() => {
+    if ((user || sessionId) && !loading) {
+      fetchJobs();
+    }
+  }, [user, sessionId, loading]);
+
+  const fetchJobs = async () => {
+    try {
+      setJobsLoading(true);
+      
+      let query = supabase
+        .from('storyboard_jobs')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (user) {
+        query = query.eq('user_id', user.id);
+      } else if (sessionId) {
+        query = query.eq('session_id', sessionId).is('user_id', null);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Error fetching jobs:', error);
+        return;
+      }
+
+      setJobs(data || []);
+    } catch (error) {
+      console.error('Error fetching jobs:', error);
+    } finally {
+      setJobsLoading(false);
+    }
+  };
+
+  if (loading || jobsLoading) {
     return (
       <div className="min-h-screen bg-[#0F1320] flex items-center justify-center">
         <div className="text-white">Loading...</div>
@@ -27,48 +78,25 @@ const History = () => {
     );
   }
 
-  if (!user) {
+  if (!user && !sessionId) {
     return null;
   }
 
-  // Mock data
-  const historyData = [
-    {
-      id: '1',
-      title: 'Epic Action Trailer',
-      date: '2024-01-15',
-      status: 'success',
-      resultUrl: '#'
-    },
-    {
-      id: '2',
-      title: 'Romantic Drama Teaser',
-      date: '2024-01-12',
-      status: 'running',
-      resultUrl: null
-    },
-    {
-      id: '3',
-      title: 'Sci-Fi Adventure',
-      date: '2024-01-10',
-      status: 'failed',
-      resultUrl: null
-    }
-  ];
-
   const getStatusBadge = (status: string) => {
     const variants: Record<string, 'default' | 'secondary' | 'destructive'> = {
-      success: 'default',
-      running: 'secondary',
+      completed: 'default',
+      processing: 'secondary',
       failed: 'destructive',
-      queued: 'secondary'
+      pending: 'secondary',
+      created: 'secondary'
     };
 
     const labels: Record<string, string> = {
-      success: t('statusSuccess'),
-      running: t('statusRunning'),
+      completed: t('statusSuccess'),
+      processing: t('statusRunning'),
       failed: t('statusFailed'),
-      queued: t('statusQueued')
+      pending: t('statusQueued'),
+      created: t('statusQueued')
     };
 
     return (
@@ -76,6 +104,29 @@ const History = () => {
         {labels[status] || status}
       </Badge>
     );
+  };
+
+  const isJobCompleted = (job: StoryboardJob): boolean => {
+    return job.status === 'completed' || 
+           (job.result_data && Object.keys(job.result_data).length > 0) ||
+           job.status === 'success';
+  };
+
+  const getJobTitle = (job: StoryboardJob): string => {
+    if (job.user_input?.leadName) {
+      return `${job.user_input.leadName} Storyboard`;
+    }
+    return `Storyboard ${job.id.slice(0, 8)}`;
+  };
+
+  const handleViewJob = (job: StoryboardJob) => {
+    if (isJobCompleted(job)) {
+      // Navigate to results page if available, otherwise to workspace
+      navigate(`/app/storyboard/${job.id}`);
+    } else {
+      // Navigate to workspace for in-progress jobs
+      navigate(`/app/storyboard/${job.id}`);
+    }
   };
 
   return (
@@ -98,44 +149,53 @@ const History = () => {
               <CardTitle className="text-foreground">{t('myHistory')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-foreground">{t('title')}</TableHead>
-                    <TableHead className="text-foreground">{t('date')}</TableHead>
-                    <TableHead className="text-foreground">{t('status')}</TableHead>
-                    <TableHead className="text-foreground">{t('result')}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {historyData.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="text-foreground font-medium">
-                        {item.title}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {new Date(item.date).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>
-                        {getStatusBadge(item.status)}
-                      </TableCell>
-                      <TableCell>
-                        {item.resultUrl ? (
+              {jobs.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">{t('No storyboards found')}</p>
+                  <Button 
+                    className="mt-4" 
+                    onClick={() => navigate('/app/storyboard-playground')}
+                  >
+                    {t('Create Your First Storyboard')}
+                  </Button>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-foreground">{t('title')}</TableHead>
+                      <TableHead className="text-foreground">{t('date')}</TableHead>
+                      <TableHead className="text-foreground">{t('status')}</TableHead>
+                      <TableHead className="text-foreground">{t('result')}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {jobs.map((job) => (
+                      <TableRow key={job.id}>
+                        <TableCell className="text-foreground font-medium">
+                          {getJobTitle(job)}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {new Date(job.created_at).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>
+                          {getStatusBadge(job.status)}
+                        </TableCell>
+                        <TableCell>
                           <Button
                             variant="outline"
                             size="sm"
                             className="text-primary border-primary hover:bg-primary/10"
+                            onClick={() => handleViewJob(job)}
                           >
-                            {t('viewResult')}
+                            {isJobCompleted(job) ? t('viewResult') : t('View Progress')}
                           </Button>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">—</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </div>

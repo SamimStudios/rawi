@@ -372,6 +372,12 @@ const translations = {
     plotPlaceholder: 'Describe your story plot or provide specific instructions. Example: \'A thriller about a detective in Paris\' or \'Title: The Last Stand - A sci-fi adventure...\'',
     creatingStoryboard: 'Creating Storyboard...',
     
+    // Size Options
+    sizeOption: 'Output Size *',
+    sizePortrait: 'Portrait (Mobile)',
+    sizeLandscape: 'Landscape (Widescreen)',
+    selectSize: 'Select output size',
+    
     // Storyboard Workspace
     'Failed to load storyboard job': 'Failed to load storyboard job',
     'An unexpected error occurred': 'An unexpected error occurred',
@@ -398,6 +404,18 @@ const translations = {
     'Scene planning section - coming soon': 'Scene planning section - coming soon',
     'Movie information saved': 'Movie information saved',
     'Generate function will be implemented': 'Generate function will be implemented',
+    'Generate Storyboard': 'Generate Storyboard',
+    'Regenerate': 'Regenerate',
+    'Complete first generation to view/edit details': 'Complete first generation to view/edit details',
+    'Save': 'Save',
+    'Cancel': 'Cancel',
+    'Lead Character': 'Lead Character',
+    'Language': 'Language',
+    'Accent': 'Accent',
+    'Genres': 'Genres',
+    'No storyboards found': 'No storyboards found',
+    'Create Your First Storyboard': 'Create Your First Storyboard',
+    'View Progress': 'View Progress',
     
     // Language and Accent Options
     englishLang: 'English',
@@ -818,6 +836,12 @@ const translations = {
     plotPlaceholder: 'صف حبكة قصتك أو قدم تعليمات محددة. مثال: \'إثارة حول محقش في باريس\' أو \'العنوان: الموقف الأخير - مغامرة خيال علمي...\'',
     creatingStoryboard: 'جارٍ إنشاء القصة المصورة...',
     
+    // Size Options (Arabic)
+    sizeOption: 'حجم الإخراج *',
+    sizePortrait: 'عمودي (موبايل)',
+    sizeLandscape: 'أفقي (شاشة عريضة)',
+    selectSize: 'اختر حجم الإخراج',
+    
     // Storyboard Workspace (Arabic)
     'Failed to load storyboard job': 'فشل في تحميل مهمة القصة المصورة',
     'An unexpected error occurred': 'حدث خطأ غير متوقع',
@@ -844,6 +868,18 @@ const translations = {
     'Scene planning section - coming soon': 'قسم تخطيط المشاهد - قريباً',
     'Movie information saved': 'تم حفظ معلومات الفيلم',
     'Generate function will be implemented': 'سيتم تنفيذ وظيفة الإنشاء',
+    'Generate Storyboard': 'إنشاء القصة المصورة',
+    'Regenerate': 'إعادة إنشاء',
+    'Complete first generation to view/edit details': 'أكمل الإنشاء الأول لعرض/تعديل التفاصيل',
+    'Save': 'حفظ',
+    'Cancel': 'إلغاء',
+    'Lead Character': 'الشخصية الرئيسية',
+    'Language': 'اللغة',
+    'Accent': 'اللهجة',
+    'Genres': 'الأنواع',
+    'No storyboards found': 'لم يتم العثور على قصص مصورة',
+    'Create Your First Storyboard': 'إنشاء أول قصة مصورة لك',
+    'View Progress': 'عرض التقدم',
     
     // Language and Accent Options (Arabic)
     englishLang: 'الإنجليزية',
