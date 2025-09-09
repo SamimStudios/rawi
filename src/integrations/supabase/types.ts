@@ -218,7 +218,7 @@ export type Database = {
           active: boolean
           created_at: string
           description: string | null
-          expected_payload: Json | null
+          expected_schema: Json | null
           id: string
           name: string
           price: number
@@ -231,7 +231,7 @@ export type Database = {
           active?: boolean
           created_at?: string
           description?: string | null
-          expected_payload?: Json | null
+          expected_schema?: Json | null
           id?: string
           name: string
           price?: number
@@ -244,7 +244,7 @@ export type Database = {
           active?: boolean
           created_at?: string
           description?: string | null
-          expected_payload?: Json | null
+          expected_schema?: Json | null
           id?: string
           name?: string
           price?: number
@@ -861,15 +861,25 @@ export type Database = {
     }
     Functions: {
       add_credits: {
-        Args: {
-          p_amount_paid?: number
-          p_credits: number
-          p_currency?: string
-          p_description?: string
-          p_stripe_session_id?: string
-          p_type?: string
-          p_user_id: string
-        }
+        Args:
+          | {
+              p_amount_paid?: number
+              p_credits: number
+              p_currency?: string
+              p_description?: string
+              p_stripe_session_id?: string
+              p_type?: string
+              p_user_id: string
+            }
+          | {
+              p_amount_paid?: number
+              p_credits: number
+              p_currency?: string
+              p_description?: string
+              p_stripe_session_id?: string
+              p_type?: string
+              p_user_id: string
+            }
         Returns: undefined
       }
       add_updated_at_trigger: {
@@ -881,7 +891,9 @@ export type Database = {
         Returns: undefined
       }
       consume_credits: {
-        Args: { p_credits: number; p_description?: string; p_user_id: string }
+        Args:
+          | { p_credits: number; p_description?: string; p_user_id: string }
+          | { p_credits: number; p_description?: string; p_user_id: string }
         Returns: boolean
       }
       generate_guest_session_id: {

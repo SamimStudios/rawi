@@ -94,7 +94,7 @@ export const useUserCredits = () => {
       } else {
         toast({
           title: "Insufficient Credits",
-          description: `You need ${amount} credits to perform this action`,
+          description: `You need ${amount.toFixed(2)} credits to perform this action`,
           variant: "destructive"
         });
         return false;
@@ -155,7 +155,7 @@ export const useUserCredits = () => {
   }, [user]);
 
   return {
-    credits: credits?.credits || 0,
+    credits: parseFloat((credits?.credits || 0).toFixed(2)),
     userCredits: credits,
     transactions,
     loading,

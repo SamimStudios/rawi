@@ -227,7 +227,7 @@ const Wallet = () => {
             </CardHeader>
             <CardContent>
               <div className="text-4xl font-bold text-primary mb-2">
-                {credits.toLocaleString()} {t('walletCredits')}
+                {credits.toFixed(2)} {t('walletCredits')}
               </div>
               <p className="text-muted-foreground">
                 {t('walletCreditsNeverExpire')}
@@ -477,7 +477,7 @@ const Wallet = () => {
                         </TableCell>
                         <TableCell>
                           <Badge variant={transaction.credits_amount > 0 ? "default" : "secondary"}>
-                            {transaction.credits_amount > 0 ? '+' : ''}{transaction.credits_amount}
+                            {transaction.credits_amount > 0 ? '+' : ''}{transaction.credits_amount.toFixed(2)}
                           </Badge>
                         </TableCell>
                         <TableCell>
