@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -256,14 +256,41 @@ export default function StoryboardPlayground() {
             </div>
 
             {/* Consent */}
-            <div className={cn("flex items-center", isRTL ? "space-x-reverse space-x-2" : "space-x-2")}>
+            <div className={cn("flex items-start", isRTL ? "space-x-reverse space-x-2" : "space-x-2")}>
               <Switch
                 id="consent"
                 checked={consentAgreed}
                 onCheckedChange={setConsentAgreed}
+                className="mt-1"
               />
-              <Label htmlFor="consent" className="text-sm">
-                {t('consentAgreement')}
+              <Label htmlFor="consent" className="text-sm leading-relaxed">
+                {t('consentAgreement')}{' '}
+                <Link 
+                  to="/legal/terms" 
+                  className="text-primary hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {t('termsOfService')}
+                </Link>
+                {', '}
+                <Link 
+                  to="/legal/privacy" 
+                  className="text-primary hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {t('privacyPolicyText')}
+                </Link>
+                {' '}{t('andText')}{' '}
+                <Link 
+                  to="/legal/consent" 
+                  className="text-primary hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {t('consentIpPolicyText')}
+                </Link>
               </Label>
             </div>
 
