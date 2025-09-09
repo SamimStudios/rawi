@@ -319,21 +319,19 @@ export default function StoryboardWorkspace() {
     setGeneratingMovieInfo(true);
     
     try {
-      const response = await fetch('https://samim-studios.app.n8n.cloud/webhook-test/movie-info', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('generate-movie-info', {
+        body: {
           table_id: 'storyboard_jobs',
           row_id: jobId
-        }),
+        }
       });
 
-      const result = await response.json();
+      if (error) {
+        throw new Error(error.message || 'Failed to start movie info generation');
+      }
       
-      if (!response.ok || result.accepted === false) {
-        throw new Error(result.error_message || 'Failed to start movie info generation');
+      if (data?.accepted === false) {
+        throw new Error(data.error_message || 'Movie info generation was rejected');
       }
       
       toast.success(t('Movie info generation started...'));
