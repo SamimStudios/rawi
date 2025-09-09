@@ -415,6 +415,10 @@ const translations = {
     'Apply Suggestions': 'Apply Suggestions',
     'Validation Passed': 'Validation Passed',
     'Validation Failed': 'Validation Failed',
+    'Image Uploaded': 'Image Uploaded',
+    'Image uploaded successfully': 'Image uploaded successfully',
+    'Failed to upload image': 'Failed to upload image',
+    'Uploading': 'Uploading...',
     'Lead Character': 'Lead Character',
     'Language': 'Language',
     'Accent': 'Accent',
@@ -1059,6 +1063,20 @@ const translations = {
     world: 'العالم',
     look: 'المظهر',
     saving: 'جاري الحفظ...',
+    
+    // Validation (Arabic) 
+    'Validate': 'تحقق',
+    'Validating': 'جاري التحقق...',
+    'Validation Required': 'التحقق مطلوب',
+    'Apply Suggestions': 'تطبيق الاقتراحات',
+    'Validation Passed': 'نجح التحقق',
+    'Validation Failed': 'فشل التحقق',
+    
+    // Image Upload (Arabic)
+    'Image Uploaded': 'تم رفع الصورة',
+    'Image uploaded successfully': 'تم رفع الصورة بنجاح',
+    'Failed to upload image': 'فشل في رفع الصورة',
+    'Uploading': 'جاري الرفع...',
   }
 };
 

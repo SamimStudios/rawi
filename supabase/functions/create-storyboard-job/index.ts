@@ -13,8 +13,15 @@ interface RequestBody {
   accent: string;
   genres: string[];
   prompt?: string;
-  faceImage?: string; // base64 encoded
-  faceImageType?: string;
+  faceImageUrl?: string; // Changed from base64 to URL
+  supportingCharacters?: Array<{
+    name: string;
+    gender: string;
+    aiFace: boolean;
+    faceImageUrl?: string;
+  }>;
+  template?: string;
+  size?: string;
   userId?: string;
   sessionId?: string;
 }
@@ -38,8 +45,10 @@ serve(async (req) => {
       accent, 
       genres, 
       prompt, 
-      faceImage, 
-      faceImageType,
+      faceImageUrl,
+      supportingCharacters,
+      template,
+      size,
       userId,
       sessionId 
     }: RequestBody = await req.json();
@@ -113,56 +122,7 @@ serve(async (req) => {
       console.log(`Successfully deducted ${functionData.price} credits from user ${userId}`);
     }
 
-    let faceRefUrl = null;
-
-    // Handle face image upload if provided
-    if (faceImage && faceImageType) {
-      try {
-        console.log('Uploading face reference image...');
-        
-        // Extract base64 data (remove data:image/xxx;base64, prefix)
-        const base64Data = faceImage.replace(/^data:image\/[a-z]+;base64,/, '');
-        const imageBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-        
-        // Generate unique filename
-        const fileExtension = faceImageType.split('/')[1] || 'jpg';
-        const fileName = `face_ref_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExtension}`;
-        const filePath = `storyboard-face-refs/${fileName}`;
-
-        // Upload to Supabase Storage
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('ai-scenes-uploads')
-          .upload(filePath, imageBuffer, {
-            contentType: faceImageType,
-            upsert: false
-          });
-
-        if (uploadError) {
-          console.error('Error uploading face image:', uploadError);
-          throw new Error('Failed to upload face reference image');
-        }
-
-        // Get public URL
-        const { data: urlData } = supabase.storage
-          .from('ai-scenes-uploads')
-          .getPublicUrl(filePath);
-
-        faceRefUrl = urlData.publicUrl;
-        console.log('Face reference image uploaded:', faceRefUrl);
-
-      } catch (error) {
-        console.error('Error processing face image:', error);
-        return new Response(
-          JSON.stringify({ error: 'Failed to process face reference image' }),
-          { 
-            status: 500, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
-        );
-      }
-    }
-
-    // Prepare user input data
+    // Prepare user input data (no need to upload face image as it's already uploaded)
     const userInput = {
       lead_name: leadName,
       lead_gender: leadGender,
@@ -170,7 +130,10 @@ serve(async (req) => {
       accent: accent,
       genres: genres,
       prompt: prompt,
-      face_ref_url: faceRefUrl
+      face_ref_url: faceImageUrl,
+      supporting_characters: supportingCharacters,
+      template: template,
+      size: size
     };
 
     // Create storyboard job record
