@@ -665,6 +665,7 @@ export type Database = {
           created_at: string
           function_id: string
           id: string
+          input_updated_at: string | null
           movie_info: Json | null
           n8n_response: Json | null
           n8n_webhook_sent: boolean
@@ -680,6 +681,7 @@ export type Database = {
           created_at?: string
           function_id: string
           id?: string
+          input_updated_at?: string | null
           movie_info?: Json | null
           n8n_response?: Json | null
           n8n_webhook_sent?: boolean
@@ -695,6 +697,7 @@ export type Database = {
           created_at?: string
           function_id?: string
           id?: string
+          input_updated_at?: string | null
           movie_info?: Json | null
           n8n_response?: Json | null
           n8n_webhook_sent?: boolean
