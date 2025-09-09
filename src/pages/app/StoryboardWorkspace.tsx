@@ -871,28 +871,105 @@ export default function StoryboardWorkspace() {
             <CardContent className="space-y-4">
               {editingSections.input ? (
                 <div className="space-y-4">
-                  {/* Edit form - same as original but simplified */}
+                  {/* Template */}
                   <div>
-                    <label className="text-sm font-medium">{t('leadCharacterName')} *</label>
-                    <Input
-                      value={formData.leadName}
-                      onChange={(e) => handleInputChange('leadName', e.target.value)}
-                      placeholder={t('enterLeadCharacterName')}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium">{t('language')} *</label>
-                    <Select value={formData.language} onValueChange={(value) => handleInputChange('language', value)}>
+                    <label className="text-sm font-medium">{t('storyboardTemplate')} *</label>
+                    <Select value={formData.template} onValueChange={(value) => handleInputChange('template', value)}>
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue placeholder={t('selectTemplate')} />
                       </SelectTrigger>
                       <SelectContent>
-                        {LANGUAGES.map(lang => (
-                          <SelectItem key={lang.value} value={lang.value}>{t(lang.key)}</SelectItem>
+                        {templates.map(template => (
+                          <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  {/* Size */}
+                  <div>
+                    <label className="text-sm font-medium">{t('sizeOption')} *</label>
+                    <Select value={formData.size} onValueChange={(value) => handleInputChange('size', value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={t('selectSize')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="portrait">{t('sizePortrait')}</SelectItem>
+                        <SelectItem value="landscape">{t('sizeLandscape')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Lead Character */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">{t('leadCharacter')}</label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Input
+                          value={formData.leadName}
+                          onChange={(e) => handleInputChange('leadName', e.target.value)}
+                          placeholder={t('enterLeadCharacterName')}
+                        />
+                      </div>
+                      <div>
+                        <Select value={formData.leadGender} onValueChange={(value) => handleInputChange('leadGender', value)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder={t('selectGender')} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="male">{t('male')}</SelectItem>
+                            <SelectItem value="female">{t('female')}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Language & Accent */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium">{t('language')} *</label>
+                      <Select value={formData.language} onValueChange={(value) => handleInputChange('language', value)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {LANGUAGES.map(lang => (
+                            <SelectItem key={lang.value} value={lang.value}>{t(lang.key)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">{t('accent')} *</label>
+                      <Select value={formData.accent} onValueChange={(value) => handleInputChange('accent', value)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(ACCENTS[formData.language] || []).map(accent => (
+                            <SelectItem key={accent.value} value={accent.value}>{t(accent.key)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Genres */}
+                  <div>
+                    <label className="text-sm font-medium">{t('genres')} ({selectedGenres.length}/3)</label>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {GENRE_OPTIONS.map(genre => (
+                        <Badge
+                          key={genre.value}
+                          variant={selectedGenres.includes(genre.value) ? "default" : "outline"}
+                          className="cursor-pointer"
+                          onClick={() => handleGenreToggle(genre.value)}
+                        >
+                          {t(genre.key)}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
                   
                   <div>
@@ -916,19 +993,87 @@ export default function StoryboardWorkspace() {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-4">
+                  {/* Template */}
+                  <div>
+                    <div className="text-sm font-medium text-primary">{t('storyboardTemplate')}</div>
+                    <div className="text-lg">
+                      {templates.find(t => t.id === formData.template)?.name || formData.template || t('notSpecified')}
+                    </div>
+                  </div>
+
+                  {/* Size */}
+                  <div>
+                    <div className="text-sm font-medium text-primary">{t('sizeOption')}</div>
+                    <div className="text-lg">
+                      {formData.size === 'portrait' ? t('sizePortrait') : formData.size === 'landscape' ? t('sizeLandscape') : t('notSpecified')}
+                    </div>
+                  </div>
+
+                  {/* Lead Character */}
                   <div>
                     <div className="text-sm font-medium text-primary">{t('leadCharacter')}</div>
-                    <div className="text-lg font-semibold">{formData.leadName || t('notSpecified')}</div>
+                    <div className="text-lg font-semibold">
+                      {formData.leadName || t('notSpecified')} 
+                      {formData.leadGender && ` (${formData.leadGender === 'male' ? t('male') : t('female')})`}
+                    </div>
+                    {formData.leadAiCharacter && (
+                      <Badge variant="secondary" className="mt-1">{t('aiGeneratedCharacter')}</Badge>
+                    )}
+                    {faceImagePreview && !formData.leadAiCharacter && (
+                      <img src={faceImagePreview} alt={t('faceReferenceImage')} className="w-16 h-16 rounded object-cover mt-2" />
+                    )}
                   </div>
+
+                  {/* Supporting Characters */}
+                  {supportingCharacters.length > 0 && (
+                    <div>
+                      <div className="text-sm font-medium text-primary">{t('supportingCharacters')}</div>
+                      <div className="space-y-2 mt-1">
+                        {supportingCharacters.map((character, index) => (
+                          <div key={character.id} className="flex items-center gap-3 p-2 border rounded">
+                            {character.faceImagePreview && !character.aiFace && (
+                              <img src={character.faceImagePreview} alt={character.name} className="w-8 h-8 rounded object-cover" />
+                            )}
+                            <div className="flex-1">
+                              <div className="font-medium">{character.name}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {character.gender === 'male' ? t('male') : t('female')}
+                                {character.aiFace && ` • ${t('aiGeneratedCharacter')}`}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Language & Accent */}
                   <div>
-                    <div className="text-sm font-medium text-primary">{t('language')}</div>
-                    <div>{formData.language} ({formData.accent})</div>
+                    <div className="text-sm font-medium text-primary">{t('language')} & {t('accent')}</div>
+                    <div className="text-lg">{formData.language} ({formData.accent})</div>
                   </div>
+
+                  {/* Genres */}
+                  <div>
+                    <div className="text-sm font-medium text-primary">{t('genres')}</div>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {selectedGenres.map(genre => {
+                        const genreOption = GENRE_OPTIONS.find(g => g.value === genre);
+                        return (
+                          <Badge key={genre} variant="secondary">
+                            {genreOption ? t(genreOption.key) : genre}
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Prompt */}
                   {formData.prompt && (
                     <div>
                       <div className="text-sm font-medium text-primary">{t('storyPrompt')}</div>
-                      <div className="text-sm">{formData.prompt}</div>
+                      <div className="text-sm bg-muted p-3 rounded">{formData.prompt}</div>
                     </div>
                   )}
                 </div>
