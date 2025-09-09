@@ -37,47 +37,52 @@ import { useGuestSession } from '@/hooks/useGuestSession';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 
-// Section configuration with functions
+// Progressive section configuration
 const SECTIONS = [
   {
     key: 'movie_info',
     title: 'Movie Information',
     icon: Film,
-    generateFunction: 'generate-movie-info',
-    editFunction: 'edit-movie-info',
-    nextButton: 'Generate Characters'
+    generateFunctionId: 'e9ec8814-cef4-4e3d-adf1-deaa16d47dd0', // generate-movie-info
+    editFunctionId: '17c13967-cf25-484d-87a2-16895116b408', // edit-movie-info
+    nextButton: 'Generate Characters',
+    fields: ['title', 'logline', 'world', 'look']
   },
   {
     key: 'characters', 
     title: 'Characters',
     icon: Users,
-    generateFunction: 'generate-characters',
-    editFunction: 'edit-characters', 
-    nextButton: 'Generate Props'
+    generateFunctionId: null, // Will be set when function is available
+    editFunctionId: null,
+    nextButton: 'Generate Props',
+    fields: ['lead', 'supporting']
   },
   {
     key: 'props',
     title: 'Props & Items',
     icon: Target,
-    generateFunction: 'generate-props',
-    editFunction: 'edit-props',
-    nextButton: 'Generate Timeline'
+    generateFunctionId: null,
+    editFunctionId: null,
+    nextButton: 'Generate Timeline',
+    fields: []
   },
   {
     key: 'timeline',
     title: 'Timeline & Shots',
     icon: Play,
-    generateFunction: 'generate-timeline', 
-    editFunction: 'edit-timeline',
-    nextButton: 'Generate Music'
+    generateFunctionId: null,
+    editFunctionId: null,
+    nextButton: 'Generate Music',
+    fields: ['clips']
   },
   {
     key: 'music',
     title: 'Music & Audio',
     icon: Music,
-    generateFunction: 'generate-music',
-    editFunction: 'edit-music',
-    nextButton: 'Complete Generation'
+    generateFunctionId: null,
+    editFunctionId: null,
+    nextButton: 'Complete Generation',
+    fields: ['prefs', 'music_url']
   }
 ];
 
@@ -475,7 +480,7 @@ export default function StoryboardWorkspace() {
     setLoadingSections(prev => ({ ...prev, [sectionKey]: true }));
     
     try {
-      await executeFunction(section.generateFunction, {});
+      await executeFunction('generate-movie-info', {});
       
       // Open the section after successful generation
       setOpenSections(prev => ({ ...prev, [sectionKey]: true }));
@@ -939,7 +944,7 @@ export default function StoryboardWorkspace() {
 
           // Generate button for next section
           if (isNext && !hasData && !isLoading) {
-            const functionData = functions[section.generateFunction];
+            const functionData = functions['generate-movie-info'];
             return (
               <div key={section.key} className="flex flex-col items-center gap-4">
                 <Button 
@@ -997,10 +1002,10 @@ export default function StoryboardWorkspace() {
                           {new Date(lastUpdated).toLocaleString()}
                         </div>
                       )}
-                      {!isEditing && functions[section.editFunction] && (
+                      {!isEditing && functions['edit-movie-info'] && (
                         <div className="text-xs text-muted-foreground mr-2">
                           <Coins className="h-3 w-3 inline mr-1" />
-                          {functions[section.editFunction].price} credits
+                          {functions['edit-movie-info'].price} credits
                         </div>
                       )}
                       <Button
