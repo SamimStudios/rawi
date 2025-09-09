@@ -15,6 +15,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { useGuestSession } from '@/hooks/useGuestSession';
+import { useUserCredits } from '@/hooks/useUserCredits';
 import { cn } from "@/lib/utils";
 
 const LANGUAGES = [
@@ -67,6 +68,7 @@ export default function StoryboardWorkspace() {
   const { t, isRTL, language } = useLanguage();
   const { user } = useAuth();
   const { sessionId } = useGuestSession();
+  const { credits } = useUserCredits();
   
   const [job, setJob] = useState<StoryboardJob | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,6 +77,9 @@ export default function StoryboardWorkspace() {
   const [isEditing, setIsEditing] = useState(false); // For movie info editing
   const [isEditingJobInfo, setIsEditingJobInfo] = useState(false);
   const [generatingMovieInfo, setGeneratingMovieInfo] = useState(false);
+  const [hasMovieInfoResponse, setHasMovieInfoResponse] = useState(false);
+  const [webhookFailed, setWebhookFailed] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [movieData, setMovieData] = useState({
     title: '',
     logline: '',
@@ -239,6 +244,7 @@ export default function StoryboardWorkspace() {
       if (data.movie_info && typeof data.movie_info === 'object') {
         const localizedMovieInfo = getLocalizedMovieInfo(data.movie_info, language);
         setMovieData(localizedMovieInfo);
+        setHasMovieInfoResponse(true);
       }
       
       // Initialize form data from user_input using exact same structure as StoryboardPlayground
@@ -297,6 +303,8 @@ export default function StoryboardWorkspace() {
           if (newData.movie_info && Object.keys(newData.movie_info).length > 0) {
             const localizedMovieInfo = getLocalizedMovieInfo(newData.movie_info, language);
             setMovieData(localizedMovieInfo);
+            setHasMovieInfoResponse(true);
+            setWebhookFailed(false);
             
             // Hide loading state if we were generating
             if (generatingMovieInfo) {
@@ -310,6 +318,7 @@ export default function StoryboardWorkspace() {
             const response = newData.n8n_response;
             if (response.accepted === false) {
               setGeneratingMovieInfo(false);
+              setWebhookFailed(true);
               toast.error(response.error_message || t('Failed to generate movie information'));
             }
           }
@@ -382,8 +391,8 @@ export default function StoryboardWorkspace() {
     }
   };
 
-  // Check if job has movie_info populated (not empty object)
-  const hasMovieInfo = job?.movie_info && Object.keys(job.movie_info).length > 0;
+  // Check if job has movie_info populated (not empty object) AND we have received webhook response
+  const hasMovieInfo = job?.movie_info && Object.keys(job.movie_info).length > 0 && hasMovieInfoResponse;
 
   // Check if first generation has happened
   const hasFirstGeneration = (job: StoryboardJob | null): boolean => {
@@ -444,8 +453,13 @@ export default function StoryboardWorkspace() {
   };
 
   const handleSave = async () => {
+    if (!jobId) return;
+    
+    setIsSaving(true);
+    
     try {
-      const { error } = await supabase
+      // First save the movie info data
+      const { error: updateError } = await supabase
         .from('storyboard_jobs')
         .update({ 
           movie_info: movieData,
@@ -454,18 +468,63 @@ export default function StoryboardWorkspace() {
         })
         .eq('id', jobId);
 
-      if (error) {
-        console.error('Error saving movie data:', error);
+      if (updateError) {
+        console.error('Error saving movie data:', updateError);
         toast.error(t('Failed to save movie information'));
         return;
       }
 
-      toast.success(t('Movie information saved'));
+      // Execute the function after saving
+      try {
+        const { data: functionData, error: functionError } = await supabase
+          .from('functions')
+          .select('id, price')
+          .eq('id', '17c13967-cf25-484d-87a2-16895116b408')
+          .eq('active', true)
+          .single();
+
+        if (functionError || !functionData) {
+          console.warn('Function not available, skipping execution');
+        } else {
+          // Check credits before executing
+          if (credits < functionData.price) {
+            toast.error(t(`Insufficient credits. Required: ${functionData.price} credits`));
+            return;
+          }
+
+          const { data, error } = await supabase.functions.invoke('execute-function', {
+            body: {
+              function_id: functionData.id,
+              payload: {
+                table_id: 'storyboard_jobs',
+                row_id: jobId
+              },
+              user_id: user?.id || null
+            }
+          });
+
+          if (error) {
+            console.warn('Function execution failed:', error);
+            toast.error(t('Function execution failed'));
+          } else if (!data?.success) {
+            console.warn('Function execution not successful:', data?.error);
+            toast.error(data?.error || t('Function execution was rejected'));
+          } else {
+            toast.success(t(`Movie information saved and processed. ${functionData.price} credits consumed.`));
+          }
+        }
+      } catch (funcError) {
+        console.warn('Error executing function:', funcError);
+        // Don't fail the save operation if function execution fails
+      }
+
       setIsEditing(false);
       fetchJob(); // Refresh job data
     } catch (error) {
       console.error('Error in handleSave:', error);
       toast.error(t('An unexpected error occurred'));
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1062,7 +1121,7 @@ export default function StoryboardWorkspace() {
         </Card>
 
         {/* Movie Information Section - Show generate button if no movie info and not generating */}
-        {!hasMovieInfo && !generatingMovieInfo ? (
+        {!hasMovieInfo && !generatingMovieInfo && !webhookFailed ? (
           <div className="flex flex-col items-center gap-4">
             <Button 
               size="lg"
@@ -1080,8 +1139,41 @@ export default function StoryboardWorkspace() {
           </div>
         ) : null}
 
-        {/* Movie Information Section - Show if has movie info OR currently generating */}
-        {(hasMovieInfo || generatingMovieInfo) && (
+        {/* Show error state if webhook failed */}
+        {webhookFailed && !generatingMovieInfo && (
+          <div className="flex flex-col items-center gap-4">
+            <div className="text-center">
+              <p className="text-destructive font-medium">{t('Movie info generation failed')}</p>
+              <p className="text-sm text-muted-foreground">{t('Please try again')}</p>
+            </div>
+            <Button 
+              size="lg"
+              variant="type_1"
+              className="text-lg px-8 py-4 relative"
+              onClick={() => {
+                setWebhookFailed(false);
+                handleGenerateMovieInfo();
+              }}
+              disabled={isAnyEditMode}
+            >
+              {t('Try Again')}
+            </Button>
+          </div>
+        )}
+
+        {/* Loading state - show when generating and waiting for response */}
+        {generatingMovieInfo && (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin mb-4" />
+              <p className="text-lg font-medium">{t('Generating movie information...')}</p>
+              <p className="text-sm text-muted-foreground">{t('Please wait, this may take a moment')}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Movie Information Section - Show only if has movie info AND received response */}
+        {hasMovieInfo && (
           <Card className={cn("transition-all", isEditing && "ring-2 ring-primary/50 bg-primary/5")}>
             <Collapsible open={movieInfoOpen} onOpenChange={(open) => !isAnyEditMode && setMovieInfoOpen(open)}>
               <CollapsibleTrigger asChild>
@@ -1104,7 +1196,7 @@ export default function StoryboardWorkspace() {
                           e.stopPropagation();
                           handleEditToggle();
                         }}
-                        disabled={(!movieInfoOpen && !isEditing) || (isAnyEditMode && !isEditing)}
+                        disabled={(!movieInfoOpen && !isEditing) || (isAnyEditMode && !isEditing) || isSaving}
                       >
                         {isEditing ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
                       </Button>
@@ -1155,11 +1247,15 @@ export default function StoryboardWorkspace() {
                         />
                       </div>
                       <div className="flex gap-2">
-                        <Button onClick={handleSave} variant="type_1">
-                          <Save className="h-4 w-4 mr-2" />
-                          {t('save')}
+                        <Button onClick={handleSave} variant="type_1" disabled={isSaving}>
+                          {isSaving ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Save className="h-4 w-4 mr-2" />
+                          )}
+                          {isSaving ? t('Saving...') : t('save')}
                         </Button>
-                        <Button onClick={handleEditToggle} variant="outline">
+                        <Button onClick={handleEditToggle} variant="outline" disabled={isSaving}>
                           {t('cancel')}
                         </Button>
                       </div>
