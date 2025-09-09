@@ -72,7 +72,7 @@ export default function StoryboardWorkspace() {
   const [loading, setLoading] = useState(true);
   const [jobInfoOpen, setJobInfoOpen] = useState(false);
   const [movieInfoOpen, setMovieInfoOpen] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(false); // For movie info editing
   const [isEditingJobInfo, setIsEditingJobInfo] = useState(false);
   const [movieData, setMovieData] = useState({
     title: '',
@@ -345,7 +345,7 @@ export default function StoryboardWorkspace() {
         .from('storyboard_jobs')
         .update({ 
           user_input: jobData,
-          updated_at: new Date().toISOString()
+          input_updated_at: new Date().toISOString()
         })
         .eq('id', jobId);
 
@@ -426,6 +426,7 @@ export default function StoryboardWorkspace() {
   }
 
   const firstGenerated = hasFirstGeneration(job);
+  const isAnyEditMode = isEditingJobInfo || isEditing;
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -441,6 +442,7 @@ export default function StoryboardWorkspace() {
           <Button 
             variant="type_3_blue"
             onClick={() => navigate('/app/dashboard')}
+            disabled={isAnyEditMode}
           >
             {t('Back to Dashboard')}
           </Button>
@@ -454,6 +456,7 @@ export default function StoryboardWorkspace() {
               variant="type_1"
               className="text-lg px-8 py-4"
               onClick={handleGenerate}
+              disabled={isAnyEditMode}
             >
               {t('Generate Storyboard')}
             </Button>
@@ -461,14 +464,19 @@ export default function StoryboardWorkspace() {
         )}
 
         {/* Job Information - Collapsible and editable */}
-        <Card>
-          <Collapsible open={jobInfoOpen} onOpenChange={setJobInfoOpen}>
+        <Card className={cn("transition-all", isEditingJobInfo && "ring-2 ring-primary/50 bg-primary/5")}>
+          <Collapsible open={jobInfoOpen} onOpenChange={(open) => !isAnyEditMode && setJobInfoOpen(open)}>
             <CollapsibleTrigger asChild>
-              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+              <CardHeader className={cn("cursor-pointer hover:bg-muted/50 transition-colors", isEditingJobInfo && "cursor-default")}>
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
                     {jobInfoOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                     {t('Job Information')}
+                    {isEditingJobInfo && (
+                      <Badge variant="secondary" className="ml-2">
+                        {t('Editing')}
+                      </Badge>
+                    )}
                   </CardTitle>
                   <div className="flex items-center gap-2">
                     <Button
@@ -478,6 +486,7 @@ export default function StoryboardWorkspace() {
                         e.stopPropagation();
                         handleEditJobInfoToggle();
                       }}
+                      disabled={isAnyEditMode && !isEditingJobInfo}
                     >
                       {isEditingJobInfo ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
                     </Button>
@@ -930,14 +939,19 @@ export default function StoryboardWorkspace() {
 
         {/* Movie Information - Only after first generation */}
         {firstGenerated && (
-          <Card>
-            <Collapsible open={movieInfoOpen} onOpenChange={setMovieInfoOpen}>
+          <Card className={cn("transition-all", isEditing && "ring-2 ring-primary/50 bg-primary/5")}>
+            <Collapsible open={movieInfoOpen} onOpenChange={(open) => !isAnyEditMode && setMovieInfoOpen(open)}>
               <CollapsibleTrigger asChild>
-                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                <CardHeader className={cn("cursor-pointer hover:bg-muted/50 transition-colors", isEditing && "cursor-default")}>
                   <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center gap-2">
                       {movieInfoOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       {t('Movie Information')}
+                      {isEditing && (
+                        <Badge variant="secondary" className="ml-2">
+                          {t('Editing')}
+                        </Badge>
+                      )}
                     </CardTitle>
                     <div className="flex items-center gap-2">
                       <Button
@@ -947,6 +961,7 @@ export default function StoryboardWorkspace() {
                           e.stopPropagation();
                           handleEditToggle();
                         }}
+                        disabled={isAnyEditMode && !isEditing}
                       >
                         {isEditing ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
                       </Button>
@@ -1039,6 +1054,7 @@ export default function StoryboardWorkspace() {
             <Button 
               variant="type_2_red"
               onClick={handleGenerate}
+              disabled={isAnyEditMode}
             >
               {t('Regenerate Storyboard')}
             </Button>
