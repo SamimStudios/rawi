@@ -124,22 +124,43 @@ serve(async (req) => {
 
     // Call the webhook
     console.log('Calling webhook:', webhookUrl);
-    const webhookResponse = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    console.log('Webhook payload:', JSON.stringify(payload, null, 2));
+    
+    let webhookResult;
+    try {
+      const webhookResponse = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
 
-    console.log('Webhook response status:', webhookResponse.status);
+      console.log('Webhook response status:', webhookResponse.status);
+      console.log('Webhook response headers:', Object.fromEntries(webhookResponse.headers.entries()));
 
-    if (!webhookResponse.ok) {
-      console.error('Webhook failed:', webhookResponse.status, webhookResponse.statusText);
+      if (!webhookResponse.ok) {
+        console.error('Webhook failed:', webhookResponse.status, webhookResponse.statusText);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `Webhook failed with status ${webhookResponse.status}` 
+          }),
+          { 
+            status: 502,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+
+      webhookResult = await webhookResponse.json();
+      console.log('Webhook result:', webhookResult);
+    } catch (webhookError) {
+      console.error('Error calling webhook:', webhookError);
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: `Webhook failed with status ${webhookResponse.status}` 
+          error: `Webhook call failed: ${webhookError.message}` 
         }),
         { 
           status: 502,
@@ -147,9 +168,6 @@ serve(async (req) => {
         }
       );
     }
-
-    const webhookResult = await webhookResponse.json();
-    console.log('Webhook result:', webhookResult);
 
     // For storyboard jobs, update the job with the webhook response
     if (payload.table_id === 'storyboard_jobs' && payload.row_id) {
