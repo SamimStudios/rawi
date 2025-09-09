@@ -148,6 +148,12 @@ const translations = {
     faqTitle: 'Frequently Asked Questions',
     
     // Success/Error Messages
+    
+    // Storyboard Form
+    selectUpToThreeGenres: 'Select up to 3 genres',
+    plotPrompt: 'Plot Prompt',
+    plotPromptPlaceholder: 'Describe your story idea, characters, and main plot points...',
+    consentAgreement: 'I agree to the terms and conditions',
     paymentSuccessful: 'Payment successful — credits added.',
     paymentCanceled: 'Payment canceled.',
     subscriptionActive: 'Subscription active.',
@@ -1114,6 +1120,12 @@ const translations = {
     world: 'العالم',
     look: 'المظهر',
     saving: 'جاري الحفظ...',
+    
+    // Storyboard Form (Arabic)
+    selectUpToThreeGenres: 'اختر حتى ٣ أنواع',
+    plotPrompt: 'فكرة الحبكة',
+    plotPromptPlaceholder: 'اشرح فكرة قصتك والشخصيات والأحداث الرئيسية...',
+    consentAgreement: 'أوافق على الشروط والأحكام',
     
     // Validation (Arabic) 
     'Validate': 'تحقق',
