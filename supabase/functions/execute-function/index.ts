@@ -41,7 +41,7 @@ serve(async (req) => {
     // Fetch function details
     console.log('Fetching function details...');
     const { data: functionData, error: functionError } = await supabase
-      .from('functions')
+      .from('n8n_functions')
       .select('*')
       .eq('id', function_id)
       .eq('active', true)

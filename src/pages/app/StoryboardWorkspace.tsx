@@ -310,7 +310,7 @@ export default function StoryboardWorkspace() {
     try {
       console.log('🔍 Fetching functions from database...');
       const { data, error } = await supabase
-        .from('functions')
+        .from('n8n_functions')
         .select('id, name, price')
         .eq('active', true);
 

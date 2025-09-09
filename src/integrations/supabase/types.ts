@@ -213,48 +213,6 @@ export type Database = {
         }
         Relationships: []
       }
-      functions: {
-        Row: {
-          active: boolean
-          created_at: string
-          description: string | null
-          expected_schema: Json | null
-          id: string
-          name: string
-          price: number
-          production_webhook: string | null
-          test_webhook: string | null
-          type: string
-          updated_at: string
-        }
-        Insert: {
-          active?: boolean
-          created_at?: string
-          description?: string | null
-          expected_schema?: Json | null
-          id?: string
-          name: string
-          price?: number
-          production_webhook?: string | null
-          test_webhook?: string | null
-          type: string
-          updated_at?: string
-        }
-        Update: {
-          active?: boolean
-          created_at?: string
-          description?: string | null
-          expected_schema?: Json | null
-          id?: string
-          name?: string
-          price?: number
-          production_webhook?: string | null
-          test_webhook?: string | null
-          type?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       invoices: {
         Row: {
           amount: number
@@ -408,6 +366,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      n8n_functions: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string | null
+          expected_schema: Json | null
+          id: string
+          name: string
+          price: number
+          production_webhook: string | null
+          test_webhook: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          expected_schema?: Json | null
+          id?: string
+          name: string
+          price?: number
+          production_webhook?: string | null
+          test_webhook?: string | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          expected_schema?: Json | null
+          id?: string
+          name?: string
+          price?: number
+          production_webhook?: string | null
+          test_webhook?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       rewards: {
         Row: {
@@ -665,7 +665,6 @@ export type Database = {
           characters: Json | null
           characters_updated_at: string | null
           created_at: string
-          function_id: string
           id: string
           input_updated_at: string | null
           movie_info: Json | null
@@ -690,7 +689,6 @@ export type Database = {
           characters?: Json | null
           characters_updated_at?: string | null
           created_at?: string
-          function_id: string
           id?: string
           input_updated_at?: string | null
           movie_info?: Json | null
@@ -715,7 +713,6 @@ export type Database = {
           characters?: Json | null
           characters_updated_at?: string | null
           created_at?: string
-          function_id?: string
           id?: string
           input_updated_at?: string | null
           movie_info?: Json | null
