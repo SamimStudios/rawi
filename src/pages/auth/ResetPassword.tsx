@@ -11,7 +11,7 @@ const ResetPassword = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [searchParams] = useSearchParams();
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -109,7 +109,7 @@ const ResetPassword = () => {
       <div className="mb-8">
         <img 
           src={language === 'ar' ? '/brand/logo-lockup-ar-vertical.svg' : '/brand/logo-lockup-en-vertical.svg'} 
-          alt="Rawi Logo" 
+          alt={t('rawiLogo')} 
           className="h-20 w-auto"
         />
       </div>

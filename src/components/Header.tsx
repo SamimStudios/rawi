@@ -44,7 +44,7 @@ const Header = () => {
           <Link to="/" className="flex items-center">
             <img 
               src={logoSrc}
-              alt="Rawi App" 
+              alt={t('rawiApp')} 
               className="h-8 md:h-10"
             />
           </Link>

@@ -42,7 +42,7 @@ const App = () => {
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <img 
             src={language === 'ar' ? '/brand/logo-lockup-ar-horizontal.svg' : '/brand/logo-lockup-en-horizontal.svg'} 
-            alt="Rawi Logo" 
+            alt={t('rawiLogo')} 
             className="h-8 w-auto"
           />
           <Button

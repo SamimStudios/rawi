@@ -13,20 +13,20 @@ const TranslationGuide = () => {
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       <Card className="p-6">
-        <h1 className="text-3xl font-bold mb-4 text-primary">Translation System Guide</h1>
+        <h1 className="text-3xl font-bold mb-4 text-primary">{t('translationSystemGuide')}</h1>
         
         <div className="space-y-6">
           <section>
-            <h2 className="text-xl font-semibold mb-3 text-foreground">✅ ALWAYS DO (Required)</h2>
+            <h2 className="text-xl font-semibold mb-3 text-foreground">{t('alwaysDoRequired')}</h2>
             <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg space-y-2">
-              <p><strong>1. Use the `t()` function for ALL text:</strong></p>
+              <p><strong>1. {t('useTranslationFunction')}</strong></p>
               <pre className="bg-background p-2 rounded text-sm">
 {`// ✅ Correct
 <h1>{t('heroHeadline')}</h1>
 <Button>{t('getStarted')}</Button>`}
               </pre>
               
-              <p><strong>2. Add translations to BOTH languages in LanguageContext.tsx:</strong></p>
+              <p><strong>2. {t('addTranslationsBothLanguages')}</strong></p>
               <pre className="bg-background p-2 rounded text-sm">
 {`// ✅ Add to both en: and ar: objects
 en: {
@@ -39,7 +39,7 @@ ar: {
 }`}
               </pre>
               
-              <p><strong>3. Import and use the useLanguage hook:</strong></p>
+              <p><strong>3. {t('importUseLanguageHook')}</strong></p>
               <pre className="bg-background p-2 rounded text-sm">
 {`import { useLanguage } from '@/contexts/LanguageContext';
 
@@ -53,9 +53,9 @@ const MyComponent = () => {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold mb-3 text-destructive">❌ NEVER DO (Forbidden)</h2>
+            <h2 className="text-xl font-semibold mb-3 text-destructive">{t('neverDoForbidden')}</h2>
             <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg space-y-2">
-              <p><strong>1. Hardcode English text:</strong></p>
+              <p><strong>1. {t('hardcodeEnglishText')}</strong></p>
               <pre className="bg-background p-2 rounded text-sm">
 {`// ❌ Wrong - hardcoded English
 <h1>Welcome to Rawi</h1>
@@ -66,7 +66,7 @@ const MyComponent = () => {
 <Button>{t('signUp')}</Button>`}
               </pre>
               
-              <p><strong>2. Add translations to only one language:</strong></p>
+              <p><strong>2. {t('addTranslationsOneLanguage')}</strong></p>
               <pre className="bg-background p-2 rounded text-sm">
 {`// ❌ Wrong - missing Arabic translation
 en: { newButton: 'Click Me' }
@@ -80,9 +80,9 @@ ar: { newButton: 'انقر هنا' }`}
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold mb-3 text-foreground">🎯 RTL Support Best Practices</h2>
+            <h2 className="text-xl font-semibold mb-3 text-foreground">{t('rtlSupportBestPractices')}</h2>
             <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg space-y-2">
-              <p><strong>1. Use isRTL for conditional styling:</strong></p>
+              <p><strong>1. {t('useIsRtlConditionalStyling')}</strong></p>
               <pre className="bg-background p-2 rounded text-sm">
 {`const { isRTL } = useLanguage();
 
@@ -93,7 +93,7 @@ className={cn("flex items-center", isRTL ? "space-x-reverse space-x-4" : "space-
 <Icon className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />`}
               </pre>
               
-              <p><strong>2. Use the RTL utility classes in CSS:</strong></p>
+              <p><strong>2. {t('useRtlUtilityClasses')}</strong></p>
               <pre className="bg-background p-2 rounded text-sm">
 {`// Use space-x-reverse for RTL spacing
 className="flex space-x-4 space-x-reverse"
@@ -105,35 +105,35 @@ className={isRTL ? "text-right" : "text-left"}`}
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold mb-3 text-foreground">📝 Quick Checklist for New Features</h2>
+            <h2 className="text-xl font-semibold mb-3 text-foreground">{t('quickChecklistNewFeatures')}</h2>
             <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
               <div className="space-y-2">
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" /> All text uses `t()` function
+                  <input type="checkbox" /> {t('allTextUsesFunction')}
                 </label>
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" /> English translations added to `en:` object
+                  <input type="checkbox" /> {t('englishTranslationsAdded')}
                 </label>
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" /> Arabic translations added to `ar:` object
+                  <input type="checkbox" /> {t('arabicTranslationsAdded')}
                 </label>
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" /> RTL layout tested and working
+                  <input type="checkbox" /> {t('rtlLayoutTested')}
                 </label>
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" /> Spacing and icons work in both directions
+                  <input type="checkbox" /> {t('spacingIconsWork')}
                 </label>
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" /> No hardcoded English strings remain
+                  <input type="checkbox" /> {t('noHardcodedStrings')}
                 </label>
               </div>
             </div>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold mb-3 text-foreground">🔧 Common Translation Keys Available</h2>
+            <h2 className="text-xl font-semibold mb-3 text-foreground">{t('commonTranslationKeys')}</h2>
             <div className="bg-gray-50 dark:bg-gray-900/20 p-4 rounded-lg">
-              <p className="mb-2">Here are commonly used translation keys you can use immediately:</p>
+              <p className="mb-2">{t('commonKeysDescription')}</p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
                 <div>• loading, error, success</div>
                 <div>• cancel, confirm, delete</div>

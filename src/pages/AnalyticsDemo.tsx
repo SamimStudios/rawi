@@ -186,7 +186,7 @@ const AnalyticsDemo = () => {
                     <Label htmlFor="event-name">Event Name</Label>
                     <Input
                       id="event-name"
-                      placeholder="Custom Event Name"
+                      placeholder={t('customEventName')}
                       value={customEvent}
                       onChange={(e) => setCustomEvent(e.target.value)}
                     />

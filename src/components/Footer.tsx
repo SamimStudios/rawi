@@ -25,7 +25,7 @@ const Footer = () => {
             <Link to="/" className="block">
               <img 
                 src={logoSrc}
-                alt="Rawi App" 
+                alt={t('rawiApp')} 
                 className="h-12 md:h-16"
               />
             </Link>

@@ -56,7 +56,7 @@ const MediaPlayerDemo = () => {
                     <Label htmlFor="video-src">Video Source URL</Label>
                     <Input
                       id="video-src"
-                      placeholder="Enter video URL or leave empty for poster mode"
+                      placeholder={t('enterVideoUrl')}
                       value={videoSrc}
                       onChange={(e) => setVideoSrc(e.target.value)}
                       className="mt-1"
@@ -67,7 +67,7 @@ const MediaPlayerDemo = () => {
                     <Label htmlFor="poster-src">Poster Image URL</Label>
                     <Input
                       id="poster-src"
-                      placeholder="Enter poster image URL"
+                      placeholder={t('enterPosterUrl')}
                       value={posterSrc}
                       onChange={(e) => setPosterSrc(e.target.value)}
                       className="mt-1"
@@ -78,7 +78,7 @@ const MediaPlayerDemo = () => {
                     <Label htmlFor="title">Video Title</Label>
                     <Input
                       id="title"
-                      placeholder="Enter video title"
+                      placeholder={t('enterVideoTitle')}
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       className="mt-1"

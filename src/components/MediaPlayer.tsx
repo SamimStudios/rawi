@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Play, Pause } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface MediaPlayerProps {
   src?: string;
@@ -25,6 +26,7 @@ const MediaPlayer: React.FC<MediaPlayerProps> = ({
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const { t } = useLanguage();
 
   const handlePlayPause = (videoElement: HTMLVideoElement) => {
     if (videoElement.paused) {
@@ -84,7 +86,7 @@ const MediaPlayer: React.FC<MediaPlayerProps> = ({
               {poster ? (
                 <img 
                   src={poster} 
-                  alt={title || 'Video poster'} 
+                  alt={title || t('videoPoster')} 
                   className="w-full h-full object-cover"
                 />
               ) : (

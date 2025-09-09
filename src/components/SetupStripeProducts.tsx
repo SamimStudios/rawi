@@ -5,11 +5,13 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Settings, Check, AlertCircle } from 'lucide-react';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export const SetupStripeProducts = () => {
   const [loading, setLoading] = useState(false);
   const [completed, setCompleted] = useState(false);
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const handleSetup = async () => {
     setLoading(true);
@@ -19,15 +21,15 @@ export const SetupStripeProducts = () => {
       if (error) throw error;
 
       toast({
-        title: "Success",
-        description: "Stripe products have been created successfully",
+        title: t('success'),
+        description: t('stripeSetupSuccess'),
       });
       setCompleted(true);
     } catch (error) {
       console.error('Setup error:', error);
       toast({
-        title: "Setup Error",
-        description: "Failed to create Stripe products. Check the console for details.",
+        title: t('error'),
+        description: t('stripeSetupError'),
         variant: "destructive"
       });
     } finally {
@@ -41,13 +43,12 @@ export const SetupStripeProducts = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-green-700">
             <Check className="w-5 h-5" />
-            Stripe Products Created
+            {t('stripeProductsCreated')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-green-600">
-            All Stripe products and prices have been created successfully. 
-            You can now process payments!
+            {t('stripeSetupSuccess')}
           </p>
         </CardContent>
       </Card>
@@ -59,12 +60,12 @@ export const SetupStripeProducts = () => {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-yellow-700">
           <AlertCircle className="w-5 h-5" />
-          Setup Required
+          {t('setupRequired')}
         </CardTitle>
       </CardHeader>
       <CardContent>
         <p className="text-yellow-600 mb-4">
-          Stripe products need to be created before payments can be processed.
+          {t('stripeSetupDescription')}
         </p>
         <Button 
           onClick={handleSetup}
@@ -76,7 +77,7 @@ export const SetupStripeProducts = () => {
           ) : (
             <Settings className="w-4 h-4" />
           )}
-          {loading ? 'Creating Products...' : 'Setup Stripe Products'}
+          {loading ? t('creatingProducts') : t('setupStripeProducts')}
         </Button>
       </CardContent>
     </Card>

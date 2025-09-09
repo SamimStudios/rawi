@@ -117,7 +117,7 @@ const SignIn = () => {
       <div className="mb-8">
         <img 
           src={language === 'ar' ? '/brand/logo-lockup-ar-vertical.svg' : '/brand/logo-lockup-en-vertical.svg'} 
-          alt="Rawi Logo" 
+          alt={t('rawiLogo')} 
           className="h-20 w-auto"
         />
       </div>

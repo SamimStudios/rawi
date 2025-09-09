@@ -176,11 +176,11 @@ const SEODemo = () => {
                   {/* Facebook/LinkedIn Style Preview */}
                   <div className="border border-border rounded-lg overflow-hidden bg-background">
                     <div className="aspect-[1.91/1] bg-gradient-primary flex items-center justify-center">
-                      <img 
-                        src={fullImageUrl}
-                        alt="Social preview"
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
+                    <img 
+                      src={fullImageUrl}
+                      alt={t('socialPreview')}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
                           const target = e.target as HTMLImageElement;
                           target.style.display = 'none';
                           const parent = target.parentElement;
