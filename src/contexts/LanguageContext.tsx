@@ -158,6 +158,7 @@ const translations = {
     privacyPolicyText: 'Privacy Policy',
     andText: 'and',
     consentIpPolicyText: 'Consent & IP Policy',
+    regenerateConfirmation: 'Are you sure you want to regenerate the movie information? This will overwrite existing data.',
     paymentSuccessful: 'Payment successful — credits added.',
     paymentCanceled: 'Payment canceled.',
     subscriptionActive: 'Subscription active.',
@@ -1134,8 +1135,9 @@ const translations = {
     privacyPolicyText: 'سياسة الخصوصية',
     andText: 'و',
     consentIpPolicyText: 'سياسة الموافقة والملكية الفكرية',
+    regenerateConfirmation: 'هل أنت متأكد من أنك تريد إعادة توليد معلومات الفيلم؟ سيؤدي هذا إلى استبدال البيانات الموجودة.',
     
-    // Validation (Arabic) 
+    // Validation (Arabic)
     'Validate': 'تحقق',
     'Validating': 'جاري التحقق...',
     'Validation Required': 'التحقق مطلوب',

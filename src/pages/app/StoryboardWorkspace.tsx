@@ -28,7 +28,8 @@ import {
   Music,
   Users,
   Loader2,
-  CheckCircle
+  CheckCircle,
+  RefreshCw
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -784,12 +785,12 @@ export default function StoryboardWorkspace() {
     }
   };
 
-  // Validate movie info handler
+  // Validate movie info handler (edit mode)
   const handleValidateMovieInfo = async () => {
     try {
       setIsValidating(true);
       
-      const validateFunction = functions['edit-movie-info'];
+      const validateFunction = functions['validate-movie-info'];
       if (!validateFunction) {
         toast({
           title: "Error",
@@ -878,7 +879,7 @@ export default function StoryboardWorkspace() {
   const handleSaveMovieInfo = async () => {
     try {
       // Check if validation is required
-      const validateFunction = functions['edit-movie-info'];
+      const validateFunction = functions['validate-movie-info'];
       if (validateFunction && validationStatus !== 'valid') {
         toast({
           title: t('validationRequired'),
@@ -925,6 +926,117 @@ export default function StoryboardWorkspace() {
     } finally {
       // Clear loading state
       setLoadingSections(prev => ({ ...prev, movie_info: false }));
+    }
+  };
+
+  // Validate movie info handler (view mode)
+  const handleValidateMovieInfoViewMode = async () => {
+    try {
+      setIsValidating(true);
+      
+      const validateFunction = functions['validate-movie-info'];
+      if (!validateFunction) {
+        toast({
+          title: "Error",
+          description: "Validation function not available",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      const hasCredits = credits >= validateFunction.price;
+      if (!hasCredits) {
+        toast({
+          title: "Insufficient Credits",
+          description: `You need ${validateFunction.price} credits for validation`,
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      const currentMovieData = {
+        title: getMovieInfoValue(job?.movie_info, 'title', ''),
+        logline: getMovieInfoValue(job?.movie_info, 'logline', ''),
+        world: getMovieInfoValue(job?.movie_info, 'world', ''),
+        look: getMovieInfoValue(job?.movie_info, 'look', '')
+      };
+      
+      const result = await executeFunction(validateFunction.id, {
+        movie_info: currentMovieData,
+        job_id: jobId
+      });
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Validation failed');
+      }
+      
+      const response = result.data;
+      
+      if (response.valid) {
+        toast({
+          title: t('validationPassed'),
+          description: "Movie information is valid",
+        });
+      } else {
+        const currentLanguage = (job?.user_input as any)?.language === 'Arabic' ? 'ar' : 'en';
+        const reasonText = response.reason?.[currentLanguage] || response.reason?.en || 'Validation failed';
+        
+        toast({
+          title: t('validationFailed'),
+          description: reasonText,
+          variant: "destructive"
+        });
+      }
+      
+    } catch (error) {
+      console.error('❌ Error validating movie info:', error);
+      toast({
+        title: "Error",
+        description: "Failed to validate movie information",
+        variant: "destructive"
+      });
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  // Regenerate movie info handler
+  const handleRegenerateMovieInfo = async () => {
+    try {
+      const generateFunction = functions['generate-movie-info'];
+      if (!generateFunction) {
+        toast({
+          title: "Error",
+          description: "Generate function not available",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      const hasCredits = credits >= generateFunction.price;
+      if (!hasCredits) {
+        toast({
+          title: "Insufficient Credits",
+          description: `You need ${generateFunction.price} credits to regenerate`,
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Show confirmation dialog
+      const confirmed = confirm(t('regenerateConfirmation') || 'Are you sure you want to regenerate the movie information? This will overwrite existing data.');
+      if (!confirmed) return;
+      
+      // Call the same generate function as initial generation
+      await handleGenerate('movie_info');
+      
+    } catch (error) {
+      console.error('❌ Error regenerating movie info:', error);
+      toast({
+        title: "Error",
+        description: "Failed to regenerate movie information",
+        variant: "destructive"
+      });
     }
   };
 
@@ -1568,25 +1680,65 @@ export default function StoryboardWorkspace() {
                       {isEditing && <Badge variant="secondary">{t('editing')}</Badge>}
                       <CheckCircle className="h-4 w-4 text-green-500" />
                     </CardTitle>
-                    <div className="flex items-center gap-2">
-                      {lastUpdated && (
-                        <div className="text-xs text-muted-foreground">
-                          <Clock className="h-3 w-3 inline mr-1" />
-                          {new Date(lastUpdated).toLocaleString()}
-                        </div>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEditToggle(section.key);
-                        }}
-                        disabled={isAnyEditMode && !isEditing}
-                      >
-                        {isEditing ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
-                      </Button>
-                    </div>
+                     <div className="flex items-center gap-2">
+                       {lastUpdated && (
+                         <div className="text-xs text-muted-foreground">
+                           <Clock className="h-3 w-3 inline mr-1" />
+                           {new Date(lastUpdated).toLocaleString()}
+                         </div>
+                       )}
+                       {/* View mode buttons - only show when not editing */}
+                       {!isEditing && section.key === 'movie_info' && (
+                         <>
+                           {/* Validate Button */}
+                           {functions['validate-movie-info'] && (
+                             <Button
+                               size="sm"
+                               variant="outline"
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 handleValidateMovieInfoViewMode();
+                               }}
+                               disabled={isAnyEditMode || isValidating}
+                             >
+                               {isValidating ? (
+                                 <Loader2 className="h-4 w-4 animate-spin" />
+                               ) : (
+                                 <CheckCircle className="h-4 w-4" />
+                               )}
+                             </Button>
+                           )}
+                           
+                           {/* Regenerate Button */}
+                           {functions['generate-movie-info'] && (
+                             <Button
+                               size="sm"
+                               variant="outline"
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 handleRegenerateMovieInfo();
+                               }}
+                               disabled={isAnyEditMode || loadingSections[section.key]}
+                             >
+                               <section.icon className="h-4 w-4" />
+                             </Button>
+                           )}
+                         </>
+                       )}
+                       
+                       {/* Edit Button */}
+                       <Button
+                         size="sm"
+                         variant="ghost"
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           handleEditToggle(section.key);
+                         }}
+                         disabled={isAnyEditMode && !isEditing}
+                       >
+                         {isEditing ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
+                       </Button>
+                     </div>
                   </div>
                 </CardHeader>
                 
@@ -1718,52 +1870,52 @@ export default function StoryboardWorkspace() {
                           </div>
                         )}
                         
-                        <div className="flex gap-2 items-center flex-wrap">
-                          {/* Validate Button */}
-                          {functions['edit-movie-info'] && (
-                            <Button 
-                              onClick={handleValidateMovieInfo} 
-                              variant="outline" 
-                              className="flex items-center gap-2"
-                              disabled={isValidating || loadingSections.movie_info}
-                            >
-                              {isValidating ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <CheckCircle className="h-4 w-4" />
-                              )}
-                              {isValidating ? t('validating') : t('validate')}
-                              {!isValidating && (
-                                <span className="text-xs opacity-75">
-                                  ({functions['edit-movie-info'].price} {t('credits')})
-                                </span>
-                              )}
-                            </Button>
-                          )}
-                          
-                          {/* Save Button */}
-                          <Button 
-                            onClick={handleSaveMovieInfo} 
-                            variant="default" 
-                            className="flex items-center gap-2"
-                            disabled={
-                              loadingSections.movie_info || 
-                              isValidating ||
-                              (functions['edit-movie-info'] && validationStatus !== 'valid')
-                            }
-                          >
-                            {loadingSections.movie_info ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Save className="h-4 w-4" />
-                            )}
-                            {loadingSections.movie_info ? t('saving') : t('save')}
-                            {functions['edit-movie-info'] && validationStatus !== 'valid' && (
-                              <span className="text-xs opacity-75">
-                                ({t('validationRequired')})
-                              </span>
-                            )}
-                          </Button>
+                         <div className="flex gap-2 items-center flex-wrap">
+                           {/* Validate Button */}
+                           {functions['validate-movie-info'] && (
+                             <Button 
+                               onClick={handleValidateMovieInfo} 
+                               variant="outline" 
+                               className="flex items-center gap-2"
+                               disabled={isValidating || loadingSections.movie_info}
+                             >
+                               {isValidating ? (
+                                 <Loader2 className="h-4 w-4 animate-spin" />
+                               ) : (
+                                 <CheckCircle className="h-4 w-4" />
+                               )}
+                               {isValidating ? t('validating') : t('validate')}
+                               {!isValidating && (
+                                 <span className="text-xs opacity-75">
+                                   ({functions['validate-movie-info'].price} {t('credits')})
+                                 </span>
+                               )}
+                             </Button>
+                           )}
+                           
+                           {/* Save Button */}
+                           <Button 
+                             onClick={handleSaveMovieInfo} 
+                             variant="default" 
+                             className="flex items-center gap-2"
+                             disabled={
+                               loadingSections.movie_info || 
+                               isValidating ||
+                               (functions['validate-movie-info'] && validationStatus !== 'valid')
+                             }
+                           >
+                             {loadingSections.movie_info ? (
+                               <Loader2 className="h-4 w-4 animate-spin" />
+                             ) : (
+                               <Save className="h-4 w-4" />
+                             )}
+                             {loadingSections.movie_info ? t('saving') : t('save')}
+                             {functions['validate-movie-info'] && validationStatus !== 'valid' && (
+                               <span className="text-xs opacity-75">
+                                 ({t('validationRequired')})
+                               </span>
+                             )}
+                           </Button>
                           
                           <Button 
                             onClick={() => {
