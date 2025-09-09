@@ -245,6 +245,9 @@ export default function StoryboardWorkspace() {
         const localizedMovieInfo = getLocalizedMovieInfo(data.movie_info, language);
         setMovieData(localizedMovieInfo);
         setHasMovieInfoResponse(true);
+      } else {
+        // If no movie_info exists, we haven't received a response yet
+        setHasMovieInfoResponse(false);
       }
       
       // Initialize form data from user_input using exact same structure as StoryboardPlayground
@@ -609,6 +612,20 @@ export default function StoryboardWorkspace() {
 
   const firstGenerated = hasFirstGeneration(job);
   const isAnyEditMode = isEditingJobInfo || isEditing;
+  
+  // Debug logging
+  console.log('Movie Info Debug:', {
+    hasJobMovieInfo: job?.movie_info && Object.keys(job.movie_info).length > 0,
+    hasMovieInfoResponse,
+    hasMovieInfo,
+    movieInfoOpen,
+    isEditing,
+    isAnyEditMode,
+    generatingMovieInfo,
+    webhookFailed,
+    isSaving,
+    firstGenerated
+  });
 
   return (
     <div className="container mx-auto px-4 py-8">
