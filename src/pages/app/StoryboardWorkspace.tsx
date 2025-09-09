@@ -36,11 +36,21 @@ export default function StoryboardWorkspace() {
   const [jobInfoOpen, setJobInfoOpen] = useState(false); // Collapsed by default
   const [movieInfoOpen, setMovieInfoOpen] = useState(false); // Collapsed by default
   const [isEditing, setIsEditing] = useState(false);
+  const [isEditingJobInfo, setIsEditingJobInfo] = useState(false);
   const [movieData, setMovieData] = useState({
     title: '',
     logline: '',
     world: '',
     look: ''
+  });
+  const [jobInputData, setJobInputData] = useState({
+    leadName: '',
+    leadGender: '',
+    language: '',
+    accent: '',
+    size: '',
+    prompt: '',
+    genres: [] as string[]
   });
 
   useEffect(() => {
@@ -76,6 +86,20 @@ export default function StoryboardWorkspace() {
           logline: movieInfo.logline || '',
           world: movieInfo.world || '',
           look: movieInfo.look || ''
+        });
+      }
+      
+      // Initialize job input data
+      if (data.user_input && typeof data.user_input === 'object') {
+        const userInput = data.user_input as any;
+        setJobInputData({
+          leadName: userInput.leadName || '',
+          leadGender: userInput.leadGender || '',
+          language: userInput.language || '',
+          accent: userInput.accent || '',
+          size: userInput.size || '',
+          prompt: userInput.prompt || '',
+          genres: userInput.genres || []
         });
       }
       
@@ -122,10 +146,72 @@ export default function StoryboardWorkspace() {
   };
 
   const handleSave = async () => {
-    // TODO: Implement save function - user will specify this later
-    console.log('Save movie data:', movieData);
-    toast.success(t('Movie information saved'));
-    setIsEditing(false);
+    try {
+      const { error } = await supabase
+        .from('storyboard_jobs')
+        .update({ 
+          movie_info: movieData,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', jobId);
+
+      if (error) {
+        console.error('Error saving movie data:', error);
+        toast.error(t('Failed to save movie information'));
+        return;
+      }
+
+      toast.success(t('Movie information saved'));
+      setIsEditing(false);
+      fetchJob(); // Refresh job data
+    } catch (error) {
+      console.error('Error in handleSave:', error);
+      toast.error(t('An unexpected error occurred'));
+    }
+  };
+
+  const handleSaveJobInfo = async () => {
+    try {
+      const { error } = await supabase
+        .from('storyboard_jobs')
+        .update({ 
+          user_input: jobInputData,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', jobId);
+
+      if (error) {
+        console.error('Error saving job input data:', error);
+        toast.error(t('Failed to save job information'));
+        return;
+      }
+
+      toast.success(t('Job information saved'));
+      setIsEditingJobInfo(false);
+      fetchJob(); // Refresh job data
+    } catch (error) {
+      console.error('Error in handleSaveJobInfo:', error);
+      toast.error(t('An unexpected error occurred'));
+    }
+  };
+
+  const handleEditJobInfoToggle = () => {
+    if (isEditingJobInfo) {
+      // Reset data when canceling edit
+      if (job?.user_input && typeof job.user_input === 'object') {
+        const userInput = job.user_input as any;
+        setJobInputData({
+          leadName: userInput.leadName || '',
+          leadGender: userInput.leadGender || '',
+          language: userInput.language || '',
+          accent: userInput.accent || '',
+          size: userInput.size || '',
+          prompt: userInput.prompt || '',
+          genres: userInput.genres || []
+        });
+      }
+    }
+    setIsEditingJobInfo(!isEditingJobInfo);
   };
 
   const handleGenerate = () => {
@@ -196,45 +282,151 @@ export default function StoryboardWorkspace() {
           </div>
         )}
 
-        {/* Job Information - Collapsible and collapsed by default */}
+        {/* Job Information - Collapsible and editable */}
         <Card>
           <Collapsible open={jobInfoOpen} onOpenChange={setJobInfoOpen}>
             <CollapsibleTrigger asChild>
               <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                <CardTitle className="flex items-center gap-2">
-                  {jobInfoOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                  {t('Job Information')}
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    {jobInfoOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    {t('Job Information')}
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="type_4_blue"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditJobInfoToggle();
+                      }}
+                    >
+                      {isEditingJobInfo ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
             </CollapsibleTrigger>
             <CollapsibleContent>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">{t('Lead Character')}</label>
-                    <p className="text-sm">{job.user_input?.leadName || t('Not specified')}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">{t('Gender')}</label>
-                    <p className="text-sm">{job.user_input?.leadGender || t('Not specified')}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">{t('Language')}</label>
-                    <p className="text-sm">{job.user_input?.language || t('Not specified')}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">{t('Accent')}</label>
-                    <p className="text-sm">{job.user_input?.accent || t('Not specified')}</p>
-                  </div>
-                </div>
-                {job.user_input?.genres && (
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">{t('Genres')}</label>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      {job.user_input.genres.map((genre: string) => (
-                        <Badge key={genre} variant="secondary">{genre}</Badge>
-                      ))}
+                {isEditingJobInfo ? (
+                  // Edit Mode
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium">{t('Lead Character')}</label>
+                        <Input
+                          value={jobInputData.leadName}
+                          onChange={(e) => setJobInputData({ ...jobInputData, leadName: e.target.value })}
+                          placeholder={t('Enter lead character name')}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">{t('Gender')}</label>
+                        <Input
+                          value={jobInputData.leadGender}
+                          onChange={(e) => setJobInputData({ ...jobInputData, leadGender: e.target.value })}
+                          placeholder={t('Enter gender')}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">{t('Language')}</label>
+                        <Input
+                          value={jobInputData.language}
+                          onChange={(e) => setJobInputData({ ...jobInputData, language: e.target.value })}
+                          placeholder={t('Enter language')}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">{t('Accent')}</label>
+                        <Input
+                          value={jobInputData.accent}
+                          onChange={(e) => setJobInputData({ ...jobInputData, accent: e.target.value })}
+                          placeholder={t('Enter accent')}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">{t('Size')}</label>
+                        <Input
+                          value={jobInputData.size}
+                          onChange={(e) => setJobInputData({ ...jobInputData, size: e.target.value })}
+                          placeholder={t('Enter size')}
+                        />
+                      </div>
                     </div>
+                    <div>
+                      <label className="text-sm font-medium">{t('Prompt')}</label>
+                      <Textarea
+                        value={jobInputData.prompt}
+                        onChange={(e) => setJobInputData({ ...jobInputData, prompt: e.target.value })}
+                        placeholder={t('Enter prompt')}
+                        rows={4}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">{t('Genres')}</label>
+                      <Input
+                        value={jobInputData.genres.join(', ')}
+                        onChange={(e) => setJobInputData({ ...jobInputData, genres: e.target.value.split(',').map(g => g.trim()).filter(g => g) })}
+                        placeholder={t('Enter genres separated by commas')}
+                      />
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <Button onClick={handleSaveJobInfo} variant="type_2_blue" size="sm">
+                        <Save className="h-4 w-4 mr-2" />
+                        {t('Save')}
+                      </Button>
+                      <Button onClick={handleEditJobInfoToggle} variant="type_3_blue" size="sm">
+                        {t('Cancel')}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  // Read-only Mode
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">{t('Lead Character')}</label>
+                        <p className="text-sm">{jobInputData.leadName || t('Not specified')}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">{t('Gender')}</label>
+                        <p className="text-sm">{jobInputData.leadGender || t('Not specified')}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">{t('Language')}</label>
+                        <p className="text-sm">{jobInputData.language || t('Not specified')}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">{t('Accent')}</label>
+                        <p className="text-sm">{jobInputData.accent || t('Not specified')}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">{t('Size')}</label>
+                        <p className="text-sm">{jobInputData.size || t('Not specified')}</p>
+                      </div>
+                    </div>
+                    {jobInputData.prompt && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">{t('Prompt')}</label>
+                        <p className="text-sm whitespace-pre-wrap">{jobInputData.prompt}</p>
+                      </div>
+                    )}
+                    {jobInputData.genres.length > 0 && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">{t('Genres')}</label>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {jobInputData.genres.map((genre: string) => (
+                            <Badge key={genre} variant="secondary">{genre}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {(job as any)?.input_updated_at && (
+                      <div className="text-xs text-muted-foreground">
+                        {t('Last updated')}: {new Date((job as any).input_updated_at).toLocaleString()}
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
