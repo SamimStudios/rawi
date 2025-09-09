@@ -63,37 +63,25 @@ serve(async (req) => {
 
     console.log('Function details:', functionData);
 
-    // Handle credit deduction for authenticated users
+    // Check if user has sufficient credits before making webhook call
     if (user_id && functionData.price > 0) {
-      console.log(`Attempting to consume ${functionData.price} credits for user ${user_id}`);
+      console.log(`Checking ${functionData.price} credits for user ${user_id}`);
       
-      const { data: creditResult, error: creditError } = await supabase.rpc('consume_credits', {
-        p_user_id: user_id,
-        p_credits: functionData.price,
-        p_description: `${functionData.name} execution`
-      });
+      // First check if user has enough credits without consuming them
+      const { data: userCredits, error: creditsError } = await supabase
+        .from('user_credits')
+        .select('credits')
+        .eq('user_id', user_id)
+        .single();
 
-      if (creditError) {
-        console.error('Error consuming credits:', creditError);
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: 'Failed to process credit transaction' 
-          }),
-          { 
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
-        );
-      }
-
-      if (!creditResult) {
+      if (creditsError || !userCredits || userCredits.credits < functionData.price) {
         console.log('Insufficient credits for user');
         return new Response(
           JSON.stringify({ 
             success: false, 
             error: 'Insufficient credits',
-            required_credits: functionData.price
+            required_credits: functionData.price,
+            available_credits: userCredits?.credits || 0
           }),
           { 
             status: 402,
@@ -102,10 +90,10 @@ serve(async (req) => {
         );
       }
 
-      console.log('Credits consumed successfully');
+      console.log(`User has sufficient credits: ${userCredits.credits}`);
     }
 
-    // Determine webhook URL (use production if available, otherwise test)
+    // Test webhook connectivity first
     const webhookUrl = functionData.production_webhook || functionData.test_webhook;
     
     if (!webhookUrl) {
@@ -117,6 +105,29 @@ serve(async (req) => {
         }),
         { 
           status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    console.log('Testing webhook connectivity to:', webhookUrl);
+    
+    // Simple connectivity test
+    try {
+      const testResponse = await fetch(webhookUrl, { 
+        method: 'HEAD',
+        signal: AbortSignal.timeout(5000)
+      });
+      console.log('Webhook connectivity test result:', testResponse.status);
+    } catch (testError) {
+      console.error('Webhook connectivity test failed:', testError);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Webhook endpoint not accessible: ${testError.message}` 
+        }),
+        { 
+          status: 503,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
@@ -177,6 +188,25 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
+    }
+
+    // Now that webhook succeeded, consume the credits
+    if (user_id && functionData.price > 0) {
+      console.log(`Consuming ${functionData.price} credits for user ${user_id} after successful webhook`);
+      
+      const { data: creditResult, error: creditError } = await supabase.rpc('consume_credits', {
+        p_user_id: user_id,
+        p_credits: functionData.price,
+        p_description: `${functionData.name} execution`
+      });
+
+      if (creditError || !creditResult) {
+        console.error('Error consuming credits after successful webhook:', creditError);
+        // Note: We don't return an error here since the webhook succeeded
+        // This is a billing issue, not a functional failure
+      } else {
+        console.log('Credits consumed successfully after webhook completion');
+      }
     }
 
     // For storyboard jobs, update the job with the webhook response
