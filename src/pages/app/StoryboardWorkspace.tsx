@@ -46,11 +46,20 @@ export default function StoryboardWorkspace() {
   const [jobInputData, setJobInputData] = useState({
     leadName: '',
     leadGender: '',
+    leadAiCharacter: false,
     language: '',
     accent: '',
     size: '',
     prompt: '',
-    genres: [] as string[]
+    genres: [] as string[],
+    faceImage: null as string | null,
+    supportingCharacters: [] as Array<{
+      id: string;
+      name: string;
+      gender: string;
+      aiFace: boolean;
+      faceImage?: string;
+    }>
   });
 
   useEffect(() => {
@@ -95,11 +104,14 @@ export default function StoryboardWorkspace() {
         setJobInputData({
           leadName: userInput.leadName || '',
           leadGender: userInput.leadGender || '',
+          leadAiCharacter: userInput.leadAiCharacter || false,
           language: userInput.language || '',
           accent: userInput.accent || '',
           size: userInput.size || '',
           prompt: userInput.prompt || '',
-          genres: userInput.genres || []
+          genres: userInput.genres || [],
+          faceImage: userInput.faceImage || null,
+          supportingCharacters: userInput.supportingCharacters || []
         });
       }
       
@@ -203,11 +215,14 @@ export default function StoryboardWorkspace() {
         setJobInputData({
           leadName: userInput.leadName || '',
           leadGender: userInput.leadGender || '',
+          leadAiCharacter: userInput.leadAiCharacter || false,
           language: userInput.language || '',
           accent: userInput.accent || '',
           size: userInput.size || '',
           prompt: userInput.prompt || '',
-          genres: userInput.genres || []
+          genres: userInput.genres || [],
+          faceImage: userInput.faceImage || null,
+          supportingCharacters: userInput.supportingCharacters || []
         });
       }
     }
@@ -354,6 +369,78 @@ export default function StoryboardWorkspace() {
                         />
                       </div>
                     </div>
+                    
+                    {/* AI Character Toggle */}
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="leadAiCharacter"
+                        checked={jobInputData.leadAiCharacter}
+                        onChange={(e) => setJobInputData({ ...jobInputData, leadAiCharacter: e.target.checked })}
+                        className="rounded border-gray-300"
+                      />
+                      <label htmlFor="leadAiCharacter" className="text-sm font-medium">{t('AI Generated Character')}</label>
+                    </div>
+
+                    {/* Face Reference */}
+                    {!jobInputData.leadAiCharacter && (
+                      <div>
+                        <label className="text-sm font-medium">{t('Face Reference')}</label>
+                        <div className="mt-2 text-sm text-muted-foreground">
+                          {jobInputData.faceImage ? t('Face image uploaded') : t('No face image uploaded')}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Supporting Characters */}
+                    {jobInputData.supportingCharacters.length > 0 && (
+                      <div>
+                        <label className="text-sm font-medium">{t('Supporting Characters')}</label>
+                        <div className="space-y-2 mt-2">
+                          {jobInputData.supportingCharacters.map((char, index) => (
+                            <div key={char.id} className="border rounded p-3 space-y-2">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                <Input
+                                  value={char.name}
+                                  onChange={(e) => {
+                                    const updated = [...jobInputData.supportingCharacters];
+                                    updated[index] = { ...char, name: e.target.value };
+                                    setJobInputData({ ...jobInputData, supportingCharacters: updated });
+                                  }}
+                                  placeholder={t('Character name')}
+                                />
+                                <Input
+                                  value={char.gender}
+                                  onChange={(e) => {
+                                    const updated = [...jobInputData.supportingCharacters];
+                                    updated[index] = { ...char, gender: e.target.value };
+                                    setJobInputData({ ...jobInputData, supportingCharacters: updated });
+                                  }}
+                                  placeholder={t('Gender')}
+                                />
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  checked={char.aiFace}
+                                  onChange={(e) => {
+                                    const updated = [...jobInputData.supportingCharacters];
+                                    updated[index] = { ...char, aiFace: e.target.checked };
+                                    setJobInputData({ ...jobInputData, supportingCharacters: updated });
+                                  }}
+                                  className="rounded border-gray-300"
+                                />
+                                <label className="text-sm">{t('AI Generated Face')}</label>
+                              </div>
+                              {char.faceImage && !char.aiFace && (
+                                <div className="text-xs text-muted-foreground">{t('Face image uploaded')}</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
                     <div>
                       <label className="text-sm font-medium">{t('Prompt')}</label>
                       <Textarea
@@ -406,6 +493,40 @@ export default function StoryboardWorkspace() {
                         <p className="text-sm">{jobInputData.size || t('Not specified')}</p>
                       </div>
                     </div>
+                    
+                    {/* AI Character Display */}
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">{t('AI Generated Character')}</label>
+                      <p className="text-sm">{jobInputData.leadAiCharacter ? t('Yes') : t('No')}</p>
+                    </div>
+
+                    {/* Face Reference Display */}
+                    {!jobInputData.leadAiCharacter && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">{t('Face Reference')}</label>
+                        <p className="text-sm">{jobInputData.faceImage ? t('Face image uploaded') : t('No face image uploaded')}</p>
+                      </div>
+                    )}
+
+                    {/* Supporting Characters Display */}
+                    {jobInputData.supportingCharacters.length > 0 && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">{t('Supporting Characters')}</label>
+                        <div className="space-y-2 mt-1">
+                          {jobInputData.supportingCharacters.map((char, index) => (
+                            <div key={char.id} className="border rounded p-2 bg-muted/20">
+                              <div className="text-sm">
+                                <strong>{char.name || t('Unnamed')}</strong> - {char.gender || t('Unspecified gender')}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {char.aiFace ? t('AI Generated Face') : (char.faceImage ? t('Custom face image') : t('No face image'))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
                     {jobInputData.prompt && (
                       <div>
                         <label className="text-sm font-medium text-muted-foreground">{t('Prompt')}</label>
