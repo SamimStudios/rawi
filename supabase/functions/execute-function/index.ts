@@ -211,12 +211,20 @@ serve(async (req) => {
 
     // For storyboard jobs, update the job with the webhook response
     if (payload.table_id === 'storyboard_jobs' && payload.row_id) {
+      const updateData: any = { 
+        n8n_response: webhookResult,
+        updated_at: new Date().toISOString()
+      };
+
+      // If webhook response contains movie_info, also set movie_info_updated_at
+      if (webhookResult && typeof webhookResult === 'object' && webhookResult.movie_info) {
+        updateData.movie_info = webhookResult.movie_info;
+        updateData.movie_info_updated_at = new Date().toISOString();
+      }
+
       const { error: updateError } = await supabase
         .from('storyboard_jobs')
-        .update({ 
-          n8n_response: webhookResult,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', payload.row_id);
 
       if (updateError) {

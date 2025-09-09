@@ -64,7 +64,7 @@ interface StoryboardJob {
 export default function StoryboardWorkspace() {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
-  const { t, isRTL } = useLanguage();
+  const { t, isRTL, language } = useLanguage();
   const { user } = useAuth();
   const { sessionId } = useGuestSession();
   
@@ -107,6 +107,25 @@ export default function StoryboardWorkspace() {
   }>>([]);
   const [supportingCollapsed, setSupportingCollapsed] = useState(true);
   const [templates, setTemplates] = useState<Array<{id: string, name: string, description: string}>>([]);
+
+  // Helper function to get localized movie info based on current language
+  const getLocalizedMovieInfo = (movieInfo: any, currentLanguage: 'ar' | 'en') => {
+    if (currentLanguage === 'ar' && movieInfo.ar) {
+      return {
+        title: movieInfo.ar.title || movieInfo.title || '',
+        logline: movieInfo.ar.logline || movieInfo.logline || '',
+        world: movieInfo.ar.world || movieInfo.world || '',
+        look: movieInfo.ar.look || movieInfo.look || ''
+      };
+    }
+    
+    return {
+      title: movieInfo.title || '',
+      logline: movieInfo.logline || '',
+      world: movieInfo.world || '',
+      look: movieInfo.look || ''
+    };
+  };
 
   // Helper function to get translated genre names
   const getTranslatedGenres = (genreValues: string[]) => {
@@ -216,15 +235,10 @@ export default function StoryboardWorkspace() {
 
       setJob(data);
       
-      // Initialize movie data from the job
+      // Initialize movie data from the job using localized content
       if (data.movie_info && typeof data.movie_info === 'object') {
-        const movieInfo = data.movie_info as any;
-        setMovieData({
-          title: movieInfo.title || '',
-          logline: movieInfo.logline || '',
-          world: movieInfo.world || '',
-          look: movieInfo.look || ''
-        });
+        const localizedMovieInfo = getLocalizedMovieInfo(data.movie_info, language);
+        setMovieData(localizedMovieInfo);
       }
       
       // Initialize form data from user_input using exact same structure as StoryboardPlayground
@@ -279,15 +293,10 @@ export default function StoryboardWorkspace() {
           const newData = payload.new as StoryboardJob;
           setJob(newData);
           
-          // Handle movie_info updates
+          // Handle movie_info updates using localized content
           if (newData.movie_info && Object.keys(newData.movie_info).length > 0) {
-            const movieInfo = newData.movie_info as any;
-            setMovieData({
-              title: movieInfo.title || '',
-              logline: movieInfo.logline || '',
-              world: movieInfo.world || '',
-              look: movieInfo.look || ''
-            });
+            const localizedMovieInfo = getLocalizedMovieInfo(newData.movie_info, language);
+            setMovieData(localizedMovieInfo);
             
             // Hide loading state if we were generating
             if (generatingMovieInfo) {
@@ -311,7 +320,15 @@ export default function StoryboardWorkspace() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [jobId, generatingMovieInfo, t]);
+  }, [jobId, generatingMovieInfo, t, language]);
+
+  // Update movie data when language changes
+  useEffect(() => {
+    if (job?.movie_info && typeof job.movie_info === 'object') {
+      const localizedMovieInfo = getLocalizedMovieInfo(job.movie_info, language);
+      setMovieData(localizedMovieInfo);
+    }
+  }, [language, job?.movie_info]);
 
   const handleGenerateMovieInfo = async () => {
     if (!jobId) return;
@@ -388,15 +405,10 @@ export default function StoryboardWorkspace() {
     }
 
     if (isEditing) {
-      // Reset data when canceling edit
+      // Reset data when canceling edit using localized content
       if (job?.movie_info && typeof job.movie_info === 'object') {
-        const movieInfo = job.movie_info as any;
-        setMovieData({
-          title: movieInfo.title || '',
-          logline: movieInfo.logline || '',
-          world: movieInfo.world || '',
-          look: movieInfo.look || ''
-        });
+        const localizedMovieInfo = getLocalizedMovieInfo(job.movie_info, language);
+        setMovieData(localizedMovieInfo);
       }
     }
     setIsEditing(!isEditing);
@@ -437,6 +449,7 @@ export default function StoryboardWorkspace() {
         .from('storyboard_jobs')
         .update({ 
           movie_info: movieData,
+          movie_info_updated_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
         .eq('id', jobId);

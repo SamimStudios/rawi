@@ -667,6 +667,7 @@ export type Database = {
           id: string
           input_updated_at: string | null
           movie_info: Json | null
+          movie_info_updated_at: string | null
           n8n_response: Json | null
           n8n_webhook_sent: boolean
           result_data: Json | null
@@ -683,6 +684,7 @@ export type Database = {
           id?: string
           input_updated_at?: string | null
           movie_info?: Json | null
+          movie_info_updated_at?: string | null
           n8n_response?: Json | null
           n8n_webhook_sent?: boolean
           result_data?: Json | null
@@ -699,6 +701,7 @@ export type Database = {
           id?: string
           input_updated_at?: string | null
           movie_info?: Json | null
+          movie_info_updated_at?: string | null
           n8n_response?: Json | null
           n8n_webhook_sent?: boolean
           result_data?: Json | null
