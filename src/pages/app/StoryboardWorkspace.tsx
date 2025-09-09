@@ -317,7 +317,6 @@ export default function StoryboardWorkspace() {
     if (!jobId) return;
     
     setGeneratingMovieInfo(true);
-    setMovieInfoOpen(true); // Open the movie info section immediately
     
     try {
       // Get the movie info generation function ID (assuming it's stored in functions table)
@@ -355,6 +354,8 @@ export default function StoryboardWorkspace() {
         throw new Error(data?.error || 'Movie info generation was rejected');
       }
       
+      // Only show section after webhook success
+      setMovieInfoOpen(true);
       toast.success(t('Movie info generation started...'));
       
     } catch (error) {
@@ -1144,32 +1145,41 @@ export default function StoryboardWorkspace() {
                       </div>
                     </div>
                   ) : (
-                    // Read-only view
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    // Read-only view with improved design
+                    <div className="space-y-6">
+                      {/* Important fields - full row, bigger font, bolder */}
+                      <div className="space-y-4">
                         <div>
-                          <span className="font-medium">{t('movieTitle')}: </span>
-                          <span>{movieData.title || t('notAvailable')}</span>
+                          <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-1">{t('movieTitle')}</div>
+                          <div className="text-xl font-bold text-foreground">{movieData.title || t('notAvailable')}</div>
                         </div>
+                        
+                        {movieData.logline && (
+                          <div>
+                            <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-1">{t('movieLogline')}</div>
+                            <div className="text-lg font-semibold text-foreground leading-relaxed">{movieData.logline}</div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Regular importance fields */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <span className="font-medium">{t('movieWorld')}: </span>
-                          <span>{movieData.world || t('notAvailable')}</span>
+                          <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-1">{t('movieWorld')}</div>
+                          <div className="text-base text-foreground">{movieData.world || t('notAvailable')}</div>
                         </div>
-                        <div className="md:col-span-2">
-                          <span className="font-medium">{t('movieLook')}: </span>
-                          <span>{movieData.look || t('notAvailable')}</span>
+                        
+                        <div>
+                          <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-1">{t('movieLook')}</div>
+                          <div className="text-base text-foreground">{movieData.look || t('notAvailable')}</div>
                         </div>
                       </div>
                       
-                      {movieData.logline && (
-                        <div>
-                          <span className="font-medium">{t('movieLogline')}: </span>
-                          <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{movieData.logline}</p>
+                      {/* Less important info - smaller, lighter */}
+                      <div className="pt-2 border-t border-border">
+                        <div className="text-xs text-muted-foreground">
+                          {t('lastUpdated')}: {job?.updated_at ? new Date(job.updated_at).toLocaleString() : t('notAvailable')}
                         </div>
-                      )}
-                      
-                      <div className="text-xs text-muted-foreground">
-                        {t('lastUpdated')}: {job?.updated_at ? new Date(job.updated_at).toLocaleString() : t('notAvailable')}
                       </div>
                     </div>
                   )}
