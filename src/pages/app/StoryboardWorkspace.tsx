@@ -812,7 +812,7 @@ export default function StoryboardWorkspace() {
       
       setValidationStatus('validating');
       
-      const result = await executeFunction(validateFunction.id, {
+      const result = await executeFunction('validate-movie-info', {
         movie_info: movieData,
         job_id: jobId
       });
@@ -961,7 +961,7 @@ export default function StoryboardWorkspace() {
         look: getMovieInfoValue(job?.movie_info, 'look', '')
       };
       
-      const result = await executeFunction(validateFunction.id, {
+      const result = await executeFunction('validate-movie-info', {
         movie_info: currentMovieData,
         job_id: jobId
       });
@@ -1720,7 +1720,7 @@ export default function StoryboardWorkspace() {
                                }}
                                disabled={isAnyEditMode || loadingSections[section.key]}
                              >
-                               <section.icon className="h-4 w-4" />
+                               <RefreshCw className="h-4 w-4" />
                              </Button>
                            )}
                          </>
