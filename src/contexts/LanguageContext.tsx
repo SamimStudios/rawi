@@ -420,6 +420,11 @@ const translations = {
     'Failed to upload image': 'Failed to upload image',
     'Upload Image': 'Upload Image',
     'Remove': 'Remove',
+    'Add Character': 'Add Character',
+    'Character': 'Character',
+    'Enter character name': 'Enter character name',
+    'Use AI Generated Face': 'Use AI generated face',
+    'No supporting characters': 'No supporting characters added yet',
     'Uploading': 'Uploading...',
     'Lead Character': 'Lead Character',
     'Language': 'Language',
@@ -1080,6 +1085,11 @@ const translations = {
     'Failed to upload image': 'فشل في رفع الصورة',
     'Upload Image': 'رفع صورة',
     'Remove': 'إزالة',
+    'Add Character': 'إضافة شخصية',
+    'Character': 'الشخصية',
+    'Enter character name': 'أدخل اسم الشخصية',
+    'Use AI Generated Face': 'استخدام وجه مُولّد بالذكاء الاصطناعي',
+    'No supporting characters': 'لم تتم إضافة شخصيات مساعدة بعد',
     'Uploading': 'جاري الرفع...',
   }
 };

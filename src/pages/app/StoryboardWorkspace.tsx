@@ -315,6 +315,79 @@ export default function StoryboardWorkspace() {
     setFaceImagePreview(null);
   };
 
+  // Supporting character management functions
+  const addSupportingCharacter = () => {
+    const newCharacter = {
+      id: Date.now().toString(),
+      name: '',
+      gender: '',
+      aiFace: false,
+      faceImagePreview: undefined
+    };
+    setSupportingCharacters(prev => [...prev, newCharacter]);
+  };
+
+  const removeSupportingCharacter = (characterId: string) => {
+    setSupportingCharacters(prev => prev.filter(char => char.id !== characterId));
+  };
+
+  const updateSupportingCharacter = (characterId: string, field: string, value: any) => {
+    setSupportingCharacters(prev => prev.map(char => 
+      char.id === characterId ? { ...char, [field]: value } : char
+    ));
+  };
+
+  const removeSupportingCharacterImage = (characterId: string) => {
+    setSupportingCharacters(prev => prev.map(char => 
+      char.id === characterId ? { ...char, faceImagePreview: undefined, faceImage: undefined } : char
+    ));
+  };
+
+  const handleSupportingCharacterImageUpload = async (characterId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please select an image under 5MB",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Set uploading state for this character
+    setSupportingCharacters(prev => prev.map(char => 
+      char.id === characterId ? { ...char, isUploading: true } : char
+    ));
+
+    try {
+      const imageUrl = await uploadImageToStorage(file);
+      
+      setSupportingCharacters(prev => prev.map(char => 
+        char.id === characterId 
+          ? { ...char, faceImagePreview: imageUrl, faceImage: file, isUploading: false }
+          : char
+      ));
+      
+      toast({
+        title: t('imageUploaded'),
+        description: t('imageUploadedSuccessfully')
+      });
+    } catch (error) {
+      console.error('Error uploading character image:', error);
+      setSupportingCharacters(prev => prev.map(char => 
+        char.id === characterId ? { ...char, isUploading: false } : char
+      ));
+      toast({
+        title: "Error",
+        description: t('imageUploadFailed'),
+        variant: "destructive"
+      });
+    }
+  };
+
   // Progressive section visibility logic
   const getSectionVisibility = () => {
     if (!job) return { visibleSections: ['input'], nextSection: null };
@@ -1145,6 +1218,131 @@ export default function StoryboardWorkspace() {
                          </div>
                        </div>
                      )}
+                   </div>
+
+                   {/* Supporting Characters */}
+                   <div className="space-y-4">
+                     <div className="flex items-center justify-between">
+                       <label className="text-sm font-medium">{t('supportingCharacters')}</label>
+                       <Button
+                         type="button"
+                         size="sm"
+                         variant="outline"
+                         onClick={addSupportingCharacter}
+                         disabled={supportingCharacters.length >= 3}
+                       >
+                         <Users className="h-4 w-4 mr-2" />
+                         {t('addCharacter')}
+                       </Button>
+                     </div>
+                     
+                     <div className="space-y-3">
+                       {supportingCharacters.map((character, index) => (
+                         <div key={character.id} className="border rounded-lg p-4 space-y-3">
+                           <div className="flex items-center justify-between">
+                             <h4 className="font-medium">{t('character')} {index + 1}</h4>
+                             <Button
+                               type="button"
+                               size="sm"
+                               variant="ghost"
+                               onClick={() => removeSupportingCharacter(character.id)}
+                             >
+                               <X className="h-4 w-4" />
+                             </Button>
+                           </div>
+                           
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                             <div>
+                               <label className="text-sm font-medium">{t('name')} *</label>
+                               <Input
+                                 value={character.name}
+                                 onChange={(e) => updateSupportingCharacter(character.id, 'name', e.target.value)}
+                                 placeholder={t('enterCharacterName')}
+                               />
+                             </div>
+                             <div>
+                               <label className="text-sm font-medium">{t('gender')} *</label>
+                               <Select 
+                                 value={character.gender} 
+                                 onValueChange={(value) => updateSupportingCharacter(character.id, 'gender', value)}
+                               >
+                                 <SelectTrigger>
+                                   <SelectValue placeholder={t('selectGender')} />
+                                 </SelectTrigger>
+                                 <SelectContent>
+                                   <SelectItem value="male">{t('male')}</SelectItem>
+                                   <SelectItem value="female">{t('female')}</SelectItem>
+                                 </SelectContent>
+                               </Select>
+                             </div>
+                           </div>
+                           
+                           <div className="space-y-2">
+                             <label className="text-sm font-medium">{t('faceReferenceImage')}</label>
+                             {character.faceImagePreview && !character.aiFace ? (
+                               <div className="flex items-center gap-4">
+                                 <img 
+                                   src={character.faceImagePreview} 
+                                   alt={character.name} 
+                                   className="w-16 h-16 rounded-lg object-cover border" 
+                                 />
+                                 <div className="space-y-2">
+                                   <p className="text-sm text-muted-foreground">{t('faceImageUploaded')}</p>
+                                   <Button
+                                     type="button"
+                                     variant="outline"
+                                     size="sm"
+                                     onClick={() => removeSupportingCharacterImage(character.id)}
+                                   >
+                                     {t('remove')}
+                                   </Button>
+                                 </div>
+                               </div>
+                             ) : (
+                               <div className="space-y-2">
+                                 <div className="flex items-center gap-2 mb-2">
+                                   <input
+                                     type="checkbox"
+                                     id={`ai-face-${character.id}`}
+                                     checked={character.aiFace}
+                                     onChange={(e) => updateSupportingCharacter(character.id, 'aiFace', e.target.checked)}
+                                   />
+                                   <label htmlFor={`ai-face-${character.id}`} className="text-sm">
+                                     {t('useAIGeneratedFace')}
+                                   </label>
+                                 </div>
+                                 
+                                 {!character.aiFace && (
+                                   <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center">
+                                     <input
+                                       id={`character-image-${character.id}`}
+                                       type="file"
+                                       accept="image/*"
+                                       className="hidden"
+                                       onChange={(e) => handleSupportingCharacterImageUpload(character.id, e)}
+                                     />
+                                     <Button
+                                       type="button"
+                                       variant="outline"
+                                       size="sm"
+                                       onClick={() => document.getElementById(`character-image-${character.id}`)?.click()}
+                                     >
+                                       {t('uploadImage')}
+                                     </Button>
+                                   </div>
+                                 )}
+                               </div>
+                             )}
+                           </div>
+                         </div>
+                       ))}
+                       
+                       {supportingCharacters.length === 0 && (
+                         <p className="text-sm text-muted-foreground text-center py-4">
+                           {t('noSupportingCharacters')}
+                         </p>
+                       )}
+                     </div>
                    </div>
                    
                    {/* Language & Accent */}
