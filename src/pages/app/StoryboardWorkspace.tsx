@@ -964,37 +964,53 @@ export default function StoryboardWorkspace() {
                     </div>
                   </div>
                 ) : (
-                  // Read-only view
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  // Read-only view with improved design
+                  <div className="space-y-6">
+                    {/* Important fields - full row, bigger font, bolder */}
+                    <div className="space-y-4">
                       <div>
-                        <span className="font-medium">{t('leadCharacter')}: </span>
-                        <span>{formData.leadName || t('notSpecified')}</span>
+                        <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-1">{t('leadCharacter')}</div>
+                        <div className="text-xl font-bold text-foreground">{formData.leadName || t('notSpecified')}</div>
                       </div>
+                      
+                      {formData.prompt && (
+                        <div>
+                          <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-1">{t('prompt')}</div>
+                          <div className="text-lg font-semibold text-foreground leading-relaxed">{formData.prompt}</div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Regular importance fields */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <span className="font-medium">{t('gender')}: </span>
-                        <span>{formData.leadGender ? t(formData.leadGender) : t('notSpecified')}</span>
+                        <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-1">{t('gender')}</div>
+                        <div className="text-base text-foreground">{formData.leadGender ? t(formData.leadGender) : t('notSpecified')}</div>
                       </div>
+                      
                       <div>
-                        <span className="font-medium">{t('language')}: </span>
-                        <span>{formData.language ? t(LANGUAGES.find(l => l.value === formData.language)?.key || formData.language) : t('notSpecified')}</span>
+                        <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-1">{t('language')}</div>
+                        <div className="text-base text-foreground">{formData.language ? t(LANGUAGES.find(l => l.value === formData.language)?.key || formData.language) : t('notSpecified')}</div>
                       </div>
+                      
                       <div>
-                        <span className="font-medium">{t('accent')}: </span>
-                        <span>{formData.accent || t('notSpecified')}</span>
+                        <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-1">{t('accent')}</div>
+                        <div className="text-base text-foreground">{formData.accent || t('notSpecified')}</div>
                       </div>
-                      <div className="md:col-span-2">
-                        <span className="font-medium">{t('aiGeneratedCharacter')}: </span>
-                        <span>{formData.leadAiCharacter ? t('yes') : t('no')}</span>
+                      
+                      <div>
+                        <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-1">{t('aiGeneratedCharacter')}</div>
+                        <div className="text-base text-foreground">{formData.leadAiCharacter ? t('yes') : t('no')}</div>
                       </div>
                     </div>
                     
+                    {/* Genres section */}
                     {selectedGenres.length > 0 && (
                       <div>
-                        <span className="font-medium">{t('genres')}: </span>
-                        <div className="flex flex-wrap gap-1 mt-1">
+                        <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-2">{t('genres')}</div>
+                        <div className="flex flex-wrap gap-2">
                           {selectedGenres.map(genre => (
-                            <Badge key={genre} variant="outline" className="text-xs">
+                            <Badge key={genre} variant="outline" className="text-sm">
                               {t(GENRE_OPTIONS.find(g => g.value === genre)?.key || genre)}
                             </Badge>
                           ))}
@@ -1002,28 +1018,28 @@ export default function StoryboardWorkspace() {
                       </div>
                     )}
 
+                    {/* Supporting Characters section */}
                     {supportingCharacters.length > 0 && (
                       <div>
-                        <span className="font-medium">{t('supportingCharacters')}: </span>
-                        <div className="mt-2 space-y-2">
+                        <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-2">{t('supportingCharacters')}</div>
+                        <div className="space-y-2">
                           {supportingCharacters.map((char, index) => (
-                            <div key={char.id} className="text-sm bg-muted/50 rounded p-2">
-                              <div>{char.name} ({char.gender}) - {char.aiFace ? t('aiGenerated') : t('faceReference')}</div>
+                            <div key={char.id} className="bg-muted/30 rounded-lg p-3 border">
+                              <div className="font-medium text-foreground">{char.name}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {t(char.gender)} • {char.aiFace ? t('aiGenerated') : t('faceReference')}
+                              </div>
                             </div>
                           ))}
                         </div>
                       </div>
                     )}
                     
-                    {formData.prompt && (
-                      <div>
-                        <span className="font-medium">{t('prompt')}: </span>
-                        <p className="text-sm text-muted-foreground mt-1">{formData.prompt}</p>
+                    {/* Less important info - smaller, lighter */}
+                    <div className="pt-2 border-t border-border">
+                      <div className="text-xs text-muted-foreground">
+                        {t('Last Updated')}: {job?.updated_at ? new Date(job.updated_at).toLocaleString() : t('Not Available')}
                       </div>
-                    )}
-                    
-                    <div className="text-xs text-muted-foreground">
-                      {t('Last Updated')}: {job?.updated_at ? new Date(job.updated_at).toLocaleString() : t('Not Available')}
                     </div>
                   </div>
                 )}
