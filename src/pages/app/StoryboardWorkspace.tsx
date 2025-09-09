@@ -320,18 +320,25 @@ export default function StoryboardWorkspace() {
 
   const handleSaveJobInfo = async () => {
     try {
-      // Convert supporting characters to JSON-serializable format
+      // Convert supporting characters to JSON-serializable format matching StoryboardPlayground structure
       const processedSupportingCharacters = supportingCharacters.map(char => ({
-        ...char,
-        faceImage: undefined, // Remove File object
-        faceImagePreview: char.faceImagePreview // Keep the base64 string
+        id: char.id,
+        name: char.name,
+        gender: char.gender,
+        aiFace: char.aiFace,
+        faceImage: char.faceImagePreview || null,
+        faceImageType: char.faceImage?.type || null
       }));
 
+      // Create the exact same structure as StoryboardPlayground sends
       const jobData = {
         ...formData,
         genres: selectedGenres,
         supportingCharacters: processedSupportingCharacters,
-        faceImage: faceImagePreview
+        faceImage: faceImagePreview,
+        faceImageType: faceImage?.type || null,
+        userId: user?.id || null,
+        sessionId: sessionId || null
       };
 
       const { error } = await supabase
