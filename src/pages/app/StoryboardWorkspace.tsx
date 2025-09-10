@@ -782,7 +782,7 @@ export default function StoryboardWorkspace() {
     // Return the parsed data from the envelope
     return {
       success: envelope?.status === 'success',
-      data: envelope?.data?.parsed || envelope?.data?.raw_response,
+      data: envelope?.data || envelope?.data?.parsed || envelope?.data?.raw_response,
       envelope, // Include full envelope for debugging/logging
       request_id: envelope?.request_id,
       credits_consumed: envelope?.meta?.credits_consumed || 0
