@@ -37,8 +37,18 @@ export default function N8NTest() {
     }
     
     if (envelope?.status === 'error') {
-      const errorMessage = envelope.error?.message || 'Function execution failed';
-      throw new Error(typeof errorMessage === 'string' ? errorMessage : errorMessage.en || 'Function execution failed');
+      // Handle bilingual error messages
+      let errorMessage = envelope.error?.message || 'Function execution failed';
+      if (typeof errorMessage === 'object' && errorMessage.en) {
+        errorMessage = errorMessage.en;
+      }
+      
+      // Include error details if available
+      if (envelope.error?.details) {
+        errorMessage += ` (Details: ${JSON.stringify(envelope.error.details)})`;
+      }
+      
+      throw new Error(errorMessage);
     }
     
     return envelope;
@@ -48,8 +58,27 @@ export default function N8NTest() {
     setLoading(prev => ({ ...prev, generateMovie: true }));
     
     try {
+      // First create a storyboard job to get a row_id
+      const { data: job, error: jobError } = await supabase
+        .from('storyboard_jobs')
+        .insert({
+          user_input: {
+            prompt: `Create a movie with title: ${testPayload.movieTitle}, logline: ${testPayload.logline}`
+          },
+          user_id: user?.id || null,
+          session_id: user ? null : 'test-session'
+        })
+        .select('id')
+        .single();
+
+      if (jobError || !job) {
+        throw new Error(`Failed to create test job: ${jobError?.message}`);
+      }
+
+      // Now call the function with proper payload
       const result = await executeFunction('e9ec8814-cef4-4e3d-adf1-deaa16d47dd0', {
-        prompt: `Create a movie with title: ${testPayload.movieTitle}, logline: ${testPayload.logline}`
+        table_id: 'storyboard_jobs',
+        row_id: job.id
       });
       
       setResults(prev => ({ ...prev, generateMovie: result }));
@@ -75,10 +104,12 @@ export default function N8NTest() {
     
     try {
       const result = await executeFunction('17c13967-cf25-484d-87a2-16895116b408', {
-        title: testPayload.movieTitle,
-        logline: testPayload.logline,
-        world: testPayload.world,
-        look: testPayload.look
+        movie_info: {
+          title: testPayload.movieTitle,
+          logline: testPayload.logline,
+          world: testPayload.world,
+          look: testPayload.look
+        }
       });
       
       setResults(prev => ({ ...prev, validateMovie: result }));
