@@ -2205,6 +2205,27 @@ export default function StoryboardWorkspace() {
                                 <div>{getMovieInfoValue(job.movie_info, 'look', t('notAvailable'))}</div>
                               </div>
                             </div>
+                            {job.movie_info?.characters && (
+                              <div>
+                                <div className="text-sm font-medium text-primary mb-2">{t('initialCharacters')}</div>
+                                <div className="grid grid-cols-2 gap-4">
+                                  {job.movie_info.characters.lead && (
+                                    <div className="p-3 bg-muted/50 rounded-lg">
+                                      <div className="text-xs font-medium text-muted-foreground mb-1">{t('leadCharacter')}</div>
+                                      <div className="font-medium">{job.movie_info.characters.lead.name || t('notAvailable')}</div>
+                                      <div className="text-sm text-muted-foreground">{job.movie_info.characters.lead.gender || t('notAvailable')}</div>
+                                    </div>
+                                  )}
+                                  {job.movie_info.characters.supporting && (
+                                    <div className="p-3 bg-muted/50 rounded-lg">
+                                      <div className="text-xs font-medium text-muted-foreground mb-1">{t('supportingCharacter')}</div>
+                                      <div className="font-medium">{job.movie_info.characters.supporting.name || t('notAvailable')}</div>
+                                      <div className="text-sm text-muted-foreground">{job.movie_info.characters.supporting.gender || t('notAvailable')}</div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </>
                         ) : (
                           <div className="text-center text-muted-foreground">
