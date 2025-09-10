@@ -208,7 +208,12 @@ export default function StoryboardWorkspace() {
   
   // Warning dialog state
   const [showEditWarning, setShowEditWarning] = useState(false);
-  const [pendingEdit, setPendingEdit] = useState<{ section: string; hasLaterData: boolean } | null>(null);
+  const [pendingEdit, setPendingEdit] = useState<{ section: string; hasLaterData: boolean; affectedSections: string[] } | null>(null);
+  
+  // Enhanced edit impact state
+  const [affectedSections, setAffectedSections] = useState<string[]>([]);
+  const [overrideMode, setOverrideMode] = useState(false);
+  const [sectionWarnings, setSectionWarnings] = useState<Record<string, boolean>>({});
 
   console.log('🚀 StoryboardWorkspace render:', {
     jobId,
@@ -430,23 +435,109 @@ export default function StoryboardWorkspace() {
     return { visibleSections, nextSection };
   };
 
-  // Check if editing a section would affect later sections
-  const checkEditImpact = (sectionKey: string) => {
-    if (!job) return false;
+  // Get sections affected by editing a specific section (using timestamps)
+  const getAffectedSections = (sectionKey: string): string[] => {
+    if (!job) return [];
     
     const sectionIndex = SECTIONS.findIndex(s => s.key === sectionKey);
-    if (sectionIndex === -1) return false;
+    if (sectionIndex === -1) return [];
     
-    // Check if any later sections have data
+    const affected: string[] = [];
+    const currentTimestamp = job[`${sectionKey}_updated_at` as keyof StoryboardJob] as string | null;
+    
+    // If current section has no timestamp, check if later sections have data
+    if (!currentTimestamp) {
+      for (let i = sectionIndex + 1; i < SECTIONS.length; i++) {
+        const laterSection = SECTIONS[i];
+        const laterData = job[laterSection.key as keyof StoryboardJob];
+        if (laterData && typeof laterData === 'object' && Object.keys(laterData).length > 0) {
+          affected.push(laterSection.key);
+        }
+      }
+      return affected;
+    }
+    
+    // Compare timestamps to find affected sections
+    const currentTime = new Date(currentTimestamp).getTime();
+    
     for (let i = sectionIndex + 1; i < SECTIONS.length; i++) {
       const laterSection = SECTIONS[i];
+      const laterTimestamp = job[`${laterSection.key}_updated_at` as keyof StoryboardJob] as string | null;
       const laterData = job[laterSection.key as keyof StoryboardJob];
+      
+      // If later section has data and was updated after current section, it's affected
       if (laterData && typeof laterData === 'object' && Object.keys(laterData).length > 0) {
-        return true;
+        if (laterTimestamp) {
+          const laterTime = new Date(laterTimestamp).getTime();
+          if (laterTime > currentTime) {
+            affected.push(laterSection.key);
+          }
+        } else {
+          // If no timestamp but has data, consider it affected
+          affected.push(laterSection.key);
+        }
       }
     }
     
-    return false;
+    return affected;
+  };
+
+  // Enhanced edit impact check with detailed information
+  const checkEditImpact = (sectionKey: string): { hasImpact: boolean; affectedSections: string[] } => {
+    const affected = getAffectedSections(sectionKey);
+    return {
+      hasImpact: affected.length > 0,
+      affectedSections: affected
+    };
+  };
+
+  // Delete progressive data for affected sections
+  const deleteProgressiveData = async (fromSection: string) => {
+    if (!job || !jobId) return;
+    
+    const affectedSectionKeys = getAffectedSections(fromSection);
+    if (affectedSectionKeys.length === 0) return;
+    
+    try {
+      // Prepare update object to clear affected sections and their timestamps
+      const updates: any = {};
+      
+      affectedSectionKeys.forEach(sectionKey => {
+        updates[sectionKey] = null;
+        updates[`${sectionKey}_updated_at`] = null;
+      });
+      
+      console.log('🗑️ Deleting progressive data for sections:', affectedSectionKeys, updates);
+      
+      const { error } = await supabase
+        .from('storyboard_jobs')
+        .update(updates)
+        .eq('id', jobId);
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Progressive data cleared",
+        description: `Cleared data from ${affectedSectionKeys.length} affected section(s)`,
+      });
+      
+      // Clear local warnings for deleted sections
+      setSectionWarnings(prev => {
+        const newWarnings = { ...prev };
+        affectedSectionKeys.forEach(key => {
+          delete newWarnings[key];
+        });
+        return newWarnings;
+      });
+      
+    } catch (error) {
+      console.error('Error deleting progressive data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete progressive data",
+        variant: "destructive"
+      });
+    }
   };
 
   // Fetch functions from database
@@ -629,6 +720,19 @@ export default function StoryboardWorkspace() {
       // Open the section after successful generation
       setOpenSections(prev => ({ ...prev, [sectionKey]: true }));
       
+      // Clear any warnings for the regenerated section
+      setSectionWarnings(prev => {
+        const newWarnings = { ...prev };
+        delete newWarnings[sectionKey];
+        return newWarnings;
+      });
+      
+      // Clear override mode if no more warnings exist
+      setOverrideMode(prev => {
+        const remainingWarnings = Object.keys(sectionWarnings).filter(key => key !== sectionKey);
+        return remainingWarnings.length > 0;
+      });
+      
       toast({
         title: "Success",
         description: `${section.title} generation started...`,
@@ -686,6 +790,14 @@ export default function StoryboardWorkspace() {
       }
       
       setEditingSections(prev => ({ ...prev, [sectionKey]: false }));
+      
+      // Clear any warnings for the saved section
+      setSectionWarnings(prev => {
+        const newWarnings = { ...prev };
+        delete newWarnings[sectionKey];
+        return newWarnings;
+      });
+      
       return;
     }
 
@@ -693,10 +805,15 @@ export default function StoryboardWorkspace() {
     setOpenSections(prev => ({ ...prev, [sectionKey]: true }));
 
     // Check for impact on later sections
-    const hasLaterData = checkEditImpact(sectionKey);
+    const impactResult = checkEditImpact(sectionKey);
     
-    if (hasLaterData) {
-      setPendingEdit({ section: sectionKey, hasLaterData });
+    if (impactResult.hasImpact) {
+      setPendingEdit({ 
+        section: sectionKey, 
+        hasLaterData: true, 
+        affectedSections: impactResult.affectedSections 
+      });
+      setAffectedSections(impactResult.affectedSections);
       setShowEditWarning(true);
     } else {
       setEditingSections(prev => ({ ...prev, [sectionKey]: true }));
@@ -704,27 +821,40 @@ export default function StoryboardWorkspace() {
   };
 
   // Handle warning dialog actions
-  const handleEditWarningAction = (action: 'discard' | 'delete' | 'override') => {
+  const handleEditWarningAction = async (action: 'discard' | 'delete' | 'override') => {
     if (!pendingEdit) return;
     
-    const { section } = pendingEdit;
+    const { section, affectedSections: affected } = pendingEdit;
     
     if (action === 'discard') {
       // Just close dialog, don't start editing
       setShowEditWarning(false);
       setPendingEdit(null);
+      setAffectedSections([]);
     } else if (action === 'delete') {
-      // TODO: Implement deletion of progressive data
-      console.log('TODO: Delete progressive data after', section);
+      // Delete progressive data for affected sections
+      await deleteProgressiveData(section);
+      
       // Ensure section is expanded when editing starts
       setOpenSections(prev => ({ ...prev, [section]: true }));
       setEditingSections(prev => ({ ...prev, [section]: true }));
       setShowEditWarning(false);
       setPendingEdit(null);
+      setAffectedSections([]);
+      setOverrideMode(false);
     } else if (action === 'override') {
-      // Start editing with warning acknowledged and ensure section is expanded
+      // Start editing with warning acknowledged and mark affected sections
       setOpenSections(prev => ({ ...prev, [section]: true }));
       setEditingSections(prev => ({ ...prev, [section]: true }));
+      setOverrideMode(true);
+      
+      // Mark affected sections with warnings
+      const newWarnings: Record<string, boolean> = {};
+      affected.forEach(sectionKey => {
+        newWarnings[sectionKey] = true;
+      });
+      setSectionWarnings(newWarnings);
+      
       setShowEditWarning(false);
       setPendingEdit(null);
     }
@@ -773,6 +903,14 @@ export default function StoryboardWorkspace() {
       });
       
       setEditingSections(prev => ({ ...prev, input: false }));
+      
+      // Clear any warnings for the saved section
+      setSectionWarnings(prev => {
+        const newWarnings = { ...prev };
+        delete newWarnings['input'];
+        return newWarnings;
+      });
+      
       fetchJob(); // Refresh data
       
     } catch (error) {
@@ -916,6 +1054,20 @@ export default function StoryboardWorkspace() {
       });
 
       setEditingSections(prev => ({ ...prev, movie_info: false }));
+      
+      // Clear any warnings for the saved section
+      setSectionWarnings(prev => {
+        const newWarnings = { ...prev };
+        delete newWarnings['movie_info'];
+        return newWarnings;
+      });
+      
+      // Clear override mode if no more warnings exist
+      setOverrideMode(prev => {
+        const remainingWarnings = Object.keys(sectionWarnings).filter(key => key !== 'movie_info');
+        return remainingWarnings.length > 0;
+      });
+      
       // Reset validation status after successful save
       setValidationStatus(null);
       setValidationReason(null);
@@ -1680,19 +1832,29 @@ export default function StoryboardWorkspace() {
           // Section with data
           if (hasData) {
             return (
-              <Card key={section.key} className={cn("transition-all", isEditing && "ring-2 ring-primary/50")}>
+              <Card key={section.key} className={cn(
+                "transition-all", 
+                isEditing && "ring-2 ring-primary/50",
+                sectionWarnings[section.key] && "ring-2 ring-amber-500 border-amber-300 bg-amber-50/50 dark:bg-amber-900/20"
+              )}>
                 <CardHeader 
                   className="cursor-pointer hover:bg-muted/50 transition-colors"
                   onClick={() => !isAnyEditMode && setOpenSections(prev => ({ ...prev, [section.key]: !prev[section.key] }))}
                 >
                   <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <section.icon className="h-5 w-5" />
-                      {section.title}
-                      {isEditing && <Badge variant="secondary">{t('editing')}</Badge>}
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                    </CardTitle>
-                     <div className="flex items-center gap-2">
+                     <CardTitle className="flex items-center gap-2">
+                       <section.icon className="h-5 w-5" />
+                       {section.title}
+                       {isEditing && <Badge variant="secondary">{t('editing')}</Badge>}
+                       {sectionWarnings[section.key] && (
+                         <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900 dark:text-amber-200">
+                           <AlertTriangle className="h-3 w-3 mr-1" />
+                           May be inconsistent
+                         </Badge>
+                       )}
+                       <CheckCircle className="h-4 w-4 text-green-500" />
+                     </CardTitle>
+                      <div className="flex items-center gap-2">
                        {lastUpdated && (
                          <div className="text-xs text-muted-foreground">
                            <Clock className="h-3 w-3 inline mr-1" />
@@ -1997,12 +2159,45 @@ export default function StoryboardWorkspace() {
                 {t('warningEditImpact')}
               </AlertDialogTitle>
               <AlertDialogDescription>
-                {t('editingSectionMayAffect')}
-                
-                <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
-                  <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                    {t('whatWouldYouLikeToDo')}
-                  </p>
+                <div className="space-y-3">
+                  <p>{t('editingSectionMayAffect')}</p>
+                  
+                  {pendingEdit?.affectedSections && pendingEdit.affectedSections.length > 0 && (
+                    <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                      <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
+                        Affected sections:
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {pendingEdit.affectedSections.map(sectionKey => {
+                          const section = SECTIONS.find(s => s.key === sectionKey);
+                          return (
+                            <Badge key={sectionKey} variant="destructive" className="text-xs">
+                              {section ? section.title : sectionKey}
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                      {job && (
+                        <div className="mt-2 text-xs text-red-700 dark:text-red-300">
+                          {pendingEdit.affectedSections.map(sectionKey => {
+                            const timestamp = job[`${sectionKey}_updated_at` as keyof StoryboardJob] as string | null;
+                            const section = SECTIONS.find(s => s.key === sectionKey);
+                            return timestamp ? (
+                              <div key={sectionKey}>
+                                {section?.title}: {new Date(timestamp).toLocaleString()}
+                              </div>
+                            ) : null;
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                      {t('whatWouldYouLikeToDo')}
+                    </p>
+                  </div>
                 </div>
               </AlertDialogDescription>
             </AlertDialogHeader>
@@ -2016,7 +2211,10 @@ export default function StoryboardWorkspace() {
               >
                 {t('editAndDeleteProgressiveData')}
               </AlertDialogAction>
-              <AlertDialogAction onClick={() => handleEditWarningAction('override')}>
+              <AlertDialogAction 
+                onClick={() => handleEditWarningAction('override')}
+                className="bg-amber-600 hover:bg-amber-700"
+              >
                 {t('overrideMyResponsibility')}
               </AlertDialogAction>
             </AlertDialogFooter>
