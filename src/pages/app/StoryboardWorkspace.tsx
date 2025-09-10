@@ -1353,7 +1353,7 @@ export default function StoryboardWorkspace() {
       });
 
       const { error } = await supabase
-        .from('jobs')
+        .from('storyboard_jobs')
         .update(updates)
         .eq('id', job.id);
 
