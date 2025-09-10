@@ -1063,7 +1063,17 @@ export default function StoryboardWorkspace() {
           title: movieData.title,
           logline: movieData.logline,
           world: movieData.world,
-          look: movieData.look
+          look: movieData.look,
+          characters: {
+            lead: {
+              name: (job?.user_input as any)?.leadName || '',
+              gender: (job?.user_input as any)?.leadGender || ''
+            },
+            supporting: supportingCharacters.length > 0 ? {
+              name: supportingCharacters[0]?.name || '',
+              gender: supportingCharacters[0]?.gender || ''
+            } : undefined
+          }
         }
       });
       
@@ -1249,7 +1259,17 @@ export default function StoryboardWorkspace() {
           title: currentMovieData.title,
           logline: currentMovieData.logline,
           world: currentMovieData.world,
-          look: currentMovieData.look
+          look: currentMovieData.look,
+          characters: job?.movie_info?.characters || {
+            lead: {
+              name: (job?.user_input as any)?.leadName || '',
+              gender: (job?.user_input as any)?.leadGender || ''
+            },
+            supporting: (job?.user_input as any)?.supportingCharacters?.[0] ? {
+              name: (job?.user_input as any)?.supportingCharacters[0]?.name || '',
+              gender: (job?.user_input as any)?.supportingCharacters[0]?.gender || ''
+            } : undefined
+          }
         }
       });
       
