@@ -2061,14 +2061,14 @@ export default function StoryboardWorkspace() {
                         {validationStatus && (
                           <div className={cn(
                             "p-3 rounded-lg border",
-                            validationStatus === 'valid' ? "bg-green-50 border-green-200 text-green-800" :
-                            validationStatus === 'invalid' ? "bg-red-50 border-red-200 text-red-800" :
-                            "bg-blue-50 border-blue-200 text-blue-800"
+                            validationStatus === 'valid' ? "bg-green-500/10 border-green-500/20 text-green-400" :
+                            validationStatus === 'invalid' ? "bg-destructive/10 border-destructive/20 text-destructive" :
+                            "bg-primary/10 border-primary/20 text-primary"
                           )}>
                             {validationStatus === 'valid' && (
                               <div className="flex items-center gap-2">
-                                <CheckCircle className="h-4 w-4" />
-                                <span className="font-medium">{t('validationPassed')}</span>
+                                <CheckCircle className="h-4 w-4 text-green-400" />
+                                <span className="font-medium text-green-400">{t('validationPassed')}</span>
                               </div>
                             )}
                             {validationStatus === 'invalid' && validationReason && (

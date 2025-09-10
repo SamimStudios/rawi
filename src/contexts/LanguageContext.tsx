@@ -500,6 +500,13 @@ const translations = {
     mayBeInconsistent: 'May be inconsistent',
     affectedSections: 'Affected sections',
     suggestedImprovements: 'Suggested Improvements',
+    warningEditImpact: 'Warning: Edit Impact',
+    editingSectionMayAffect: 'Editing this section may affect the following sections that were already generated.',
+    whatWouldYouLikeToDo: 'What would you like to do?',
+    overrideMyResponsibility: 'Override (My Responsibility)',
+    editAndDeleteProgressiveData: 'Edit and Delete Progressive Data',
+    discardChanges: 'Discard Changes',
+    validationPassed: 'Validation Passed',
     
     // Common UI text
     rawiApp: 'Rawi App',
@@ -1198,6 +1205,13 @@ const translations = {
     mayBeInconsistent: 'قد يكون غير متسق',
     affectedSections: 'الأقسام المتأثرة',
     suggestedImprovements: 'التحسينات المقترحة',
+    warningEditImpact: 'تحذير: تأثير التعديل',
+    editingSectionMayAffect: 'تعديل هذا القسم قد يؤثر على الأقسام التالية التي تم إنشاؤها بالفعل.',
+    whatWouldYouLikeToDo: 'ماذا تريد أن تفعل؟',
+    overrideMyResponsibility: 'تجاوز (على مسؤوليتي)',
+    editAndDeleteProgressiveData: 'تعديل وحذف البيانات التدريجية',
+    discardChanges: 'إلغاء التغييرات',
+    validationPassed: 'نجح التحقق',
     
     // Common UI text (Arabic)
     rawiApp: 'تطبيق راوي',
