@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { AlertTriangle, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -37,9 +37,32 @@ export function SystemAlertDialog({
   allowClickOutside = true,
   className
 }: SystemAlertDialogProps) {
+  const contentRef = useRef<HTMLDivElement>(null);
+
   const handleCancel = () => {
+    console.log('SystemAlertDialog: handleCancel called');
     onOpenChange(false);
   };
+
+  // Custom click outside handler
+  useEffect(() => {
+    if (!open || !allowClickOutside) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      console.log('SystemAlertDialog: Click detected, checking if outside');
+      if (contentRef.current && !contentRef.current.contains(event.target as Node)) {
+        console.log('SystemAlertDialog: Click outside detected, closing dialog');
+        onOpenChange(false);
+      }
+    };
+
+    // Add event listener to document
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [open, allowClickOutside, onOpenChange]);
 
   const getIcon = () => {
     switch (iconVariant) {
@@ -57,22 +80,17 @@ export function SystemAlertDialog({
   };
 
   const handleOpenChange = (newOpen: boolean) => {
-    // If trying to close the dialog
-    if (!newOpen) {
-      // Only allow closing if click outside is enabled or it's being closed programmatically
-      if (allowClickOutside) {
-        onOpenChange(false);
-      }
-      // If allowClickOutside is false, prevent closing by not calling onOpenChange
-    } else {
-      // Always allow opening
-      onOpenChange(true);
-    }
+    console.log('SystemAlertDialog: handleOpenChange called with', newOpen);
+    // Don't prevent the dialog from closing, let our custom click outside handler manage it
+    onOpenChange(newOpen);
   };
 
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
-      <AlertDialogContent className={cn("max-w-2xl max-h-[90vh] overflow-y-auto", className)}>
+      <AlertDialogContent 
+        ref={contentRef}
+        className={cn("max-w-2xl max-h-[90vh] overflow-y-auto", className)}
+      >
         {/* X button in corner */}
         <button
           onClick={handleCancel}
@@ -95,11 +113,11 @@ export function SystemAlertDialog({
           )}
         </AlertDialogHeader>
 
-        <AlertDialogFooter className="flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
+        <AlertDialogFooter className="flex-wrap gap-2 sm:justify-end">
           {cancelLabel && (
             <AlertDialogCancel 
               onClick={handleCancel}
-              className="w-full sm:w-auto text-sm"
+              className="flex-1 sm:flex-none text-sm"
             >
               {cancelLabel}
             </AlertDialogCancel>
@@ -110,7 +128,7 @@ export function SystemAlertDialog({
               key={index}
               onClick={action.onClick}
               className={cn(
-                "w-full sm:w-auto text-sm",
+                "flex-1 sm:flex-none text-sm",
                 action.variant === 'destructive' && "bg-destructive hover:bg-destructive/90",
                 action.className
               )}
