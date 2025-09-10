@@ -1721,20 +1721,23 @@ export default function StoryboardWorkspace() {
                              </Button>
                            )}
                            
-                           {/* Regenerate Button */}
-                           {functions['generate-movie-info'] && (
-                             <Button
-                               size="sm"
-                               variant="outline"
-                               onClick={(e) => {
-                                 e.stopPropagation();
-                                 handleRegenerateMovieInfo();
-                               }}
-                               disabled={isAnyEditMode || loadingSections[section.key]}
-                             >
-                               <RefreshCw className="h-4 w-4" />
-                             </Button>
-                           )}
+                            {/* Regenerate Button */}
+                            {functions['generate-movie-info'] && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRegenerateMovieInfo();
+                                }}
+                                disabled={isAnyEditMode || loadingSections[section.key]}
+                                className="flex items-center gap-1"
+                              >
+                                <RefreshCw className="h-4 w-4" />
+                                <span className="text-xs">{functions['generate-movie-info'].price}</span>
+                                <Coins className="h-3 w-3" />
+                              </Button>
+                            )}
                          </>
                        )}
                        
