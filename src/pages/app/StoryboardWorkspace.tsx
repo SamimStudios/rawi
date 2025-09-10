@@ -199,7 +199,17 @@ export default function StoryboardWorkspace() {
     title: '',
     logline: '',
     world: '',
-    look: ''
+    look: '',
+    characters: {
+      lead: {
+        name: '',
+        gender: ''
+      },
+      supporting: {
+        name: '',
+        gender: ''
+      }
+    }
   });
   
   // Validation states
@@ -717,7 +727,17 @@ export default function StoryboardWorkspace() {
           title: (movieInfo as any).title || '',
           logline: (movieInfo as any).logline || '',
           world: (movieInfo as any).world || '',
-          look: (movieInfo as any).look || ''
+          look: (movieInfo as any).look || '',
+          characters: {
+            lead: {
+              name: (movieInfo as any).characters?.lead?.name || '',
+              gender: (movieInfo as any).characters?.lead?.gender || ''
+            },
+            supporting: {
+              name: (movieInfo as any).characters?.supporting?.name || '',
+              gender: (movieInfo as any).characters?.supporting?.gender || ''
+            }
+          }
         });
       }
       
@@ -890,7 +910,17 @@ export default function StoryboardWorkspace() {
             title: (movieInfo as any).title || '',
             logline: (movieInfo as any).logline || '',
             world: (movieInfo as any).world || '',
-            look: (movieInfo as any).look || ''
+            look: (movieInfo as any).look || '',
+            characters: {
+              lead: {
+                name: (movieInfo as any).characters?.lead?.name || '',
+                gender: (movieInfo as any).characters?.lead?.gender || ''
+              },
+              supporting: {
+                name: (movieInfo as any).characters?.supporting?.name || '',
+                gender: (movieInfo as any).characters?.supporting?.gender || ''
+              }
+            }
           });
         }
       }
@@ -1064,16 +1094,7 @@ export default function StoryboardWorkspace() {
           logline: movieData.logline,
           world: movieData.world,
           look: movieData.look,
-          characters: {
-            lead: {
-              name: (job?.user_input as any)?.leadName || '',
-              gender: (job?.user_input as any)?.leadGender || ''
-            },
-            supporting: supportingCharacters.length > 0 ? {
-              name: supportingCharacters[0]?.name || '',
-              gender: supportingCharacters[0]?.gender || ''
-            } : undefined
-          }
+          characters: movieData.characters
         }
       });
       
@@ -1143,7 +1164,8 @@ export default function StoryboardWorkspace() {
         title: suggestedFix.movie_title || movieData.title,
         logline: suggestedFix.logline || movieData.logline,
         world: suggestedFix.world || movieData.world,
-        look: suggestedFix.look || movieData.look
+        look: suggestedFix.look || movieData.look,
+        characters: movieData.characters
       });
       // Clear validation status when user applies suggestions
       setValidationStatus(null);
@@ -1473,7 +1495,17 @@ export default function StoryboardWorkspace() {
               title: (movieInfo as any).title || '',
               logline: (movieInfo as any).logline || '',
               world: (movieInfo as any).world || '',
-              look: (movieInfo as any).look || ''
+              look: (movieInfo as any).look || '',
+              characters: {
+                lead: {
+                  name: (movieInfo as any).characters?.lead?.name || '',
+                  gender: (movieInfo as any).characters?.lead?.gender || ''
+                },
+                supporting: {
+                  name: (movieInfo as any).characters?.supporting?.name || '',
+                  gender: (movieInfo as any).characters?.supporting?.gender || ''
+                }
+              }
             });
             
             // Stop loading if we were waiting for this section
@@ -2081,6 +2113,105 @@ export default function StoryboardWorkspace() {
                             }}
                             disabled={isValidating}
                           />
+                        </div>
+
+                        {/* Characters Section */}
+                        <div className="space-y-4">
+                          <div className="text-sm font-medium">Initial Characters</div>
+                          
+                          {/* Lead Character */}
+                          <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+                            <div className="text-xs font-medium text-muted-foreground">Lead Character</div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-xs font-medium">Name</label>
+                                <Input
+                                  value={movieData.characters.lead.name}
+                                  onChange={(e) => {
+                                    setMovieData({
+                                      ...movieData,
+                                      characters: {
+                                        ...movieData.characters,
+                                        lead: {
+                                          ...movieData.characters.lead,
+                                          name: e.target.value
+                                        }
+                                      }
+                                    });
+                                  }}
+                                  disabled={isValidating}
+                                  placeholder="Character name"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium">Gender</label>
+                                <Input
+                                  value={movieData.characters.lead.gender}
+                                  onChange={(e) => {
+                                    setMovieData({
+                                      ...movieData,
+                                      characters: {
+                                        ...movieData.characters,
+                                        lead: {
+                                          ...movieData.characters.lead,
+                                          gender: e.target.value
+                                        }
+                                      }
+                                    });
+                                  }}
+                                  disabled={isValidating}
+                                  placeholder="Gender"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Supporting Character */}
+                          <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+                            <div className="text-xs font-medium text-muted-foreground">Supporting Character</div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-xs font-medium">Name</label>
+                                <Input
+                                  value={movieData.characters.supporting.name}
+                                  onChange={(e) => {
+                                    setMovieData({
+                                      ...movieData,
+                                      characters: {
+                                        ...movieData.characters,
+                                        supporting: {
+                                          ...movieData.characters.supporting,
+                                          name: e.target.value
+                                        }
+                                      }
+                                    });
+                                  }}
+                                  disabled={isValidating}
+                                  placeholder="Character name"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium">Gender</label>
+                                <Input
+                                  value={movieData.characters.supporting.gender}
+                                  onChange={(e) => {
+                                    setMovieData({
+                                      ...movieData,
+                                      characters: {
+                                        ...movieData.characters,
+                                        supporting: {
+                                          ...movieData.characters.supporting,
+                                          gender: e.target.value
+                                        }
+                                      }
+                                    });
+                                  }}
+                                  disabled={isValidating}
+                                  placeholder="Gender"
+                                />
+                              </div>
+                            </div>
+                          </div>
                         </div>
                         
                         {/* Validation Status Display */}
