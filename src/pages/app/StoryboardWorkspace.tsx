@@ -1046,11 +1046,19 @@ export default function StoryboardWorkspace() {
       });
       
       // executeFunction now throws on error, so if we reach here it's successful
-      const response = result.data;
+      console.log('🔍 Validation result structure:', {
+        hasData: !!result.data,
+        hasEnvelopeData: !!result.envelope?.data,
+        envelopeStatus: result.envelope?.status,
+        fullResult: result
+      });
+      
+      // Try to extract response data from the envelope directly  
+      const response = result.envelope?.data || result.data;
       
       // Check if response exists and has the expected structure
       if (!response) {
-        console.error('Validation response is undefined:', result);
+        console.error('❌ Validation response is undefined - both result.data and result.envelope.data are missing:', result);
         setValidationStatus('invalid');
         toast({
           title: "Error",
@@ -1224,11 +1232,19 @@ export default function StoryboardWorkspace() {
       });
       
       // executeFunction now throws on error, so if we reach here it's successful  
-      const response = result.data;
+      console.log('🔍 View mode validation result structure:', {
+        hasData: !!result.data,
+        hasEnvelopeData: !!result.envelope?.data,
+        envelopeStatus: result.envelope?.status,
+        fullResult: result
+      });
+      
+      // Try to extract response data from the envelope directly  
+      const response = result.envelope?.data || result.data;
       
       // Check if response exists and has the expected structure
       if (!response) {
-        console.error('Validation response is undefined:', result);
+        console.error('❌ View mode validation response is undefined - both result.data and result.envelope.data are missing:', result);
         toast({
           title: "Error", 
           description: "Invalid validation response received",
