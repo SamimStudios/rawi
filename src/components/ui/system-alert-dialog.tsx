@@ -57,9 +57,15 @@ export function SystemAlertDialog({
   };
 
   const handleOpenChange = (newOpen: boolean) => {
-    if (!newOpen && allowClickOutside) {
-      onOpenChange(false);
-    } else if (newOpen) {
+    // If trying to close the dialog
+    if (!newOpen) {
+      // Only allow closing if click outside is enabled or it's being closed programmatically
+      if (allowClickOutside) {
+        onOpenChange(false);
+      }
+      // If allowClickOutside is false, prevent closing by not calling onOpenChange
+    } else {
+      // Always allow opening
       onOpenChange(true);
     }
   };
