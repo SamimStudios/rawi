@@ -799,7 +799,13 @@ export default function StoryboardWorkspace() {
     setLoadingSections(prev => ({ ...prev, [sectionKey]: true }));
     
     try {
-      await executeFunction('generate-movie-info', {});
+      await executeFunction('generate-movie-info', {
+        table_id: 'storyboard_jobs',
+        row_id: jobId
+      });
+      
+      // Fetch latest data from database after successful generation
+      await fetchJob();
       
       // Open the section after successful generation
       setOpenSections(prev => ({ ...prev, [sectionKey]: true }));
@@ -819,7 +825,7 @@ export default function StoryboardWorkspace() {
       
       toast({
         title: "Success",
-        description: `${section.title} generation started...`,
+        description: `${section.title} generated successfully`,
       });
       
     } catch (error) {

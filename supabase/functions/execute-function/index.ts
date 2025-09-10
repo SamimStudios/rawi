@@ -591,13 +591,12 @@ serve(async (req) => {
             updated_at: new Date().toISOString()
           };
 
-          // Check if this is movie info generation (generate-movie-info function)
-          if (functionData.name === 'generate-movie-info' && webhookResult.data) {
-            updateData.movie_info = webhookResult.data;
-            updateData.movie_info_updated_at = new Date().toISOString();
-            console.log('🎬 Updated movie_info and movie_info_updated_at timestamp');
+          // For generate-movie-info function, N8N workflow handles DB updates directly
+          // So we only store the webhook response without extracting movie_info
+          if (functionData.name === 'generate-movie-info') {
+            console.log('🎬 generate-movie-info success - N8N workflow handles DB updates directly');
           }
-          // Legacy check for parsed movie_info structure
+          // Legacy check for parsed movie_info structure (other functions)
           else if (webhookResult.data?.parsed?.movie_info) {
             updateData.movie_info = webhookResult.data.parsed.movie_info;
             updateData.movie_info_updated_at = new Date().toISOString();
@@ -683,14 +682,11 @@ serve(async (req) => {
           updated_at: new Date().toISOString()
         };
 
-        // Check if this is movie info generation and update timestamp
-        if (functionData.name === 'generate-movie-info' && webhookResult && typeof webhookResult === 'object') {
-          // For generate-movie-info function, the data should be in webhookResult directly
-          updateData.movie_info = webhookResult;
-          updateData.movie_info_updated_at = new Date().toISOString();
-          console.log('🎬 Updated movie_info and movie_info_updated_at timestamp (error path)');
+        // For generate-movie-info function, N8N workflow handles DB updates directly
+        if (functionData.name === 'generate-movie-info') {
+          console.log('🎬 generate-movie-info failed - N8N workflow handles DB updates directly');
         }
-        // Legacy check for other movie_info structures
+        // Legacy check for other movie_info structures (other functions)
         else if (webhookResult && typeof webhookResult === 'object' && webhookResult.movie_info) {
           updateData.movie_info = webhookResult.movie_info;
           updateData.movie_info_updated_at = new Date().toISOString();
