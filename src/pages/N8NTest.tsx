@@ -58,27 +58,10 @@ export default function N8NTest() {
     setLoading(prev => ({ ...prev, generateMovie: true }));
     
     try {
-      // First create a storyboard job to get a row_id
-      const { data: job, error: jobError } = await supabase
-        .from('storyboard_jobs')
-        .insert({
-          user_input: {
-            prompt: `Create a movie with title: ${testPayload.movieTitle}, logline: ${testPayload.logline}`
-          },
-          user_id: user?.id || null,
-          session_id: user ? null : 'test-session'
-        })
-        .select('id')
-        .single();
-
-      if (jobError || !job) {
-        throw new Error(`Failed to create test job: ${jobError?.message}`);
-      }
-
-      // Now call the function with proper payload
+      // Use the specified test row ID
       const result = await executeFunction('e9ec8814-cef4-4e3d-adf1-deaa16d47dd0', {
         table_id: 'storyboard_jobs',
-        row_id: job.id
+        row_id: '084435a8-5e2c-4045-8196-4992a850a8d5'
       });
       
       setResults(prev => ({ ...prev, generateMovie: result }));
@@ -90,7 +73,7 @@ export default function N8NTest() {
       console.error('❌ Generate movie info error:', error);
       setResults(prev => ({ ...prev, generateMovie: { error: error.message } }));
       toast({
-        title: "Error",
+        title: "Error",  
         description: error instanceof Error ? error.message : 'Failed to generate movie info',
         variant: "destructive"
       });

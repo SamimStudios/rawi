@@ -194,7 +194,7 @@ serve(async (req) => {
       });
       
       return new Response(JSON.stringify(envelope), {
-        status: envelope.http_status,
+        status: 200, // Always return 200 for envelope pattern
         headers: { 
           ...corsHeaders, 
           'Content-Type': 'application/json',
@@ -231,7 +231,7 @@ serve(async (req) => {
       });
       
       return new Response(JSON.stringify(envelope), {
-        status: envelope.http_status,
+        status: 200, // Always return 200 for envelope pattern
         headers: { 
           ...corsHeaders, 
           'Content-Type': 'application/json',
@@ -292,7 +292,7 @@ serve(async (req) => {
         });
         
         return new Response(JSON.stringify(envelope), {
-          status: envelope.http_status,
+          status: 200, // Always return 200 for envelope pattern
           headers: { 
             ...corsHeaders, 
             'Content-Type': 'application/json',
@@ -321,7 +321,7 @@ serve(async (req) => {
       });
       
       return new Response(JSON.stringify(envelope), {
-        status: envelope.http_status,
+        status: 200, // Always return 200 for envelope pattern
         headers: { 
           ...corsHeaders, 
           'Content-Type': 'application/json',
@@ -416,7 +416,7 @@ serve(async (req) => {
       });
       
       return new Response(JSON.stringify(envelope), {
-        status: envelope.http_status,
+        status: 200, // Always return 200 for envelope pattern
         headers: { 
           ...corsHeaders, 
           'Content-Type': 'application/json',
@@ -478,7 +478,7 @@ serve(async (req) => {
       });
       
       return new Response(JSON.stringify(envelope), {
-        status: envelope.http_status,
+        status: 200, // Always return 200 for envelope pattern
         headers: { 
           ...corsHeaders, 
           'Content-Type': 'application/json',
@@ -635,7 +635,7 @@ serve(async (req) => {
 
     // Return success envelope
     return new Response(JSON.stringify(envelope), {
-      status: envelope.http_status,
+      status: 200, // Always return 200 for envelope pattern
       headers: { 
         ...corsHeaders, 
         'Content-Type': 'application/json',
@@ -658,7 +658,7 @@ serve(async (req) => {
     });
     
     return new Response(JSON.stringify(envelope), {
-      status: envelope.http_status,
+      status: 200, // Always return 200 for envelope pattern
       headers: { 
         ...corsHeaders, 
         'Content-Type': 'application/json',
