@@ -32,6 +32,6 @@ export const GENRE_OPTIONS = [
   { key: 'genreDocumentary', value: 'Documentary' }
 ] as const;
 
-export const MAX_SUPPORTING_CHARACTERS = 1;
+export const MAX_SUPPORTING_CHARACTERS = 3;
 export const MAX_GENRES = 3;
 export const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
