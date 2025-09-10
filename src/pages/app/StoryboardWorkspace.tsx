@@ -1048,6 +1048,18 @@ export default function StoryboardWorkspace() {
       // executeFunction now throws on error, so if we reach here it's successful
       const response = result.data;
       
+      // Check if response exists and has the expected structure
+      if (!response) {
+        console.error('Validation response is undefined:', result);
+        setValidationStatus('invalid');
+        toast({
+          title: "Error",
+          description: "Invalid validation response received",
+          variant: "destructive"
+        });
+        return;
+      }
+      
       if (response.valid) {
         setValidationStatus('valid');
         setValidationReason(null);
@@ -1213,6 +1225,17 @@ export default function StoryboardWorkspace() {
       
       // executeFunction now throws on error, so if we reach here it's successful  
       const response = result.data;
+      
+      // Check if response exists and has the expected structure
+      if (!response) {
+        console.error('Validation response is undefined:', result);
+        toast({
+          title: "Error", 
+          description: "Invalid validation response received",
+          variant: "destructive"
+        });
+        return;
+      }
       
       if (response.valid) {
         toast({
