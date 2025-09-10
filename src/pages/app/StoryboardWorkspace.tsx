@@ -37,8 +37,8 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useUserCredits } from '@/hooks/useUserCredits';
 import { useGuestSession } from '@/hooks/useGuestSession';
 import { SystemAlertDialog, SystemAlertAction } from '@/components/ui/system-alert-dialog';
-import { SupportingCharacterSection } from '@/components/storyboard/SupportingCharacterSection';
 import { cn } from '@/lib/utils';
+import { SupportingCharacterSection } from '@/components/storyboard/SupportingCharacterSection';
 
 // Progressive section configuration - titles will be localized using t()
 const getSections = (t: any) => [
@@ -259,6 +259,22 @@ export default function StoryboardWorkspace() {
   // Helper to get user input language (not site language)
   const getUserInputLanguage = () => {
     return (job?.user_input as any)?.language || 'English';
+  };
+
+  // Helper to get gender options based on user input language
+  const getGenderOptions = () => {
+    const language = getUserInputLanguage();
+    if (language === 'Arabic') {
+      return [
+        { value: 'ذكر', label: 'ذكر' },
+        { value: 'أنثى', label: 'أنثى' }
+      ];
+    } else {
+      return [
+        { value: 'male', label: 'male' },
+        { value: 'female', label: 'female' }
+      ];
+    }
   };
 
   // Helper to get movie info values directly (no language nesting)
@@ -2145,23 +2161,33 @@ export default function StoryboardWorkspace() {
                               </div>
                               <div>
                                 <label className="text-xs font-medium">Gender</label>
-                                <Input
+                                <Select
                                   value={movieData.characters.lead.gender}
-                                  onChange={(e) => {
+                                  onValueChange={(value) => {
                                     setMovieData({
                                       ...movieData,
                                       characters: {
                                         ...movieData.characters,
                                         lead: {
                                           ...movieData.characters.lead,
-                                          gender: e.target.value
+                                          gender: value
                                         }
                                       }
                                     });
                                   }}
                                   disabled={isValidating}
-                                  placeholder="Gender"
-                                />
+                                >
+                                  <SelectTrigger className="bg-background border-border">
+                                    <SelectValue placeholder="Select gender" />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-background border-border z-50">
+                                    {getGenderOptions().map((option) => (
+                                      <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
                               </div>
                             </div>
                           </div>
@@ -2192,23 +2218,33 @@ export default function StoryboardWorkspace() {
                               </div>
                               <div>
                                 <label className="text-xs font-medium">Gender</label>
-                                <Input
+                                <Select
                                   value={movieData.characters.supporting.gender}
-                                  onChange={(e) => {
+                                  onValueChange={(value) => {
                                     setMovieData({
                                       ...movieData,
                                       characters: {
                                         ...movieData.characters,
                                         supporting: {
                                           ...movieData.characters.supporting,
-                                          gender: e.target.value
+                                          gender: value
                                         }
                                       }
                                     });
                                   }}
                                   disabled={isValidating}
-                                  placeholder="Gender"
-                                />
+                                >
+                                  <SelectTrigger className="bg-background border-border">
+                                    <SelectValue placeholder="Select gender" />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-background border-border z-50">
+                                    {getGenderOptions().map((option) => (
+                                      <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
                               </div>
                             </div>
                           </div>
