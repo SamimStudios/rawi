@@ -1731,11 +1731,13 @@ export default function StoryboardWorkspace() {
                                   handleRegenerateMovieInfo();
                                 }}
                                 disabled={isAnyEditMode || loadingSections[section.key]}
-                                className="flex items-center gap-1"
+                                className="flex items-center gap-1.5 px-3"
                               >
                                 <RefreshCw className="h-4 w-4" />
-                                <span className="text-xs">{functions['generate-movie-info'].price}</span>
-                                <Coins className="h-3 w-3" />
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs font-light text-muted-foreground">{functions['generate-movie-info'].price}</span>
+                                  <Coins className="h-3 w-3 text-muted-foreground/60" />
+                                </div>
                               </Button>
                             )}
                          </>
