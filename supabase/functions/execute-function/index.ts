@@ -428,15 +428,54 @@ serve(async (req) => {
     // Handle non-OK responses
     if (!webhookResponse.ok) {
       const responseText = await webhookResponse.text();
+      console.error('Webhook failed with status:', webhookResponse.status);
       console.error('Webhook failed with response:', responseText);
       
-      // Enhanced error classification
+      // Try to parse the response - N8N might return valid envelope data even with error status
+      let parsedErrorResponse = null;
+      try {
+        parsedErrorResponse = JSON.parse(responseText);
+        console.log('Successfully parsed error response:', JSON.stringify(parsedErrorResponse, null, 2));
+        
+        // If it's a valid envelope, fix any type issues and use it
+        if (isEnvelope(parsedErrorResponse)) {
+          console.log('Error response is valid envelope, using it');
+          
+          // Fix type issues
+          if (parsedErrorResponse.http_status && typeof parsedErrorResponse.http_status === 'string') {
+            const parsed = parseInt(parsedErrorResponse.http_status, 10);
+            if (!isNaN(parsed)) {
+              parsedErrorResponse.http_status = parsed;
+              console.log(`Fixed http_status in error response: "${parsedErrorResponse.http_status}" -> ${parsed}`);
+            }
+          }
+          
+          parsedErrorResponse.request_id = requestId;
+          
+          return new Response(JSON.stringify(parsedErrorResponse), {
+            status: 200, // Always return 200 for envelope pattern
+            headers: { 
+              ...corsHeaders, 
+              'Content-Type': 'application/json',
+              'X-Request-Id': requestId
+            }
+          });
+        }
+      } catch (parseError) {
+        console.error('Could not parse error response as JSON:', parseError);
+      }
+      
+      // Enhanced error classification for unparseable responses
       let errorType: N8NResponseEnvelope['error']['type'] = 'upstream_http';
       let errorCode = `UPSTREAM_${webhookResponse.status}`;
       let retryPossible = true;
       
       // Specific pattern matching
-      if (webhookResponse.status === 404 && responseText.includes('not registered')) {
+      if (responseText.includes('Invalid status code') && responseText.includes('must be an integer')) {
+        errorType = 'parsing';
+        errorCode = 'STATUS_CODE_TYPE_ERROR'; 
+        retryPossible = false;
+      } else if (webhookResponse.status === 404 && responseText.includes('not registered')) {
         errorType = 'webhook_connectivity';
         errorCode = 'N8N_WEBHOOK_NOT_FOUND';
         retryPossible = false;
@@ -470,11 +509,12 @@ serve(async (req) => {
           details: { 
             status: webhookResponse.status, 
             response: responseText,
-            webhook_url: webhookUrl 
+            webhook_url: webhookUrl,
+            parsed_response: parsedErrorResponse || null
           },
           retryPossible
         },
-        httpStatus: webhookResponse.status // Mirror upstream status
+        httpStatus: webhookResponse.status
       });
       
       return new Response(JSON.stringify(envelope), {
@@ -487,26 +527,42 @@ serve(async (req) => {
       });
     }
 
-    // Parse webhook response
+    // Parse webhook response with better error handling
     const responseText = await webhookResponse.text();
     console.log('Raw webhook response:', responseText);
+    console.log('Webhook response status:', webhookResponse.status);
+    console.log('Webhook response headers:', Object.fromEntries(webhookResponse.headers.entries()));
     
     try {
       webhookResult = JSON.parse(responseText);
+      console.log('Successfully parsed webhook result:', JSON.stringify(webhookResult, null, 2));
     } catch (parseError) {
       console.error('Failed to parse webhook response as JSON:', parseError);
+      console.error('Response text was:', responseText);
       webhookResult = { raw_response: responseText };
     }
-    
-    console.log('Parsed webhook result:', webhookResult);
 
     // Check if response is already an envelope - if so, pass it through
     if (isEnvelope(webhookResult)) {
       console.log('Webhook returned envelope format, passing through...');
       
-      // Fix any type issues in the envelope
-      if (webhookResult.http_status && typeof webhookResult.http_status === 'string') {
-        webhookResult.http_status = parseInt(webhookResult.http_status, 10);
+      // Fix any type issues in the envelope - be more thorough
+      if (webhookResult.http_status) {
+        if (typeof webhookResult.http_status === 'string') {
+          const parsed = parseInt(webhookResult.http_status, 10);
+          if (!isNaN(parsed)) {
+            webhookResult.http_status = parsed;
+            console.log(`Fixed http_status: "${webhookResult.http_status}" -> ${parsed}`);
+          }
+        }
+      }
+      
+      // Also check nested status codes if they exist
+      if (webhookResult.error && webhookResult.error.http_status && typeof webhookResult.error.http_status === 'string') {
+        const parsed = parseInt(webhookResult.error.http_status, 10);
+        if (!isNaN(parsed)) {
+          webhookResult.error.http_status = parsed;
+        }
       }
       
       // Ensure request_id is set
