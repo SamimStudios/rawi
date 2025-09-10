@@ -208,6 +208,7 @@ export default function StoryboardWorkspace() {
   
   // Warning dialog state
   const [showEditWarning, setShowEditWarning] = useState(false);
+  const [showRegenerateWarning, setShowRegenerateWarning] = useState(false);
   const [pendingEdit, setPendingEdit] = useState<{ section: string; hasLaterData: boolean; affectedSections: string[] } | null>(null);
   
   // Enhanced edit impact state
@@ -1254,11 +1255,11 @@ export default function StoryboardWorkspace() {
       }
       
       // Show confirmation dialog
-      const confirmed = confirm(t('regenerateConfirmation') || 'Are you sure you want to regenerate the movie information? This will overwrite existing data.');
-      if (!confirmed) return;
+      setShowRegenerateWarning(true);
       
-      // Call the same generate function as initial generation
-      await handleGenerate('movie_info');
+      // Call the same generate function as initial generation  
+      // This will be called from the dialog action
+      // await handleGenerate('movie_info');
       
     } catch (error) {
       console.error('❌ Error regenerating movie info:', error);
@@ -2277,6 +2278,36 @@ export default function StoryboardWorkspace() {
             </div>
           </div>
         </SystemAlertDialog>
+
+        {/* Regenerate Confirmation Dialog */}
+        <SystemAlertDialog
+          open={showRegenerateWarning}
+          onOpenChange={setShowRegenerateWarning}
+          title={t('regenerate')}
+          description={t('regenerateConfirmation')}
+          cancelLabel={t('cancel')}
+          actions={[
+            {
+              label: 'OK',
+              onClick: async () => {
+                setShowRegenerateWarning(false);
+                try {
+                  await handleGenerate('movie_info');
+                } catch (error) {
+                  console.error('❌ Error regenerating movie info:', error);
+                  toast({
+                    title: "Error",
+                    description: "Failed to regenerate movie information",
+                    variant: "destructive"
+                  });
+                }
+              },
+              variant: 'destructive'
+            }
+          ]}
+          allowClickOutside={true}
+          iconVariant="warning"
+        />
       </div>
     </div>
   );
