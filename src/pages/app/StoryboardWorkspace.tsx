@@ -1928,36 +1928,17 @@ export default function StoryboardWorkspace() {
                            {new Date(lastUpdated).toLocaleString()}
                          </div>
                        )}
-                       {/* View mode buttons - only show when not editing */}
-                       {!isEditing && section.key === 'movie_info' && (
-                         <>
-                           {/* Validate Button */}
-                           {functions['validate-movie-info'] && (
-                             <Button
-                               size="sm"
-                               variant="outline"
-                               onClick={(e) => {
-                                 e.stopPropagation();
-                                 handleValidateMovieInfoViewMode();
-                               }}
-                               disabled={isAnyEditMode || isValidating}
-                             >
-                               {isValidating ? (
-                                 <Loader2 className="h-4 w-4 animate-spin" />
-                               ) : (
-                                 <CheckCircle className="h-4 w-4" />
-                               )}
-                             </Button>
-                           )}
-                           
-                            {/* Regenerate Button */}
-                            {functions['generate-movie-info'] && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleRegenerateMovieInfo();
+                        {/* View mode buttons - only show when not editing */}
+                        {!isEditing && section.key === 'movie_info' && (
+                          <>
+                             {/* Regenerate Button */}
+                             {functions['generate-movie-info'] && (
+                               <Button
+                                 size="sm"
+                                 variant="outline"
+                                 onClick={(e) => {
+                                   e.stopPropagation();
+                                   handleRegenerateMovieInfo();
                                 }}
                                 disabled={isAnyEditMode || loadingSections[section.key]}
                                 className="flex items-center gap-1.5 px-3"
