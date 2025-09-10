@@ -55,13 +55,50 @@ const isEnvelope = (response: any): boolean => {
 // Check if status should trigger retry
 const shouldRetry = (status: number): boolean => [429, 502, 503, 504].includes(status);
 
-// Initialize Ajv for schema validation
-const ajv = new Ajv();
+// Initialize Ajv for schema validation with proper configuration
+const ajv = new Ajv({ 
+  allErrors: true,
+  verbose: true,
+  strict: false, // Allow unknown keywords to prevent strict mode errors
+  removeAdditional: false, // Don't remove additional properties
+  useDefaults: true, // Use default values from schema
+  validateSchema: false // Skip meta-schema validation to avoid draft issues
+});
+
+// Helper to clean schema from unsupported meta-schema references
+const cleanSchema = (schema: any): any => {
+  if (!schema || typeof schema !== 'object') return schema;
+  
+  const cleaned = { ...schema };
+  // Remove $schema property that causes AJV issues with draft 2020-12
+  delete cleaned.$schema;
+  
+  // Clean nested schemas recursively
+  if (cleaned.properties) {
+    cleaned.properties = Object.fromEntries(
+      Object.entries(cleaned.properties).map(([key, value]) => [key, cleanSchema(value)])
+    );
+  }
+  if (cleaned.items) {
+    cleaned.items = cleanSchema(cleaned.items);
+  }
+  if (cleaned.additionalProperties && typeof cleaned.additionalProperties === 'object') {
+    cleaned.additionalProperties = cleanSchema(cleaned.additionalProperties);
+  }
+  
+  return cleaned;
+};
 
 // Validate payload against schema
 const validatePayload = (schema: any, payload: any) => {
-  const validate = ajv.compile(schema);
-  return validate(payload) ? null : validate.errors;
+  try {
+    const cleanedSchema = cleanSchema(schema);
+    const validate = ajv.compile(cleanedSchema);
+    return validate(payload) ? null : validate.errors;
+  } catch (error) {
+    console.error('Schema compilation error:', error);
+    return [{ message: `Schema compilation failed: ${error.message}` }];
+  }
 };
 
 // Helper function to create envelope
