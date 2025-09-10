@@ -35,7 +35,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useUserCredits } from '@/hooks/useUserCredits';
 import { useGuestSession } from '@/hooks/useGuestSession';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { SystemAlertDialog, SystemAlertAction } from '@/components/ui/system-alert-dialog';
 import { cn } from '@/lib/utils';
 
 // Progressive section configuration - titles will be localized using t()
@@ -2217,78 +2217,66 @@ export default function StoryboardWorkspace() {
         })}
 
         {/* Edit Warning Dialog */}
-        <AlertDialog open={showEditWarning} onOpenChange={setShowEditWarning}>
-          <AlertDialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center gap-2 text-base">
-                <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0" />
-                <span className="break-words">{t('warningEditImpact')}</span>
-              </AlertDialogTitle>
-              <AlertDialogDescription className="text-sm">
-                <div className="space-y-3">
-                  <p className="break-words">{t('editingSectionMayAffect')}</p>
-                  
-                  {pendingEdit?.affectedSections && pendingEdit.affectedSections.length > 0 && (
-                    <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/20">
-                      <p className="text-sm font-medium text-destructive mb-2 break-words">
-                        {t('affectedSections')}:
-                      </p>
-                      <div className="flex flex-wrap gap-1 mb-2">
-                        {pendingEdit.affectedSections.map(sectionKey => {
-                          const section = SECTIONS.find(s => s.key === sectionKey);
-                          return (
-                            <Badge key={sectionKey} variant="destructive" className="text-xs break-words">
-                              {section ? section.title : sectionKey}
-                            </Badge>
-                          );
-                        })}
-                      </div>
-                      {job && (
-                        <div className="space-y-1">
-                          {pendingEdit.affectedSections.map(sectionKey => {
-                            const timestamp = job[`${sectionKey}_updated_at` as keyof StoryboardJob] as string | null;
-                            const section = SECTIONS.find(s => s.key === sectionKey);
-                            return timestamp ? (
-                              <div key={sectionKey} className="text-xs text-destructive/80 break-words">
-                                {section?.title}: {new Date(timestamp).toLocaleString()}
-                              </div>
-                            ) : null;
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  <div className="p-3 bg-amber-500/10 rounded-lg border border-amber-500/20">
-                    <p className="text-sm font-medium text-amber-300 break-words">
-                      {t('whatWouldYouLikeToDo')}
-                    </p>
-                  </div>
+        <SystemAlertDialog
+          open={showEditWarning}
+          onOpenChange={setShowEditWarning}
+          title={t('warningEditImpact')}
+          cancelLabel={t('discardChanges')}
+          actions={[
+            {
+              label: t('editAndDeleteProgressiveData'),
+              onClick: () => handleEditWarningAction('delete'),
+              variant: 'destructive'
+            },
+            {
+              label: t('overrideMyResponsibility'),
+              onClick: () => handleEditWarningAction('override'),
+              className: 'bg-amber-600 hover:bg-amber-700'
+            }
+          ]}
+          allowClickOutside={true}
+        >
+          <div className="space-y-3">
+            <p className="break-words">{t('editingSectionMayAffect')}</p>
+            
+            {pendingEdit?.affectedSections && pendingEdit.affectedSections.length > 0 && (
+              <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/20">
+                <p className="text-sm font-medium text-destructive mb-2 break-words">
+                  {t('affectedSections')}:
+                </p>
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {pendingEdit.affectedSections.map(sectionKey => {
+                    const section = SECTIONS.find(s => s.key === sectionKey);
+                    return (
+                      <Badge key={sectionKey} variant="destructive" className="text-xs break-words">
+                        {section ? section.title : sectionKey}
+                      </Badge>
+                    );
+                  })}
                 </div>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter className="flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
-              <AlertDialogCancel 
-                onClick={() => handleEditWarningAction('discard')}
-                className="w-full sm:w-auto text-sm"
-              >
-                {t('discardChanges')}
-              </AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={() => handleEditWarningAction('delete')}
-                className="w-full sm:w-auto text-sm bg-destructive hover:bg-destructive/90"
-              >
-                {t('editAndDeleteProgressiveData')}
-              </AlertDialogAction>
-              <AlertDialogAction 
-                onClick={() => handleEditWarningAction('override')}
-                className="w-full sm:w-auto text-sm bg-amber-600 hover:bg-amber-700"
-              >
-                {t('overrideMyResponsibility')}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+                {job && (
+                  <div className="space-y-1">
+                    {pendingEdit.affectedSections.map(sectionKey => {
+                      const timestamp = job[`${sectionKey}_updated_at` as keyof StoryboardJob] as string | null;
+                      const section = SECTIONS.find(s => s.key === sectionKey);
+                      return timestamp ? (
+                        <div key={sectionKey} className="text-xs text-destructive/80 break-words">
+                          {section?.title}: {new Date(timestamp).toLocaleString()}
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            <div className="p-3 bg-amber-500/10 rounded-lg border border-amber-500/20">
+              <p className="text-sm font-medium text-amber-300 break-words">
+                {t('whatWouldYouLikeToDo')}
+              </p>
+            </div>
+          </div>
+        </SystemAlertDialog>
       </div>
     </div>
   );
