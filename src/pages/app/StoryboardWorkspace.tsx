@@ -736,7 +736,7 @@ export default function StoryboardWorkspace() {
     }
   };
 
-  // Execute function via execute-function edge function
+  // Execute function via execute-function edge function (now using N8N envelope)
   const executeFunction = async (functionName: string, payload: any) => {
     console.log(`🎯 Executing function: ${functionName}`, { payload });
     
@@ -747,7 +747,7 @@ export default function StoryboardWorkspace() {
 
     console.log('💰 Function details:', functionData, '| User credits:', credits);
 
-    const { data, error } = await supabase.functions.invoke('execute-function', {
+    const { data: envelope, error } = await supabase.functions.invoke('execute-function', {
       body: {
         function_id: functionData.id,
         payload: {
@@ -759,20 +759,34 @@ export default function StoryboardWorkspace() {
       }
     });
 
-    console.log('📡 Execute-function response:', { data, error });
+    console.log('📡 Execute-function envelope response:', { envelope, error });
 
     if (error) {
       throw new Error(error.message || `Failed to execute ${functionName}`);
     }
     
-    if (!data?.success) {
-      if (data?.error === 'Insufficient credits') {
-        throw new Error(`Insufficient credits. Required: ${data.required_credits || functionData.price} credits`);
+    // Check envelope status instead of legacy success field
+    if (envelope?.status === 'error') {
+      const errorCode = envelope.error?.code;
+      const errorMessage = envelope.error?.message || `${functionName} execution failed`;
+      
+      // Handle specific error codes with better user messages
+      if (errorCode === 'INSUFFICIENT_CREDITS') {
+        const details = envelope.error?.details as any;
+        throw new Error(`Insufficient credits. Required: ${details?.required_credits || functionData.price} credits`);
       }
-      throw new Error(data?.error || `${functionName} execution was rejected`);
+      
+      throw new Error(errorMessage);
     }
     
-    return data;
+    // Return the parsed data from the envelope
+    return {
+      success: envelope?.status === 'success',
+      data: envelope?.data?.parsed || envelope?.data?.raw_response,
+      envelope, // Include full envelope for debugging/logging
+      request_id: envelope?.request_id,
+      credits_consumed: envelope?.meta?.credits_consumed || 0
+    };
   };
 
   // Generate section handler
@@ -1031,10 +1045,7 @@ export default function StoryboardWorkspace() {
         }
       });
       
-      if (!result.success) {
-        throw new Error(result.error || 'Validation failed');
-      }
-      
+      // executeFunction now throws on error, so if we reach here it's successful
       const response = result.data;
       
       if (response.valid) {
@@ -1200,10 +1211,7 @@ export default function StoryboardWorkspace() {
         }
       });
       
-      if (!result.success) {
-        throw new Error(result.error || 'Validation failed');
-      }
-      
+      // executeFunction now throws on error, so if we reach here it's successful  
       const response = result.data;
       
       if (response.valid) {
