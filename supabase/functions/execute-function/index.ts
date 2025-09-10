@@ -503,6 +503,12 @@ serve(async (req) => {
     // Check if response is already an envelope - if so, pass it through
     if (isEnvelope(webhookResult)) {
       console.log('Webhook returned envelope format, passing through...');
+      
+      // Fix any type issues in the envelope
+      if (webhookResult.http_status && typeof webhookResult.http_status === 'string') {
+        webhookResult.http_status = parseInt(webhookResult.http_status, 10);
+      }
+      
       // Ensure request_id is set
       webhookResult.request_id = requestId;
       
@@ -540,7 +546,7 @@ serve(async (req) => {
       }
       
       return new Response(JSON.stringify(webhookResult), {
-        status: webhookResult.http_status || 200,
+        status: 200, // Always return 200 for envelope pattern
         headers: { 
           ...corsHeaders, 
           'Content-Type': 'application/json',
