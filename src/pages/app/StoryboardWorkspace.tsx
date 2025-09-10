@@ -2009,8 +2009,8 @@ export default function StoryboardWorkspace() {
                          </>
                         )}
                         
-                        {/* Delete Button - only show when collapsed and not editing */}
-                        {!openSections[section.key] && !isAnyEditMode && (
+                        {/* Delete Button - only show when open and not editing */}
+                        {openSections[section.key] && !isAnyEditMode && (
                           <Button
                             size="sm"
                             variant="outline"
