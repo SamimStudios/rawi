@@ -29,7 +29,8 @@ import {
   Users,
   Loader2,
   CheckCircle,
-  RefreshCw
+  RefreshCw,
+  Trash2
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -209,6 +210,8 @@ export default function StoryboardWorkspace() {
   // Warning dialog state
   const [showEditWarning, setShowEditWarning] = useState(false);
   const [showRegenerateWarning, setShowRegenerateWarning] = useState(false);
+  const [showDeleteWarning, setShowDeleteWarning] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{ section: string; affectedSections: string[] } | null>(null);
   const [pendingEdit, setPendingEdit] = useState<{ section: string; hasLaterData: boolean; affectedSections: string[] } | null>(null);
   
   // Enhanced edit impact state
@@ -1271,6 +1274,59 @@ export default function StoryboardWorkspace() {
     }
   };
 
+  // Delete section handler
+  const handleDeleteSection = (sectionKey: string) => {
+    // Get all sections that come after this section
+    const sectionIndex = SECTIONS.findIndex(s => s.key === sectionKey);
+    if (sectionIndex === -1) return;
+    
+    const affectedSections = SECTIONS.slice(sectionIndex).map(s => s.key);
+    
+    setPendingDelete({ section: sectionKey, affectedSections });
+    setShowDeleteWarning(true);
+  };
+
+  // Confirm delete section
+  const confirmDeleteSection = async () => {
+    if (!pendingDelete || !job) return;
+    
+    try {
+      const updates: any = {};
+      
+      // Clear data for this section and all following sections
+      pendingDelete.affectedSections.forEach(sectionKey => {
+        updates[sectionKey] = null;
+        updates[`${sectionKey}_updated_at`] = null;
+      });
+
+      const { error } = await supabase
+        .from('jobs')
+        .update(updates)
+        .eq('id', job.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Section Deleted",
+        description: "Section and all following sections have been deleted.",
+      });
+
+      // Refresh job data
+      fetchJob();
+      
+    } catch (error) {
+      console.error('Error deleting section:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete section",
+        variant: "destructive"
+      });
+    } finally {
+      setShowDeleteWarning(false);
+      setPendingDelete(null);
+    }
+  };
+
   // Input change handlers
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => {
@@ -1951,9 +2007,24 @@ export default function StoryboardWorkspace() {
                               </Button>
                             )}
                          </>
-                       )}
-                       
-                       {/* Edit Button */}
+                        )}
+                        
+                        {/* Delete Button - only show when collapsed and not editing */}
+                        {!openSections[section.key] && !isAnyEditMode && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteSection(section.key);
+                            }}
+                            className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                        
+                        {/* Edit Button */}
                        <Button
                          size="sm"
                          variant="ghost"
@@ -2289,6 +2360,45 @@ export default function StoryboardWorkspace() {
           allowClickOutside={true}
           iconVariant="warning"
         />
+
+        {/* Delete Confirmation Dialog */}
+        <SystemAlertDialog
+          open={showDeleteWarning}
+          onOpenChange={setShowDeleteWarning}
+          title="Delete Section"
+          description="Deleting this section will remove all data from this section and all following sections. This action cannot be undone."
+          cancelLabel={t('cancel')}
+          actions={[
+            {
+              label: "Delete",
+              onClick: confirmDeleteSection,
+              variant: "destructive"
+            }
+          ]}
+          allowClickOutside={true}
+          iconVariant="warning"
+        >
+          {pendingDelete && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Sections to be deleted:
+              </p>
+              <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/20">
+                <ul className="text-sm space-y-1">
+                  {pendingDelete.affectedSections.map(sectionKey => {
+                    const section = SECTIONS.find(sec => sec.key === sectionKey);
+                    return (
+                      <li key={sectionKey} className="flex items-center gap-2">
+                        {section?.icon && <section.icon className="h-4 w-4" />}
+                        {section?.title || sectionKey}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </div>
+          )}
+        </SystemAlertDialog>
       </div>
     </div>
   );
