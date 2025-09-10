@@ -130,8 +130,8 @@ export function SystemAlertDialog({
         </AlertDialogHeader>
 
         <AlertDialogFooter className={cn(
-          "flex-wrap gap-2",
-          isRTL ? "sm:justify-start flex-row-reverse" : "sm:justify-end flex-row"
+          "flex flex-wrap gap-2 justify-center items-center",
+          isRTL ? "flex-row-reverse" : "flex-row"
         )}>
           {cancelLabel && (
             <AlertDialogCancel 
