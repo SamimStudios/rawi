@@ -38,6 +38,7 @@ import StoryboardPlayground from "./pages/app/StoryboardPlayground";
 import StoryboardWorkspace from "./pages/app/StoryboardWorkspace";
 import Result from "./pages/app/Result";
 import StyleGuideline from "./pages/StyleGuideline";
+import N8NTest from "./pages/N8NTest";
 
 const queryClient = new QueryClient();
 
@@ -215,6 +216,13 @@ const MainApp = () => (
                     <div>
                       <Header />
                       <StyleGuideline />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/n8n-test" element={
+                    <div>
+                      <Header />
+                      <N8NTest />
                       <Footer />
                     </div>
                   } />
