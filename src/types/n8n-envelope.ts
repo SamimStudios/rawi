@@ -29,7 +29,7 @@ export interface N8NResponseEnvelope<TParsed = unknown> {
       | 'parsing'
       | 'internal';
     code: string;              // e.g., 'INSUFFICIENT_CREDITS', 'WEBHOOK_TIMEOUT'
-    message: string;
+    message: { en: string; ar: string } | string;  // bilingual fallback support
     details?: unknown;
     retry_possible: boolean;
   };
@@ -167,6 +167,6 @@ export const getErrorCode = (envelope: N8NResponseEnvelope): string | undefined 
   return envelope.error?.code;
 };
 
-export const getErrorMessage = (envelope: N8NResponseEnvelope): string | undefined => {
+export const getErrorMessage = (envelope: N8NResponseEnvelope): string | { en: string; ar: string } | undefined => {
   return envelope.error?.message;
 };

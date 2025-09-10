@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.2';
+import Ajv from 'https://esm.sh/ajv@8.12.0';
 
 // N8N Response Envelope Interface (inline for edge function)
 interface N8NResponseEnvelope<TParsed = unknown> {
@@ -14,7 +15,7 @@ interface N8NResponseEnvelope<TParsed = unknown> {
   error?: {
     type: 'validation' | 'authentication' | 'authorization' | 'credits' | 'webhook_connectivity' | 'workflow_execution' | 'upstream_http' | 'rate_limited' | 'parsing' | 'internal';
     code: string;
-    message: string;
+    message: { en: string; ar: string } | string;
     details?: unknown;
     retry_possible: boolean;
   };
@@ -36,6 +37,33 @@ interface N8NResponseEnvelope<TParsed = unknown> {
   };
 }
 
+// Bilingual message helper
+const bi = (msg: unknown, enDefault: string, arDefault?: string) => {
+  if (msg && typeof msg === 'object' && 'en' in (msg as any) && 'ar' in (msg as any)) return msg as any;
+  const s = typeof msg === 'string' ? msg : enDefault;
+  return { en: s, ar: arDefault ?? s };
+};
+
+// Envelope pass-through detection
+const isEnvelope = (response: any): boolean => {
+  return response && 
+         typeof response === 'object' && 
+         'status' in response && 
+         ('http_status' in response || 'data' in response || 'error' in response);
+};
+
+// Check if status should trigger retry
+const shouldRetry = (status: number): boolean => [429, 502, 503, 504].includes(status);
+
+// Initialize Ajv for schema validation
+const ajv = new Ajv();
+
+// Validate payload against schema
+const validatePayload = (schema: any, payload: any) => {
+  const validate = ajv.compile(schema);
+  return validate(payload) ? null : validate.errors;
+};
+
 // Helper function to create envelope
 const createEnvelope = (
   requestId: string,
@@ -46,7 +74,7 @@ const createEnvelope = (
     error?: {
       type: N8NResponseEnvelope['error']['type'];
       code: string;
-      message: string;
+      message: { en: string; ar: string } | string;
       details?: unknown;
       retryPossible: boolean;
     };
@@ -58,10 +86,15 @@ const createEnvelope = (
   const finishTime = new Date();
   const env = Deno.env.get('ENVIRONMENT') as 'prod' | 'staging' | 'dev' || 'dev';
   
+  // Default HTTP status codes
+  let defaultStatus = 200;
+  if (status === 'error') defaultStatus = 500;
+  if (status === 'partial_success') defaultStatus = 207;
+  
   return {
     request_id: requestId,
     timestamp: finishTime.toISOString(),
-    http_status: options.httpStatus || (status === 'success' ? 200 : status === 'error' ? 500 : 200),
+    http_status: options.httpStatus || defaultStatus,
     status,
     error: options.error ? {
       type: options.error.type,
@@ -87,7 +120,7 @@ const createEnvelope = (
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-request-id',
 };
 
 serve(async (req) => {
@@ -97,23 +130,27 @@ serve(async (req) => {
   }
 
   // Generate request correlation ID and start timing
-  const requestId = crypto.randomUUID();
+  const requestId = req.headers.get('X-Request-Id') || crypto.randomUUID();
   const startTime = new Date();
 
   try {
-    const { function_id, payload, user_id } = await req.json();
+    const requestData = await req.json();
     
-    console.log('Execute function request:', { function_id, payload, user_id });
+    // Support both n8n_function_id and function_id (alias for backward compatibility)
+    const n8n_function_id = requestData.n8n_function_id || requestData.function_id;
+    const { payload, user_id } = requestData;
+    
+    console.log('Execute function request:', { n8n_function_id, payload, user_id });
 
     // Validate required parameters
-    if (!function_id || !payload) {
-      console.error('Missing required parameters:', { function_id, payload });
+    if (!n8n_function_id || !payload) {
+      console.error('Missing required parameters:', { n8n_function_id, payload });
       const envelope = createEnvelope(requestId, startTime, 'error', {
         error: {
           type: 'validation',
           code: 'MISSING_REQUIRED_FIELD',
-          message: 'Missing required parameters: function_id and payload',
-          details: { function_id: !!function_id, payload: !!payload },
+          message: bi(null, 'Missing required parameters: n8n_function_id and payload', 'المعاملات المطلوبة مفقودة: n8n_function_id و payload'),
+          details: { n8n_function_id: !!n8n_function_id, payload: !!payload },
           retryPossible: false
         },
         httpStatus: 422
@@ -139,7 +176,7 @@ serve(async (req) => {
     const { data: functionData, error: functionError } = await supabase
       .from('n8n_functions')
       .select('*')
-      .eq('id', function_id)
+      .eq('id', n8n_function_id)
       .eq('active', true)
       .single();
 
@@ -149,8 +186,8 @@ serve(async (req) => {
         error: {
           type: 'authentication',
           code: 'FUNCTION_NOT_FOUND',
-          message: 'Function not found or inactive',
-          details: { function_id, error: functionError },
+          message: bi(null, 'Function not found or inactive', 'الوظيفة غير موجودة أو غير نشطة'),
+          details: { n8n_function_id, error: functionError },
           retryPossible: false
         },
         httpStatus: 404
@@ -167,6 +204,35 @@ serve(async (req) => {
     }
 
     console.log('Function details:', functionData);
+
+    // Validate payload against expected_schema if present
+    if (functionData.expected_schema) {
+      console.log('Validating payload against expected schema...');
+      const validationErrors = validatePayload(functionData.expected_schema, payload);
+      
+      if (validationErrors) {
+        console.error('Payload validation failed:', validationErrors);
+        const envelope = createEnvelope(requestId, startTime, 'error', {
+          error: {
+            type: 'validation',
+            code: 'PAYLOAD_INVALID',
+            message: bi(null, 'Payload validation failed', 'فشل التحقق من صحة الحمولة'),
+            details: { validation_errors: validationErrors, expected_schema: functionData.expected_schema },
+            retryPossible: false
+          },
+          httpStatus: 422
+        });
+        
+        return new Response(JSON.stringify(envelope), {
+          status: envelope.http_status,
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'X-Request-Id': requestId
+          }
+        });
+      }
+    }
 
     // Check if user has sufficient credits before making webhook call
     if (user_id && functionData.price > 0) {
@@ -185,7 +251,7 @@ serve(async (req) => {
           error: {
             type: 'credits',
             code: 'INSUFFICIENT_CREDITS',
-            message: `Insufficient credits. Required: ${functionData.price}, Available: ${userCredits?.credits || 0}`,
+            message: bi(null, `Insufficient credits. Required: ${functionData.price}, Available: ${userCredits?.credits || 0}`, `الرصيد غير كافي. المطلوب: ${functionData.price}، المتاح: ${userCredits?.credits || 0}`),
             details: {
               required_credits: functionData.price,
               available_credits: userCredits?.credits || 0,
@@ -209,7 +275,7 @@ serve(async (req) => {
       console.log(`User has sufficient credits: ${userCredits.credits}`);
     }
 
-    // Test webhook connectivity first
+    // Get webhook URL
     const webhookUrl = functionData.test_webhook || functionData.production_webhook;
     
     if (!webhookUrl) {
@@ -218,8 +284,8 @@ serve(async (req) => {
         error: {
           type: 'internal',
           code: 'CONFIGURATION_ERROR',
-          message: 'Function webhook not configured',
-          details: { function_id, function_name: functionData.name },
+          message: bi(null, 'Function webhook not configured', 'webhook الوظيفة غير مكون'),
+          details: { n8n_function_id, function_name: functionData.name },
           retryPossible: false
         },
         httpStatus: 500
@@ -235,131 +301,64 @@ serve(async (req) => {
       });
     }
 
-    console.log('Testing webhook connectivity to:', webhookUrl);
-    
-    // Simple connectivity test
-    try {
-      const testResponse = await fetch(webhookUrl, { 
-        method: 'HEAD',
-        signal: AbortSignal.timeout(5000)
-      });
-      console.log('Webhook connectivity test result:', testResponse.status);
-    } catch (testError) {
-      console.error('Webhook connectivity test failed:', testError);
-      const envelope = createEnvelope(requestId, startTime, 'error', {
-        error: {
-          type: 'webhook_connectivity',
-          code: 'WEBHOOK_UNREACHABLE',
-          message: `Webhook endpoint not accessible: ${testError.message}`,
-          details: { webhook_url: webhookUrl, test_error: testError.message },
-          retryPossible: true
-        },
-        httpStatus: 503
-      });
-      
-      return new Response(JSON.stringify(envelope), {
-        status: envelope.http_status,
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json',
-          'X-Request-Id': requestId
-        }
-      });
-    }
-
-    // Call the webhook
+    // Call the webhook with retry logic
     console.log('Calling webhook:', webhookUrl);
     console.log('Webhook payload:', JSON.stringify(payload, null, 2));
     
     let webhookResult;
-    try {
-      const webhookResponse = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      console.log('Webhook response status:', webhookResponse.status);
-      console.log('Webhook response headers:', Object.fromEntries(webhookResponse.headers.entries()));
-
-      if (!webhookResponse.ok) {
-        const responseText = await webhookResponse.text();
-        console.error('Webhook failed with response:', responseText);
+    let webhookResponse;
+    let lastError;
+    
+    // Try up to 2 times (initial + 1 retry)
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        console.log(`Webhook attempt ${attempt}...`);
         
-        // Determine error type based on status code
-        let errorType: N8NResponseEnvelope['error']['type'] = 'upstream_http';
-        let errorCode = 'UPSTREAM_ERROR';
-        let retryPossible = true;
+        webhookResponse = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Request-Id': requestId,
+          },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(15000), // 15 second timeout
+        });
+
+        console.log('Webhook response status:', webhookResponse.status);
+        console.log('Webhook response headers:', Object.fromEntries(webhookResponse.headers.entries()));
+
+        // Check if we should retry based on status
+        if (attempt === 1 && shouldRetry(webhookResponse.status)) {
+          console.log(`Retrying webhook call due to status ${webhookResponse.status}`);
+          continue;
+        }
+
+        break; // Success or non-retryable error
         
-        if (webhookResponse.status >= 400 && webhookResponse.status < 500) {
-          if (webhookResponse.status === 401 || webhookResponse.status === 403) {
-            errorType = 'authentication';
-            errorCode = 'PERMISSION_DENIED';
-            retryPossible = false;
-          } else if (webhookResponse.status === 422) {
-            errorType = 'validation';
-            errorCode = 'VALIDATION_FAILED';
-            retryPossible = false;
-          } else if (webhookResponse.status === 429) {
-            errorType = 'rate_limited';
-            errorCode = 'RATE_LIMIT_EXCEEDED';
-            retryPossible = true;
-          } else {
-            errorCode = 'UPSTREAM_ERROR';
-          }
-        } else if (webhookResponse.status >= 500) {
-          errorType = 'workflow_execution';
-          errorCode = 'WORKFLOW_FAILED';
+      } catch (error) {
+        console.error(`Webhook attempt ${attempt} failed:`, error);
+        lastError = error;
+        
+        // Only retry timeout/network errors
+        if (attempt === 1 && (error.name === 'TimeoutError' || error.name === 'NetworkError')) {
+          console.log('Retrying webhook call due to network/timeout error');
+          continue;
         }
         
-        const envelope = createEnvelope(requestId, startTime, 'error', {
-          error: {
-            type: errorType,
-            code: errorCode,
-            message: `Webhook failed with status ${webhookResponse.status}`,
-            details: { 
-              status: webhookResponse.status, 
-              response: responseText,
-              webhook_url: webhookUrl 
-            },
-            retryPossible
-          },
-          httpStatus: 502
-        });
-        
-        return new Response(JSON.stringify(envelope), {
-          status: envelope.http_status,
-          headers: { 
-            ...corsHeaders, 
-            'Content-Type': 'application/json',
-            'X-Request-Id': requestId
-          }
-        });
+        break; // Non-retryable error
       }
+    }
 
-      const responseText = await webhookResponse.text();
-      console.log('Raw webhook response:', responseText);
+    // Handle webhook errors
+    if (!webhookResponse) {
+      console.error('Webhook call completely failed:', lastError);
       
-      try {
-        webhookResult = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('Failed to parse webhook response as JSON:', parseError);
-        webhookResult = { raw_response: responseText };
-      }
-      
-      console.log('Parsed webhook result:', webhookResult);
-    } catch (webhookError) {
-      console.error('Error calling webhook:', webhookError);
-      
-      // Determine error type based on error characteristics
       let errorType: N8NResponseEnvelope['error']['type'] = 'webhook_connectivity';
       let errorCode = 'WEBHOOK_TIMEOUT';
       
-      if (webhookError.name === 'TimeoutError') {
+      if (lastError?.name === 'TimeoutError') {
         errorCode = 'WEBHOOK_TIMEOUT';
-      } else if (webhookError.name === 'NetworkError') {
+      } else if (lastError?.name === 'NetworkError') {
         errorCode = 'WEBHOOK_UNREACHABLE';
       } else {
         errorType = 'internal';
@@ -370,15 +369,15 @@ serve(async (req) => {
         error: {
           type: errorType,
           code: errorCode,
-          message: `Webhook call failed: ${webhookError.message}`,
+          message: bi(null, `Webhook call failed: ${lastError?.message}`, `فشل استدعاء webhook: ${lastError?.message}`),
           details: { 
-            error_name: webhookError.name, 
-            error_message: webhookError.message,
+            error_name: lastError?.name, 
+            error_message: lastError?.message,
             webhook_url: webhookUrl 
           },
           retryPossible: true
         },
-        httpStatus: 502
+        httpStatus: webhookResponse?.status || 502
       });
       
       return new Response(JSON.stringify(envelope), {
@@ -391,7 +390,150 @@ serve(async (req) => {
       });
     }
 
-    // Now that webhook succeeded, consume the credits
+    // Handle non-OK responses
+    if (!webhookResponse.ok) {
+      const responseText = await webhookResponse.text();
+      console.error('Webhook failed with response:', responseText);
+      
+      // Enhanced error classification
+      let errorType: N8NResponseEnvelope['error']['type'] = 'upstream_http';
+      let errorCode = `UPSTREAM_${webhookResponse.status}`;
+      let retryPossible = true;
+      
+      // Specific pattern matching
+      if (webhookResponse.status === 404 && responseText.includes('not registered')) {
+        errorType = 'webhook_connectivity';
+        errorCode = 'N8N_WEBHOOK_NOT_FOUND';
+        retryPossible = false;
+      } else if (webhookResponse.status === 500 && responseText.includes('could not be started')) {
+        errorType = 'workflow_execution';
+        errorCode = 'START_FAILED';
+        retryPossible = false;
+      } else if (webhookResponse.status === 520 && responseText.includes('<html')) {
+        errorType = 'webhook_connectivity';
+        errorCode = 'EDGE_520';
+        retryPossible = true;
+      } else if (webhookResponse.status === 401 || webhookResponse.status === 403) {
+        errorType = 'authentication';
+        errorCode = 'PERMISSION_DENIED';
+        retryPossible = false;
+      } else if (webhookResponse.status === 422) {
+        errorType = 'validation';
+        errorCode = 'VALIDATION_FAILED';
+        retryPossible = false;
+      } else if (webhookResponse.status === 429) {
+        errorType = 'rate_limited';
+        errorCode = 'RATE_LIMIT_EXCEEDED';
+        retryPossible = true;
+      }
+      
+      const envelope = createEnvelope(requestId, startTime, 'error', {
+        error: {
+          type: errorType,
+          code: errorCode,
+          message: bi(null, `Webhook failed with status ${webhookResponse.status}`, `فشل webhook بالحالة ${webhookResponse.status}`),
+          details: { 
+            status: webhookResponse.status, 
+            response: responseText,
+            webhook_url: webhookUrl 
+          },
+          retryPossible
+        },
+        httpStatus: webhookResponse.status // Mirror upstream status
+      });
+      
+      return new Response(JSON.stringify(envelope), {
+        status: envelope.http_status,
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'X-Request-Id': requestId
+        }
+      });
+    }
+
+    // Parse webhook response
+    const responseText = await webhookResponse.text();
+    console.log('Raw webhook response:', responseText);
+    
+    try {
+      webhookResult = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse webhook response as JSON:', parseError);
+      webhookResult = { raw_response: responseText };
+    }
+    
+    console.log('Parsed webhook result:', webhookResult);
+
+    // Check if response is already an envelope - if so, pass it through
+    if (isEnvelope(webhookResult)) {
+      console.log('Webhook returned envelope format, passing through...');
+      // Ensure request_id is set
+      webhookResult.request_id = requestId;
+      
+      // Consume credits for successful/partial_success responses
+      if ((webhookResult.status === 'success' || webhookResult.status === 'partial_success') && 
+          user_id && functionData.price > 0) {
+        console.log(`Consuming ${functionData.price} credits for user ${user_id} after successful webhook`);
+        
+        await supabase.rpc('consume_credits', {
+          p_user_id: user_id,
+          p_credits: functionData.price,
+          p_description: `${functionData.name} execution`
+        });
+        
+        // Update credits_consumed in meta
+        if (webhookResult.meta) {
+          webhookResult.meta.credits_consumed = functionData.price;
+        }
+      }
+      
+      // Update database if needed
+      if (payload.table_id === 'storyboard_jobs' && payload.row_id) {
+        const updateData: any = { 
+          n8n_response: webhookResult,
+          updated_at: new Date().toISOString()
+        };
+
+        if (webhookResult.data?.parsed?.movie_info) {
+          updateData.movie_info = webhookResult.data.parsed.movie_info;
+          updateData.movie_info_updated_at = new Date().toISOString();
+        }
+
+        await supabase.from('storyboard_jobs').update(updateData).eq('id', payload.row_id);
+        console.log('Successfully updated storyboard job with webhook response envelope');
+      }
+      
+      return new Response(JSON.stringify(webhookResult), {
+        status: webhookResult.http_status || 200,
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'X-Request-Id': requestId
+        }
+      });
+    }
+
+    // Validate success response against success_response_schema if present
+    let status: 'success' | 'partial_success' = 'success';
+    let warnings: Array<{ type: string; message: string; field?: string }> | undefined;
+    
+    if (functionData.success_response_schema) {
+      console.log('Validating success response against schema...');
+      const validationErrors = validatePayload(functionData.success_response_schema, webhookResult);
+      
+      if (validationErrors) {
+        console.warn('Success response validation failed:', validationErrors);
+        status = 'partial_success';
+        warnings = validationErrors.map((error: any) => ({
+          type: 'schema_validation',
+          message: `Response validation warning: ${error.message}`,
+          field: error.instancePath || error.schemaPath
+        }));
+      }
+    }
+
+    // Consume credits after successful/partial_success webhook
     if (user_id && functionData.price > 0) {
       console.log(`Consuming ${functionData.price} credits for user ${user_id} after successful webhook`);
       
@@ -404,23 +546,23 @@ serve(async (req) => {
       if (creditError || !creditResult) {
         console.error('Error consuming credits after successful webhook:', creditError);
         // Note: We don't return an error here since the webhook succeeded
-        // This is a billing issue, not a functional failure
       } else {
         console.log('Credits consumed successfully after webhook completion');
       }
     }
 
-    // Create success envelope
-    const envelope = createEnvelope(requestId, startTime, 'success', {
+    // Create success/partial_success envelope
+    const envelope = createEnvelope(requestId, startTime, status, {
       data: webhookResult,
       creditsConsumed: user_id ? functionData.price : 0,
-      httpStatus: 200
+      httpStatus: status === 'partial_success' ? 207 : 200,
+      warnings
     });
 
-    // For storyboard jobs, update the job with the webhook response (now storing envelope)
+    // For storyboard jobs, update the job with the webhook response
     if (payload.table_id === 'storyboard_jobs' && payload.row_id) {
       const updateData: any = { 
-        n8n_response: envelope, // Store the complete envelope
+        n8n_response: envelope,
         updated_at: new Date().toISOString()
       };
 
@@ -459,7 +601,7 @@ serve(async (req) => {
       error: {
         type: 'internal',
         code: 'INTERNAL_SERVER_ERROR',
-        message: error.message || 'Internal server error',
+        message: bi(null, error.message || 'Internal server error', error.message || 'خطأ خادم داخلي'),
         details: { error_stack: error.stack },
         retryPossible: true
       },
