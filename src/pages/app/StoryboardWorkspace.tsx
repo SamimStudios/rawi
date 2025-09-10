@@ -220,9 +220,10 @@ export default function StoryboardWorkspace() {
     logline?: string; 
     world?: string; 
     look?: string;
-    leadName?: string;
-    leadGender?: string; 
-    supportingCharacters?: Array<{ name: string; gender: string; }>;
+    characters?: {
+      lead?: { name: string; gender: string; };
+      supporting?: { name: string; gender: string; };
+    };
   } | null>(null);
   const [isValidating, setIsValidating] = useState(false);
   
@@ -1191,25 +1192,27 @@ export default function StoryboardWorkspace() {
         look: suggestedFix.look || movieData.look,
         characters: {
           lead: {
-            name: suggestedFix.leadName || movieData.characters.lead?.name || '',
-            gender: suggestedFix.leadGender || movieData.characters.lead?.gender || ''
+            name: suggestedFix.characters?.lead?.name || movieData.characters.lead?.name || '',
+            gender: suggestedFix.characters?.lead?.gender || movieData.characters.lead?.gender || ''
           },
-          supporting: suggestedFix.supportingCharacters?.[0] ? {
-            name: suggestedFix.supportingCharacters[0].name,
-            gender: suggestedFix.supportingCharacters[0].gender
+          supporting: suggestedFix.characters?.supporting ? {
+            name: suggestedFix.characters.supporting.name,
+            gender: suggestedFix.characters.supporting.gender
           } : movieData.characters.supporting
         }
       });
       
       // Update supporting characters if suggestions exist
-      if (suggestedFix.supportingCharacters && suggestedFix.supportingCharacters.length > 0) {
+      if (suggestedFix.characters?.supporting) {
         setSupportingCharacters(prev => {
           const updated = [...prev];
-          suggestedFix.supportingCharacters!.forEach((suggestion, index) => {
-            if (updated[index]) {
-              updated[index] = { ...updated[index], name: suggestion.name, gender: suggestion.gender };
-            }
-          });
+          if (updated.length > 0) {
+            updated[0] = { 
+              ...updated[0], 
+              name: suggestedFix.characters!.supporting!.name, 
+              gender: suggestedFix.characters!.supporting!.gender 
+            };
+          }
           return updated;
         });
       }
@@ -2322,36 +2325,34 @@ export default function StoryboardWorkspace() {
                                 {t('applySuggestions')}
                               </Button>
                             </div>
-                             <div className="space-y-1 text-sm text-amber-700">
-                               {suggestedFix.movie_title && (
-                                 <div><strong>Title:</strong> {suggestedFix.movie_title}</div>
-                               )}
-                               {suggestedFix.logline && (
-                                 <div><strong>Logline:</strong> {suggestedFix.logline}</div>
-                               )}
-                               {suggestedFix.world && (
-                                 <div><strong>World:</strong> {suggestedFix.world}</div>
-                               )}
-                               {suggestedFix.look && (
-                                 <div><strong>Look:</strong> {suggestedFix.look}</div>
-                               )}
-                               {suggestedFix.leadName && (
-                                 <div><strong>{t('leadCharacter')} Name:</strong> {suggestedFix.leadName}</div>
-                               )}
-                               {suggestedFix.leadGender && (
-                                 <div><strong>{t('leadCharacter')} Gender:</strong> {suggestedFix.leadGender}</div>
-                               )}
-                               {suggestedFix.supportingCharacters && suggestedFix.supportingCharacters.length > 0 && (
-                                 <div>
-                                   <strong>{t('supportingCharacter')}:</strong>
-                                   {suggestedFix.supportingCharacters.map((char, index) => (
-                                     <div key={index} className="ml-2">
-                                       {char.name} ({char.gender})
-                                     </div>
-                                   ))}
-                                 </div>
-                               )}
-                             </div>
+                               <div className="space-y-1 text-sm text-amber-700">
+                                {suggestedFix.movie_title && (
+                                  <div><strong>Title:</strong> {suggestedFix.movie_title}</div>
+                                )}
+                                {suggestedFix.logline && (
+                                  <div><strong>Logline:</strong> {suggestedFix.logline}</div>
+                                )}
+                                {suggestedFix.world && (
+                                  <div><strong>World:</strong> {suggestedFix.world}</div>
+                                )}
+                                {suggestedFix.look && (
+                                  <div><strong>Look:</strong> {suggestedFix.look}</div>
+                                )}
+                                {suggestedFix.characters?.lead?.name && (
+                                  <div><strong>{t('leadCharacter')} Name:</strong> {suggestedFix.characters.lead.name}</div>
+                                )}
+                                {suggestedFix.characters?.lead?.gender && (
+                                  <div><strong>{t('leadCharacter')} Gender:</strong> {suggestedFix.characters.lead.gender}</div>
+                                )}
+                                {suggestedFix.characters?.supporting && (
+                                  <div>
+                                    <strong>{t('supportingCharacter')}:</strong>
+                                    <div className="ml-2">
+                                      {suggestedFix.characters.supporting.name} ({suggestedFix.characters.supporting.gender})
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                           </div>
                         )}
                         
