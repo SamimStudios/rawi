@@ -439,6 +439,35 @@ export default function StoryboardWorkspace() {
   const getAffectedSections = (sectionKey: string): string[] => {
     if (!job) return [];
     
+    // Special handling for 'input' section - it can affect all other sections
+    if (sectionKey === 'input') {
+      const affected: string[] = [];
+      const inputTimestamp = job.input_updated_at;
+      const inputTime = inputTimestamp ? new Date(inputTimestamp).getTime() : 0;
+      
+      // Check all sections to see which ones have data and would be affected
+      SECTIONS.forEach(section => {
+        const sectionData = job[section.key as keyof StoryboardJob];
+        const sectionTimestamp = job[`${section.key}_updated_at` as keyof StoryboardJob] as string | null;
+        
+        if (sectionData && typeof sectionData === 'object' && Object.keys(sectionData).length > 0) {
+          // If section has data and was updated after input (or input has no timestamp), it's affected
+          if (sectionTimestamp) {
+            const sectionTime = new Date(sectionTimestamp).getTime();
+            if (!inputTimestamp || sectionTime > inputTime) {
+              affected.push(section.key);
+            }
+          } else {
+            // If no timestamp but has data, consider it affected
+            affected.push(section.key);
+          }
+        }
+      });
+      
+      return affected;
+    }
+    
+    // Regular sections - find their position in the SECTIONS array
     const sectionIndex = SECTIONS.findIndex(s => s.key === sectionKey);
     if (sectionIndex === -1) return [];
     
@@ -480,6 +509,43 @@ export default function StoryboardWorkspace() {
     }
     
     return affected;
+  };
+
+  // Check if a section should show visual inconsistency indicators
+  const getSectionInconsistencyWarning = (sectionKey: string): boolean => {
+    if (!job || sectionKey === 'input') return false;
+    
+    const currentTimestamp = job[`${sectionKey}_updated_at` as keyof StoryboardJob] as string | null;
+    if (!currentTimestamp) return false;
+    
+    const currentTime = new Date(currentTimestamp).getTime();
+    
+    // Check if input was updated after this section
+    const inputTimestamp = job.input_updated_at;
+    if (inputTimestamp) {
+      const inputTime = new Date(inputTimestamp).getTime();
+      if (inputTime > currentTime) {
+        return true;
+      }
+    }
+    
+    // Check if any previous section was updated after this section
+    const sectionIndex = SECTIONS.findIndex(s => s.key === sectionKey);
+    if (sectionIndex <= 0) return false;
+    
+    for (let i = 0; i < sectionIndex; i++) {
+      const previousSection = SECTIONS[i];
+      const previousTimestamp = job[`${previousSection.key}_updated_at` as keyof StoryboardJob] as string | null;
+      
+      if (previousTimestamp) {
+        const previousTime = new Date(previousTimestamp).getTime();
+        if (previousTime > currentTime) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
   };
 
   // Enhanced edit impact check with detailed information
@@ -1835,25 +1901,25 @@ export default function StoryboardWorkspace() {
               <Card key={section.key} className={cn(
                 "transition-all", 
                 isEditing && "ring-2 ring-primary/50",
-                sectionWarnings[section.key] && "ring-2 ring-amber-500 border-amber-300 bg-amber-50/50 dark:bg-amber-900/20"
+                (sectionWarnings[section.key] || getSectionInconsistencyWarning(section.key)) && "ring-2 ring-amber-500 border-amber-300 bg-amber-50/50 dark:bg-amber-900/20"
               )}>
                 <CardHeader 
                   className="cursor-pointer hover:bg-muted/50 transition-colors"
                   onClick={() => !isAnyEditMode && setOpenSections(prev => ({ ...prev, [section.key]: !prev[section.key] }))}
                 >
                   <div className="flex items-center justify-between">
-                     <CardTitle className="flex items-center gap-2">
-                       <section.icon className="h-5 w-5" />
-                       {section.title}
-                       {isEditing && <Badge variant="secondary">{t('editing')}</Badge>}
-                       {sectionWarnings[section.key] && (
-                         <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900 dark:text-amber-200">
-                           <AlertTriangle className="h-3 w-3 mr-1" />
-                           May be inconsistent
-                         </Badge>
-                       )}
-                       <CheckCircle className="h-4 w-4 text-green-500" />
-                     </CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      <section.icon className="h-5 w-5" />
+                      {section.title}
+                      {isEditing && <Badge variant="secondary">{t('editing')}</Badge>}
+                      {(sectionWarnings[section.key] || getSectionInconsistencyWarning(section.key)) && (
+                        <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900 dark:text-amber-200">
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          May be inconsistent
+                        </Badge>
+                      )}
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                    </CardTitle>
                       <div className="flex items-center gap-2">
                        {lastUpdated && (
                          <div className="text-xs text-muted-foreground">
