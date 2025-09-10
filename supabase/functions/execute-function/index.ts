@@ -584,21 +584,28 @@ serve(async (req) => {
         }
       }
       
-      // Update database if needed
-      if (payload.table_id === 'storyboard_jobs' && payload.row_id) {
-        const updateData: any = { 
-          n8n_response: webhookResult,
-          updated_at: new Date().toISOString()
-        };
+        // Update database if needed
+        if (payload.table_id === 'storyboard_jobs' && payload.row_id) {
+          const updateData: any = { 
+            n8n_response: webhookResult,
+            updated_at: new Date().toISOString()
+          };
 
-        if (webhookResult.data?.parsed?.movie_info) {
-          updateData.movie_info = webhookResult.data.parsed.movie_info;
-          updateData.movie_info_updated_at = new Date().toISOString();
+          // Check if this is movie info generation (generate-movie-info function)
+          if (functionData.name === 'generate-movie-info' && webhookResult.data) {
+            updateData.movie_info = webhookResult.data;
+            updateData.movie_info_updated_at = new Date().toISOString();
+            console.log('🎬 Updated movie_info and movie_info_updated_at timestamp');
+          }
+          // Legacy check for parsed movie_info structure
+          else if (webhookResult.data?.parsed?.movie_info) {
+            updateData.movie_info = webhookResult.data.parsed.movie_info;
+            updateData.movie_info_updated_at = new Date().toISOString();
+          }
+
+          await supabase.from('storyboard_jobs').update(updateData).eq('id', payload.row_id);
+          console.log('Successfully updated storyboard job with webhook response envelope');
         }
-
-        await supabase.from('storyboard_jobs').update(updateData).eq('id', payload.row_id);
-        console.log('Successfully updated storyboard job with webhook response envelope');
-      }
       
       return new Response(JSON.stringify(webhookResult), {
         status: 200, // Always return 200 for envelope pattern
@@ -669,18 +676,25 @@ serve(async (req) => {
       warnings
     });
 
-    // For storyboard jobs, update the job with the webhook response
-    if (payload.table_id === 'storyboard_jobs' && payload.row_id) {
-      const updateData: any = { 
-        n8n_response: envelope,
-        updated_at: new Date().toISOString()
-      };
+      // For storyboard jobs, update the job with the webhook response
+      if (payload.table_id === 'storyboard_jobs' && payload.row_id) {
+        const updateData: any = { 
+          n8n_response: envelope,
+          updated_at: new Date().toISOString()
+        };
 
-      // If webhook response contains movie_info, also set movie_info_updated_at
-      if (webhookResult && typeof webhookResult === 'object' && webhookResult.movie_info) {
-        updateData.movie_info = webhookResult.movie_info;
-        updateData.movie_info_updated_at = new Date().toISOString();
-      }
+        // Check if this is movie info generation and update timestamp
+        if (functionData.name === 'generate-movie-info' && webhookResult && typeof webhookResult === 'object') {
+          // For generate-movie-info function, the data should be in webhookResult directly
+          updateData.movie_info = webhookResult;
+          updateData.movie_info_updated_at = new Date().toISOString();
+          console.log('🎬 Updated movie_info and movie_info_updated_at timestamp (error path)');
+        }
+        // Legacy check for other movie_info structures
+        else if (webhookResult && typeof webhookResult === 'object' && webhookResult.movie_info) {
+          updateData.movie_info = webhookResult.movie_info;
+          updateData.movie_info_updated_at = new Date().toISOString();
+        }
 
       const { error: updateError } = await supabase
         .from('storyboard_jobs')
