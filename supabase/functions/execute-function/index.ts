@@ -356,7 +356,6 @@ serve(async (req) => {
             'X-Request-Id': requestId,
           },
           body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(15000), // 15 second timeout
         });
 
         console.log('Webhook response status:', webhookResponse.status);
