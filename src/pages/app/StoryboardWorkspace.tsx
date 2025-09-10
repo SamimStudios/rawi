@@ -55,7 +55,7 @@ const getSections = (t: any) => [
     key: 'characters', 
     title: t('characters'),
     icon: Users,
-    generateFunctionId: null, // Will be set when function is available
+    generateFunctionId: 'characters-generate', // Custom identifier for character generation
     editFunctionId: null,
     nextButton: t('generateProps'),
     fields: ['lead', 'supporting']
@@ -211,6 +211,14 @@ export default function StoryboardWorkspace() {
       }
     }
   });
+
+  // Character states
+  const [characterData, setCharacterData] = useState<any>(null);
+  const [characterEditData, setCharacterEditData] = useState<any>({});
+  const [isGeneratingCharacters, setIsGeneratingCharacters] = useState(false);
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState<{[key: string]: boolean}>({});
+  const [isValidatingDescription, setIsValidatingDescription] = useState<{[key: string]: boolean}>({});
+  const [isGeneratingPortrait, setIsGeneratingPortrait] = useState<{[key: string]: boolean}>({});
   
   // Validation states
   const [validationStatus, setValidationStatus] = useState<'validating' | 'valid' | 'invalid' | null>(null);
@@ -603,6 +611,311 @@ export default function StoryboardWorkspace() {
     return false;
   };
 
+  const handleCharacterImageUpload = async (characterKey: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: t('fileTooLarge'),
+        description: t('imageUnder5MB'),
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      const imageUrl = await uploadImageToStorage(file);
+      
+      // Update character data
+      const updatedCharacters = { ...job.characters };
+      if (updatedCharacters[characterKey]?.base) {
+        updatedCharacters[characterKey].base.face_ref = imageUrl;
+      }
+
+      const { error } = await supabase
+        .from('storyboard_jobs')
+        .update({ 
+          characters: updatedCharacters,
+          characters_updated_at: new Date().toISOString()
+        })
+        .eq('id', jobId);
+
+      if (error) throw error;
+
+      // Refresh job data
+      await fetchJob();
+      
+      toast({
+        title: t('imageUploaded'),
+        description: t('imageUploadedSuccessfully')
+      });
+    } catch (error) {
+      console.error('Error uploading character image:', error);
+      toast({
+        title: t('error'),
+        description: t('imageUploadFailed'),
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleRemoveCharacterFaceRef = async (characterKey: string) => {
+    if (!job.characters) return;
+    
+    const updatedCharacters = { ...job.characters };
+    if (updatedCharacters[characterKey]?.base) {
+      updatedCharacters[characterKey].base.face_ref = null;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('storyboard_jobs')
+        .update({ 
+          characters: updatedCharacters,
+          characters_updated_at: new Date().toISOString()
+        })
+        .eq('id', jobId);
+
+      if (error) throw error;
+      
+      // Refresh job data
+      await fetchJob();
+    } catch (error) {
+      console.error('Error removing face reference:', error);
+      toast({
+        title: t('error'),
+        description: t('failedToUpdateCharacter'),
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const renderCharacterCard = (characterKey: string, characterInfo: any, characterTitle: string) => {
+    return (
+      <div className="border rounded-lg p-4 space-y-4">
+        <h4 className="font-semibold text-lg">{characterTitle}</h4>
+        
+        {/* Part 1: Base Info */}
+        <div className="border rounded-lg p-4 bg-card">
+          <div className="flex items-center justify-between mb-3">
+            <h5 className="font-medium">{t('baseInfo')}</h5>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="text-sm font-medium">{t('name')}</label>
+              <Input value={characterInfo.base?.name || ''} disabled className="mt-1" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">{t('gender')}</label>
+              <Input value={characterInfo.base?.gender || ''} disabled className="mt-1" />
+            </div>
+          </div>
+
+          {/* Face Reference */}
+          <div className="mb-4">
+            <label className="text-sm font-medium">{t('faceReference')}</label>
+            <p className="text-xs text-muted-foreground mb-2">{t('leaveEmptyForAIGenerated')}</p>
+            
+            {characterInfo.base?.face_ref ? (
+              <div className="flex items-center gap-3">
+                <img 
+                  src={characterInfo.base.face_ref} 
+                  alt={t('faceReference')}
+                  className="w-16 h-16 object-cover rounded-lg border"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleRemoveCharacterFaceRef(characterKey)}
+                >
+                  {t('remove')}
+                </Button>
+              </div>
+            ) : (
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleCharacterImageUpload(characterKey, e)}
+                className="mt-1"
+              />
+            )}
+          </div>
+
+          {!characterInfo.description && (
+            <Button
+              onClick={() => handleGenerateCharacterDescription(characterKey)}
+              disabled={isGeneratingDescription[characterKey]}
+              className="w-full"
+            >
+              {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t('generateDescription')}
+              {functions['generate-character-description'] && (
+                <span className="text-xs opacity-75 ml-2">
+                  ({functions['generate-character-description'].price} {t('credits')})
+                </span>
+              )}
+            </Button>
+          )}
+        </div>
+
+        {/* Part 2: Description */}
+        {characterInfo.description && (
+          <div className="border rounded-lg p-4 bg-card">
+            <div className="flex items-center justify-between mb-3">
+              <h5 className="font-medium">{t('description')}</h5>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCharacterEditData(prev => ({ 
+                    ...prev, 
+                    [`${characterKey}_editing`]: !prev[`${characterKey}_editing`] 
+                  }))}
+                >
+                  {characterEditData[`${characterKey}_editing`] ? t('cancel') : t('edit')}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleGenerateCharacterDescription(characterKey)}
+                  disabled={isGeneratingDescription[characterKey]}
+                >
+                  {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {t('regenerate')}
+                </Button>
+              </div>
+            </div>
+
+            {characterEditData[`${characterKey}_editing`] ? (
+              <div className="space-y-3">
+                {renderEditableDescriptionFields(characterKey, characterInfo.description)}
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => handleValidateCharacterDescription(characterKey, characterEditData[characterKey])}
+                    disabled={isValidatingDescription[characterKey]}
+                  >
+                    {isValidatingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {t('validate')}
+                    {functions['validate-character-description'] && (
+                      <span className="text-xs opacity-75 ml-2">
+                        ({functions['validate-character-description'].price} {t('credits')})
+                      </span>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="font-medium">{t('ageRange')}:</span>
+                  <span className="ml-2">{characterInfo.description.age_range || '-'}</span>
+                </div>
+                <div>
+                  <span className="font-medium">{t('ethnicity')}:</span>
+                  <span className="ml-2">{characterInfo.description.ethnicity || '-'}</span>
+                </div>
+                <div>
+                  <span className="font-medium">{t('skinTone')}:</span>
+                  <span className="ml-2">{characterInfo.description.skin_tone || '-'}</span>
+                </div>
+                <div>
+                  <span className="font-medium">{t('body')}:</span>
+                  <span className="ml-2">{characterInfo.description.body || '-'}</span>
+                </div>
+                <div>
+                  <span className="font-medium">{t('faceFeatures')}:</span>
+                  <span className="ml-2">{characterInfo.description.face_features || '-'}</span>
+                </div>
+                <div>
+                  <span className="font-medium">{t('head')}:</span>
+                  <span className="ml-2">{characterInfo.description.head || '-'}</span>
+                </div>
+                <div>
+                  <span className="font-medium">{t('clothes')}:</span>
+                  <span className="ml-2">{characterInfo.description.clothes || '-'}</span>
+                </div>
+                <div>
+                  <span className="font-medium">{t('personality')}:</span>
+                  <span className="ml-2">{characterInfo.description.personality || '-'}</span>
+                </div>
+              </div>
+            )}
+
+            {!characterInfo.portrait_url && characterInfo.description && (
+              <Button
+                onClick={() => handleGenerateCharacterPortrait(characterKey)}
+                disabled={isGeneratingPortrait[characterKey]}
+                className="w-full mt-4"
+              >
+                {isGeneratingPortrait[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {t('generatePortrait')}
+                {functions['generate-character-portrait'] && (
+                  <span className="text-xs opacity-75 ml-2">
+                    ({functions['generate-character-portrait'].price} {t('credits')})
+                  </span>
+                )}
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Part 3: Portrait */}
+        {characterInfo.portrait_url && (
+          <div className="border rounded-lg p-4 bg-card">
+            <div className="flex items-center justify-between mb-3">
+              <h5 className="font-medium">{t('portrait')}</h5>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleGenerateCharacterPortrait(characterKey)}
+                disabled={isGeneratingPortrait[characterKey]}
+              >
+                {isGeneratingPortrait[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {t('regenerate')}
+              </Button>
+            </div>
+            
+            <div className="flex justify-center">
+              <img
+                src={characterInfo.portrait_url}
+                alt={`${characterInfo.base?.name} ${t('portrait')}`}
+                className="max-w-64 max-h-64 object-cover rounded-lg border"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderEditableDescriptionFields = (characterKey: string, description: any) => {
+    const fields = ['age_range', 'ethnicity', 'skin_tone', 'body', 'face_features', 'head', 'clothes', 'personality'];
+    
+    return (
+      <div className="grid grid-cols-2 gap-3">
+        {fields.map(field => (
+          <div key={field}>
+            <label className="text-sm font-medium">{t(field)}</label>
+            <Input
+              value={characterEditData[characterKey]?.[field] || description[field] || ''}
+              onChange={(e) => setCharacterEditData(prev => ({
+                ...prev,
+                [characterKey]: {
+                  ...prev[characterKey],
+                  [field]: e.target.value
+                }
+              }))}
+              className="mt-1"
+            />
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   // Enhanced edit impact check with detailed information
   const checkEditImpact = (sectionKey: string): { hasImpact: boolean; affectedSections: string[] } => {
     const affected = getAffectedSections(sectionKey);
@@ -860,10 +1173,16 @@ export default function StoryboardWorkspace() {
     setLoadingSections(prev => ({ ...prev, [sectionKey]: true }));
     
     try {
-      await executeFunction('generate-movie-info', {
-        table_id: 'storyboard_jobs',
-        row_id: jobId
-      });
+      if (sectionKey === 'characters') {
+        // Handle characters generation specially
+        await handleGenerateCharacters();
+      } else {
+        // Handle other sections with N8N functions
+        await executeFunction('generate-movie-info', {
+          table_id: 'storyboard_jobs',
+          row_id: jobId
+        });
+      }
       
       // Fetch latest data from database after successful generation
       await fetchJob();
@@ -898,6 +1217,184 @@ export default function StoryboardWorkspace() {
       });
     } finally {
       setLoadingSections(prev => ({ ...prev, [sectionKey]: false }));
+    }
+  };
+
+  // Character Generation Functions
+  const handleGenerateCharacters = async () => {
+    if (!job) return;
+
+    console.log('🎭 Generating characters from user input:', job.user_input);
+
+    try {
+      // Extract character data from user_input
+      const userInput = job.user_input || {};
+      const leadName = userInput.lead_name || userInput.leadName || '';
+      const leadGender = userInput.lead_gender || userInput.leadGender || '';
+      const faceImageUrl = userInput.face_ref_url || userInput.faceImageUrl || null;
+      
+      const supportingChars = userInput.supporting_characters || userInput.supportingCharacters || [];
+      const supportingChar = supportingChars.length > 0 ? supportingChars[0] : null;
+
+      const initialCharacterData: any = {
+        lead: {
+          base: {
+            name: leadName,
+            gender: leadGender,
+            face_ref: faceImageUrl
+          }
+        }
+      };
+
+      if (supportingChar) {
+        initialCharacterData.supporting = {
+          base: {
+            name: supportingChar.name || '',
+            gender: supportingChar.gender || '',
+            face_ref: supportingChar.faceImageUrl || supportingChar.faceImagePreview || null
+          }
+        };
+      }
+
+      console.log('💾 Updating characters in database:', initialCharacterData);
+
+      // Update database with initial character data
+      const { error } = await supabase
+        .from('storyboard_jobs')
+        .update({ 
+          characters: initialCharacterData,
+          characters_updated_at: new Date().toISOString()
+        })
+        .eq('id', jobId);
+
+      if (error) throw error;
+
+      setCharacterData(initialCharacterData);
+      
+    } catch (error) {
+      console.error('Error generating characters:', error);
+      throw error; // Re-throw to be handled by the caller
+    }
+  };
+
+  const handleGenerateCharacterDescription = async (characterKey: string) => {
+    const descriptionFunction = functions['generate-character-description'];
+    if (!descriptionFunction) {
+      toast({
+        title: t('error'),
+        description: t('functionNotAvailable'),
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsGeneratingDescription(prev => ({ ...prev, [characterKey]: true }));
+    
+    try {
+      await executeFunction('generate-character-description', {
+        table_id: 'storyboard_jobs',
+        row_id: jobId,
+        character_key: characterKey
+      });
+
+      // Refresh job data to get updated character info
+      await fetchJob();
+
+      toast({
+        title: t('success'),
+        description: t('characterDescriptionGenerated')
+      });
+
+    } catch (error) {
+      console.error('Error generating character description:', error);
+      toast({
+        title: t('error'),
+        description: t('failedToGenerateDescription'),
+        variant: 'destructive'
+      });
+    } finally {
+      setIsGeneratingDescription(prev => ({ ...prev, [characterKey]: false }));
+    }
+  };
+
+  const handleValidateCharacterDescription = async (characterKey: string, descriptionData: any) => {
+    const validationFunction = functions['validate-character-description'];
+    if (!validationFunction) {
+      toast({
+        title: t('error'),
+        description: t('functionNotAvailable'),
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsValidatingDescription(prev => ({ ...prev, [characterKey]: true }));
+    
+    try {
+      await executeFunction('validate-character-description', {
+        table_id: 'storyboard_jobs',
+        row_id: jobId,
+        character_key: characterKey,
+        description_data: descriptionData
+      });
+
+      // Refresh job data
+      await fetchJob();
+
+      toast({
+        title: t('success'),
+        description: t('characterDescriptionValidated')
+      });
+
+    } catch (error) {
+      console.error('Error validating character description:', error);
+      toast({
+        title: t('error'),
+        description: t('failedToValidateDescription'),
+        variant: 'destructive'
+      });
+    } finally {
+      setIsValidatingDescription(prev => ({ ...prev, [characterKey]: false }));
+    }
+  };
+
+  const handleGenerateCharacterPortrait = async (characterKey: string) => {
+    const portraitFunction = functions['generate-character-portrait'];
+    if (!portraitFunction) {
+      toast({
+        title: t('error'),
+        description: t('functionNotAvailable'),
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsGeneratingPortrait(prev => ({ ...prev, [characterKey]: true }));
+    
+    try {
+      await executeFunction('generate-character-portrait', {
+        table_id: 'storyboard_jobs',
+        row_id: jobId,
+        character_key: characterKey
+      });
+
+      // Refresh job data
+      await fetchJob();
+
+      toast({
+        title: t('success'),
+        description: t('characterPortraitGenerated')
+      });
+
+    } catch (error) {
+      console.error('Error generating character portrait:', error);
+      toast({
+        title: t('error'),
+        description: t('failedToGeneratePortrait'),
+        variant: 'destructive'
+      });
+    } finally {
+      setIsGeneratingPortrait(prev => ({ ...prev, [characterKey]: false }));
     }
   };
 
@@ -2469,6 +2966,11 @@ export default function StoryboardWorkspace() {
                               </div>
                             )}
                           </>
+                        ) : section.key === 'characters' ? (
+                          <div className="space-y-4">
+                            {job.characters?.lead && renderCharacterCard('lead', job.characters.lead, t('leadCharacter'))}
+                            {job.characters?.supporting && renderCharacterCard('supporting', job.characters.supporting, t('supportingCharacter'))}
+                          </div>
                         ) : (
                           <div className="text-center text-muted-foreground">
                             {section.title} {t('contentWillBeDisplayedHere')}
