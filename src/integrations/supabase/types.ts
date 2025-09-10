@@ -377,6 +377,7 @@ export type Database = {
           name: string
           price: number
           production_webhook: string | null
+          success_response_schema: Json | null
           test_webhook: string | null
           type: string
           updated_at: string
@@ -390,6 +391,7 @@ export type Database = {
           name: string
           price?: number
           production_webhook?: string | null
+          success_response_schema?: Json | null
           test_webhook?: string | null
           type: string
           updated_at?: string
@@ -403,6 +405,7 @@ export type Database = {
           name?: string
           price?: number
           production_webhook?: string | null
+          success_response_schema?: Json | null
           test_webhook?: string | null
           type?: string
           updated_at?: string
