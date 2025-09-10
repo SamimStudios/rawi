@@ -496,6 +496,11 @@ const translations = {
     spacingIconsWork: 'Spacing and icons work in both directions',
     noHardcodedStrings: 'No hardcoded English strings remain',
     
+    // Edit Warning Dialog
+    mayBeInconsistent: 'May be inconsistent',
+    affectedSections: 'Affected sections',
+    suggestedImprovements: 'Suggested Improvements',
+    
     // Common UI text
     rawiApp: 'Rawi App',
     rawiLogo: 'Rawi Logo',
@@ -1188,6 +1193,11 @@ const translations = {
     rtlLayoutTested: 'تم اختبار التخطيط من اليمين لليسار ويعمل',
     spacingIconsWork: 'التباعد والأيقونات تعمل في كلا الاتجاهين',
     noHardcodedStrings: 'لا توجد سلاسل نصية إنجليزية مكتوبة مباشرة',
+    
+    // Edit Warning Dialog (Arabic)
+    mayBeInconsistent: 'قد يكون غير متسق',
+    affectedSections: 'الأقسام المتأثرة',
+    suggestedImprovements: 'التحسينات المقترحة',
     
     // Common UI text (Arabic)
     rawiApp: 'تطبيق راوي',

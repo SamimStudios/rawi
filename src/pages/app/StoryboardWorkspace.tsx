@@ -1901,7 +1901,7 @@ export default function StoryboardWorkspace() {
               <Card key={section.key} className={cn(
                 "transition-all", 
                 isEditing && "ring-2 ring-primary/50",
-                (sectionWarnings[section.key] || getSectionInconsistencyWarning(section.key)) && "ring-2 ring-amber-500 border-amber-300 bg-amber-50/50 dark:bg-amber-900/20"
+                (sectionWarnings[section.key] || getSectionInconsistencyWarning(section.key)) && "ring-2 ring-amber-500/50 border-amber-500/30 bg-amber-500/10"
               )}>
                 <CardHeader 
                   className="cursor-pointer hover:bg-muted/50 transition-colors"
@@ -1913,9 +1913,9 @@ export default function StoryboardWorkspace() {
                       {section.title}
                       {isEditing && <Badge variant="secondary">{t('editing')}</Badge>}
                       {(sectionWarnings[section.key] || getSectionInconsistencyWarning(section.key)) && (
-                        <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900 dark:text-amber-200">
+                        <Badge variant="outline" className="bg-amber-500/20 text-amber-300 border-amber-500/30 hover:bg-amber-500/30">
                           <AlertTriangle className="h-3 w-3 mr-1" />
-                          May be inconsistent
+                          {t('mayBeInconsistent')}
                         </Badge>
                       )}
                       <CheckCircle className="h-4 w-4 text-green-500" />
@@ -2072,12 +2072,12 @@ export default function StoryboardWorkspace() {
                               </div>
                             )}
                             {validationStatus === 'invalid' && validationReason && (
-                              <div className="space-y-2">
+                              <div className="space-y-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
                                 <div className="flex items-center gap-2">
-                                  <X className="h-4 w-4" />
-                                  <span className="font-medium">{t('validationFailed')}</span>
+                                  <X className="h-4 w-4 text-destructive" />
+                                  <span className="font-medium text-destructive">{t('validationFailed')}</span>
                                 </div>
-                                <p className="text-sm">
+                                <p className="text-sm text-destructive/80">
                                   {validationReason[(job?.user_input as any)?.language === 'Arabic' ? 'ar' : 'en'] || validationReason.en}
                                 </p>
                               </div>
@@ -2087,9 +2087,9 @@ export default function StoryboardWorkspace() {
                         
                         {/* Suggested Fixes */}
                         {suggestedFix && validationStatus === 'invalid' && (
-                          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
                             <div className="flex items-center justify-between mb-2">
-                              <span className="font-medium text-amber-800">Suggested Improvements:</span>
+                              <span className="font-medium text-amber-300">{t('suggestedImprovements')}:</span>
                               <Button 
                                 onClick={handleApplySuggestions}
                                 size="sm"
@@ -2229,9 +2229,9 @@ export default function StoryboardWorkspace() {
                   <p>{t('editingSectionMayAffect')}</p>
                   
                   {pendingEdit?.affectedSections && pendingEdit.affectedSections.length > 0 && (
-                    <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-                      <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
-                        Affected sections:
+                    <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/20">
+                      <p className="text-sm font-medium text-destructive mb-2">
+                        {t('affectedSections')}:
                       </p>
                       <div className="flex flex-wrap gap-1">
                         {pendingEdit.affectedSections.map(sectionKey => {
@@ -2244,12 +2244,12 @@ export default function StoryboardWorkspace() {
                         })}
                       </div>
                       {job && (
-                        <div className="mt-2 text-xs text-red-700 dark:text-red-300">
+                        <div className="mt-2 text-xs">
                           {pendingEdit.affectedSections.map(sectionKey => {
                             const timestamp = job[`${sectionKey}_updated_at` as keyof StoryboardJob] as string | null;
                             const section = SECTIONS.find(s => s.key === sectionKey);
                             return timestamp ? (
-                              <div key={sectionKey}>
+                              <div key={sectionKey} className="text-destructive/80">
                                 {section?.title}: {new Date(timestamp).toLocaleString()}
                               </div>
                             ) : null;
@@ -2259,8 +2259,8 @@ export default function StoryboardWorkspace() {
                     </div>
                   )}
                   
-                  <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
-                    <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                  <div className="p-3 bg-amber-500/10 rounded-lg border border-amber-500/20">
+                    <p className="text-sm font-medium text-amber-300">
                       {t('whatWouldYouLikeToDo')}
                     </p>
                   </div>
