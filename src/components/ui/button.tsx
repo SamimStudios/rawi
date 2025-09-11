@@ -11,22 +11,18 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // Legacy variants
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        // Consolidated button system
+        default: "bg-primary text-white hover:bg-primary/80 transition-colors duration-200", // Type 2 Blue
+        destructive: "bg-accent text-white hover:bg-accent/80 transition-colors duration-200", // Type 2 Red
         outline: "border border-input bg-transparent text-foreground hover:bg-secondary/50",
         secondary: "border border-input bg-transparent text-foreground hover:bg-secondary/50",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
+        ghost: "bg-transparent text-foreground hover:text-primary hover:bg-primary/10 transition-all duration-200", // Type 4 Blue
         link: "text-primary underline-offset-4 hover:underline",
-        primary: "bg-gradient-primary text-white hover:shadow-glow font-semibold",
+        primary: "bg-gradient-primary text-white font-bold hover:shadow-glow transition-all duration-300", // Type 1
         
-        // New button system
-        type_1: "bg-gradient-primary text-white font-bold hover:shadow-glow transition-all duration-300",
-        type_2_blue: "bg-primary text-white hover:bg-primary/80 transition-colors duration-200",
-        type_2_red: "bg-accent text-white hover:bg-accent/80 transition-colors duration-200",
+        // Additional type variants for variety
         type_3_blue: "bg-transparent border border-primary/30 text-foreground hover:bg-primary hover:text-white hover:border-primary transition-all duration-200",
         type_3_red: "bg-transparent border border-accent/30 text-foreground hover:bg-accent hover:text-white hover:border-accent transition-all duration-200",
-        type_4_blue: "bg-transparent text-foreground hover:text-primary hover:bg-primary/10 transition-all duration-200",
         type_4_red: "bg-transparent text-foreground hover:text-accent hover:bg-accent/10 transition-all duration-200",
       },
       size: {
@@ -100,27 +96,29 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           ref={ref} 
           {...props}
         >
-          {children}
+          <span className="flex items-center gap-2">
+            {children}
+          </span>
         </Comp>
       );
     }
 
     return (
-      <div className={shouldShowCredits ? "flex flex-col items-center gap-1" : ""}>
-        <Comp 
-          className={cn(buttonVariants({ variant, size, className }))} 
-          ref={ref} 
-          {...props}
-        >
+      <Comp 
+        className={cn(buttonVariants({ variant, size, className }))} 
+        ref={ref} 
+        {...props}
+      >
+        <span className="flex items-center gap-2">
           {children}
-        </Comp>
-        {shouldShowCredits && !props.disabled && (
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Coins className="h-3 w-3" />
-            <span>{functionData?.price || '0'} credits</span>
-          </div>
-        )}
-      </div>
+          {shouldShowCredits && !props.disabled && (
+            <span className="flex items-center gap-1 text-xs opacity-70">
+              <Coins className="h-3 w-3" />
+              {functionData?.price || '0'}
+            </span>
+          )}
+        </span>
+      </Comp>
     );
   },
 );

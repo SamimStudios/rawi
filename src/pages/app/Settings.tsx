@@ -214,7 +214,7 @@ const Settings = () => {
                   </div>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="type_2_red" size="sm">
+                      <Button variant="destructive" size="sm">
                         <Trash2 className="w-4 h-4 mr-2" />
                         {language === 'ar' ? 'حذف الحساب' : 'Delete Account'}
                       </Button>

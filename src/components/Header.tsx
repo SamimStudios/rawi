@@ -67,7 +67,7 @@ const Header = () => {
             {/* Language Toggle */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="type_4_blue" size="sm" className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" className="flex items-center gap-2">
                   <Globe className="h-4 w-4" />
                   <span className="hidden sm:inline">{language.toUpperCase()}</span>
                 </Button>
@@ -100,7 +100,7 @@ const Header = () => {
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="type_4_blue" size="sm" className="hidden sm:flex items-center gap-2">
+                  <Button variant="ghost" size="sm" className="hidden sm:flex items-center gap-2">
                     <User className="h-4 w-4" />
                     <span className="hidden md:inline">{user.email?.split('@')[0]}</span>
                   </Button>
@@ -132,7 +132,7 @@ const Header = () => {
 
             {/* Mobile Menu Toggle */}
             <Button
-              variant="type_4_blue"
+              variant="ghost"
               size="sm"
               className="md:hidden"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
