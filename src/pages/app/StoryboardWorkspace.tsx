@@ -1568,50 +1568,8 @@ export default function StoryboardWorkspace() {
     }
   };
 
-  // Handle Characters Save
-  const handleSaveCharacters = async () => {
-    try {
-      const updates: any = { characters: { ...job?.characters } };
-      
-      // Apply changes from draft
-      Object.keys(charactersBaseDraft).forEach(characterKey => {
-        if (updates.characters[characterKey]) {
-          updates.characters[characterKey] = {
-            ...updates.characters[characterKey],
-            base: {
-              ...updates.characters[characterKey].base,
-              ...charactersBaseDraft[characterKey]
-            }
-          };
-        }
-      });
+  // Removed: section-wide characters save (migrated to per-card base info edits)
 
-      updates.characters_updated_at = new Date().toISOString();
-
-      const { error } = await supabase
-        .from('storyboard_jobs')
-        .update(updates)
-        .eq('id', jobId);
-
-      if (error) throw error;
-
-      toast({
-        title: t('success'),
-        description: t('charactersUpdated') || 'Characters updated successfully',
-      });
-      
-      setEditingSections(prev => ({ ...prev, characters: false }));
-      setCharactersBaseDraft({});
-      fetchJob(); // Refresh data
-    } catch (error) {
-      console.error('Error saving characters:', error);
-      toast({
-        title: t('error'),
-        description: t('failedToUpdateCharacters') || 'Failed to update characters',
-        variant: 'destructive'
-      });
-    }
-  };
 
   // Edit toggle with warning system
   const handleEditToggle = (sectionKey: string) => {
@@ -1708,17 +1666,6 @@ export default function StoryboardWorkspace() {
       setShowEditWarning(true);
     } else {
       // Initialize edit data based on section
-      if (sectionKey === 'characters' && job?.characters) {
-        // Initialize characters draft with current base data
-        const initialDraft: any = {};
-        if (job.characters.lead?.base) {
-          initialDraft.lead = { ...job.characters.lead.base };
-        }
-        if (job.characters.supporting?.base) {
-          initialDraft.supporting = { ...job.characters.supporting.base };
-        }
-        setCharactersBaseDraft(initialDraft);
-      }
       
       setEditingSections(prev => ({ ...prev, [sectionKey]: true }));
     }
@@ -1743,17 +1690,6 @@ export default function StoryboardWorkspace() {
       setOpenSections(prev => ({ ...prev, [section]: true }));
       
       // Initialize edit data based on section
-      if (section === 'characters' && job?.characters) {
-        // Initialize characters draft with current base data
-        const initialDraft: any = {};
-        if (job.characters.lead?.base) {
-          initialDraft.lead = { ...job.characters.lead.base };
-        }
-        if (job.characters.supporting?.base) {
-          initialDraft.supporting = { ...job.characters.supporting.base };
-        }
-        setCharactersBaseDraft(initialDraft);
-      }
       
       setEditingSections(prev => ({ ...prev, [section]: true }));
       setShowEditWarning(false);
@@ -1765,17 +1701,6 @@ export default function StoryboardWorkspace() {
       setOpenSections(prev => ({ ...prev, [section]: true }));
       
       // Initialize edit data based on section
-      if (section === 'characters' && job?.characters) {
-        // Initialize characters draft with current base data
-        const initialDraft: any = {};
-        if (job.characters.lead?.base) {
-          initialDraft.lead = { ...job.characters.lead.base };
-        }
-        if (job.characters.supporting?.base) {
-          initialDraft.supporting = { ...job.characters.supporting.base };
-        }
-        setCharactersBaseDraft(initialDraft);
-      }
       
       setEditingSections(prev => ({ ...prev, [section]: true }));
       setOverrideMode(true);
