@@ -249,6 +249,7 @@ export default function StoryboardWorkspace() {
   // Character validation states (keyed by character: lead/supporting)
   const [characterValidationStatus, setCharacterValidationStatus] = useState<Record<string, 'validating' | 'valid' | 'invalid' | null>>({});
   const [characterValidationReason, setCharacterValidationReason] = useState<Record<string, { ar?: string; en?: string } | null>>({});
+  const [characterSuggestedFixes, setCharacterSuggestedFixes] = useState<Record<string, any>>({});
   const [suggestedFix, setSuggestedFix] = useState<{ 
     movie_title?: string; 
     logline?: string; 
@@ -1186,6 +1187,30 @@ export default function StoryboardWorkspace() {
                           )}
                         </div>
                       )}
+                      
+                      {/* Character Suggested Fixes */}
+                      {characterSuggestedFixes[characterKey] && characterValidationStatus[characterKey] === 'invalid' && (
+                        <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium text-amber-300">{t('suggestedImprovements')}:</span>
+                            <Button 
+                              onClick={() => handleApplyCharacterSuggestions(characterKey)}
+                              size="sm"
+                              variant="outline"
+                            >
+                              {t('applySuggestions')}
+                            </Button>
+                          </div>
+                          <div className="space-y-1 text-sm text-amber-700">
+                            {Object.entries(characterSuggestedFixes[characterKey]).map(([field, value]) => (
+                              <div key={field}>
+                                <strong>{t(field)}:</strong> {String(value)}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
                       {renderEditableDescriptionFields(characterKey, characterInfo.description)}
                     </div>
                   ) : (
@@ -1312,6 +1337,20 @@ export default function StoryboardWorkspace() {
     );
   };
 
+  // Create debounced handlers for character description fields
+  const createCharacterFieldHandler = useCallback((characterKey: string, field: string) => {
+    return (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value;
+      setCharacterEditData(prev => ({
+        ...prev,
+        [characterKey]: {
+          ...prev[characterKey],
+          [field]: value
+        }
+      }));
+    };
+  }, []);
+
   const renderEditableDescriptionFields = (characterKey: string, description: any) => {
     const fields = ['age_range', 'ethnicity', 'skin_tone', 'body', 'face_features', 'head', 'clothes', 'personality'];
     
@@ -1322,13 +1361,7 @@ export default function StoryboardWorkspace() {
             <label className="text-sm font-medium">{t(field)}</label>
             <Input
               value={characterEditData[characterKey]?.[field] || description[field] || ''}
-              onChange={(e) => setCharacterEditData(prev => ({
-                ...prev,
-                [characterKey]: {
-                  ...prev[characterKey],
-                  [field]: e.target.value
-                }
-              }))}
+              onChange={createCharacterFieldHandler(characterKey, field)}
               className="mt-1"
             />
           </div>
@@ -1842,6 +1875,7 @@ export default function StoryboardWorkspace() {
       if (response.valid) {
         setCharacterValidationStatus(prev => ({ ...prev, [characterKey]: 'valid' }));
         setCharacterValidationReason(prev => ({ ...prev, [characterKey]: null }));
+        setCharacterSuggestedFixes(prev => ({ ...prev, [characterKey]: null }));
         toast({
           title: t('success'),
           description: t('characterDescriptionValidated')
@@ -1849,6 +1883,7 @@ export default function StoryboardWorkspace() {
       } else {
         setCharacterValidationStatus(prev => ({ ...prev, [characterKey]: 'invalid' }));
         setCharacterValidationReason(prev => ({ ...prev, [characterKey]: response.reason || null }));
+        setCharacterSuggestedFixes(prev => ({ ...prev, [characterKey]: response.suggested_fix || null }));
         toast({
           title: t('validationFailed'),
           description: t('pleaseFixIssues'),
@@ -1859,6 +1894,7 @@ export default function StoryboardWorkspace() {
     } catch (error) {
       console.error('Error validating character description:', error);
       setCharacterValidationStatus(prev => ({ ...prev, [characterKey]: 'invalid' }));
+      setCharacterSuggestedFixes(prev => ({ ...prev, [characterKey]: null }));
       toast({
         title: t('error'),
         description: t('failedToValidateDescription'),
@@ -1866,6 +1902,36 @@ export default function StoryboardWorkspace() {
       });
     }
   };
+
+  // Apply suggested fixes for character description
+  const handleApplyCharacterSuggestions = useCallback((characterKey: string) => {
+    const suggestedFix = characterSuggestedFixes[characterKey];
+    if (!suggestedFix) return;
+
+    const fields = ['age_range', 'ethnicity', 'skin_tone', 'body', 'face_features', 'head', 'clothes', 'personality'];
+    const updates: any = {};
+    
+    fields.forEach(field => {
+      if (suggestedFix[field]) {
+        updates[field] = suggestedFix[field];
+      }
+    });
+
+    if (Object.keys(updates).length > 0) {
+      setCharacterEditData(prev => ({
+        ...prev,
+        [characterKey]: {
+          ...prev[characterKey],
+          ...updates
+        }
+      }));
+      
+      toast({
+        title: t('success'),
+        description: t('suggestionsApplied')
+      });
+    }
+  }, [characterSuggestedFixes, t]);
 
   // Save character description (save only, requires validation first)
   const handleSaveCharacterDescription = async (characterKey: string, descriptionData: any) => {
