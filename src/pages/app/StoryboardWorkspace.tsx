@@ -2636,22 +2636,21 @@ export default function StoryboardWorkspace() {
                           </>
                          )}
                          
-                         {/* Characters regenerate button */}
-                         {!isEditing && section.key === 'characters' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleGenerate('characters');
-                             }}
-                             disabled={isAnyEditMode || loadingSections[section.key]}
-                             className="flex items-center gap-1.5 px-3"
-                             functionId={functions['generate-character-description']?.id}
-                           >
-                             <RefreshCw className="h-4 w-4" />
-                           </Button>
-                         )}
+                          {/* Characters regenerate button */}
+                          {!isEditing && section.key === 'characters' && (
+                             <Button
+                               size="sm"
+                               variant="outline"
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 handleGenerate('characters');
+                              }}
+                              disabled={isAnyEditMode || loadingSections[section.key]}
+                              className="flex items-center gap-1.5 px-3"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </Button>
+                          )}
                         
                         {/* Delete Button - only show when open and not editing */}
                         {openSections[section.key] && !isAnyEditMode && (
