@@ -305,7 +305,7 @@ serve(async (req) => {
     }
 
     // Get webhook URL
-    const webhookUrl = functionData.test_webhook || functionData.production_webhook;
+    const webhookUrl = functionData.production_webhook;
     
     if (!webhookUrl) {
       console.error('No webhook URL configured for function');
