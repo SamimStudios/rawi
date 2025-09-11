@@ -286,7 +286,13 @@ export default function StoryboardWorkspace() {
 
   // Helper to get user input language (not site language)
   const getUserInputLanguage = () => {
-    return (job?.user_input as any)?.language || 'English';
+    const userInput = job?.user_input as any;
+    // Handle new nested format
+    if (userInput?.language) {
+      return userInput.language;
+    }
+    // Handle old format for backward compatibility
+    return userInput?.language || 'English';
   };
 
   // Helper to get gender options based on user input language
@@ -1195,8 +1201,8 @@ export default function StoryboardWorkspace() {
         
         setFormData({
           template: userInput.template || '',
-          leadName: userInput.lead_name || '',
-          leadGender: userInput.lead_gender || '',
+          leadName: userInput.characters?.lead?.name || userInput.leadName || userInput.lead_name || '',
+          leadGender: userInput.characters?.lead?.gender || userInput.leadGender || userInput.lead_gender || '',
           leadAiCharacter: userInput.leadAiCharacter || false,
           language: userInput.language || 'English',
           accent: userInput.accent || 'US',
@@ -1206,11 +1212,27 @@ export default function StoryboardWorkspace() {
         
         setSelectedGenres(userInput.genres || []);
         
-        if (userInput.face_ref_url) {
-          setFaceImagePreview(userInput.face_ref_url);
+        // Handle face image URL (for display/preview) - handle both formats
+        const leadFaceImage = userInput.characters?.lead?.faceImage || userInput.face_ref_url || userInput.faceImageUrl;
+        if (leadFaceImage) {
+          setFaceImagePreview(leadFaceImage);
         }
         
-        setSupportingCharacters(userInput.supporting_characters || []);
+        // Handle supporting characters - handle both formats
+        const supportingChar = userInput.characters?.supporting || 
+                              (userInput.supporting_characters && userInput.supporting_characters.length > 0 ? userInput.supporting_characters[0] : null) ||
+                              (userInput.supportingCharacters && userInput.supportingCharacters.length > 0 ? userInput.supportingCharacters[0] : null);
+        if (supportingChar && supportingChar.name) {
+          setSupportingCharacters([{
+            id: '1',
+            name: supportingChar.name || '',
+            gender: supportingChar.gender || '',
+            aiFace: supportingChar.aiFace || false,
+            faceImagePreview: supportingChar.faceImage || supportingChar.faceImageUrl || ''
+          }]);
+        } else if (userInput.supporting_characters) {
+          setSupportingCharacters(userInput.supporting_characters || []);
+        }
       }
       
       // Initialize movie data using user input language
@@ -1383,14 +1405,21 @@ export default function StoryboardWorkspace() {
     console.log('🎭 Generating characters from user input:', job.user_input);
 
     try {
-      // Extract character data from user_input
+      // Extract character data from user_input - handle both old and new formats
       const userInput = job.user_input || {};
-      const leadName = userInput.lead_name || userInput.leadName || '';
-      const leadGender = userInput.lead_gender || userInput.leadGender || '';
-      const faceImageUrl = userInput.face_ref_url || userInput.faceImageUrl || null;
       
-      const supportingChars = userInput.supporting_characters || userInput.supportingCharacters || [];
-      const supportingChar = supportingChars.length > 0 ? supportingChars[0] : null;
+      // Handle new nested format and old format for backward compatibility
+      const leadName = userInput.characters?.lead?.name || 
+                      userInput.lead_name || userInput.leadName || '';
+      const leadGender = userInput.characters?.lead?.gender || 
+                        userInput.lead_gender || userInput.leadGender || '';
+      const faceImageUrl = userInput.characters?.lead?.faceImage || 
+                          userInput.face_ref_url || userInput.faceImageUrl || null;
+      
+      // Handle supporting characters
+      const supportingChar = userInput.characters?.supporting || 
+                            (userInput.supporting_characters && userInput.supporting_characters.length > 0 ? userInput.supporting_characters[0] : null) ||
+                            (userInput.supportingCharacters && userInput.supportingCharacters.length > 0 ? userInput.supportingCharacters[0] : null);
 
       const initialCharacterData: any = {
         lead: {
@@ -1561,24 +1590,43 @@ export default function StoryboardWorkspace() {
     if (isCurrentlyEditing) {
       // Cancel editing - reset data
       if (sectionKey === 'input') {
-        // Reset input data
+        // Reset input data - handle both old and new formats
         if (job?.user_input) {
           const userInput = job.user_input as any;
           setFormData({
             template: userInput.template || '',
-            leadName: userInput.leadName || '',
-            leadGender: userInput.leadGender || '',
+            leadName: userInput.characters?.lead?.name || userInput.leadName || userInput.lead_name || '',
+            leadGender: userInput.characters?.lead?.gender || userInput.leadGender || userInput.lead_gender || '',
             leadAiCharacter: userInput.leadAiCharacter || false,
             language: userInput.language || 'English',
             accent: userInput.accent || 'US',
-            size: userInput.size || '',
+            size: userInput.size || 'landscape',
             prompt: userInput.prompt || ''
           });
-          setSelectedGenres(userInput.genres || []);
-          if (userInput.faceImage) {
-            setFaceImagePreview(userInput.faceImage);
+          
+          if (userInput.genres && Array.isArray(userInput.genres)) {
+            setSelectedGenres(userInput.genres);
           }
-          setSupportingCharacters(userInput.supportingCharacters || []);
+          
+          // Handle face image preview
+          const leadFaceImage = userInput.characters?.lead?.faceImage || userInput.face_ref_url || userInput.faceImageUrl;
+          if (leadFaceImage) {
+            setFaceImagePreview(leadFaceImage);
+          }
+          
+          // Handle supporting characters
+          const supportingChar = userInput.characters?.supporting || 
+                                (userInput.supporting_characters && userInput.supporting_characters.length > 0 ? userInput.supporting_characters[0] : null) ||
+                                (userInput.supportingCharacters && userInput.supportingCharacters.length > 0 ? userInput.supportingCharacters[0] : null);
+          if (supportingChar && supportingChar.name) {
+            setSupportingCharacters([{
+              id: '1',
+              name: supportingChar.name || '',
+              gender: supportingChar.gender || '',
+              aiFace: supportingChar.aiFace || false,
+              faceImagePreview: supportingChar.faceImage || supportingChar.faceImageUrl || ''
+            }]);
+          }
         }
       } else if (sectionKey === 'movie_info') {
         // Reset movie data using user input language
@@ -1719,17 +1767,26 @@ export default function StoryboardWorkspace() {
         faceImageType: char.faceImage?.type || null
       }));
 
+      // Create the new nested user input structure
       const inputPayload = {
-        template: formData.template,
-        lead_name: formData.leadName,
-        lead_gender: formData.leadGender,
-        language: formData.language,
+        size: formData.size,
         accent: formData.accent,
         genres: selectedGenres,
         prompt: formData.prompt,
-        size: formData.size,
-        face_ref_url: faceImagePreview,
-        supporting_characters: processedSupportingCharacters
+        language: formData.language,
+        template: formData.template,
+        characters: {
+          lead: {
+            name: formData.leadName,
+            gender: formData.leadGender,
+            faceImage: faceImagePreview || undefined
+          },
+          supporting: processedSupportingCharacters.length > 0 && processedSupportingCharacters[0].name ? {
+            name: processedSupportingCharacters[0].name,
+            gender: processedSupportingCharacters[0].gender,
+            faceImage: processedSupportingCharacters[0].faceImage || undefined
+          } : undefined
+        }
       };
 
       const { error } = await supabase
@@ -1998,12 +2055,12 @@ export default function StoryboardWorkspace() {
           look: currentMovieData.look,
           characters: job?.movie_info?.characters || {
             lead: {
-              name: (job?.user_input as any)?.leadName || '',
-              gender: (job?.user_input as any)?.leadGender || ''
+              name: (job?.user_input as any)?.characters?.lead?.name || (job?.user_input as any)?.leadName || (job?.user_input as any)?.lead_name || '',
+              gender: (job?.user_input as any)?.characters?.lead?.gender || (job?.user_input as any)?.leadGender || (job?.user_input as any)?.lead_gender || ''
             },
-            supporting: (job?.user_input as any)?.supportingCharacters?.[0] ? {
-              name: (job?.user_input as any)?.supportingCharacters[0]?.name || '',
-              gender: (job?.user_input as any)?.supportingCharacters[0]?.gender || ''
+            supporting: (job?.user_input as any)?.characters?.supporting || (job?.user_input as any)?.supportingCharacters?.[0] || (job?.user_input as any)?.supporting_characters?.[0] ? {
+              name: ((job?.user_input as any)?.characters?.supporting?.name || (job?.user_input as any)?.supportingCharacters?.[0]?.name || (job?.user_input as any)?.supporting_characters?.[0]?.name || ''),
+              gender: ((job?.user_input as any)?.characters?.supporting?.gender || (job?.user_input as any)?.supportingCharacters?.[0]?.gender || (job?.user_input as any)?.supporting_characters?.[0]?.gender || '')
             } : undefined
           }
         }

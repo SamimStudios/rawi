@@ -113,8 +113,13 @@ const History = () => {
   };
 
   const getJobTitle = (job: StoryboardJob): string => {
-    if (job.user_input?.leadName) {
-      return `${job.user_input.leadName} Storyboard`;
+    // Handle new nested format
+    if (job.user_input?.characters?.lead?.name) {
+      return `${job.user_input.characters.lead.name} Storyboard`;
+    }
+    // Handle old format for backward compatibility
+    if (job.user_input?.leadName || job.user_input?.lead_name) {
+      return `${job.user_input.leadName || job.user_input.lead_name} Storyboard`;
     }
     return `Storyboard ${job.id.slice(0, 8)}`;
   };

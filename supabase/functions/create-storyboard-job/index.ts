@@ -79,18 +79,26 @@ serve(async (req) => {
 
     // No function lookup or credit deduction needed
 
-    // Prepare user input data (no need to upload face image as it's already uploaded)
+    // Prepare user input data in the new nested structure
     const userInput = {
-      lead_name: leadName,
-      lead_gender: leadGender,
-      language: language,
+      size: size,
       accent: accent,
       genres: genres,
       prompt: prompt,
-      face_ref_url: faceImageUrl,
-      supporting_characters: supportingCharacters,
+      language: language,
       template: template,
-      size: size
+      characters: {
+        lead: {
+          name: leadName,
+          gender: leadGender,
+          faceImage: faceImageUrl
+        },
+        supporting: supportingCharacters && supportingCharacters.length > 0 ? {
+          name: supportingCharacters[0].name,
+          gender: supportingCharacters[0].gender,
+          faceImage: supportingCharacters[0].faceImageUrl
+        } : undefined
+      }
     };
 
     // Create storyboard job record
