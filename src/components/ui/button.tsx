@@ -6,6 +6,7 @@ import { Coins } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
@@ -52,6 +53,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, functionId, showCredits, children, ...props }, ref) => {
     const [functionData, setFunctionData] = React.useState<any>(null);
     const [loading, setLoading] = React.useState(false);
+    const { t } = useLanguage();
 
     React.useEffect(() => {
       const fetchFunctionData = async () => {
@@ -133,7 +135,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             <TooltipContent>
               <div className="flex items-center gap-2">
                 <Coins className="h-4 w-4" />
-                <span>This action will consume {functionData?.price || '0'} credits</span>
+                <span>{t('creditConsumption').replace('{count}', functionData?.price || '0')}</span>
               </div>
             </TooltipContent>
           </Tooltip>
