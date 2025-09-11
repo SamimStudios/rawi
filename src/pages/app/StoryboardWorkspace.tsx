@@ -2444,10 +2444,16 @@ export default function StoryboardWorkspace() {
                     </div>
                    </div>
                    
-                   {/* Face Reference Image */}
-                   <div className="space-y-2">
-                     <label className="text-sm font-medium">{t('faceReferenceImage')}</label>
-                     {faceImagePreview && !formData.leadAiCharacter ? (
+                    {/* Face Reference Image */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium">{t('faceReferenceImage')}</label>
+                        <div className={cn("flex items-center text-xs px-2 py-1 rounded-full", 
+                          faceImagePreview ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800")}>
+                          {faceImagePreview ? t('realFace') : t('aiGenerated')}
+                        </div>
+                      </div>
+                      {faceImagePreview && !formData.leadAiCharacter ? (
                        <div className="flex items-center gap-4">
                          <img src={faceImagePreview} alt={t('faceReferenceImage')} className="w-20 h-20 rounded-lg object-cover border" />
                          <div className="space-y-2">
