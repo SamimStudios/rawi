@@ -564,6 +564,18 @@ serve(async (req) => {
         }
       }
       
+      // Parse bilingual error messages to avoid [object Object] display
+      if (webhookResult.error && webhookResult.error.message) {
+        if (typeof webhookResult.error.message === 'object' && 
+            webhookResult.error.message !== null && 
+            ('en' in webhookResult.error.message || 'ar' in webhookResult.error.message)) {
+          // Convert bilingual object to English string (edge function doesn't know user's language preference)
+          // The frontend can handle language-specific display if needed
+          webhookResult.error.message = webhookResult.error.message.en || webhookResult.error.message.ar || 'Unknown error';
+          console.log('Converted bilingual error message to string:', webhookResult.error.message);
+        }
+      }
+      
       // Ensure request_id is set
       webhookResult.request_id = requestId;
       
