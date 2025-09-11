@@ -183,6 +183,10 @@ export default function StoryboardWorkspace() {
   const [editingSections, setEditingSections] = useState<Record<string, boolean>>({});
   const [loadingSections, setLoadingSections] = useState<Record<string, boolean>>({});
   
+  // Individual character base info draft states
+  const [leadBaseDraft, setLeadBaseDraft] = useState<any>({});
+  const [supportingBaseDraft, setSupportingBaseDraft] = useState<any>({});
+  
   // Initial input state (exact same structure as StoryboardPlayground)
   const [formData, setFormData] = useState({
     template: '',
@@ -228,7 +232,6 @@ export default function StoryboardWorkspace() {
   // Character states
   const [characterData, setCharacterData] = useState<any>(null);
   const [characterEditData, setCharacterEditData] = useState<any>({});
-  const [charactersBaseDraft, setCharactersBaseDraft] = useState<any>({});
   const [isGeneratingCharacters, setIsGeneratingCharacters] = useState(false);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState<{[key: string]: boolean}>({});
   const [isValidatingDescription, setIsValidatingDescription] = useState<{[key: string]: boolean}>({});
@@ -668,9 +671,22 @@ export default function StoryboardWorkspace() {
     characterInfo: any; 
     characterTitle: string; 
   }) => {
-    const isEditingCharacters = editingSections.characters;
+    const baseInfoSectionKey = `characters-${characterKey}-baseinfo`;
+    const isEditingBaseInfo = editingSections[baseInfoSectionKey];
+    
+    const getDraftState = () => {
+      return characterKey === 'lead' ? leadBaseDraft : supportingBaseDraft;
+    };
+    
+    const setDraftState = (updater: any) => {
+      if (characterKey === 'lead') {
+        setLeadBaseDraft(updater);
+      } else {
+        setSupportingBaseDraft(updater);
+      }
+    };
 
-    const handleCharacterImageUpload = async (characterKey: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleCharacterImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
 
@@ -688,12 +704,9 @@ export default function StoryboardWorkspace() {
         const imageUrl = await uploadImageToStorage(file);
         
         // Update local draft state only (don't save to database yet)
-        setCharactersBaseDraft(prev => ({
+        setDraftState(prev => ({
           ...prev,
-          [characterKey]: {
-            ...prev[characterKey],
-            face_ref: imageUrl
-          }
+          face_ref: imageUrl
         }));
         
         toast({
@@ -712,9 +725,11 @@ export default function StoryboardWorkspace() {
 
     // Get face reference - prioritize draft data when editing
     const getFaceRef = () => {
+      const draft = getDraftState();
+      
       // If we're in edit mode, show what's currently in draft data
-      if (isEditingCharacters && charactersBaseDraft[characterKey]?.face_ref !== undefined) {
-        return charactersBaseDraft[characterKey].face_ref || null;
+      if (isEditingBaseInfo && draft.face_ref !== undefined) {
+        return draft.face_ref || null;
       }
       
       // Otherwise show the character's saved face_ref
@@ -734,16 +749,72 @@ export default function StoryboardWorkspace() {
     };
 
     const handleRemoveImage = () => {
-      if (isEditingCharacters) {
+      if (isEditingBaseInfo) {
         // In edit mode - only update local draft
-        setCharactersBaseDraft(prev => ({
+        setDraftState(prev => ({
           ...prev,
-          [characterKey]: {
-            ...prev[characterKey],
-            face_ref: ''
-          }
+          face_ref: ''
         }));
       }
+    };
+    
+    const handleEditBaseInfo = () => {
+      // Initialize draft with current data
+      setDraftState({
+        face_ref: characterInfo.base?.face_ref || null
+      });
+      
+      setEditingSections(prev => ({ ...prev, [baseInfoSectionKey]: true }));
+    };
+    
+    const handleSaveBaseInfo = async () => {
+      try {
+        const draft = getDraftState();
+        
+        const { error } = await supabase
+          .from('storyboard_jobs')
+          .update({
+            characters: {
+              ...job?.characters,
+              [characterKey]: {
+                ...job?.characters?.[characterKey],
+                base: {
+                  ...job?.characters?.[characterKey]?.base,
+                  face_ref: draft.face_ref || null
+                }
+              }
+            },
+            characters_updated_at: new Date().toISOString()
+          })
+          .eq('id', jobId);
+
+        if (error) throw error;
+
+        toast({
+          title: t('success'),
+          description: t('characterUpdated')
+        });
+
+        // Exit edit mode and clear draft
+        setEditingSections(prev => ({ ...prev, [baseInfoSectionKey]: false }));
+        setDraftState({});
+        
+        // Refresh job data
+        fetchJob();
+        
+      } catch (error) {
+        console.error('Error saving character base info:', error);
+        toast({
+          title: t('error'),
+          description: t('failedToUpdateCharacter'),
+          variant: 'destructive'
+        });
+      }
+    };
+    
+    const handleCancelBaseInfo = () => {
+      setEditingSections(prev => ({ ...prev, [baseInfoSectionKey]: false }));
+      setDraftState({});
     };
 
     return (
@@ -751,85 +822,104 @@ export default function StoryboardWorkspace() {
         <h4 className="font-semibold text-lg">{characterTitle}</h4>
         
         {/* Part 1: Base Info */}
-        <div className="border rounded-lg p-4 bg-card">
-          <div className="flex items-center justify-between mb-3">
-            <h5 className="font-medium">{t('baseInfo')}</h5>
-          </div>
+        <Card className={cn("transition-all", isEditingBaseInfo && "ring-2 ring-primary/50")}>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                {t('baseInfo')}
+                {isEditingBaseInfo && <Badge variant="outline">{t('editing')}</Badge>}
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                {isEditingBaseInfo ? (
+                  <>
+                    <Button onClick={handleSaveBaseInfo} size="sm">
+                      <Save className="h-4 w-4 mr-1" />
+                      {t('save')}
+                    </Button>
+                    <Button onClick={handleCancelBaseInfo} variant="outline" size="sm">
+                      <X className="h-4 w-4 mr-1" />
+                      {t('cancel')}
+                    </Button>
+                  </>
+                ) : (
+                  <EditButton
+                    onClick={handleEditBaseInfo}
+                    disabled={isAnyEditMode}
+                    isEditing={false}
+                  />
+                )}
+              </div>
+            </div>
+          </CardHeader>
           
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="text-sm font-medium">{t('name')}</label>
-              {isEditingCharacters ? (
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">{t('name')}</label>
                 <div className="mt-1">
                   <Input value={characterInfo.base?.name || ''} disabled className="bg-muted" />
                   <p className="text-xs text-muted-foreground mt-1">
                     {t('editNameFromMovieInfo') || 'To edit name, use the Movie Info section'}
                   </p>
                 </div>
-              ) : (
-                <Input value={characterInfo.base?.name || ''} disabled className="mt-1" />
-              )}
-            </div>
-            <div>
-              <label className="text-sm font-medium">{t('gender')}</label>
-              {isEditingCharacters ? (
+              </div>
+              <div>
+                <label className="text-sm font-medium">{t('gender')}</label>
                 <div className="mt-1">
                   <Input value={characterInfo.base?.gender || ''} disabled className="bg-muted" />
                   <p className="text-xs text-muted-foreground mt-1">
                     {t('editGenderFromMovieInfo') || 'To edit gender, use the Movie Info section'}
                   </p>
                 </div>
+              </div>
+            </div>
+
+            {/* Face Reference */}
+            <div>
+              <label className="text-sm font-medium">{t('faceReference')}</label>
+              <p className="text-xs text-muted-foreground mb-2">{t('leaveEmptyForAIGenerated')}</p>
+              
+              {getFaceRef() ? (
+                <div className="flex items-center gap-3">
+                  <img 
+                    src={getFaceRef()!} 
+                    alt={t('faceReference')}
+                    className="w-16 h-16 object-cover rounded-lg border"
+                  />
+                   {isEditingBaseInfo && (
+                     <Button
+                       variant="outline"
+                       size="sm"
+                       onClick={handleRemoveImage}
+                     >
+                       {t('remove')}
+                     </Button>
+                   )}
+                </div>
+              ) : isEditingBaseInfo ? (
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleCharacterImageUpload}
+                  className="mt-1"
+                />
               ) : (
-                <Input value={characterInfo.base?.gender || ''} disabled className="mt-1" />
+                <div className="text-sm text-muted-foreground mt-1">{t('noFileChosen') || 'No file chosen'}</div>
               )}
             </div>
-          </div>
 
-          {/* Face Reference */}
-          <div className="mb-4">
-            <label className="text-sm font-medium">{t('faceReference')}</label>
-            <p className="text-xs text-muted-foreground mb-2">{t('leaveEmptyForAIGenerated')}</p>
-            
-            {getFaceRef() ? (
-              <div className="flex items-center gap-3">
-                <img 
-                  src={getFaceRef()!} 
-                  alt={t('faceReference')}
-                  className="w-16 h-16 object-cover rounded-lg border"
-                />
-                 {isEditingCharacters && (
-                   <Button
-                     variant="outline"
-                     size="sm"
-                     onClick={handleRemoveImage}
-                   >
-                     {t('remove')}
-                   </Button>
-                 )}
-              </div>
-            ) : isEditingCharacters ? (
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={(e) => handleCharacterImageUpload(characterKey, e)}
-                className="mt-1"
-              />
-            ) : (
-              <div className="text-sm text-muted-foreground mt-1">{t('noFileChosen') || 'No file chosen'}</div>
+            {!isEditingBaseInfo && !characterInfo.description && (
+              <Button
+                onClick={() => handleGenerateCharacterDescription(characterKey)}
+                disabled={isGeneratingDescription[characterKey]}
+                className="w-full"
+              >
+                {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {t('generateDescription')}
+              </Button>
             )}
-          </div>
-
-          {!isEditingCharacters && !characterInfo.description && (
-            <Button
-              onClick={() => handleGenerateCharacterDescription(characterKey)}
-              disabled={isGeneratingDescription[characterKey]}
-              className="w-full"
-            >
-              {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t('generateDescription')}
-            </Button>
-          )}
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Part 2: Description */}
         {characterInfo.description && (
@@ -1588,10 +1678,7 @@ export default function StoryboardWorkspace() {
             }
           });
         }
-      } else if (sectionKey === 'characters') {
-        // Reset characters draft data
-        setCharactersBaseDraft({});
-      }
+      } 
       
       setEditingSections(prev => ({ ...prev, [sectionKey]: false }));
       
@@ -2782,8 +2869,8 @@ export default function StoryboardWorkspace() {
                           </Button>
                         )}
                         
-        {/* Edit Button - show for movie_info and characters sections */}
-        {(section.key === 'movie_info' || section.key === 'characters') && (
+        {/* Edit Button - show for movie_info section only */}
+        {section.key === 'movie_info' && (
           <EditButton
             onClick={(e) => {
               e.stopPropagation();
