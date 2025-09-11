@@ -16,8 +16,23 @@ interface StoryboardJob {
   status: string;
   stage: string;
   created_at: string;
-  result_data: any;
-  n8n_response: any;
+  updated_at: string;
+  result_data?: any;
+  n8n_response?: any;
+  movie_info?: any;
+  characters?: any;
+  props?: any;
+  timeline?: any;
+  music?: any;
+  input_updated_at?: string;
+  movie_info_updated_at?: string;
+  characters_updated_at?: string;
+  props_updated_at?: string;
+  timeline_updated_at?: string;
+  music_updated_at?: string;
+  user_id?: string;
+  session_id?: string;
+  n8n_webhook_sent?: boolean;
 }
 
 const History = () => {
@@ -62,7 +77,7 @@ const History = () => {
         return;
       }
 
-      setJobs(data || []);
+      setJobs((data || []) as StoryboardJob[]);
     } catch (error) {
       console.error('Error fetching jobs:', error);
     } finally {

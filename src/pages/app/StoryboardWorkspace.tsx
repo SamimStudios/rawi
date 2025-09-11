@@ -132,8 +132,8 @@ interface StoryboardJob {
   music?: any;
   status: string;
   stage: string;
-  result_data: any;
-  n8n_response: any;
+  result_data?: any;
+  n8n_response?: any;
   created_at: string;
   updated_at: string;
   input_updated_at?: string;
@@ -142,6 +142,9 @@ interface StoryboardJob {
   props_updated_at?: string;
   timeline_updated_at?: string;
   music_updated_at?: string;
+  user_id?: string;
+  session_id?: string;
+  n8n_webhook_sent?: boolean;
 }
 
 interface FunctionData {
@@ -199,7 +202,6 @@ export default function StoryboardWorkspace() {
     id: string;
     name: string;
     gender: string;
-    aiFace: boolean;
     faceImage?: File;
     faceImagePreview?: string;
   }>>([]);
@@ -1192,7 +1194,7 @@ export default function StoryboardWorkspace() {
       }
 
       console.log('✅ Job data fetched successfully:', data);
-      setJob(data);
+      setJob(data as StoryboardJob);
       
       // Initialize form data from user_input
       if (data.user_input && typeof data.user_input === 'object') {
@@ -1227,7 +1229,6 @@ export default function StoryboardWorkspace() {
             id: '1',
             name: supportingChar.name || '',
             gender: supportingChar.gender || '',
-            aiFace: supportingChar.aiFace || false,
             faceImagePreview: supportingChar.faceImage || supportingChar.faceImageUrl || ''
           }]);
         } else if (userInput.supporting_characters) {
@@ -1623,7 +1624,6 @@ export default function StoryboardWorkspace() {
               id: '1',
               name: supportingChar.name || '',
               gender: supportingChar.gender || '',
-              aiFace: supportingChar.aiFace || false,
               faceImagePreview: supportingChar.faceImage || supportingChar.faceImageUrl || ''
             }]);
           }
@@ -1762,7 +1762,6 @@ export default function StoryboardWorkspace() {
         id: char.id,
         name: char.name,
         gender: char.gender,
-        aiFace: char.aiFace,
         faceImage: char.faceImagePreview || null,
         faceImageType: char.faceImage?.type || null
       }));
@@ -2614,14 +2613,14 @@ export default function StoryboardWorkspace() {
                       <div className="space-y-2 mt-1">
                         {supportingCharacters.map((character, index) => (
                           <div key={character.id} className="flex items-center gap-3 p-2 border rounded">
-                            {character.faceImagePreview && !character.aiFace && (
+                            {character.faceImagePreview && (
                               <img src={character.faceImagePreview} alt={character.name} className="w-8 h-8 rounded object-cover" />
                             )}
                             <div className="flex-1">
                               <div className="font-medium">{character.name}</div>
                               <div className="text-xs text-muted-foreground">
                                 {character.gender === 'male' ? t('male') : t('female')}
-                                {character.aiFace && ` • ${t('aiGeneratedCharacter')}`}
+                                {!character.faceImagePreview && ` • ${t('aiGenerated')}`}
                               </div>
                             </div>
                           </div>

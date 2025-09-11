@@ -678,10 +678,7 @@ export type Database = {
           n8n_webhook_sent: boolean
           props: Json | null
           props_updated_at: string | null
-          result_data: Json | null
           session_id: string | null
-          stage: string
-          status: string
           timeline: Json | null
           timeline_updated_at: string | null
           updated_at: string
@@ -702,10 +699,7 @@ export type Database = {
           n8n_webhook_sent?: boolean
           props?: Json | null
           props_updated_at?: string | null
-          result_data?: Json | null
           session_id?: string | null
-          stage?: string
-          status?: string
           timeline?: Json | null
           timeline_updated_at?: string | null
           updated_at?: string
@@ -726,10 +720,7 @@ export type Database = {
           n8n_webhook_sent?: boolean
           props?: Json | null
           props_updated_at?: string | null
-          result_data?: Json | null
           session_id?: string | null
-          stage?: string
-          status?: string
           timeline?: Json | null
           timeline_updated_at?: string | null
           updated_at?: string

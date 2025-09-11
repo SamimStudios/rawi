@@ -2,7 +2,6 @@ import React from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Upload, Loader2, X } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -79,62 +78,61 @@ export function LeadCharacterSection({
           </div>
         </div>
         <div className="space-y-4">
-            {displayImageUrl ? (
-              <div className="relative inline-block">
-                <img 
-                  src={displayImageUrl} 
-                  alt={t('faceReferenceImage')} 
-                  className="w-32 h-32 object-cover rounded-lg border"
-                />
-                {onRemoveImage && (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
-                    onClick={onRemoveImage}
-                    disabled={isUploadingFaceImage || disabled}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
-                {isUploadingFaceImage ? (
-                  <div className="flex flex-col items-center">
-                    <Loader2 className="h-8 w-8 mx-auto mb-2 text-muted-foreground animate-spin" />
-                    <p className="text-sm text-muted-foreground">{t('uploading')}</p>
-                  </div>
-                ) : (
-                  <>
-                    <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground mb-2">{t('uploadFaceReference')}</p>
-                    {onImageUpload && (
-                      <>
-                        <Input
-                          id="faceImage"
-                          type="file"
-                          accept="image/*"
-                          onChange={onImageUpload}
-                          className="hidden"
-                          disabled={disabled}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => document.getElementById('faceImage')?.click()}
-                          disabled={disabled}
-                        >
-                          {t('chooseImage')}
-                        </Button>
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-          </div>
+          {displayImageUrl ? (
+            <div className="relative inline-block">
+              <img 
+                src={displayImageUrl} 
+                alt={t('faceReferenceImage')} 
+                className="w-32 h-32 object-cover rounded-lg border"
+              />
+              {onRemoveImage && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+                  onClick={onRemoveImage}
+                  disabled={isUploadingFaceImage || disabled}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+              {isUploadingFaceImage ? (
+                <div className="flex flex-col items-center">
+                  <Loader2 className="h-8 w-8 mx-auto mb-2 text-muted-foreground animate-spin" />
+                  <p className="text-sm text-muted-foreground">{t('uploading')}</p>
+                </div>
+              ) : (
+                <>
+                  <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground mb-2">{t('uploadFaceReference')}</p>
+                  {onImageUpload && (
+                    <>
+                      <Input
+                        id="faceImage"
+                        type="file"
+                        accept="image/*"
+                        onChange={onImageUpload}
+                        className="hidden"
+                        disabled={disabled}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => document.getElementById('faceImage')?.click()}
+                        disabled={disabled}
+                      >
+                        {t('chooseImage')}
+                      </Button>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
