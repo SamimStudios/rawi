@@ -29,6 +29,7 @@ import {
   Users,
   Loader2,
   CheckCircle,
+  AlertCircle,
   RefreshCw,
   Trash2,
   Package,
@@ -244,6 +245,10 @@ export default function StoryboardWorkspace() {
   // Validation states
   const [validationStatus, setValidationStatus] = useState<'validating' | 'valid' | 'invalid' | null>(null);
   const [validationReason, setValidationReason] = useState<{ ar?: string; en?: string } | null>(null);
+  
+  // Character validation states (keyed by character: lead/supporting)
+  const [characterValidationStatus, setCharacterValidationStatus] = useState<Record<string, 'validating' | 'valid' | 'invalid' | null>>({});
+  const [characterValidationReason, setCharacterValidationReason] = useState<Record<string, { ar?: string; en?: string } | null>>({});
   const [suggestedFix, setSuggestedFix] = useState<{ 
     movie_title?: string; 
     logline?: string; 
@@ -977,37 +982,69 @@ export default function StoryboardWorkspace() {
                      {t('description')}
                    </CardTitle>
                    <div className="flex items-center gap-2">
-                     {characterEditData[`${characterKey}_editing`] ? (
-                       <div className="flex gap-2">
-                         <Button
-                           size="sm"
-                           onClick={(e) => {
-                             e.stopPropagation();
-                             handleValidateCharacterDescription(characterKey, characterEditData[characterKey]);
-                           }}
-                           disabled={isValidatingDescription[characterKey]}
-                           className="flex items-center gap-1.5 px-3"
-                         >
-                           {isValidatingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                           <Save className="h-4 w-4" />
-                           {t('save')}
-                         </Button>
-                         <Button
-                           size="sm"
-                           variant="outline"
-                           onClick={(e) => {
-                             e.stopPropagation();
-                             setCharacterEditData(prev => ({ 
-                               ...prev, 
-                               [`${characterKey}_editing`]: false 
-                             }));
-                           }}
-                           className="flex items-center gap-1.5 px-3"
-                         >
-                           <X className="h-4 w-4" />
-                           {t('cancel')}
-                         </Button>
-                       </div>
+                      {characterEditData[`${characterKey}_editing`] ? (
+                        <div className="flex gap-2">
+                          {/* Validate Button - Shows credits */}
+                          <Button
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleValidateCharacterDescription(characterKey, characterEditData[characterKey]);
+                            }}
+                            disabled={characterValidationStatus[characterKey] === 'validating'}
+                            className="flex items-center gap-1.5 px-3"
+                            functionId={functions['validate-character-description']?.id}
+                            showCredits={true}
+                          >
+                            {characterValidationStatus[characterKey] === 'validating' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            <CheckCircle className="h-4 w-4" />
+                            {characterValidationStatus[characterKey] === 'validating' ? t('validating') : t('validate')}
+                          </Button>
+
+                          {/* Save Button - Disabled until validated */}
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSaveCharacterDescription(characterKey, characterEditData[characterKey]);
+                            }}
+                            disabled={
+                              isValidatingDescription[characterKey] ||
+                              (functions['validate-character-description'] && characterValidationStatus[characterKey] !== 'valid')
+                            }
+                            className="flex items-center gap-1.5 px-3"
+                          >
+                            {isValidatingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            <Save className="h-4 w-4" />
+                            {isValidatingDescription[characterKey] ? t('saving') : t('save')}
+                            {functions['validate-character-description'] && characterValidationStatus[characterKey] !== 'valid' && (
+                              <span className="text-xs opacity-75">
+                                {t('validateFirst')}
+                              </span>
+                            )}
+                          </Button>
+
+                          {/* Cancel Button */}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Reset validation state when canceling
+                              setCharacterValidationStatus(prev => ({ ...prev, [characterKey]: null }));
+                              setCharacterValidationReason(prev => ({ ...prev, [characterKey]: null }));
+                              setCharacterEditData(prev => ({ 
+                                ...prev, 
+                                [`${characterKey}_editing`]: false 
+                              }));
+                            }}
+                            className="flex items-center gap-1.5 px-3"
+                          >
+                            <X className="h-4 w-4" />
+                            {t('cancel')}
+                          </Button>
+                        </div>
                      ) : (
                        <div className="flex gap-2">
                          <EditButton
@@ -1022,21 +1059,21 @@ export default function StoryboardWorkspace() {
                            variant="ghost"
                            size="sm"
                          />
-                         <Button
-                           variant="outline"
-                           size="sm"
-                           onClick={(e) => {
-                             e.stopPropagation();
-                             handleGenerateCharacterDescription(characterKey);
-                           }}
-                           disabled={isGeneratingDescription[characterKey]}
-                           functionId={functions['generate-character-description']?.id}
-                           showCredits={true}
-                           className="flex items-center gap-1.5 px-3"
-                         >
-                           {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                           <RefreshCw className="h-4 w-4" />
-                         </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRegenerateWithConfirmation(`characters_description_${characterKey}`);
+                            }}
+                            disabled={isGeneratingDescription[characterKey]}
+                            functionId={functions['generate-character-description']?.id}
+                            showCredits={true}
+                            className="flex items-center gap-1.5 px-3"
+                          >
+                            {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
                        </div>
                      )}
                     </div>
@@ -1047,6 +1084,39 @@ export default function StoryboardWorkspace() {
                 <CardContent>
                   {characterEditData[`${characterKey}_editing`] ? (
                     <div className="space-y-3">
+                      {/* Validation Status Display */}
+                      {characterValidationStatus[characterKey] && (
+                        <div className={cn(
+                          "p-3 rounded-lg border",
+                          characterValidationStatus[characterKey] === 'valid' ? "bg-green-500/10 border-green-500/20 text-green-400" :
+                          characterValidationStatus[characterKey] === 'invalid' ? "bg-destructive/10 border-destructive/20 text-destructive" :
+                          "bg-primary/10 border-primary/20 text-primary"
+                        )}>
+                          {characterValidationStatus[characterKey] === 'valid' && (
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="h-4 w-4" />
+                              <span>{t('validationPassed')}</span>
+                            </div>
+                          )}
+                          {characterValidationStatus[characterKey] === 'invalid' && characterValidationReason[characterKey] && (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2 text-destructive font-medium">
+                                <AlertCircle className="h-4 w-4" />
+                                <span>{t('validationFailed')}</span>
+                              </div>
+                              <div className="text-sm">
+                                <div>{characterValidationReason[characterKey]?.[language as 'en' | 'ar'] || characterValidationReason[characterKey]?.en || t('validationFailedGeneric')}</div>
+                              </div>
+                            </div>
+                          )}
+                          {characterValidationStatus[characterKey] === 'validating' && (
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span>{t('validating')}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       {renderEditableDescriptionFields(characterKey, characterInfo.description)}
                     </div>
                   ) : (
@@ -1636,6 +1706,7 @@ export default function StoryboardWorkspace() {
     }
   };
 
+  // Validate character description (validation only)
   const handleValidateCharacterDescription = async (characterKey: string, descriptionData: any) => {
     const validationFunction = functions['validate-character-description'];
     if (!validationFunction) {
@@ -1647,29 +1718,117 @@ export default function StoryboardWorkspace() {
       return;
     }
 
-    setIsValidatingDescription(prev => ({ ...prev, [characterKey]: true }));
+    setCharacterValidationStatus(prev => ({ ...prev, [characterKey]: 'validating' }));
     
     try {
-      await executeFunction('validate-character-description', {
+      const result = await executeFunction('validate-character-description', {
         table_id: 'storyboard_jobs',
         row_id: jobId,
         character_key: characterKey,
         description_data: descriptionData
       });
 
+      // Parse validation response
+      const response = result?.envelope?.data || result?.data;
+      console.log('🔍 Character validation response:', response);
+
+      if (!response) {
+        console.error('❌ Validation response is undefined');
+        setCharacterValidationStatus(prev => ({ ...prev, [characterKey]: 'invalid' }));
+        toast({
+          title: t('error'),
+          description: t('validationResponseMissing'),
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      if (response.valid) {
+        setCharacterValidationStatus(prev => ({ ...prev, [characterKey]: 'valid' }));
+        setCharacterValidationReason(prev => ({ ...prev, [characterKey]: null }));
+        toast({
+          title: t('success'),
+          description: t('characterDescriptionValidated')
+        });
+      } else {
+        setCharacterValidationStatus(prev => ({ ...prev, [characterKey]: 'invalid' }));
+        setCharacterValidationReason(prev => ({ ...prev, [characterKey]: response.reason || null }));
+        toast({
+          title: t('validationFailed'),
+          description: t('pleaseFixIssues'),
+          variant: 'destructive'
+        });
+      }
+
+    } catch (error) {
+      console.error('Error validating character description:', error);
+      setCharacterValidationStatus(prev => ({ ...prev, [characterKey]: 'invalid' }));
+      toast({
+        title: t('error'),
+        description: t('failedToValidateDescription'),
+        variant: 'destructive'
+      });
+    }
+  };
+
+  // Save character description (save only, requires validation first)
+  const handleSaveCharacterDescription = async (characterKey: string, descriptionData: any) => {
+    if (!job) return;
+    
+    // Check if validation is required and passed
+    const validateFunction = functions['validate-character-description'];
+    if (validateFunction && characterValidationStatus[characterKey] !== 'valid') {
+      toast({
+        title: t('validationRequired'),
+        description: t('pleaseValidateFirst'),
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsValidatingDescription(prev => ({ ...prev, [characterKey]: true }));
+
+    try {
+      // Update character description in database
+      const updatedCharacters = { ...job.characters };
+      if (!updatedCharacters[characterKey]) {
+        updatedCharacters[characterKey] = {};
+      }
+      updatedCharacters[characterKey].description = descriptionData;
+
+      const { error } = await supabase
+        .from('storyboard_jobs')
+        .update({ 
+          characters: updatedCharacters,
+          characters_updated_at: new Date().toISOString()
+        })
+        .eq('id', jobId);
+
+      if (error) throw error;
+
+      // Update local state and exit edit mode
+      setCharacterEditData(prev => ({ 
+        ...prev, 
+        [`${characterKey}_editing`]: false 
+      }));
+
+      // Reset validation status after successful save
+      setCharacterValidationStatus(prev => ({ ...prev, [characterKey]: null }));
+      setCharacterValidationReason(prev => ({ ...prev, [characterKey]: null }));
+
       // Refresh job data
       await fetchJob();
 
       toast({
         title: t('success'),
-        description: t('characterDescriptionValidated')
+        description: t('characterDescriptionSaved')
       });
 
     } catch (error) {
-      console.error('Error validating character description:', error);
+      console.error('Error saving character description:', error);
       toast({
         title: t('error'),
-        description: t('failedToValidateDescription'),
+        description: t('failedToSaveDescription'),
         variant: 'destructive'
       });
     } finally {
@@ -3435,6 +3594,10 @@ export default function StoryboardWorkspace() {
                   try {
                     if (pendingRegenerateSection === 'characters') {
                       await handleGenerateCharacters();
+                    } else if (pendingRegenerateSection?.startsWith('characters_description_')) {
+                      // Handle character description regeneration
+                      const characterKey = pendingRegenerateSection.replace('characters_description_', '');
+                      await handleGenerateCharacterDescription(characterKey);
                     } else {
                       await handleGenerate(pendingRegenerateSection);
                     }
