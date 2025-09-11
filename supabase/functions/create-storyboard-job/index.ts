@@ -105,9 +105,7 @@ serve(async (req) => {
     const jobData = {
       user_id: userId || null,
       session_id: sessionId || null,
-      user_input: userInput,
-      status: 'pending',
-      stage: 'created'
+      user_input: userInput
     };
 
     console.log('Inserting job data:', jobData);
