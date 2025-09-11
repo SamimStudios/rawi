@@ -5,6 +5,7 @@ import { Coins } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 
 const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
@@ -103,7 +104,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       );
     }
 
-    return (
+    const buttonContent = (
       <Comp 
         className={cn(buttonVariants({ variant, size, className }))} 
         ref={ref} 
@@ -120,6 +121,27 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         </span>
       </Comp>
     );
+
+    // Wrap with tooltip if credits are shown
+    if (shouldShowCredits && !props.disabled) {
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {buttonContent}
+            </TooltipTrigger>
+            <TooltipContent>
+              <div className="flex items-center gap-2">
+                <Coins className="h-4 w-4" />
+                <span>This action will consume {functionData?.price || '0'} credits</span>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    }
+
+    return buttonContent;
   },
 );
 Button.displayName = "Button";
