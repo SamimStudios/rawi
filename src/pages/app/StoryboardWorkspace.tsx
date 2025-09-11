@@ -212,6 +212,10 @@ export default function StoryboardWorkspace() {
   }>>([]);
   const [templates, setTemplates] = useState<Array<{id: string, name: string, description: string}>>([]);
   
+  // Form edit state - let StoryboardForm handle its own state via hook
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editFormData, setEditFormData] = useState<any>(null);
+  
   // Section data states
   const [movieData, setMovieData] = useState({
     title: '',
@@ -2434,6 +2438,10 @@ export default function StoryboardWorkspace() {
                     });
                     setSelectedGenres(data.selectedGenres);
                     setSupportingCharacters(data.supportingCharacters);
+                    // Update face image preview if provided
+                    if (data.faceImageUrl) {
+                      setFaceImagePreview(data.faceImageUrl);
+                    }
                     
                     // Call the save function
                     await handleSaveInput();

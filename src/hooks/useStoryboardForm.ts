@@ -7,26 +7,33 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { MAX_FILE_SIZE, MAX_GENRES, MAX_SUPPORTING_CHARACTERS } from '@/lib/storyboard-constants';
 import type { StoryboardFormData, SupportingCharacter } from '@/types/storyboard';
 
-export function useStoryboardForm() {
+interface UseStoryboardFormProps {
+  initialFormData?: Partial<StoryboardFormData>;
+  initialGenres?: string[];
+  initialSupportingCharacters?: SupportingCharacter[];
+  initialFaceImageUrl?: string | null;
+}
+
+export function useStoryboardForm(props?: UseStoryboardFormProps) {
   const { t } = useLanguage();
   const { toast } = useToast();
   const { user } = useAuth();
   const { sessionId } = useGuestSession();
 
   const [formData, setFormData] = useState<StoryboardFormData>({
-    template: '',
-    leadName: user?.user_metadata?.full_name || '',
-    leadGender: '',
-    language: 'English',
-    accent: 'US',
-    size: '',
-    prompt: ''
+    template: props?.initialFormData?.template || '',
+    leadName: props?.initialFormData?.leadName || user?.user_metadata?.full_name || '',
+    leadGender: props?.initialFormData?.leadGender || '',
+    language: props?.initialFormData?.language || 'English',
+    accent: props?.initialFormData?.accent || 'US',
+    size: props?.initialFormData?.size || '',
+    prompt: props?.initialFormData?.prompt || ''
   });
 
-  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-  const [faceImageUrl, setFaceImageUrl] = useState<string | null>(null);
+  const [selectedGenres, setSelectedGenres] = useState<string[]>(props?.initialGenres || []);
+  const [faceImageUrl, setFaceImageUrl] = useState<string | null>(props?.initialFaceImageUrl || null);
   const [isUploadingFaceImage, setIsUploadingFaceImage] = useState(false);
-  const [supportingCharacters, setSupportingCharacters] = useState<SupportingCharacter[]>([]);
+  const [supportingCharacters, setSupportingCharacters] = useState<SupportingCharacter[]>(props?.initialSupportingCharacters || []);
 
   const handleInputChange = useCallback((field: keyof StoryboardFormData, value: string | boolean) => {
     setFormData(prev => {

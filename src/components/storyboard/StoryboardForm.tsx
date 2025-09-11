@@ -52,7 +52,7 @@ export function StoryboardForm({
   const { t, isRTL } = useLanguage();
   const { toast } = useToast();
 
-  // Use centralized form hook
+  // Use centralized form hook with initial values
   const {
     formData,
     selectedGenres,
@@ -67,7 +67,12 @@ export function StoryboardForm({
     setSupportingCharacters,
     validateForm,
     resetForm
-  } = useStoryboardForm();
+  } = useStoryboardForm({
+    initialFormData: initialData,
+    initialGenres,
+    initialSupportingCharacters,
+    initialFaceImageUrl: initialFaceImage
+  });
 
   const [supportingCollapsed, setSupportingCollapsed] = useState(true);
   const [templates, setTemplates] = useState<StoryboardTemplate[]>([]);
