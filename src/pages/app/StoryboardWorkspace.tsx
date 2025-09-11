@@ -1678,6 +1678,37 @@ export default function StoryboardWorkspace() {
   const handleSaveInput = async () => {
     console.log('💾 Saving input data...');
     
+    // Validate required fields
+    const requiredFields = {
+      template: formData.template,
+      size: formData.size,
+      language: formData.language,
+      accent: formData.accent,
+      leadName: formData.leadName,
+      leadGender: formData.leadGender
+    };
+    
+    const missingFields = [];
+    for (const [field, value] of Object.entries(requiredFields)) {
+      if (!value || value.trim() === '') {
+        missingFields.push(field);
+      }
+    }
+    
+    // Check genres (at least 1 required)
+    if (!selectedGenres || selectedGenres.length === 0) {
+      missingFields.push('genres');
+    }
+    
+    if (missingFields.length > 0) {
+      toast({
+        title: "Missing Required Fields",
+        description: `Please fill in all required fields: ${missingFields.join(', ')}`,
+        variant: "destructive"
+      });
+      return;
+    }
+    
     try {
       const processedSupportingCharacters = supportingCharacters.map(char => ({
         id: char.id,
