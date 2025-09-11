@@ -56,7 +56,7 @@ const getSections = (t: any) => [
     key: 'characters', 
     title: t('characters'),
     icon: Users,
-    generateFunctionId: 'generate-character-description', // Use function name for character generation
+    generateFunctionId: null, // Character generation is internal, not N8N function
     editFunctionId: null,
     nextButton: t('generateProps'),
     fields: ['lead', 'supporting']
@@ -877,7 +877,6 @@ export default function StoryboardWorkspace() {
               onClick={() => handleGenerateCharacterDescription(characterKey)}
               disabled={isGeneratingDescription[characterKey]}
               className="w-full"
-              functionId={functions['generate-character-description']?.id}
             >
               {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {t('generateDescription')}
@@ -906,7 +905,6 @@ export default function StoryboardWorkspace() {
                   size="sm"
                   onClick={() => handleGenerateCharacterDescription(characterKey)}
                   disabled={isGeneratingDescription[characterKey]}
-                  functionId={functions['generate-character-description']?.id}
                 >
                   {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {t('regenerate')}
@@ -921,7 +919,6 @@ export default function StoryboardWorkspace() {
                   <Button
                     onClick={() => handleValidateCharacterDescription(characterKey, characterEditData[characterKey])}
                     disabled={isValidatingDescription[characterKey]}
-                    functionId={functions['validate-character-description']?.id}
                   >
                     {isValidatingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {t('validate')}
@@ -970,7 +967,6 @@ export default function StoryboardWorkspace() {
                 onClick={() => handleGenerateCharacterPortrait(characterKey)}
                 disabled={isGeneratingPortrait[characterKey]}
                 className="w-full mt-4"
-                functionId={functions['generate-character-portrait']?.id}
               >
                 {isGeneratingPortrait[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {t('generatePortrait')}
@@ -989,7 +985,6 @@ export default function StoryboardWorkspace() {
                 size="sm"
                 onClick={() => handleGenerateCharacterPortrait(characterKey)}
                 disabled={isGeneratingPortrait[characterKey]}
-                functionId={functions['generate-character-portrait']?.id}
               >
                 {isGeneratingPortrait[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {t('regenerate')}
