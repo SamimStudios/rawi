@@ -1,5 +1,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
+import { EditButton } from '@/components/ui/edit-button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 
 const ButtonShowcase = () => {
@@ -169,7 +170,7 @@ const ButtonShowcase = () => {
               <h3 className="text-lg font-semibold mb-4">Storyboard Actions</h3>
               <div className="flex flex-wrap gap-2">
                 <Button variant="primary" showCredits={true}>Generate Storyboard</Button>
-                <Button variant="default">Edit Settings</Button>
+                <EditButton onClick={() => {}} variant="default" />
                 <Button variant="type_3_blue">Save Progress</Button>
                 <Button variant="ghost">Preview</Button>
               </div>
@@ -179,7 +180,7 @@ const ButtonShowcase = () => {
               <h3 className="text-lg font-semibold mb-4">Character Actions</h3>
               <div className="flex flex-wrap gap-2">
                 <Button variant="primary" showCredits={true}>Regenerate Character</Button>
-                <Button variant="default">Edit Details</Button>
+                <EditButton onClick={() => {}} variant="default" />
                 <Button variant="type_3_red">Remove Character</Button>
                 <Button variant="ghost">View Gallery</Button>
               </div>

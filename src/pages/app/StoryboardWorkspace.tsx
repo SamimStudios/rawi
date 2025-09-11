@@ -11,9 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { toast } from '@/hooks/use-toast';
 import { 
-  Edit2, 
   Save, 
-  X, 
+  X,
   ArrowLeft, 
   Clock, 
   User, 
@@ -37,6 +36,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useUserCredits } from '@/hooks/useUserCredits';
 import { useGuestSession } from '@/hooks/useGuestSession';
+import { EditButton } from '@/components/ui/edit-button';
 import { SystemAlertDialog, SystemAlertAction } from '@/components/ui/system-alert-dialog';
 import { cn } from '@/lib/utils';
 import { SupportingCharacterSection } from '@/components/storyboard/SupportingCharacterSection';
@@ -789,13 +789,10 @@ export default function StoryboardWorkspace() {
         <div className="border rounded-lg p-4 bg-card">
           <div className="flex items-center justify-between mb-3">
             <h5 className="font-medium">{t('baseInfo')}</h5>
-            <Button
-              variant="outline"
-              size="sm"
+            <EditButton
               onClick={() => isEditingBase ? handleCancelEdit() : setIsEditingBase(true)}
-            >
-              {isEditingBase ? t('cancel') : t('edit')}
-            </Button>
+              isEditing={isEditingBase}
+            />
           </div>
           
           <div className="grid grid-cols-2 gap-4 mb-4">
@@ -890,16 +887,14 @@ export default function StoryboardWorkspace() {
             <div className="flex items-center justify-between mb-3">
               <h5 className="font-medium">{t('description')}</h5>
               <div className="flex gap-2">
-                <Button
+                <EditButton
                   variant="outline"
-                  size="sm"
                   onClick={() => setCharacterEditData(prev => ({ 
                     ...prev, 
                     [`${characterKey}_editing`]: !prev[`${characterKey}_editing`] 
                   }))}
-                >
-                  {characterEditData[`${characterKey}_editing`] ? t('cancel') : t('edit')}
-                </Button>
+                  isEditing={characterEditData[`${characterKey}_editing`]}
+                />
                 <Button
                   variant="outline"
                   size="sm"
@@ -2243,17 +2238,14 @@ export default function StoryboardWorkspace() {
                     {t('lastUpdated')}: {t('notAvailable')}
                   </div>
                 )}
-                <Button
-                  size="sm"
-                  variant="ghost"
+                <EditButton
                   onClick={(e) => {
                     e.stopPropagation();
                     handleEditToggle('input');
                   }}
                   disabled={isAnyEditMode && !editingSections.input}
-                >
-                  {editingSections.input ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
-                </Button>
+                  isEditing={editingSections.input}
+                />
               </div>
             </div>
           </CardHeader>
@@ -2669,17 +2661,14 @@ export default function StoryboardWorkspace() {
                         
                         {/* Edit Button - only show for movie_info section, characters section doesn't have edit */}
                         {section.key === 'movie_info' && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
+                          <EditButton
                             onClick={(e) => {
                               e.stopPropagation();
                               handleEditToggle(section.key);
                             }}
                             disabled={isAnyEditMode && !isEditing}
-                          >
-                            {isEditing ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
-                          </Button>
+                            isEditing={isEditing}
+                          />
                         )}
                      </div>
                   </div>
