@@ -7,7 +7,6 @@ const ButtonShowcase = () => {
     { name: 'Default (Type 2 Blue)', variant: 'default' as const },
     { name: 'Destructive (Type 2 Red)', variant: 'destructive' as const },
     { name: 'Outline', variant: 'outline' as const },
-    { name: 'Secondary', variant: 'secondary' as const },
     { name: 'Ghost (Type 4 Blue)', variant: 'ghost' as const },
     { name: 'Link', variant: 'link' as const },
     { name: 'Primary (Type 1)', variant: 'primary' as const },
@@ -190,7 +189,7 @@ const ButtonShowcase = () => {
               <h3 className="text-lg font-semibold mb-4">Navigation & Forms</h3>
               <div className="flex flex-wrap gap-2">
                 <Button variant="primary">Submit</Button>
-                <Button variant="secondary">Cancel</Button>
+                <Button variant="outline">Cancel</Button>
                 <Button variant="outline">Back</Button>
                 <Button variant="ghost">Skip</Button>
               </div>

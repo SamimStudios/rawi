@@ -2284,7 +2284,7 @@ export default function StoryboardWorkspace() {
               <CardTitle className="flex items-center gap-2">
                 <User className="h-5 w-5" />
                 {t('initialInput')}
-                {editingSections.input && <Badge variant="secondary">{t('editing')}</Badge>}
+                {editingSections.input && <Badge variant="outline">{t('editing')}</Badge>}
               </CardTitle>
               <div className="flex items-center gap-2">
                 {job.input_updated_at ? (
@@ -2527,7 +2527,7 @@ export default function StoryboardWorkspace() {
                       {formData.leadGender && ` (${formData.leadGender === 'male' ? t('male') : t('female')})`}
                     </div>
                     {formData.leadAiCharacter && (
-                      <Badge variant="secondary" className="mt-1">{t('aiGeneratedCharacter')}</Badge>
+                      <Badge variant="outline" className="mt-1">{t('aiGeneratedCharacter')}</Badge>
                     )}
                     {faceImagePreview && !formData.leadAiCharacter && (
                       <img src={faceImagePreview} alt={t('faceReferenceImage')} className="w-16 h-16 rounded object-cover mt-2" />
@@ -2570,7 +2570,7 @@ export default function StoryboardWorkspace() {
                       {selectedGenres.map(genre => {
                         const genreOption = GENRE_OPTIONS.find(g => g.value === genre);
                         return (
-                          <Badge key={genre} variant="secondary">
+                          <Badge key={genre} variant="outline">
                             {genreOption ? t(genreOption.key) : genre}
                           </Badge>
                         );
@@ -2664,7 +2664,7 @@ export default function StoryboardWorkspace() {
                     <CardTitle className="flex items-center gap-2">
                       <section.icon className="h-5 w-5" />
                       {section.title}
-                      {isEditing && <Badge variant="secondary">{t('editing')}</Badge>}
+                      {isEditing && <Badge variant="outline">{t('editing')}</Badge>}
                       {(sectionWarnings[section.key] || getSectionInconsistencyWarning(section.key)) && (
                         <Badge variant="outline" className="bg-amber-500/20 text-amber-300 border-amber-500/30 hover:bg-amber-500/30">
                           <AlertTriangle className="h-3 w-3 mr-1" />

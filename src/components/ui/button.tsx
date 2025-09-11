@@ -17,7 +17,6 @@ const buttonVariants = cva(
         default: "bg-primary text-white hover:bg-primary/80 transition-colors duration-200", // Type 2 Blue
         destructive: "bg-accent text-white hover:bg-accent/80 transition-colors duration-200", // Type 2 Red
         outline: "border border-input bg-transparent text-foreground hover:bg-secondary/50",
-        secondary: "border border-input bg-transparent text-foreground hover:bg-secondary/50",
         ghost: "bg-transparent text-foreground hover:text-primary hover:bg-primary/10 transition-all duration-200", // Type 4 Blue
         link: "text-primary underline-offset-4 hover:underline",
         primary: "bg-gradient-primary text-white font-bold hover:shadow-glow transition-all duration-300", // Type 1

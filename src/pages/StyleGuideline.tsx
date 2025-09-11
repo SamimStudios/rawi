@@ -359,7 +359,7 @@ ${Object.entries(variables).map(([key, value]) => `  ${key}: ${value};`).join('\
               </CardHeader>
               <CardContent className="space-y-4">
                 <Button>Primary Button</Button>
-                <Button variant="secondary">Secondary Button</Button>
+                <Button variant="outline">Outline Button</Button>
                 <Button variant="outline">Outline Button</Button>
                 <Button variant="destructive">Destructive Button</Button>
                 <Input placeholder="Input field" />

@@ -265,7 +265,7 @@ const Wallet = () => {
                       <CardHeader className="pb-2">
                         <CardTitle className="text-lg">{pkg.credits} {t('wallet.credits')}</CardTitle>
                         {pricing.discountPercent > 0 && (
-                          <Badge variant="secondary" className="w-fit">
+                          <Badge variant="outline" className="w-fit">
                             {pricing.discountPercent}% {t('wallet.off')}
                           </Badge>
                         )}
@@ -346,7 +346,7 @@ const Wallet = () => {
                           <p className="text-sm text-muted-foreground">
                             {t('wallet.rate')}: {formatPrice(pricing.perCreditRate)}/cr
                             {pricing.discountPercent > 0 && (
-                              <Badge variant="secondary" className="ml-2">
+                              <Badge variant="outline" className="ml-2">
                                 {pricing.discountPercent}% {t('wallet.off')}
                               </Badge>
                             )}
@@ -412,7 +412,7 @@ const Wallet = () => {
                     <Card key={plan.id} className="relative hover:shadow-lg transition-shadow">
                       <CardHeader className="pb-2">
                         <CardTitle className="text-lg">{plan.name}</CardTitle>
-                        <Badge variant="secondary" className="w-fit mb-2">
+                        <Badge variant="outline" className="w-fit mb-2">
                           {savingsPercent}% {t('wallet.cheaperThanOneTime')}
                         </Badge>
                         <CardDescription>
