@@ -43,6 +43,7 @@ import { SupportingCharacterSection } from '@/components/storyboard/SupportingCh
 import { LeadCharacterSection } from '@/components/storyboard/LeadCharacterSection';
 import { LanguageAccentSection } from '@/components/storyboard/LanguageAccentSection';
 import { GenreSelector } from '@/components/storyboard/GenreSelector';
+import { StoryboardForm } from '@/components/storyboard/StoryboardForm';
 
 // Progressive section configuration - titles will be localized using t()
 const getSections = (t: any) => [
@@ -2404,123 +2405,43 @@ export default function StoryboardWorkspace() {
           {openSections.input && (
             <CardContent className="space-y-4">
               {editingSections.input ? (
-                <div className="space-y-4">
-                  {/* Template */}
-                  <div>
-                    <label className="text-sm font-medium">{t('storyboardTemplate')} *</label>
-                    <Select value={formData.template} onValueChange={(value) => handleInputChange('template', value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder={t('selectTemplate')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {templates.map(template => (
-                          <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Size */}
-                  <div>
-                    <label className="text-sm font-medium">{t('sizeOption')} *</label>
-                    <Select value={formData.size} onValueChange={(value) => handleInputChange('size', value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder={t('selectSize')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="portrait">{t('sizePortrait')}</SelectItem>
-                        <SelectItem value="landscape">{t('sizeLandscape')}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Lead Character - using reusable component */}
-                  <LeadCharacterSection
-                    formData={formData}
-                    onInputChange={handleInputChange}
-                    faceImageUrl={faceImagePreview}
-                    isUploadingFaceImage={isUploadingFaceImage}
-                    onImageUpload={handleImageUpload}
-                    onRemoveImage={handleRemoveImage}
-                    disabled={!editingSections.input}
-                  />
-
-                    {/* Supporting Characters */}
-                    <SupportingCharacterSection
-                      supportingCharacters={supportingCharacters}
-                      onCharactersChange={setSupportingCharacters}
-                      onImageUpload={uploadSupportingCharacterImageDirect}
-                      isCollapsed={false}
-                      disabled={!editingSections.input}
-                    />
-                   
-                   {/* Language & Accent */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium">{t('language')} *</label>
-                      <Select value={formData.language} onValueChange={(value) => handleInputChange('language', value)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {LANGUAGES.map(lang => (
-                            <SelectItem key={lang.value} value={lang.value}>{t(lang.key)}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium">{t('accent')} *</label>
-                      <Select value={formData.accent} onValueChange={(value) => handleInputChange('accent', value)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(ACCENTS[formData.language] || []).map(accent => (
-                            <SelectItem key={accent.value} value={accent.value}>{t(accent.key)}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {/* Genres */}
-                  <div>
-                    <label className="text-sm font-medium">{t('genres')} ({selectedGenres.length}/3)</label>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {GENRE_OPTIONS.map(genre => (
-                        <Badge
-                          key={genre.value}
-                          variant={selectedGenres.includes(genre.value) ? "default" : "outline"}
-                          className="cursor-pointer"
-                          onClick={() => handleGenreToggle(genre.value)}
-                        >
-                          {t(genre.key)}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium">{t('storyPrompt')}</label>
-                    <Textarea
-                      value={formData.prompt}
-                      onChange={(e) => handleInputChange('prompt', e.target.value)}
-                      placeholder={t('describeYourStory')}
-                      rows={3}
-                    />
-                  </div>
-                  
-                  <div className="flex gap-2 items-center">
-                    <Button onClick={handleSaveInput} variant="default" className="flex items-center gap-2">
-                      <Save className="h-4 w-4" />
-                      {t('save')}
-                    </Button>
-                    <Button onClick={() => handleEditToggle('input')} variant="outline">
-                      {t('cancel')}
-                    </Button>
-                  </div>
-                </div>
+                <StoryboardForm
+                  mode="edit"
+                  initialData={{
+                    template: formData.template,
+                    size: formData.size,
+                    leadName: formData.leadName,
+                    leadGender: formData.leadGender,
+                    language: formData.language,
+                    accent: formData.accent,
+                    prompt: formData.prompt
+                  }}
+                  initialGenres={selectedGenres}
+                  initialSupportingCharacters={supportingCharacters}
+                  initialFaceImage={faceImagePreview}
+                  onSave={async (data) => {
+                    // Update form data - map StoryboardFormData to workspace formData structure
+                    setFormData({
+                      template: data.formData.template,
+                      leadName: data.formData.leadName,
+                      leadGender: data.formData.leadGender,
+                      leadAiCharacter: false, // This field doesn't exist in StoryboardFormData
+                      language: data.formData.language,
+                      accent: data.formData.accent,
+                      size: data.formData.size,
+                      genres: data.selectedGenres, // Map genres separately
+                      prompt: data.formData.prompt
+                    });
+                    setSelectedGenres(data.selectedGenres);
+                    setSupportingCharacters(data.supportingCharacters);
+                    
+                    // Call the save function
+                    await handleSaveInput();
+                  }}
+                  onCancel={() => handleEditToggle('input')}
+                  disabled={loadingSections.input}
+                  isLoading={loadingSections.input}
+                />
               ) : (
                 <div className="space-y-4">
                   {/* Template */}
