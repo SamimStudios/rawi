@@ -906,14 +906,10 @@ export default function StoryboardWorkspace() {
                   size="sm"
                   onClick={() => handleGenerateCharacterDescription(characterKey)}
                   disabled={isGeneratingDescription[characterKey]}
+                  functionId={functions['generate-character-description']?.id}
                 >
                   {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {t('regenerate')}
-                  {functions['generate-character-description'] && (
-                    <span className="text-xs opacity-75 ml-1">
-                      ({functions['generate-character-description'].price})
-                    </span>
-                  )}
                 </Button>
               </div>
             </div>
@@ -993,14 +989,10 @@ export default function StoryboardWorkspace() {
                 size="sm"
                 onClick={() => handleGenerateCharacterPortrait(characterKey)}
                 disabled={isGeneratingPortrait[characterKey]}
+                functionId={functions['generate-character-portrait']?.id}
               >
                 {isGeneratingPortrait[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {t('regenerate')}
-                {functions['generate-character-portrait'] && (
-                  <span className="text-xs opacity-75 ml-1">
-                    ({functions['generate-character-portrait'].price})
-                  </span>
-                )}
               </Button>
             </div>
             
@@ -1722,16 +1714,6 @@ export default function StoryboardWorkspace() {
         return;
       }
       
-      const hasCredits = credits >= validateFunction.price;
-      if (!hasCredits) {
-        toast({
-          title: "Insufficient Credits",
-          description: `You need ${validateFunction.price} credits for validation`,
-          variant: "destructive"
-        });
-        return;
-      }
-      
       setValidationStatus('validating');
       
       const result = await executeFunction('validate-movie-info', {
@@ -1930,16 +1912,6 @@ export default function StoryboardWorkspace() {
         return;
       }
       
-      const hasCredits = credits >= validateFunction.price;
-      if (!hasCredits) {
-        toast({
-          title: "Insufficient Credits",
-          description: `You need ${validateFunction.price} credits for validation`,
-          variant: "destructive"
-        });
-        return;
-      }
-      
       const currentMovieData = {
         title: getMovieInfoValue(job?.movie_info, 'title', ''),
         logline: getMovieInfoValue(job?.movie_info, 'logline', ''),
@@ -2025,17 +1997,7 @@ export default function StoryboardWorkspace() {
       if (!generateFunction) {
         toast({
           title: "Error",
-          description: "Generate function not available",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      const hasCredits = credits >= generateFunction.price;
-      if (!hasCredits) {
-        toast({
-          title: "Insufficient Credits",
-          description: `You need ${generateFunction.price} credits to regenerate`,
+          description: "Generation function not available",
           variant: "destructive"
         });
         return;
@@ -2666,42 +2628,34 @@ export default function StoryboardWorkspace() {
                                   size="sm"
                                   variant="outline"
                                   onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRegenerateMovieInfo();
-                                 }}
-                                 disabled={isAnyEditMode || loadingSections[section.key]}
-                                 className="flex items-center gap-1.5 px-3"
-                               >
-                                 <RefreshCw className="h-4 w-4" />
-                                 <div className="flex items-center gap-1">
-                                   <span className="text-xs font-light text-muted-foreground">{functions['generate-movie-info'].price}</span>
-                                   <Coins className="h-3 w-3 text-muted-foreground/60" />
-                                 </div>
-                               </Button>
+                                     e.stopPropagation();
+                                     handleRegenerateMovieInfo();
+                                  }}
+                                  disabled={isAnyEditMode || loadingSections[section.key]}
+                                  className="flex items-center gap-1.5 px-3"
+                                  functionId={functions['generate-movie-info']?.id}
+                                >
+                                  <RefreshCw className="h-4 w-4" />
+                                </Button>
                              )}
                           </>
                          )}
                          
                          {/* Characters regenerate button */}
                          {!isEditing && section.key === 'characters' && (
-                           <Button
-                             size="sm"
-                             variant="outline"
-                             onClick={(e) => {
-                               e.stopPropagation();
-                               handleGenerate('characters');
-                            }}
-                            disabled={isAnyEditMode || loadingSections[section.key]}
-                            className="flex items-center gap-1.5 px-3"
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                            {functions['generate-character-description'] && (
-                              <div className="flex items-center gap-1">
-                                <span className="text-xs font-light text-muted-foreground">{functions['generate-character-description'].price}</span>
-                                <Coins className="h-3 w-3 text-muted-foreground/60" />
-                              </div>
-                            )}
-                          </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleGenerate('characters');
+                             }}
+                             disabled={isAnyEditMode || loadingSections[section.key]}
+                             className="flex items-center gap-1.5 px-3"
+                             functionId={functions['generate-character-description']?.id}
+                           >
+                             <RefreshCw className="h-4 w-4" />
+                           </Button>
                          )}
                         
                         {/* Delete Button - only show when open and not editing */}
