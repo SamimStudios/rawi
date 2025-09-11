@@ -669,13 +669,10 @@ export type Database = {
           characters_updated_at: string | null
           created_at: string
           id: string
-          input_updated_at: string | null
           movie_info: Json | null
           movie_info_updated_at: string | null
           music: Json | null
           music_updated_at: string | null
-          n8n_response: Json | null
-          n8n_webhook_sent: boolean
           props: Json | null
           props_updated_at: string | null
           session_id: string | null
@@ -684,19 +681,17 @@ export type Database = {
           updated_at: string
           user_id: string | null
           user_input: Json
+          user_input_updated_at: string
         }
         Insert: {
           characters?: Json | null
           characters_updated_at?: string | null
           created_at?: string
           id?: string
-          input_updated_at?: string | null
           movie_info?: Json | null
           movie_info_updated_at?: string | null
           music?: Json | null
           music_updated_at?: string | null
-          n8n_response?: Json | null
-          n8n_webhook_sent?: boolean
           props?: Json | null
           props_updated_at?: string | null
           session_id?: string | null
@@ -705,19 +700,17 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           user_input?: Json
+          user_input_updated_at?: string
         }
         Update: {
           characters?: Json | null
           characters_updated_at?: string | null
           created_at?: string
           id?: string
-          input_updated_at?: string | null
           movie_info?: Json | null
           movie_info_updated_at?: string | null
           music?: Json | null
           music_updated_at?: string | null
-          n8n_response?: Json | null
-          n8n_webhook_sent?: boolean
           props?: Json | null
           props_updated_at?: string | null
           session_id?: string | null
@@ -726,6 +719,7 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           user_input?: Json
+          user_input_updated_at?: string
         }
         Relationships: []
       }

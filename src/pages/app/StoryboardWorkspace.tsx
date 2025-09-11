@@ -136,7 +136,7 @@ interface StoryboardJob {
   n8n_response?: any;
   created_at: string;
   updated_at: string;
-  input_updated_at?: string;
+  user_input_updated_at?: string;
   movie_info_updated_at?: string;
   characters_updated_at?: string;
   props_updated_at?: string;
@@ -271,7 +271,7 @@ export default function StoryboardWorkspace() {
       has_music: !!job.music && Object.keys(job.music).length > 0,
       user_input_language: (job.user_input as any)?.language,
       timestamps: {
-        input_updated_at: job.input_updated_at,
+        input_updated_at: job.user_input_updated_at,
         movie_info_updated_at: job.movie_info_updated_at,
         characters_updated_at: job.characters_updated_at,
         props_updated_at: job.props_updated_at,
@@ -524,7 +524,7 @@ export default function StoryboardWorkspace() {
     // Special handling for 'input' section - it can affect all other sections
     if (sectionKey === 'input') {
       const affected: string[] = [];
-      const inputTimestamp = job.input_updated_at;
+      const inputTimestamp = job.user_input_updated_at;
       const inputTime = inputTimestamp ? new Date(inputTimestamp).getTime() : 0;
       
       // Check all sections to see which ones have data and would be affected
@@ -603,7 +603,7 @@ export default function StoryboardWorkspace() {
     const currentTime = new Date(currentTimestamp).getTime();
     
     // Check if input was updated after this section
-    const inputTimestamp = job.input_updated_at;
+    const inputTimestamp = job.user_input_updated_at;
     if (inputTimestamp) {
       const inputTime = new Date(inputTimestamp).getTime();
       if (inputTime > currentTime) {
@@ -1791,8 +1791,7 @@ export default function StoryboardWorkspace() {
       const { error } = await supabase
         .from('storyboard_jobs')
         .update({ 
-          user_input: inputPayload,
-          input_updated_at: new Date().toISOString()
+          user_input: inputPayload
         })
         .eq('id', jobId);
 
@@ -2362,10 +2361,10 @@ export default function StoryboardWorkspace() {
                 {editingSections.input && <Badge variant="outline">{t('editing')}</Badge>}
               </CardTitle>
               <div className="flex items-center gap-2">
-                {job.input_updated_at ? (
+                {job.user_input_updated_at ? (
                   <div className="text-xs text-muted-foreground">
                     <Clock className="h-3 w-3 inline mr-1" />
-                    {new Date(job.input_updated_at).toLocaleString()}
+                    {new Date(job.user_input_updated_at).toLocaleString()}
                   </div>
                 ) : (
                   <div className="text-xs text-muted-foreground">

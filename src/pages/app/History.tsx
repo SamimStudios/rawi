@@ -24,7 +24,7 @@ interface StoryboardJob {
   props?: any;
   timeline?: any;
   music?: any;
-  input_updated_at?: string;
+  user_input_updated_at?: string;
   movie_info_updated_at?: string;
   characters_updated_at?: string;
   props_updated_at?: string;
