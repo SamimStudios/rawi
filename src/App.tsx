@@ -39,6 +39,7 @@ import StoryboardWorkspace from "./pages/app/StoryboardWorkspace";
 import Result from "./pages/app/Result";
 import StyleGuideline from "./pages/StyleGuideline";
 import N8NTest from "./pages/N8NTest";
+import ButtonShowcase from "./pages/ButtonShowcase";
 
 const queryClient = new QueryClient();
 
@@ -223,6 +224,13 @@ const MainApp = () => (
                     <div>
                       <Header />
                       <N8NTest />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/button-showcase" element={
+                    <div>
+                      <Header />
+                      <ButtonShowcase />
                       <Footer />
                     </div>
                   } />
