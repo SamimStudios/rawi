@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -490,27 +490,82 @@ export default function StoryboardWorkspace() {
     }
   };
 
-  // Progressive section visibility logic
-  const getSectionVisibility = () => {
+  // Optimized update functions to prevent page refresh/blink
+  const updateCharactersData = useCallback(async (updatedCharacters: any) => {
+    if (!job) return;
+    
+    // Update local state immediately (optimistic update)
+    setJob(prevJob => prevJob ? {
+      ...prevJob,
+      characters: updatedCharacters,
+      characters_updated_at: new Date().toISOString()
+    } : null);
+  }, [job]);
+
+  const updateMovieInfoData = useCallback(async (updatedMovieInfo: any) => {
+    if (!job) return;
+    
+    // Update local state immediately (optimistic update)
+    setJob(prevJob => prevJob ? {
+      ...prevJob,
+      movie_info: updatedMovieInfo,
+      movie_info_updated_at: new Date().toISOString()
+    } : null);
+  }, [job]);
+
+  const updateUserInputData = useCallback(async (updatedUserInput: any) => {
+    if (!job) return;
+    
+    // Update local state immediately (optimistic update)
+    setJob(prevJob => prevJob ? {
+      ...prevJob,
+      user_input: updatedUserInput,
+      user_input_updated_at: new Date().toISOString()
+    } : null);
+  }, [job]);
+
+  // Targeted character update function
+  const updateSpecificCharacterData = useCallback(async (characterKey: string, characterData: any) => {
+    if (!job?.characters) return;
+    
+    const updatedCharacters = { ...job.characters };
+    updatedCharacters[characterKey] = { 
+      ...updatedCharacters[characterKey],
+      ...characterData
+    };
+    
+    await updateCharactersData(updatedCharacters);
+  }, [job, updateCharactersData]);
+
+  // Debounced update to prevent rapid consecutive calls
+  const [updateTimeout, setUpdateTimeout] = useState<NodeJS.Timeout | null>(null);
+  
+  const debouncedUpdate = useCallback((updateFn: () => void, delay = 300) => {
+    if (updateTimeout) {
+      clearTimeout(updateTimeout);
+    }
+    
+    const timeout = setTimeout(updateFn, delay);
+    setUpdateTimeout(timeout);
+  }, [updateTimeout]);
+
+  // Memoized expensive computations
+  const sectionVisibility = useMemo(() => {
     if (!job) return { visibleSections: ['input'], nextSection: null };
     
     const visibleSections = ['input'];
     let nextSection = null;
     
-    // Check each section progressively
-    if (job.movie_info && Object.keys(job.movie_info).length > 0) {
+    // Progressive visibility logic
+    if (job.movie_info) {
       visibleSections.push('movie_info');
-      
-      if (job.characters && Object.keys(job.characters).length > 0) {
+      if (job.characters) {
         visibleSections.push('characters');
-        
-        if (job.props && Object.keys(job.props).length > 0) {
+        if (job.props) {
           visibleSections.push('props');
-          
-          if (job.timeline && Object.keys(job.timeline).length > 0) {
+          if (job.timeline) {
             visibleSections.push('timeline');
-            
-            if (job.music && Object.keys(job.music).length > 0) {
+            if (job.music) {
               visibleSections.push('music');
             } else {
               nextSection = 'music';
@@ -529,7 +584,17 @@ export default function StoryboardWorkspace() {
     }
     
     return { visibleSections, nextSection };
-  };
+  }, [job?.movie_info, job?.characters, job?.props, job?.timeline, job?.music]);
+
+  // Memoized character data with stable keys
+  const memoizedCharacterData = useMemo(() => {
+    if (!job?.characters) return null;
+    
+    return {
+      lead: { ...job.characters.lead, _key: 'lead' },
+      supporting: { ...job.characters.supporting, _key: 'supporting' }
+    };
+  }, [job?.characters]);
 
   // Get sections affected by editing a specific section (using timestamps)
   const getAffectedSections = (sectionKey: string): string[] => {
@@ -663,8 +728,8 @@ export default function StoryboardWorkspace() {
 
       if (error) throw error;
       
-      // Refresh job data
-      await fetchJob();
+      // Update local state immediately instead of full refresh
+      await updateSpecificCharacterData(characterKey, { base: { face_ref: null } });
     } catch (error) {
       console.error('Error removing face reference:', error);
       toast({
@@ -809,8 +874,12 @@ export default function StoryboardWorkspace() {
         setEditingSections(prev => ({ ...prev, [baseInfoSectionKey]: false }));
         setDraftState({});
         
-        // Refresh job data
-        fetchJob();
+        // Update local state immediately instead of full refresh
+        const updatedBase = {
+          ...job?.characters?.[characterKey]?.base,
+          face_ref: draft.face_ref || null
+        };
+        await updateSpecificCharacterData(characterKey, { base: updatedBase });
         
       } catch (error) {
         console.error('Error saving character base info:', error);
@@ -1551,8 +1620,23 @@ export default function StoryboardWorkspace() {
         });
       }
       
-      // Fetch latest data from database after successful generation
-      await fetchJob();
+      // Update local state immediately with the new data from the response
+      debouncedUpdate(async () => {
+        // Fetch only the updated section data instead of full job
+        const { data: updatedJob, error: refetchError } = await supabase
+          .from('storyboard_jobs')
+          .select(`${sectionKey}, ${sectionKey}_updated_at`)
+          .eq('id', jobId)
+          .single();
+        
+        if (!refetchError && updatedJob) {
+          setJob(prevJob => prevJob ? {
+            ...prevJob,
+            [sectionKey]: updatedJob[sectionKey],
+            [`${sectionKey}_updated_at`]: updatedJob[`${sectionKey}_updated_at`]
+          } : null);
+        }
+      });
       
       // Open the section after successful generation
       setOpenSections(prev => ({ ...prev, [sectionKey]: true }));
@@ -1680,14 +1764,16 @@ export default function StoryboardWorkspace() {
     setIsGeneratingDescription(prev => ({ ...prev, [characterKey]: true }));
     
     try {
-      await executeFunction('generate-character-description', {
+      const result = await executeFunction('generate-character-description', {
         table_id: 'storyboard_jobs',
         row_id: jobId,
         character_key: characterKey
       });
 
-      // Refresh job data to get updated character info
-      await fetchJob();
+      // Update local state immediately instead of full refresh
+      debouncedUpdate(async () => {
+        await updateSpecificCharacterData(characterKey, { description: result?.data || result?.envelope?.data });
+      });
 
       toast({
         title: t('success'),
@@ -1816,8 +1902,8 @@ export default function StoryboardWorkspace() {
       setCharacterValidationStatus(prev => ({ ...prev, [characterKey]: null }));
       setCharacterValidationReason(prev => ({ ...prev, [characterKey]: null }));
 
-      // Refresh job data
-      await fetchJob();
+      // Update local state immediately instead of full refresh
+      await updateSpecificCharacterData(characterKey, { description: descriptionData });
 
       toast({
         title: t('success'),
@@ -1850,14 +1936,16 @@ export default function StoryboardWorkspace() {
     setIsGeneratingPortrait(prev => ({ ...prev, [characterKey]: true }));
     
     try {
-      await executeFunction('generate-character-portrait', {
+      const result = await executeFunction('generate-character-portrait', {
         table_id: 'storyboard_jobs',
         row_id: jobId,
         character_key: characterKey
       });
 
-      // Refresh job data
-      await fetchJob();
+      // Update local state immediately instead of full refresh  
+      debouncedUpdate(async () => {
+        await updateSpecificCharacterData(characterKey, { portrait_url: result?.data?.portrait_url || result?.envelope?.data?.portrait_url });
+      });
 
       toast({
         title: t('success'),
@@ -2114,7 +2202,8 @@ export default function StoryboardWorkspace() {
         return newWarnings;
       });
       
-      fetchJob(); // Refresh data
+      // Update local state immediately instead of full refresh
+      await updateUserInputData(inputPayload);
       
     } catch (error) {
       console.error('❌ Error saving input:', error);
@@ -2309,7 +2398,8 @@ export default function StoryboardWorkspace() {
       setValidationStatus(null);
       setValidationReason(null);
       setSuggestedFix(null);
-      fetchJob(); // Refresh data
+      // Update local state immediately instead of full refresh
+      await updateMovieInfoData(movieData);
       
     } catch (error) {
       console.error('❌ Error saving movie info:', error);
@@ -2465,8 +2555,19 @@ export default function StoryboardWorkspace() {
         description: "Section and all following sections have been deleted.",
       });
 
-      // Refresh job data
-      fetchJob();
+      // Update local state to remove deleted sections
+      setJob(prevJob => {
+        if (!prevJob) return null;
+        
+        const updatedJob = { ...prevJob };
+        affectedSections.forEach(section => {
+          // Reset section data to null/undefined
+          (updatedJob as any)[section] = null;
+          (updatedJob as any)[`${section}_updated_at`] = null;
+        });
+        
+        return updatedJob;
+      });
       
     } catch (error) {
       console.error('Error deleting section:', error);
@@ -2606,7 +2707,7 @@ export default function StoryboardWorkspace() {
     );
   }
 
-  const { visibleSections, nextSection } = getSectionVisibility();
+  const { visibleSections, nextSection } = sectionVisibility;
   const isAnyEditMode = Object.values(editingSections).some(Boolean);
   const userLanguage = getUserInputLanguage();
   const SECTIONS = getSections(t);
