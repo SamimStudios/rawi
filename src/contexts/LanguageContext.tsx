@@ -158,7 +158,7 @@ const translations = {
     privacyPolicyText: 'Privacy Policy',
     andText: 'and',
     consentIpPolicyText: 'Consent & IP Policy',
-    regenerateConfirmation: 'Are you sure you want to regenerate the movie information? This will overwrite existing data.',
+    regenerateConfirmation: 'Are you sure you want to regenerate this section? This will overwrite existing data.',
     paymentSuccessful: 'Payment successful — credits added.',
     paymentCanceled: 'Payment canceled.',
     subscriptionActive: 'Subscription active.',

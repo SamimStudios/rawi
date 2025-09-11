@@ -255,6 +255,7 @@ export default function StoryboardWorkspace() {
   // Warning dialog state
   const [showEditWarning, setShowEditWarning] = useState(false);
   const [showRegenerateWarning, setShowRegenerateWarning] = useState(false);
+  const [pendingRegenerateSection, setPendingRegenerateSection] = useState<string | null>(null);
   const [showDeleteWarning, setShowDeleteWarning] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ section: string; affectedSections: string[] } | null>(null);
   const [pendingEdit, setPendingEdit] = useState<{ section: string; hasLaterData: boolean; affectedSections: string[] } | null>(null);
@@ -2134,34 +2135,15 @@ export default function StoryboardWorkspace() {
     }
   };
 
+  // Generic regenerate handler with confirmation
+  const handleRegenerateWithConfirmation = (sectionKey: string) => {
+    setPendingRegenerateSection(sectionKey);
+    setShowRegenerateWarning(true);
+  };
+
   // Regenerate movie info handler
   const handleRegenerateMovieInfo = async () => {
-    try {
-      const generateFunction = functions['generate-movie-info'];
-      if (!generateFunction) {
-        toast({
-          title: "Error",
-          description: "Generation function not available",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      // Show confirmation dialog
-      setShowRegenerateWarning(true);
-      
-      // Call the same generate function as initial generation  
-      // This will be called from the dialog action
-      // await handleGenerate('movie_info');
-      
-    } catch (error) {
-      console.error('❌ Error regenerating movie info:', error);
-      toast({
-        title: "Error",
-        description: "Failed to regenerate movie information",
-        variant: "destructive"
-      });
-    }
+    handleRegenerateWithConfirmation('movie_info');
   };
 
   // Delete section handler
@@ -2795,7 +2777,7 @@ export default function StoryboardWorkspace() {
                                variant="outline"
                                onClick={(e) => {
                                  e.stopPropagation();
-                                 handleGenerate('characters');
+                                 handleRegenerateWithConfirmation('characters');
                               }}
                               disabled={isAnyEditMode || loadingSections[section.key]}
                               className="flex items-center gap-1.5 px-3"
@@ -3315,15 +3297,23 @@ export default function StoryboardWorkspace() {
               label: 'OK',
               onClick: async () => {
                 setShowRegenerateWarning(false);
-                try {
-                  await handleGenerate('movie_info');
-                } catch (error) {
-                  console.error('❌ Error regenerating movie info:', error);
-                  toast({
-                    title: "Error",
-                    description: "Failed to regenerate movie information",
-                    variant: "destructive"
-                  });
+                if (pendingRegenerateSection) {
+                  try {
+                    if (pendingRegenerateSection === 'characters') {
+                      await handleGenerateCharacters();
+                    } else {
+                      await handleGenerate(pendingRegenerateSection);
+                    }
+                  } catch (error) {
+                    console.error(`❌ Error regenerating ${pendingRegenerateSection}:`, error);
+                    toast({
+                      title: "Error",
+                      description: `Failed to regenerate ${pendingRegenerateSection}`,
+                      variant: "destructive"
+                    });
+                  } finally {
+                    setPendingRegenerateSection(null);
+                  }
                 }
               },
               variant: 'destructive'
