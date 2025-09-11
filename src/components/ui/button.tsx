@@ -62,6 +62,13 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         
         setLoading(true);
         try {
+          // Only proceed if we have a valid UUID format
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (!uuidRegex.test(functionId)) {
+            console.warn('Invalid function ID format:', functionId);
+            return;
+          }
+
           const { data, error } = await supabase
             .from('n8n_functions')
             .select('price')
@@ -84,6 +91,19 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     const Comp = asChild ? Slot : "button";
     const shouldShowCredits = (functionId && functionData && !loading) || showCredits === true;
+
+    // Always render as simple button if there are any issues
+    if (loading || (!functionData && functionId && showCredits !== true)) {
+      return (
+        <Comp 
+          className={cn(buttonVariants({ variant, size, className }))} 
+          ref={ref} 
+          {...props}
+        >
+          {children}
+        </Comp>
+      );
+    }
 
     return (
       <div className={shouldShowCredits ? "flex flex-col items-center gap-1" : ""}>
