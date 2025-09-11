@@ -1811,7 +1811,7 @@ export default function StoryboardWorkspace() {
         table_id: 'storyboard_jobs',
         row_id: jobId,
         character_key: characterKey,
-        description_data: descriptionData
+        edits: descriptionData
       });
 
       // Parse validation response
