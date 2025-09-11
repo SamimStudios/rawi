@@ -445,60 +445,16 @@ export default function StoryboardWorkspace() {
     try {
       const imageUrl = await uploadImageToStorage(file);
       
-      // Update supporting characters state
-      const updatedCharacters = supportingCharacters.map(char => 
+      setSupportingCharacters(prev => prev.map(char => 
         char.id === characterId 
           ? { ...char, faceImagePreview: imageUrl, faceImage: file, isUploading: false }
           : char
-      );
+      ));
       
-      setSupportingCharacters(updatedCharacters);
-      
-      // Auto-save to database
-      const processedSupportingCharacters = updatedCharacters.map(char => ({
-        id: char.id,
-        name: char.name,
-        gender: char.gender,
-        aiFace: char.aiFace,
-        faceImage: char.faceImagePreview || null,
-        faceImageType: char.faceImage?.type || null
-      }));
-
-      const inputPayload = {
-        template: formData.template,
-        lead_name: formData.leadName,
-        lead_gender: formData.leadGender,
-        language: formData.language,
-        accent: formData.accent,
-        genres: selectedGenres,
-        prompt: formData.prompt,
-        size: formData.size,
-        face_ref_url: faceImagePreview,
-        supporting_characters: processedSupportingCharacters
-      };
-
-      const { error: saveError } = await supabase
-        .from('storyboard_jobs')
-        .update({ 
-          user_input: inputPayload,
-          input_updated_at: new Date().toISOString()
-        })
-        .eq('id', jobId);
-
-      if (saveError) {
-        console.error('Error auto-saving supporting character image:', saveError);
-        toast({
-          title: "Warning",
-          description: "Image uploaded but not saved. Please click Save to persist changes.",
-          variant: "destructive"
-        });
-      } else {
-        toast({
-          title: t('imageUploaded'),
-          description: t('imageUploadedSuccessfully')
-        });
-      }
-      
+      toast({
+        title: t('imageUploaded'),
+        description: t('imageUploadedSuccessfully')
+      });
     } catch (error) {
       console.error('Error uploading character image:', error);
       setSupportingCharacters(prev => prev.map(char => 
