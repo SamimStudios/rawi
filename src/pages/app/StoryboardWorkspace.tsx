@@ -40,6 +40,9 @@ import { EditButton } from '@/components/ui/edit-button';
 import { SystemAlertDialog, SystemAlertAction } from '@/components/ui/system-alert-dialog';
 import { cn } from '@/lib/utils';
 import { SupportingCharacterSection } from '@/components/storyboard/SupportingCharacterSection';
+import { LeadCharacterSection } from '@/components/storyboard/LeadCharacterSection';
+import { LanguageAccentSection } from '@/components/storyboard/LanguageAccentSection';
+import { GenreSelector } from '@/components/storyboard/GenreSelector';
 
 // Progressive section configuration - titles will be localized using t()
 const getSections = (t: any) => [
@@ -192,6 +195,7 @@ export default function StoryboardWorkspace() {
     language: 'English',
     accent: 'US',
     size: '',
+    genres: [] as string[],
     prompt: ''
   });
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
@@ -1209,6 +1213,7 @@ export default function StoryboardWorkspace() {
           language: userInput.language || 'English',
           accent: userInput.accent || 'US',
           size: userInput.size || '',
+          genres: userInput.genres || [],
           prompt: userInput.prompt || ''
         });
         
@@ -1602,6 +1607,7 @@ export default function StoryboardWorkspace() {
             language: userInput.language || 'English',
             accent: userInput.accent || 'US',
             size: userInput.size || 'landscape',
+            genres: userInput.genres || [],
             prompt: userInput.prompt || ''
           });
           
@@ -2218,6 +2224,17 @@ export default function StoryboardWorkspace() {
   };
 
   const handleGenreToggle = (genreValue: string) => {
+    setFormData(prev => {
+      const currentGenres = prev.genres || [];
+      if (currentGenres.includes(genreValue)) {
+        return { ...prev, genres: currentGenres.filter(g => g !== genreValue) };
+      } else if (currentGenres.length < 3) {
+        return { ...prev, genres: [...currentGenres, genreValue] };
+      }
+      return prev;
+    });
+    
+    // Also update selectedGenres for compatibility with existing display code
     setSelectedGenres(prev => {
       if (prev.includes(genreValue)) {
         return prev.filter(g => g !== genreValue);
@@ -2417,84 +2434,16 @@ export default function StoryboardWorkspace() {
                     </Select>
                   </div>
 
-                  {/* Lead Character */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">{t('leadCharacter')}</label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                       <div>
-                         <label className="text-sm font-medium">{t('leadName')} *</label>
-                         <Input
-                           value={formData.leadName}
-                           onChange={(e) => handleInputChange('leadName', e.target.value)}
-                           placeholder={t('enterLeadCharacterName')}
-                         />
-                       </div>
-                       <div>
-                         <label className="text-sm font-medium">{t('gender')} *</label>
-                         <Select value={formData.leadGender} onValueChange={(value) => handleInputChange('leadGender', value)}>
-                           <SelectTrigger>
-                             <SelectValue placeholder={t('selectGender')} />
-                           </SelectTrigger>
-                           <SelectContent>
-                             <SelectItem value="male">{t('male')}</SelectItem>
-                             <SelectItem value="female">{t('female')}</SelectItem>
-                           </SelectContent>
-                         </Select>
-                       </div>
-                    </div>
-                   </div>
-                   
-                   {/* Face Reference Image */}
-                   <div className="space-y-2">
-                     <label className="text-sm font-medium">{t('faceReferenceImage')}</label>
-                     {faceImagePreview && !formData.leadAiCharacter ? (
-                       <div className="flex items-center gap-4">
-                         <img src={faceImagePreview} alt={t('faceReferenceImage')} className="w-20 h-20 rounded-lg object-cover border" />
-                         <div className="space-y-2">
-                           <p className="text-sm text-muted-foreground">{t('faceImageUploaded')}</p>
-                           <Button
-                             type="button"
-                             variant="outline"
-                             size="sm"
-                             onClick={handleRemoveImage}
-                           >
-                             {t('remove')}
-                           </Button>
-                         </div>
-                       </div>
-                     ) : (
-                       <div className="space-y-2">
-                         <p className="text-sm text-muted-foreground">{t('uploadFaceReference')}</p>
-                         <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
-                           {isUploadingFaceImage ? (
-                             <div className="flex flex-col items-center gap-2">
-                               <Loader2 className="h-6 w-6 animate-spin" />
-                               <p className="text-sm">{t('uploading')}...</p>
-                             </div>
-                           ) : (
-                             <>
-                               <input
-                                 id="face-image-upload"
-                                 type="file"
-                                 accept="image/*"
-                                 className="hidden"
-                                 onChange={handleImageUpload}
-                                 disabled={isUploadingFaceImage}
-                               />
-                               <Button
-                                 type="button"
-                                 variant="outline"
-                                 onClick={() => document.getElementById('face-image-upload')?.click()}
-                                 disabled={isUploadingFaceImage}
-                               >
-                                 {t('uploadImage')}
-                               </Button>
-                             </>
-                           )}
-                         </div>
-                       </div>
-                     )}
-                   </div>
+                  {/* Lead Character - using reusable component */}
+                  <LeadCharacterSection
+                    formData={formData}
+                    onInputChange={handleInputChange}
+                    faceImageUrl={faceImagePreview}
+                    isUploadingFaceImage={isUploadingFaceImage}
+                    onImageUpload={handleImageUpload}
+                    onRemoveImage={handleRemoveImage}
+                    disabled={!editingSections.input}
+                  />
 
                     {/* Supporting Characters */}
                     <SupportingCharacterSection
