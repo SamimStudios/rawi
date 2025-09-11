@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { LoadingSpinner } from '@/components/ui/loading';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from '@/hooks/use-toast';
 import { 
   Save, 
@@ -30,7 +31,9 @@ import {
   CheckCircle,
   RefreshCw,
   Trash2,
-  Package
+  Package,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -180,6 +183,7 @@ export default function StoryboardWorkspace() {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     input: false
   });
+  const [openCharacterSections, setOpenCharacterSections] = useState<Record<string, boolean>>({});
   const [editingSections, setEditingSections] = useState<Record<string, boolean>>({});
   const [loadingSections, setLoadingSections] = useState<Record<string, boolean>>({});
   
@@ -823,94 +827,115 @@ export default function StoryboardWorkspace() {
         <h4 className="font-semibold text-lg">{characterTitle}</h4>
         
         {/* Part 1: Base Info */}
-        <Card className={cn("transition-all", isEditingBaseInfo && "ring-2 ring-primary/50")}>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-base">
-                {t('baseInfo')}
-                {isEditingBaseInfo && <Badge variant="outline">{t('editing')}</Badge>}
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                {isEditingBaseInfo ? (
-                  <>
-                    <Button onClick={handleSaveBaseInfo} size="sm">
-                      <Save className="h-4 w-4 mr-1" />
-                      {t('save')}
-                    </Button>
-                    <Button onClick={handleCancelBaseInfo} variant="outline" size="sm">
-                      <X className="h-4 w-4 mr-1" />
-                      {t('cancel')}
-                    </Button>
-                  </>
-                ) : (
-                  <EditButton
-                    onClick={handleEditBaseInfo}
-                    disabled={isAnyEditMode}
-                    isEditing={false}
-                  />
-                )}
-              </div>
-            </div>
-          </CardHeader>
-          
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium">{t('name')}</label>
-                <div className="mt-1">
-                  <Input value={characterInfo.base?.name || ''} disabled className="bg-muted" />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {t('editNameFromMovieInfo') || 'To edit name, use the Movie Info section'}
-                  </p>
+        <Collapsible 
+          open={openCharacterSections[`${characterKey}_base`] !== false || isEditingBaseInfo}
+          onOpenChange={(open) => !isEditingBaseInfo && setOpenCharacterSections(prev => ({ 
+            ...prev, 
+            [`${characterKey}_base`]: open 
+          }))}
+        >
+          <Card className={cn("transition-all", isEditingBaseInfo && "ring-2 ring-primary/50")}>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    {openCharacterSections[`${characterKey}_base`] !== false || isEditingBaseInfo ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                    {t('baseInfo')}
+                    {isEditingBaseInfo && <Badge variant="outline">{t('editing')}</Badge>}
+                  </CardTitle>
+                  <div className="absolute top-2 right-2">
+                    {isEditingBaseInfo ? (
+                      <div className="flex gap-2">
+                        <Button onClick={handleSaveBaseInfo} size="sm">
+                          <Save className="h-4 w-4 mr-1" />
+                          {t('save')}
+                        </Button>
+                        <Button onClick={handleCancelBaseInfo} variant="outline" size="sm">
+                          <X className="h-4 w-4 mr-1" />
+                          {t('cancel')}
+                        </Button>
+                      </div>
+                    ) : (
+                      <EditButton
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditBaseInfo();
+                        }}
+                        disabled={isAnyEditMode}
+                        isEditing={false}
+                        variant="ghost"
+                        size="sm"
+                      />
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium">{t('gender')}</label>
-                <div className="mt-1">
-                  <Input value={characterInfo.base?.gender || ''} disabled className="bg-muted" />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {t('editGenderFromMovieInfo') || 'To edit gender, use the Movie Info section'}
-                  </p>
+              </CardHeader>
+            </CollapsibleTrigger>
+            
+            <CollapsibleContent>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium">{t('name')}</label>
+                    <div className="mt-1">
+                      <Input value={characterInfo.base?.name || ''} disabled className="bg-muted" />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {t('editNameFromMovieInfo') || 'To edit name, use the Movie Info section'}
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">{t('gender')}</label>
+                    <div className="mt-1">
+                      <Input value={characterInfo.base?.gender || ''} disabled className="bg-muted" />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {t('editGenderFromMovieInfo') || 'To edit gender, use the Movie Info section'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Face Reference */}
-            <div>
-              <label className="text-sm font-medium">{t('faceReference')}</label>
-              <p className="text-xs text-muted-foreground mb-2">{t('leaveEmptyForAIGenerated')}</p>
-              
-              {getFaceRef() ? (
-                <div className="flex items-center gap-3">
-                  <img 
-                    src={getFaceRef()!} 
-                    alt={t('faceReference')}
-                    className="w-16 h-16 object-cover rounded-lg border"
-                  />
-                   {isEditingBaseInfo && (
-                     <Button
-                       variant="outline"
-                       size="sm"
-                       onClick={handleRemoveImage}
-                     >
-                       {t('remove')}
-                     </Button>
-                   )}
+                {/* Face Reference */}
+                <div>
+                  <label className="text-sm font-medium">{t('faceReference')}</label>
+                  <p className="text-xs text-muted-foreground mb-2">{t('leaveEmptyForAIGenerated')}</p>
+                  
+                  {getFaceRef() ? (
+                    <div className="flex items-center gap-3">
+                      <img 
+                        src={getFaceRef()!} 
+                        alt={t('faceReference')}
+                        className="w-16 h-16 object-cover rounded-lg border"
+                      />
+                       {isEditingBaseInfo && (
+                         <Button
+                           variant="outline"
+                           size="sm"
+                           onClick={handleRemoveImage}
+                         >
+                           {t('remove')}
+                         </Button>
+                       )}
+                    </div>
+                  ) : isEditingBaseInfo ? (
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleCharacterImageUpload}
+                      className="mt-1"
+                    />
+                  ) : (
+                    <div className="text-sm text-muted-foreground mt-1">{t('noFileChosen') || 'No file chosen'}</div>
+                  )}
                 </div>
-              ) : isEditingBaseInfo ? (
-                <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleCharacterImageUpload}
-                  className="mt-1"
-                />
-              ) : (
-                <div className="text-sm text-muted-foreground mt-1">{t('noFileChosen') || 'No file chosen'}</div>
-              )}
-            </div>
-
-          </CardContent>
-        </Card>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
 
         {/* Part 2: Description */}
         {!characterInfo.description ? (
@@ -932,107 +957,140 @@ export default function StoryboardWorkspace() {
             </CardContent>
           </Card>
         ) : (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-base">{t('description')}</CardTitle>
-              <div className="absolute top-2 right-2">
-                {characterEditData[`${characterKey}_editing`] ? (
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => handleValidateCharacterDescription(characterKey, characterEditData[characterKey])}
-                      disabled={isValidatingDescription[characterKey]}
-                      className="flex items-center gap-1.5 px-3"
-                    >
-                      {isValidatingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      <Save className="h-4 w-4" />
-                      {t('save')}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setCharacterEditData(prev => ({ 
-                        ...prev, 
-                        [`${characterKey}_editing`]: false 
-                      }))}
-                      className="flex items-center gap-1.5 px-3"
-                    >
-                      <X className="h-4 w-4" />
-                      {t('cancel')}
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <EditButton
-                      onClick={() => setCharacterEditData(prev => ({ 
-                        ...prev, 
-                        [`${characterKey}_editing`]: !prev[`${characterKey}_editing`] 
-                      }))}
-                      isEditing={characterEditData[`${characterKey}_editing`]}
-                      variant="ghost"
-                      size="sm"
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleGenerateCharacterDescription(characterKey)}
-                      disabled={isGeneratingDescription[characterKey]}
-                      functionId={functions['generate-character-description']?.id}
-                      showCredits={true}
-                      className="flex items-center gap-1.5 px-3"
-                    >
-                      {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              {characterEditData[`${characterKey}_editing`] ? (
-                <div className="space-y-3">
-                  {renderEditableDescriptionFields(characterKey, characterInfo.description)}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-sm font-medium text-primary">{t('ageRange')}:</span>
-                      <div className="text-sm text-foreground mt-1">{characterInfo.description.age_range || '-'}</div>
-                    </div>
-                    <div>
-                      <span className="text-sm font-medium text-primary">{t('ethnicity')}:</span>
-                      <div className="text-sm text-foreground mt-1">{characterInfo.description.ethnicity || '-'}</div>
-                    </div>
-                    <div>
-                      <span className="text-sm font-medium text-primary">{t('skinTone')}:</span>
-                      <div className="text-sm text-foreground mt-1">{characterInfo.description.skin_tone || '-'}</div>
-                    </div>
-                    <div>
-                      <span className="text-sm font-medium text-primary">{t('body')}:</span>
-                      <div className="text-sm text-foreground mt-1">{characterInfo.description.body || '-'}</div>
-                    </div>
-                    <div>
-                      <span className="text-sm font-medium text-primary">{t('faceFeatures')}:</span>
-                      <div className="text-sm text-foreground mt-1">{characterInfo.description.face_features || '-'}</div>
-                    </div>
-                    <div>
-                      <span className="text-sm font-medium text-primary">{t('head')}:</span>
-                      <div className="text-sm text-foreground mt-1">{characterInfo.description.head || '-'}</div>
-                    </div>
-                    <div>
-                      <span className="text-sm font-medium text-primary">{t('clothes')}:</span>
-                      <div className="text-sm text-foreground mt-1">{characterInfo.description.clothes || '-'}</div>
-                    </div>
-                    <div>
-                      <span className="text-sm font-medium text-primary">{t('personality')}:</span>
-                      <div className="text-sm text-foreground mt-1">{characterInfo.description.personality || '-'}</div>
+          <Collapsible 
+            open={openCharacterSections[`${characterKey}_description`] !== false || characterEditData[`${characterKey}_editing`]}
+            onOpenChange={(open) => !characterEditData[`${characterKey}_editing`] && setOpenCharacterSections(prev => ({ 
+              ...prev, 
+              [`${characterKey}_description`]: open 
+            }))}
+          >
+            <Card>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      {openCharacterSections[`${characterKey}_description`] !== false || characterEditData[`${characterKey}_editing`] ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                      {t('description')}
+                    </CardTitle>
+                    <div className="absolute top-2 right-2">
+                      {characterEditData[`${characterKey}_editing`] ? (
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleValidateCharacterDescription(characterKey, characterEditData[characterKey]);
+                            }}
+                            disabled={isValidatingDescription[characterKey]}
+                            className="flex items-center gap-1.5 px-3"
+                          >
+                            {isValidatingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            <Save className="h-4 w-4" />
+                            {t('save')}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCharacterEditData(prev => ({ 
+                                ...prev, 
+                                [`${characterKey}_editing`]: false 
+                              }));
+                            }}
+                            className="flex items-center gap-1.5 px-3"
+                          >
+                            <X className="h-4 w-4" />
+                            {t('cancel')}
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <EditButton
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCharacterEditData(prev => ({ 
+                                ...prev, 
+                                [`${characterKey}_editing`]: !prev[`${characterKey}_editing`] 
+                              }));
+                            }}
+                            isEditing={characterEditData[`${characterKey}_editing`]}
+                            variant="ghost"
+                            size="sm"
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleGenerateCharacterDescription(characterKey);
+                            }}
+                            disabled={isGeneratingDescription[characterKey]}
+                            functionId={functions['generate-character-description']?.id}
+                            showCredits={true}
+                            className="flex items-center gap-1.5 px-3"
+                          >
+                            {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent>
+                  {characterEditData[`${characterKey}_editing`] ? (
+                    <div className="space-y-3">
+                      {renderEditableDescriptionFields(characterKey, characterInfo.description)}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-sm font-medium text-primary">{t('ageRange')}:</span>
+                          <div className="text-sm text-foreground mt-1">{characterInfo.description.age_range || '-'}</div>
+                        </div>
+                        <div>
+                          <span className="text-sm font-medium text-primary">{t('ethnicity')}:</span>
+                          <div className="text-sm text-foreground mt-1">{characterInfo.description.ethnicity || '-'}</div>
+                        </div>
+                        <div>
+                          <span className="text-sm font-medium text-primary">{t('skinTone')}:</span>
+                          <div className="text-sm text-foreground mt-1">{characterInfo.description.skin_tone || '-'}</div>
+                        </div>
+                        <div>
+                          <span className="text-sm font-medium text-primary">{t('body')}:</span>
+                          <div className="text-sm text-foreground mt-1">{characterInfo.description.body || '-'}</div>
+                        </div>
+                        <div>
+                          <span className="text-sm font-medium text-primary">{t('faceFeatures')}:</span>
+                          <div className="text-sm text-foreground mt-1">{characterInfo.description.face_features || '-'}</div>
+                        </div>
+                        <div>
+                          <span className="text-sm font-medium text-primary">{t('head')}:</span>
+                          <div className="text-sm text-foreground mt-1">{characterInfo.description.head || '-'}</div>
+                        </div>
+                        <div>
+                          <span className="text-sm font-medium text-primary">{t('clothes')}:</span>
+                          <div className="text-sm text-foreground mt-1">{characterInfo.description.clothes || '-'}</div>
+                        </div>
+                        <div>
+                          <span className="text-sm font-medium text-primary">{t('personality')}:</span>
+                          <div className="text-sm text-foreground mt-1">{characterInfo.description.personality || '-'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
         )}
 
         {/* Part 3: Generate Portrait */}
@@ -1058,34 +1116,58 @@ export default function StoryboardWorkspace() {
 
         {/* Part 4: Portrait */}
         {characterInfo.portrait_url && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-base">{t('portrait')}</CardTitle>
-              <div className="absolute top-2 right-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleGenerateCharacterPortrait(characterKey)}
-                  disabled={isGeneratingPortrait[characterKey]}
-                  functionId={functions['generate-character-portrait']?.id}
-                  showCredits={true}
-                  className="flex items-center gap-1.5 px-3"
-                >
-                  {isGeneratingPortrait[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex justify-center">
-                <img
-                  src={characterInfo.portrait_url}
-                  alt={`${characterInfo.base?.name} ${t('portrait')}`}
-                  className="max-w-64 max-h-64 object-cover rounded-lg border"
-                />
-              </div>
-            </CardContent>
-          </Card>
+          <Collapsible 
+            open={openCharacterSections[`${characterKey}_portrait`] !== false}
+            onOpenChange={(open) => setOpenCharacterSections(prev => ({ 
+              ...prev, 
+              [`${characterKey}_portrait`]: open 
+            }))}
+          >
+            <Card>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      {openCharacterSections[`${characterKey}_portrait`] !== false ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                      {t('portrait')}
+                    </CardTitle>
+                    <div className="absolute top-2 right-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleGenerateCharacterPortrait(characterKey);
+                        }}
+                        disabled={isGeneratingPortrait[characterKey]}
+                        functionId={functions['generate-character-portrait']?.id}
+                        showCredits={true}
+                        className="flex items-center gap-1.5 px-3"
+                      >
+                        {isGeneratingPortrait[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent>
+                  <div className="flex justify-center">
+                    <img
+                      src={characterInfo.portrait_url}
+                      alt={`${characterInfo.base?.name} ${t('portrait')}`}
+                      className="max-w-64 max-h-64 object-cover rounded-lg border"
+                    />
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
         )}
       </div>
     );
@@ -2765,100 +2847,110 @@ export default function StoryboardWorkspace() {
                 isEditing && "ring-2 ring-primary/50",
                 (sectionWarnings[section.key] || getSectionInconsistencyWarning(section.key)) && "ring-2 ring-amber-500/50 border-amber-500/30 bg-amber-500/10"
               )}>
-                <CardHeader 
-                  className="cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={() => !isAnyEditMode && setOpenSections(prev => ({ ...prev, [section.key]: !prev[section.key] }))}
+                <Collapsible 
+                  open={openSections[section.key] !== false || isEditing} 
+                  onOpenChange={(open) => !isEditing && setOpenSections(prev => ({ ...prev, [section.key]: open }))}
                 >
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <section.icon className="h-5 w-5" />
-                      {section.title}
-                      {isEditing && <Badge variant="outline">{t('editing')}</Badge>}
-                      {(sectionWarnings[section.key] || getSectionInconsistencyWarning(section.key)) && (
-                        <Badge variant="outline" className="bg-amber-500/20 text-amber-300 border-amber-500/30 hover:bg-amber-500/30">
-                          <AlertTriangle className="h-3 w-3 mr-1" />
-                          {t('mayBeInconsistent')}
-                        </Badge>
-                      )}
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                    </CardTitle>
-                      <div className="flex items-center gap-2">
-                       {lastUpdated && (
-                         <div className="text-xs text-muted-foreground">
-                           <Clock className="h-3 w-3 inline mr-1" />
-                           {new Date(lastUpdated).toLocaleString()}
-                         </div>
-                       )}
-                         {/* View mode buttons - only show when not editing */}
-                         {!isEditing && section.key === 'movie_info' && (
-                           <>
-                              {/* Regenerate Button */}
-                              {functions['generate-movie-info'] && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={(e) => {
+                  <CollapsibleTrigger asChild>
+                    <CardHeader 
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center gap-2">
+                          {openSections[section.key] !== false || isEditing ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                          <section.icon className="h-5 w-5" />
+                          {section.title}
+                          {isEditing && <Badge variant="outline">{t('editing')}</Badge>}
+                          {(sectionWarnings[section.key] || getSectionInconsistencyWarning(section.key)) && (
+                            <Badge variant="outline" className="bg-amber-500/20 text-amber-300 border-amber-500/30 hover:bg-amber-500/30">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              {t('mayBeInconsistent')}
+                            </Badge>
+                          )}
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        </CardTitle>
+                          <div className="flex items-center gap-2">
+                           {lastUpdated && (
+                             <div className="text-xs text-muted-foreground">
+                               <Clock className="h-3 w-3 inline mr-1" />
+                               {new Date(lastUpdated).toLocaleString()}
+                             </div>
+                           )}
+                             {/* View mode buttons - only show when not editing */}
+                             {!isEditing && section.key === 'movie_info' && (
+                               <>
+                                  {/* Regenerate Button */}
+                                  {functions['generate-movie-info'] && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={(e) => {
+                                         e.stopPropagation();
+                                         handleRegenerateMovieInfo();
+                                      }}
+                                      disabled={isAnyEditMode || loadingSections[section.key]}
+                                      className="flex items-center gap-1.5 px-3"
+                                      functionId={functions['generate-movie-info']?.id}
+                                    >
+                                      <RefreshCw className="h-4 w-4" />
+                                    </Button>
+                                 )}
+                              </>
+                             )}
+                             
+                              {/* Characters regenerate button */}
+                              {!isEditing && section.key === 'characters' && (
+                                 <Button
+                                   size="sm"
+                                   variant="outline"
+                                   onClick={(e) => {
                                      e.stopPropagation();
-                                     handleRegenerateMovieInfo();
+                                     handleRegenerateWithConfirmation('characters');
                                   }}
                                   disabled={isAnyEditMode || loadingSections[section.key]}
                                   className="flex items-center gap-1.5 px-3"
-                                  functionId={functions['generate-movie-info']?.id}
                                 >
                                   <RefreshCw className="h-4 w-4" />
                                 </Button>
-                             )}
-                          </>
-                         )}
-                         
-                          {/* Characters regenerate button */}
-                          {!isEditing && section.key === 'characters' && (
-                             <Button
-                               size="sm"
-                               variant="outline"
-                               onClick={(e) => {
-                                 e.stopPropagation();
-                                 handleRegenerateWithConfirmation('characters');
-                              }}
-                              disabled={isAnyEditMode || loadingSections[section.key]}
-                              className="flex items-center gap-1.5 px-3"
-                            >
-                              <RefreshCw className="h-4 w-4" />
-                            </Button>
-                          )}
-                        
-                        {/* Delete Button - only show when open and not editing */}
-                        {openSections[section.key] && !isAnyEditMode && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteSection(section.key);
-                            }}
-                            className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                        
-        {/* Edit Button - show for movie_info section only */}
-        {section.key === 'movie_info' && (
-          <EditButton
-            onClick={(e) => {
-              e.stopPropagation();
-              handleEditToggle(section.key);
-            }}
-            disabled={isAnyEditMode && !isEditing}
-            isEditing={isEditing}
-          />
-        )}
-                     </div>
-                  </div>
-                </CardHeader>
-                
-                {openSections[section.key] && (
-                  <CardContent>
+                              )}
+                            
+                            {/* Delete Button - only show when open and not editing */}
+                            {(openSections[section.key] !== false || isEditing) && !isAnyEditMode && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteSection(section.key);
+                                }}
+                                className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                            
+            {/* Edit Button - show for movie_info section only */}
+            {section.key === 'movie_info' && (
+              <EditButton
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEditToggle(section.key);
+                }}
+                disabled={isAnyEditMode && !isEditing}
+                isEditing={isEditing}
+              />
+            )}
+                         </div>
+                      </div>
+                    </CardHeader>
+                  </CollapsibleTrigger>
+                  
+                  <CollapsibleContent>
+                    <CardContent>
                     {section.key === 'movie_info' && isEditing ? (
                       <div className="space-y-4">
                         <div>
@@ -3256,8 +3348,9 @@ export default function StoryboardWorkspace() {
                       </div>
                     )}
                   </CardContent>
-                )}
-              </Card>
+                </CollapsibleContent>
+              </Collapsible>
+            </Card>
             );
           }
 
