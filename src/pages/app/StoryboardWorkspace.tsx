@@ -154,7 +154,17 @@ export default function StoryboardWorkspace() {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
   const { t, isRTL } = useLanguage();
-  const { user } = useAuth();
+  
+  // Safe auth usage with fallback
+  let user = null;
+  try {
+    const authHook = useAuth();
+    user = authHook.user;
+  } catch (error) {
+    console.warn('Auth context not available:', error);
+    user = null;
+  }
+  
   const { sessionId } = useGuestSession();
   const { credits } = useUserCredits();
   
@@ -693,7 +703,12 @@ export default function StoryboardWorkspace() {
     }
   };
 
-  const renderCharacterCard = (characterKey: string, characterInfo: any, characterTitle: string) => {
+  // Character Card Component
+  const CharacterCard = ({ characterKey, characterInfo, characterTitle }: { 
+    characterKey: string; 
+    characterInfo: any; 
+    characterTitle: string; 
+  }) => {
     const [isEditingBase, setIsEditingBase] = React.useState(false);
     const [editBaseData, setEditBaseData] = React.useState({
       name: characterInfo.base?.name || '',
@@ -3121,8 +3136,24 @@ export default function StoryboardWorkspace() {
                           </>
                         ) : section.key === 'characters' ? (
                           <div className="space-y-4">
-                            {job.characters?.lead && renderCharacterCard('lead', job.characters.lead, t('leadCharacter'))}
-                            {job.characters?.supporting && renderCharacterCard('supporting', job.characters.supporting, t('supportingCharacter'))}
+                            {(() => {
+                              try {
+                                return (
+                                  <>
+                                    {job.characters?.lead && <CharacterCard characterKey="lead" characterInfo={job.characters.lead} characterTitle={t('leadCharacter')} />}
+                                    {job.characters?.supporting && <CharacterCard characterKey="supporting" characterInfo={job.characters.supporting} characterTitle={t('supportingCharacter')} />}
+                                  </>
+                                );
+                              } catch (error) {
+                                console.error('Error rendering characters:', error);
+                                return (
+                                  <div className="text-center text-muted-foreground p-4 border border-destructive/20 rounded-lg bg-destructive/5">
+                                    <p className="text-destructive mb-2">Error loading characters section</p>
+                                    <p className="text-xs">Please try refreshing the page</p>
+                                  </div>
+                                );
+                              }
+                            })()}
                           </div>
                         ) : (
                           <div className="text-center text-muted-foreground">
