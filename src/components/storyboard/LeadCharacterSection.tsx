@@ -70,20 +70,15 @@ export function LeadCharacterSection({
         </div>
       </div>
 
-      <div className={cn("flex items-center", isRTL ? "space-x-reverse space-x-2" : "space-x-2")}>
-        <Switch
-          id="leadAiCharacter"
-          checked={formData.leadAiCharacter}
-          onCheckedChange={(checked) => onInputChange('leadAiCharacter', checked)}
-          disabled={disabled}
-        />
-        <Label htmlFor="leadAiCharacter">{t('aiGeneratedCharacter')}</Label>
-      </div>
-
-      {!formData.leadAiCharacter && (
-        <div className="space-y-2">
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
           <Label htmlFor="faceImage">{t('faceReferenceImage')}</Label>
-          <div className="space-y-4">
+          <div className={cn("flex items-center text-xs px-2 py-1 rounded-full", 
+            displayImageUrl ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800")}>
+            {displayImageUrl ? t('realFace') : t('aiGenerated')}
+          </div>
+        </div>
+        <div className="space-y-4">
             {displayImageUrl ? (
               <div className="relative inline-block">
                 <img 
@@ -141,7 +136,7 @@ export function LeadCharacterSection({
             )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

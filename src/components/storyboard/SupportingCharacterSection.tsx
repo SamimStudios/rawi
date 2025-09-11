@@ -36,8 +36,7 @@ export function SupportingCharacterSection({
     const newCharacter: SupportingCharacter = {
       id: Date.now().toString(),
       name: '',
-      gender: '',
-      aiFace: false
+      gender: ''
     };
     onCharactersChange([...supportingCharacters, newCharacter]);
   };
@@ -125,19 +124,15 @@ export function SupportingCharacterSection({
               </div>
             </div>
 
-            <div className={cn("flex items-center", isRTL ? "space-x-reverse space-x-2" : "space-x-2")}>
-              <Switch
-                checked={character.aiFace}
-                onCheckedChange={(checked) => updateSupportingCharacter(character.id, 'aiFace', checked)}
-                disabled={disabled}
-              />
-              <Label>{t('aiGeneratedFace')}</Label>
-            </div>
-
-            {!character.aiFace && (
-              <div className="space-y-2">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
                 <Label>{t('faceReferenceImage')}</Label>
-                <div className="space-y-4">
+                <div className={cn("flex items-center text-xs px-2 py-1 rounded-full", 
+                  (character.faceImageUrl || character.faceImagePreview) ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800")}>
+                  {(character.faceImageUrl || character.faceImagePreview) ? t('realFace') : t('aiGenerated')}
+                </div>
+              </div>
+              <div className="space-y-4">
                   {(character.faceImageUrl || character.faceImagePreview) ? (
                     <div className="relative inline-block">
                       <img 
@@ -193,7 +188,7 @@ export function SupportingCharacterSection({
                   )}
                 </div>
               </div>
-            )}
+            </div>
           </div>
         ))}
 

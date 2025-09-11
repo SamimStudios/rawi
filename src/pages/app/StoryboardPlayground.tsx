@@ -125,7 +125,6 @@ export default function StoryboardPlayground() {
             .map(char => ({
               name: char.name,
               gender: char.gender,
-              aiFace: char.aiFace,
               faceImageUrl: char.faceImageUrl
             })),
           template: formData.template,

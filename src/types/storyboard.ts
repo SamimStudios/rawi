@@ -4,7 +4,6 @@ export interface StoryboardFormData {
   template: string;
   leadName: string;
   leadGender: string;
-  leadAiCharacter: boolean;
   language: string;
   accent: string;
   size: string;
@@ -15,7 +14,6 @@ export interface SupportingCharacter {
   id: string;
   name: string;
   gender: string;
-  aiFace: boolean;
   faceImageUrl?: string;
   faceImage?: File;
   faceImagePreview?: string;

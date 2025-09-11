@@ -17,7 +17,6 @@ export function useStoryboardForm() {
     template: '',
     leadName: user?.user_metadata?.full_name || '',
     leadGender: '',
-    leadAiCharacter: false,
     language: 'English',
     accent: 'US',
     size: '',
@@ -182,6 +181,13 @@ export function useStoryboardForm() {
       return t('tooManySupportingCharacters');
     }
 
+    // Check supporting characters have required fields if they exist
+    for (const character of supportingCharacters) {
+      if (!character.name || !character.gender) {
+        return t('supportingCharacterMustHaveNameAndGender');
+      }
+    }
+
     return null;
   }, [formData, selectedGenres, supportingCharacters, t]);
 
@@ -191,7 +197,6 @@ export function useStoryboardForm() {
       template: '',
       leadName: user?.user_metadata?.full_name || '',
       leadGender: '',
-      leadAiCharacter: false,
       language: 'English',
       accent: 'US',
       size: '',
