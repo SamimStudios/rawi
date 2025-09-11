@@ -104,8 +104,9 @@ const I18nDemo = () => {
                     {t('creditsExpireIn90')}
                   </p>
                   <Button 
+                    variant="primary"
                     size="sm" 
-                    className="bg-gradient-auth hover:opacity-90 text-white border-0 w-full"
+                    className="w-full"
                   >
                     {t('buyCredits')}
                   </Button>
@@ -188,7 +189,7 @@ const I18nDemo = () => {
 
                 <div className="pt-4 border-t border-border">
                   <Button 
-                    className="bg-gradient-auth hover:opacity-90 text-white border-0"
+                    variant="primary"
                     size="lg"
                   >
                     {t('save')}

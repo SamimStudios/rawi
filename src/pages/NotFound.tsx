@@ -33,8 +33,8 @@ const NotFound = () => {
         {/* Action Buttons */}
         <div className={`flex flex-col sm:flex-row gap-4 justify-center ${isRTL ? 'sm:flex-row-reverse' : ''}`}>
           <Button
+            variant="primary"
             onClick={() => navigate('/')}
-            className="bg-gradient-auth hover:opacity-90 text-white border-0"
             size="lg"
           >
             <Home className="w-5 h-5 mr-2" />

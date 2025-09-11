@@ -117,8 +117,8 @@ const SEODemo = () => {
                           navigator.clipboard.writeText(currentUrl);
                         }
                       }}
+                      variant="primary"
                       size="sm"
-                      className="bg-gradient-auth hover:opacity-90 text-white border-0"
                     >
                       <Share2 className="w-4 h-4 mr-2" />
                       {language === 'ar' ? 'مشاركة' : 'Share'}

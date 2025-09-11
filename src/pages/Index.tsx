@@ -24,9 +24,10 @@ const Index = () => {
 
           <div className="pt-8 flex flex-col sm:flex-row gap-4 justify-center items-center">
             <Button 
+              variant="primary"
               size="lg" 
               asChild
-              className="text-lg px-8 py-4 h-auto bg-gradient-auth hover:opacity-90 text-white border-0"
+              className="text-lg px-8 py-4 h-auto"
             >
               <Link to="/auth/sign-up">
                 {t('getStarted')}

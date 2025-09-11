@@ -138,7 +138,7 @@ const Result = () => {
               {/* Action Buttons */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Button 
-                  className="bg-gradient-auth hover:opacity-90 text-white border-0"
+                  variant="primary"
                   disabled={result.isGuest}
                   onClick={handleDownload}
                 >

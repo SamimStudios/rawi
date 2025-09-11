@@ -255,8 +255,8 @@ const Settings = () => {
             {/* Save Button */}
             <div className="flex justify-end">
               <Button 
+                variant="primary"
                 onClick={handleSave}
-                className="bg-gradient-auth hover:opacity-90 text-white border-0"
                 size="lg"
               >
                 <Save className="w-5 h-5 mr-2" />

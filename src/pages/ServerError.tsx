@@ -37,8 +37,8 @@ const ServerError = () => {
         {/* Action Buttons */}
         <div className={`flex flex-col sm:flex-row gap-4 justify-center ${isRTL ? 'sm:flex-row-reverse' : ''}`}>
           <Button
+            variant="primary"
             onClick={handleReload}
-            className="bg-gradient-auth hover:opacity-90 text-white border-0"
             size="lg"
           >
             <RefreshCw className="w-5 h-5 mr-2" />

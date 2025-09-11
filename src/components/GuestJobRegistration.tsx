@@ -126,7 +126,8 @@ const GuestJobRegistration = ({ jobId, onRegistrationComplete }: GuestJobRegistr
           
           <Button 
             type="submit" 
-            className="w-full bg-gradient-auth hover:opacity-90 text-white"
+            variant="primary"
+            className="w-full"
             disabled={loading}
           >
             {loading ? t('creatingAccount') : t('createAccountAndSave')}

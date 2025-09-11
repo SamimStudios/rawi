@@ -90,10 +90,10 @@ const Header = () => {
 
             {/* Wallet */}
             <Link to={user ? "/app/wallet" : "/auth/sign-in"}>
-              <div className="hidden sm:flex items-center gap-2 bg-secondary rounded-full px-3 py-1 hover:bg-secondary/80 transition-colors cursor-pointer">
+              <Button variant="secondary" size="sm" className="flex items-center gap-2">
                 <Wallet className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium">{walletCredits} {t('credits')}</span>
-              </div>
+              </Button>
             </Link>
 
             {/* User Menu or Sign In */}
@@ -158,10 +158,10 @@ const Header = () => {
               ))}
               <div className="flex items-center justify-between pt-4 border-t border-border">
                 <Link to={user ? "/app/wallet" : "/auth/sign-in"}>
-                  <div className="flex items-center gap-2 bg-secondary rounded-full px-3 py-1 hover:bg-secondary/80 transition-colors">
+                  <Button variant="secondary" size="sm" className="flex items-center gap-2">
                     <Wallet className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm font-medium">{walletCredits} {t('credits')}</span>
-                  </div>
+                  </Button>
                 </Link>
                 {user ? (
                   <Button variant="type_3_blue" size="sm" asChild>

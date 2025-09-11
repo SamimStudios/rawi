@@ -144,8 +144,9 @@ const ResetPassword = () => {
           />
           <Button
             type="submit"
+            variant="primary"
             disabled={isLoading}
-            className="w-full bg-gradient-auth hover:opacity-90 text-white border-0"
+            className="w-full"
           >
             {language === 'ar' ? 'تحديث كلمة المرور' : 'Update Password'}
           </Button>
