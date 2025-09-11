@@ -47,8 +47,8 @@ const getSections = (t: any) => [
     key: 'movie_info',
     title: t('movieInformation'),
     icon: Film,
-    generateFunctionId: 'e9ec8814-cef4-4e3d-adf1-deaa16d47dd0', // generate-movie-info
-    editFunctionId: '17c13967-cf25-484d-87a2-16895116b408', // edit-movie-info
+    generateFunctionId: 'generate-movie-info', // Use function name
+    editFunctionId: 'edit-movie-info', // Use function name
     nextButton: t('generateCharacters'),
     fields: ['title', 'logline', 'world', 'look']
   },
@@ -56,7 +56,7 @@ const getSections = (t: any) => [
     key: 'characters', 
     title: t('characters'),
     icon: Users,
-    generateFunctionId: 'characters-generate', // Custom identifier for character generation
+    generateFunctionId: 'generate-character-description', // Use function name for character generation
     editFunctionId: null,
     nextButton: t('generateProps'),
     fields: ['lead', 'supporting']
@@ -877,14 +877,10 @@ export default function StoryboardWorkspace() {
               onClick={() => handleGenerateCharacterDescription(characterKey)}
               disabled={isGeneratingDescription[characterKey]}
               className="w-full"
+              functionId={functions['generate-character-description']?.id}
             >
               {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {t('generateDescription')}
-              {functions['generate-character-description'] && (
-                <span className="text-xs opacity-75 ml-2">
-                  ({functions['generate-character-description'].price} {t('credits')})
-                </span>
-              )}
             </Button>
           )}
         </div>
@@ -929,14 +925,10 @@ export default function StoryboardWorkspace() {
                   <Button
                     onClick={() => handleValidateCharacterDescription(characterKey, characterEditData[characterKey])}
                     disabled={isValidatingDescription[characterKey]}
+                    functionId={functions['validate-character-description']?.id}
                   >
                     {isValidatingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {t('validate')}
-                    {functions['validate-character-description'] && (
-                      <span className="text-xs opacity-75 ml-2">
-                        ({functions['validate-character-description'].price} {t('credits')})
-                      </span>
-                    )}
                   </Button>
                 </div>
               </div>
@@ -982,14 +974,10 @@ export default function StoryboardWorkspace() {
                 onClick={() => handleGenerateCharacterPortrait(characterKey)}
                 disabled={isGeneratingPortrait[characterKey]}
                 className="w-full mt-4"
+                functionId={functions['generate-character-portrait']?.id}
               >
                 {isGeneratingPortrait[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {t('generatePortrait')}
-                {functions['generate-character-portrait'] && (
-                  <span className="text-xs opacity-75 ml-2">
-                    ({functions['generate-character-portrait'].price} {t('credits')})
-                  </span>
-                )}
               </Button>
             )}
           </div>
@@ -2615,22 +2603,11 @@ export default function StoryboardWorkspace() {
                   className="text-lg px-8 py-4"
                   onClick={() => handleGenerate(section.key)}
                   disabled={isAnyEditMode}
+                  functionId={section.generateFunctionId ? functions[section.generateFunctionId]?.id : undefined}
                 >
                   <section.icon className="h-5 w-5 mr-2" />
                   {t('generate')} {section.title}
                 </Button>
-                {section.key === 'movie_info' && functions['generate-movie-info'] && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Coins className="h-3 w-3" />
-                    <span>{t('cost')}: {functions['generate-movie-info'].price} {t('credits')} • {t('balance')}: {credits} {t('credits')}</span>
-                  </div>
-                )}
-                {section.key === 'characters' && functions['generate-character-description'] && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Coins className="h-3 w-3" />
-                    <span>{t('cost')}: {functions['generate-character-description'].price} {t('credits')} • {t('balance')}: {credits} {t('credits')}</span>
-                  </div>
-                )}
               </div>
             );
           }
@@ -3024,24 +3001,20 @@ export default function StoryboardWorkspace() {
                          <div className="flex gap-2 items-center flex-wrap">
                            {/* Validate Button */}
                            {functions['validate-movie-info'] && (
-                             <Button 
-                               onClick={handleValidateMovieInfo} 
-                               variant="outline" 
-                               className="flex items-center gap-2"
-                               disabled={isValidating || loadingSections.movie_info}
-                             >
-                               {isValidating ? (
-                                 <Loader2 className="h-4 w-4 animate-spin" />
-                               ) : (
-                                 <CheckCircle className="h-4 w-4" />
-                               )}
-                               {isValidating ? t('validating') : t('validate')}
-                               {!isValidating && (
-                                 <span className="text-xs opacity-75">
-                                   ({functions['validate-movie-info'].price} {t('credits')})
-                                 </span>
-                               )}
-                             </Button>
+                              <Button 
+                                onClick={handleValidateMovieInfo} 
+                                variant="outline" 
+                                className="flex items-center gap-2"
+                                disabled={isValidating || loadingSections.movie_info}
+                                functionId={functions['validate-movie-info']?.id}
+                              >
+                                {isValidating ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <CheckCircle className="h-4 w-4" />
+                                )}
+                                {isValidating ? t('validating') : t('validate')}
+                              </Button>
                            )}
                            
                            {/* Save Button */}
