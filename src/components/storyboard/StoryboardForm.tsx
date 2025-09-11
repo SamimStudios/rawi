@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -7,28 +7,22 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Loader2 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
 import { cn } from "@/lib/utils";
-import { useStoryboardForm } from '@/hooks/useStoryboardForm';
 import { LeadCharacterSection } from '@/components/storyboard/LeadCharacterSection';
 import { SupportingCharacterSection } from '@/components/storyboard/SupportingCharacterSection';
 import { LanguageAccentSection } from '@/components/storyboard/LanguageAccentSection';
 import { GenreSelector } from '@/components/storyboard/GenreSelector';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
 import type { StoryboardFormData, StoryboardTemplate, SupportingCharacter } from '@/types/storyboard';
+import { MAX_FILE_SIZE, MAX_GENRES, MAX_SUPPORTING_CHARACTERS } from '@/lib/storyboard-constants';
 
 interface StoryboardFormProps {
   mode: 'create' | 'edit';
-  initialData?: Partial<StoryboardFormData>;
-  initialGenres?: string[];
-  initialSupportingCharacters?: SupportingCharacter[];
-  initialFaceImage?: string | null;
-  onSave: (data: {
-    formData: StoryboardFormData;
-    selectedGenres: string[];
-    faceImageUrl: string | null;
-    supportingCharacters: SupportingCharacter[];
-  }) => void;
+  inProgressData?: any;
+  onUpdate?: (data: any) => void;
+  onSave: (data: any) => void;
   onCancel?: () => void;
   disabled?: boolean;
   showConsent?: boolean;
@@ -38,10 +32,8 @@ interface StoryboardFormProps {
 
 export function StoryboardForm({
   mode,
-  initialData,
-  initialGenres = [],
-  initialSupportingCharacters = [],
-  initialFaceImage = null,
+  inProgressData = {},
+  onUpdate,
   onSave,
   onCancel,
   disabled = false,
@@ -51,33 +43,128 @@ export function StoryboardForm({
 }: StoryboardFormProps) {
   const { t, isRTL } = useLanguage();
   const { toast } = useToast();
+  const { user } = useAuth();
 
-  // Use centralized form hook with initial values
-  const {
-    formData,
-    selectedGenres,
-    faceImageUrl,
-    isUploadingFaceImage,
-    supportingCharacters,
-    handleInputChange,
-    handleGenreToggle,
-    handleImageUpload,
-    handleSupportingCharacterImageUpload,
-    removeImage,
-    setSupportingCharacters,
-    validateForm,
-    resetForm
-  } = useStoryboardForm({
-    initialFormData: initialData,
-    initialGenres,
-    initialSupportingCharacters,
-    initialFaceImageUrl: initialFaceImage
+  // Initialize with inProgress data or defaults
+  const [formData, setFormData] = useState({
+    template: inProgressData.template || '',
+    leadName: inProgressData.leadName || user?.user_metadata?.full_name || '',
+    leadGender: inProgressData.leadGender || '',
+    language: inProgressData.language || 'English',
+    accent: inProgressData.accent || 'US',
+    size: inProgressData.size || '',
+    prompt: inProgressData.prompt || ''
   });
-
-  const [supportingCollapsed, setSupportingCollapsed] = useState(true);
+  
+  const [selectedGenres, setSelectedGenres] = useState<string[]>(inProgressData.selectedGenres || []);
+  const [faceImageUrl, setFaceImageUrl] = useState<string | null>(inProgressData.faceImageUrl || null);
+  const [supportingCharacters, setSupportingCharacters] = useState<SupportingCharacter[]>(inProgressData.supportingCharacters || []);
+  const [isUploadingFaceImage, setIsUploadingFaceImage] = useState(false);
   const [templates, setTemplates] = useState<StoryboardTemplate[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(true);
   const [consentAgreed, setConsentAgreed] = useState(false);
+
+  // UI state derived from data
+  const supportingCollapsed = supportingCharacters.length === 0;
+
+  // Real-time update to parent
+  useEffect(() => {
+    if (onUpdate) {
+      onUpdate({
+        template: formData.template,
+        leadName: formData.leadName,
+        leadGender: formData.leadGender,
+        language: formData.language,
+        accent: formData.accent,
+        size: formData.size,
+        prompt: formData.prompt,
+        selectedGenres,
+        faceImageUrl,
+        supportingCharacters
+      });
+    }
+  }, [formData, selectedGenres, faceImageUrl, supportingCharacters, onUpdate]);
+
+  // Input handlers
+  const handleInputChange = useCallback((field: keyof StoryboardFormData, value: string | boolean) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleGenreToggle = useCallback((genreValue: string) => {
+    setSelectedGenres(prev => {
+      const isSelected = prev.includes(genreValue);
+      if (isSelected) {
+        return prev.filter(g => g !== genreValue);
+      } else if (prev.length < MAX_GENRES) {
+        return [...prev, genreValue];
+      }
+      return prev;
+    });
+  }, []);
+
+  const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > MAX_FILE_SIZE) {
+      toast({
+        title: t('error'),
+        description: t('fileTooLarge'),
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsUploadingFaceImage(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage
+        .from('face-images')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('face-images').getPublicUrl(fileName);
+      setFaceImageUrl(data.publicUrl);
+      
+      toast({
+        title: t('success'),
+        description: t('imageUploadedSuccessfully')
+      });
+    } catch (error: any) {
+      toast({
+        title: t('error'),
+        description: error.message || t('failedToUploadImage'),
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploadingFaceImage(false);
+    }
+  }, [toast, t]);
+
+  const handleSupportingCharacterImageUpload = useCallback(async (characterId: string, file: File) => {
+    // Handle supporting character image upload
+  }, []);
+
+  const removeImage = useCallback(() => {
+    setFaceImageUrl(null);
+  }, []);
+
+  const validateForm = useCallback(() => {
+    if (!formData.template) return { isValid: false, error: t('templateRequired') };
+    if (!formData.leadName) return { isValid: false, error: t('leadNameRequired') };
+    if (!formData.leadGender) return { isValid: false, error: t('leadGenderRequired') };
+    if (!formData.language) return { isValid: false, error: t('languageRequired') };
+    if (!formData.accent) return { isValid: false, error: t('accentRequired') };
+    if (!formData.size) return { isValid: false, error: t('sizeRequired') };
+    if (selectedGenres.length === 0) return { isValid: false, error: t('genreRequired') };
+    if (!formData.prompt) return { isValid: false, error: t('plotPromptRequired') };
+    if (supportingCharacters.length > MAX_SUPPORTING_CHARACTERS) {
+      return { isValid: false, error: t('tooManySupportingCharacters') };
+    }
+    return { isValid: true };
+  }, [formData, selectedGenres, supportingCharacters, t]);
 
   // Load templates
   useEffect(() => {
@@ -100,6 +187,11 @@ export function StoryboardForm({
         }
       } catch (error) {
         console.error('Error fetching templates:', error);
+        toast({
+          title: t('warning'),
+          description: t('couldNotLoadTemplates'),
+          variant: "destructive"
+        });
       } finally {
         setTemplatesLoading(false);
       }
@@ -108,50 +200,15 @@ export function StoryboardForm({
     fetchTemplates();
   }, [toast, t]);
 
-  // Initialize form with provided data (for edit mode)
-  useEffect(() => {
-    if (initialData && mode === 'edit') {
-      // Reset form first
-      resetForm();
-      
-      // Set form data
-      Object.entries(initialData).forEach(([key, value]) => {
-        if (value !== undefined) {
-          handleInputChange(key as keyof StoryboardFormData, value as string);
-        }
-      });
-    }
-  }, [initialData, mode, handleInputChange, resetForm]);
-
-  // Initialize other form state for edit mode
-  useEffect(() => {
-    if (mode === 'edit') {
-      // Set genres
-      if (initialGenres.length > 0) {
-        initialGenres.forEach(genre => {
-          handleGenreToggle(genre);
-        });
-      }
-
-      // Set supporting characters
-      if (initialSupportingCharacters.length > 0) {
-        setSupportingCharacters(initialSupportingCharacters);
-      }
-
-      // Set face image (this will be handled by the hook's internal state)
-      // The face image URL is handled in the parent component's state management
-    }
-  }, [mode, initialGenres, initialSupportingCharacters, handleGenreToggle, setSupportingCharacters]);
-
+  // Form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Use centralized validation
-    const validationError = validateForm();
-    if (validationError) {
+    const validation = validateForm();
+    if (!validation.isValid) {
       toast({
-        title: t('missingFields'),
-        description: validationError,
+        title: t('error'),
+        description: validation.error,
         variant: "destructive"
       });
       return;
@@ -159,49 +216,47 @@ export function StoryboardForm({
 
     if (showConsent && !consentAgreed) {
       toast({
-        title: t('consentRequired'),
-        description: t('consentRequiredDescription'),
+        title: t('error'),
+        description: t('pleaseAgreeToConsent'),
         variant: "destructive"
       });
       return;
     }
 
     onSave({
-      formData,
+      template: formData.template,
+      leadName: formData.leadName,
+      leadGender: formData.leadGender,
+      language: formData.language,
+      accent: formData.accent,
+      size: formData.size,
+      prompt: formData.prompt,
       selectedGenres,
-      faceImageUrl: faceImageUrl || initialFaceImage,
-      supportingCharacters: supportingCharacters
-        .filter(char => char.name && char.gender) // Only include completed characters
-        .map(char => ({
-          id: char.id,
-          name: char.name,
-          gender: char.gender,
-          faceImageUrl: char.faceImageUrl
-        }))
+      faceImageUrl,
+      supportingCharacters
     });
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Template */}
-      <div className="space-y-2">
+    <form onSubmit={handleSubmit} className={cn("space-y-6", isRTL && "space-x-reverse")} dir={isRTL ? "rtl" : "ltr"}>
+      {/* Template Selection */}
+      <div className="space-y-3">
         <Label htmlFor="template">{t('storyboardTemplate')} *</Label>
-        <Select 
+        <Select
           value={formData.template}
-          onValueChange={(value) => handleInputChange('template', value)} 
-          required
-          disabled={disabled}
+          onValueChange={(value) => handleInputChange('template', value)}
+          disabled={templatesLoading || disabled}
         >
           <SelectTrigger>
-            <SelectValue placeholder={templatesLoading ? t('loadingTemplates') : t('selectTemplate')} />
+            <SelectValue placeholder={templatesLoading ? t('loading') : t('selectTemplate')} />
           </SelectTrigger>
-          <SelectContent className="max-w-[calc(100vw-2rem)] w-full">
-            {templates.map(template => (
+          <SelectContent>
+            {templates.map((template) => (
               <SelectItem key={template.id} value={template.id}>
-                <div className="flex flex-col max-w-full">
-                  <span className="font-medium truncate">{template.name}</span>
+                <div>
+                  <div className="font-medium">{template.name}</div>
                   {template.description && (
-                    <span className="text-xs text-muted-foreground truncate">{template.description}</span>
+                    <div className="text-sm text-muted-foreground">{template.description}</div>
                   )}
                 </div>
               </SelectItem>
@@ -210,21 +265,20 @@ export function StoryboardForm({
         </Select>
       </div>
 
-      {/* Size Option */}
-      <div className="space-y-2">
-        <Label htmlFor="size">{t('sizeOption')} *</Label>
-        <Select 
+      {/* Size Selection */}
+      <div className="space-y-3">
+        <Label>{t('sizeOption')} *</Label>
+        <Select
           value={formData.size}
-          onValueChange={(value) => handleInputChange('size', value)} 
-          required
+          onValueChange={(value) => handleInputChange('size', value)}
           disabled={disabled}
         >
           <SelectTrigger>
             <SelectValue placeholder={t('selectSize')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="portrait">{t('sizePortrait')}</SelectItem>
             <SelectItem value="landscape">{t('sizeLandscape')}</SelectItem>
+            <SelectItem value="portrait">{t('sizePortrait')}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -233,7 +287,7 @@ export function StoryboardForm({
       <LeadCharacterSection
         formData={formData}
         onInputChange={handleInputChange}
-        faceImageUrl={faceImageUrl || initialFaceImage}
+        faceImageUrl={faceImageUrl}
         isUploadingFaceImage={isUploadingFaceImage}
         onImageUpload={handleImageUpload}
         onRemoveImage={removeImage}
@@ -246,7 +300,7 @@ export function StoryboardForm({
         onCharactersChange={setSupportingCharacters}
         onImageUpload={handleSupportingCharacterImageUpload}
         isCollapsed={supportingCollapsed}
-        onToggleCollapse={() => setSupportingCollapsed(!supportingCollapsed)}
+        onToggleCollapse={() => {}} // Derived from data, no manual toggle needed
         disabled={disabled}
       />
 
@@ -257,7 +311,7 @@ export function StoryboardForm({
         disabled={disabled}
       />
 
-      {/* Genres */}
+      {/* Genre Selection */}
       <GenreSelector
         selectedGenres={selectedGenres}
         onGenreToggle={handleGenreToggle}
@@ -265,8 +319,8 @@ export function StoryboardForm({
       />
 
       {/* Plot Prompt */}
-      <div className="space-y-2">
-        <Label htmlFor="prompt">{t('plotPrompt')}</Label>
+      <div className="space-y-3">
+        <Label htmlFor="prompt">{t('plotPrompt')} *</Label>
         <Textarea
           id="prompt"
           value={formData.prompt}
@@ -277,74 +331,42 @@ export function StoryboardForm({
         />
       </div>
 
-      {/* Consent (only for creation mode) */}
+      {/* Consent (if required) */}
       {showConsent && (
-        <div className={cn("flex items-start", isRTL ? "space-x-reverse space-x-2" : "space-x-2")}>
+        <div className="flex items-center space-x-2 rtl:space-x-reverse">
           <Switch
-            id="consent"
             checked={consentAgreed}
             onCheckedChange={setConsentAgreed}
-            className="mt-1"
             disabled={disabled}
           />
-          <Label htmlFor="consent" className="text-sm leading-relaxed">
-            {t('consentAgreement')}{' '}
-            <Link 
-              to="/legal/terms" 
-              className="text-primary hover:underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {t('termsOfService')}
-            </Link>
-            {', '}
-            <Link 
-              to="/legal/privacy" 
-              className="text-primary hover:underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {t('privacyPolicyText')}
-            </Link>
-            {' '}{t('andText')}{' '}
-            <Link 
-              to="/legal/consent" 
-              className="text-primary hover:underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {t('consentIpPolicyText')}
+          <Label htmlFor="consent" className="text-sm">
+            {t('agreeToTermsAndConditions')}{" "}
+            <Link to="/legal/terms" className="text-primary hover:underline">
+              {t('termsAndConditions')}
             </Link>
           </Label>
         </div>
       )}
 
       {/* Action Buttons */}
-      <div className="flex gap-2">
+      <div className="flex gap-3 pt-4">
         {onCancel && (
-          <Button 
-            type="button" 
+          <Button
+            type="button"
             variant="outline"
             onClick={onCancel}
             disabled={disabled || isLoading}
-            className="flex-1"
           >
             {t('cancel')}
           </Button>
         )}
-        <Button 
-          type="submit" 
-          className="flex-1" 
+        <Button
+          type="submit"
           disabled={disabled || isLoading}
+          className="flex-1"
         >
-          {isLoading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {mode === 'edit' ? t('saving') : t('creating')}
-            </>
-          ) : (
-            submitLabel || (mode === 'edit' ? t('saveChanges') : t('createStoryboard'))
-          )}
+          {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+          {submitLabel || t('save')}
         </Button>
       </div>
     </form>
