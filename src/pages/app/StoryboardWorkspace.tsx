@@ -630,56 +630,6 @@ export default function StoryboardWorkspace() {
     return false;
   };
 
-  const handleCharacterImageUpload = async (characterKey: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Check file size (5MB limit)
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: t('fileTooLarge'),
-        description: t('imageUnder5MB'),
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    try {
-      const imageUrl = await uploadImageToStorage(file);
-      
-      // Update character data
-      const updatedCharacters = { ...job.characters };
-      if (updatedCharacters[characterKey]?.base) {
-        updatedCharacters[characterKey].base.face_ref = imageUrl;
-      }
-
-      const { error } = await supabase
-        .from('storyboard_jobs')
-        .update({ 
-          characters: updatedCharacters,
-          characters_updated_at: new Date().toISOString()
-        })
-        .eq('id', jobId);
-
-      if (error) throw error;
-
-      // Refresh job data
-      await fetchJob();
-      
-      toast({
-        title: t('imageUploaded'),
-        description: t('imageUploadedSuccessfully')
-      });
-    } catch (error) {
-      console.error('Error uploading character image:', error);
-      toast({
-        title: t('error'),
-        description: t('imageUploadFailed'),
-        variant: 'destructive'
-      });
-    }
-  };
-
   const handleRemoveCharacterFaceRef = async (characterKey: string) => {
     if (!job.characters) return;
     
@@ -723,6 +673,43 @@ export default function StoryboardWorkspace() {
       gender: characterInfo.base?.gender || '',
       face_ref: characterInfo.base?.face_ref || ''
     });
+
+    const handleCharacterImageUpload = async (characterKey: string, e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      // Check file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: t('fileTooLarge'),
+          description: t('imageUnder5MB'),
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      try {
+        const imageUrl = await uploadImageToStorage(file);
+        
+        // Update local state only (don't save to database yet)
+        setEditBaseData(prev => ({
+          ...prev,
+          face_ref: imageUrl
+        }));
+        
+        toast({
+          title: t('imageUploaded'),
+          description: t('imageUploadedSuccessfully')
+        });
+      } catch (error) {
+        console.error('Error uploading character image:', error);
+        toast({
+          title: t('error'),
+          description: t('imageUploadFailed'),
+          variant: 'destructive'
+        });
+      }
+    };
 
     // Get face reference - prioritize character data over user input
     const getFaceRef = () => {
@@ -1437,7 +1424,7 @@ export default function StoryboardWorkspace() {
           base: {
             name: supportingChar.name || '',
             gender: supportingChar.gender || '',
-            face_ref: supportingChar.faceImageUrl || supportingChar.faceImagePreview || null
+            face_ref: supportingChar.faceImageUrl || supportingChar.faceImagePreview || supportingChar.faceImage || null
           }
         };
       }
