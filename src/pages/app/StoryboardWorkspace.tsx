@@ -1397,21 +1397,31 @@ export default function StoryboardWorkspace() {
   const handleGenerateCharacters = async () => {
     if (!job) return;
 
-    console.log('🎭 Generating characters from user input:', job.user_input);
+    console.log('🎭 Generating characters from movie_info and user_input');
 
     try {
-      // Extract character data from user_input - handle both old and new formats
+      // Extract character data from mixed sources
       const userInput = job.user_input || {};
+      const movieInfo = job.movie_info || {};
       
-      // Handle new nested format and old format for backward compatibility
-      const leadName = userInput.characters?.lead?.name || 
-                      userInput.lead_name || userInput.leadName || '';
-      const leadGender = userInput.characters?.lead?.gender || 
-                        userInput.lead_gender || userInput.leadGender || '';
+      // Validate that movie_info has character data
+      if (!movieInfo.characters) {
+        throw new Error('Movie info must be generated first to get character names and genders');
+      }
+
+      // Get name and gender from movie_info.characters
+      const leadName = movieInfo.characters.lead?.name || '';
+      const leadGender = movieInfo.characters.lead?.gender || '';
+      
+      // Get face image from user_input.characters (keep existing fallback logic)
       const faceImageUrl = userInput.characters?.lead?.faceImage || 
                           userInput.face_ref_url || userInput.faceImageUrl || null;
       
-      // Handle supporting characters
+      // Handle supporting characters - get name/gender from movie_info, face from user_input
+      const supportingName = movieInfo.characters.supporting?.name || '';
+      const supportingGender = movieInfo.characters.supporting?.gender || '';
+      
+      // Handle supporting character face image from user_input
       const supportingChar = userInput.characters?.supporting || 
                             (userInput.supporting_characters && userInput.supporting_characters.length > 0 ? userInput.supporting_characters[0] : null) ||
                             (userInput.supportingCharacters && userInput.supportingCharacters.length > 0 ? userInput.supportingCharacters[0] : null);
@@ -1426,12 +1436,17 @@ export default function StoryboardWorkspace() {
         }
       };
 
-      if (supportingChar) {
+      // Only add supporting character if we have name and gender from movie_info
+      if (supportingName && supportingGender) {
+        const supportingFaceImageUrl = supportingChar?.faceImageUrl || 
+                                     supportingChar?.faceImagePreview || 
+                                     supportingChar?.faceImage || null;
+        
         initialCharacterData.supporting = {
           base: {
-            name: supportingChar.name || '',
-            gender: supportingChar.gender || '',
-            face_ref: supportingChar.faceImageUrl || supportingChar.faceImagePreview || supportingChar.faceImage || null
+            name: supportingName,
+            gender: supportingGender,
+            face_ref: supportingFaceImageUrl
           }
         };
       }
