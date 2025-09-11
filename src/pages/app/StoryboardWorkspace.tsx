@@ -716,12 +716,20 @@ export default function StoryboardWorkspace() {
       face_ref: characterInfo.base?.face_ref || ''
     });
 
-    // Get face reference from user input if not in character data
+    // Get face reference - prioritize character data over user input
     const getFaceRef = () => {
-      if (characterInfo.base?.face_ref) return characterInfo.base.face_ref;
+      // If we're in edit mode, show what's currently in edit data
+      if (isEditingBase) {
+        return editBaseData.face_ref || null;
+      }
       
-      // Check user input for face image if this is the lead character
-      if (characterKey === 'lead' && job?.user_input) {
+      // Otherwise show the character's saved face_ref
+      if (characterInfo.base?.face_ref) {
+        return characterInfo.base.face_ref;
+      }
+      
+      // Only fall back to user input if character has no face_ref set yet (initial state)
+      if (characterKey === 'lead' && job?.user_input && !characterInfo.base) {
         const userInput = job.user_input as any;
         if (userInput.faceImageUrl || faceImagePreview) {
           return userInput.faceImageUrl || faceImagePreview;
@@ -838,15 +846,55 @@ export default function StoryboardWorkspace() {
                   alt={t('faceReference')}
                   className="w-16 h-16 object-cover rounded-lg border"
                 />
-                {isEditingBase && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEditBaseData({...editBaseData, face_ref: ''})}
-                  >
-                    {t('remove')}
-                  </Button>
-                )}
+                 {isEditingBase && (
+                   <Button
+                     variant="outline"
+                     size="sm"
+                     onClick={async () => {
+                       setEditBaseData({...editBaseData, face_ref: ''});
+                       // Auto-save the removal
+                       try {
+                         const updates = {
+                           characters: {
+                             ...job?.characters,
+                             [characterKey]: {
+                               ...characterInfo,
+                               base: {
+                                 ...characterInfo.base,
+                                 name: editBaseData.name,
+                                 gender: editBaseData.gender,
+                                 face_ref: ''
+                               }
+                             }
+                           }
+                         };
+
+                         const { error } = await supabase
+                           .from('storyboard_jobs')
+                           .update(updates)
+                           .eq('id', jobId);
+
+                         if (error) throw error;
+
+                         toast({
+                           title: t('success'),
+                           description: t('faceReferenceRemoved'),
+                         });
+                         
+                         fetchJob(); // Refresh data
+                       } catch (error) {
+                         console.error('Error removing face reference:', error);
+                         toast({
+                           title: t('error'),
+                           description: t('failedToRemoveFaceReference'),
+                           variant: 'destructive'
+                         });
+                       }
+                     }}
+                   >
+                     {t('remove')}
+                   </Button>
+                 )}
               </div>
             ) : isEditingBase ? (
               <Input
