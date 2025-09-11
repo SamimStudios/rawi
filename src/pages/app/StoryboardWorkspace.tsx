@@ -844,33 +844,33 @@ export default function StoryboardWorkspace() {
                     ) : (
                       <ChevronRight className="h-4 w-4" />
                     )}
-                    {t('baseInfo')}
-                    {isEditingBaseInfo && <Badge variant="outline">{t('editing')}</Badge>}
-                  </CardTitle>
-                  <div className="absolute top-2 right-2">
-                    {isEditingBaseInfo ? (
-                      <div className="flex gap-2">
-                        <Button onClick={handleSaveBaseInfo} size="sm">
-                          <Save className="h-4 w-4 mr-1" />
-                          {t('save')}
-                        </Button>
-                        <Button onClick={handleCancelBaseInfo} variant="outline" size="sm">
-                          <X className="h-4 w-4 mr-1" />
-                          {t('cancel')}
-                        </Button>
-                      </div>
-                    ) : (
-                      <EditButton
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEditBaseInfo();
-                        }}
-                        disabled={isAnyEditMode}
-                        isEditing={false}
-                        variant="ghost"
-                        size="sm"
-                      />
-                    )}
+                     {t('baseInfo')}
+                     {isEditingBaseInfo && <Badge variant="outline">{t('editing')}</Badge>}
+                   </CardTitle>
+                   <div className="flex items-center gap-2">
+                     {isEditingBaseInfo ? (
+                       <div className="flex gap-2">
+                         <Button onClick={handleSaveBaseInfo} size="sm">
+                           <Save className="h-4 w-4 mr-1" />
+                           {t('save')}
+                         </Button>
+                         <Button onClick={handleCancelBaseInfo} variant="outline" size="sm">
+                           <X className="h-4 w-4 mr-1" />
+                           {t('cancel')}
+                         </Button>
+                       </div>
+                     ) : (
+                       <EditButton
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           handleEditBaseInfo();
+                         }}
+                         disabled={isAnyEditMode}
+                         isEditing={false}
+                         variant="ghost"
+                         size="sm"
+                       />
+                     )}
                   </div>
                 </div>
               </CardHeader>
@@ -974,71 +974,71 @@ export default function StoryboardWorkspace() {
                       ) : (
                         <ChevronRight className="h-4 w-4" />
                       )}
-                      {t('description')}
-                    </CardTitle>
-                    <div className="absolute top-2 right-2">
-                      {characterEditData[`${characterKey}_editing`] ? (
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleValidateCharacterDescription(characterKey, characterEditData[characterKey]);
-                            }}
-                            disabled={isValidatingDescription[characterKey]}
-                            className="flex items-center gap-1.5 px-3"
-                          >
-                            {isValidatingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            <Save className="h-4 w-4" />
-                            {t('save')}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setCharacterEditData(prev => ({ 
-                                ...prev, 
-                                [`${characterKey}_editing`]: false 
-                              }));
-                            }}
-                            className="flex items-center gap-1.5 px-3"
-                          >
-                            <X className="h-4 w-4" />
-                            {t('cancel')}
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="flex gap-2">
-                          <EditButton
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setCharacterEditData(prev => ({ 
-                                ...prev, 
-                                [`${characterKey}_editing`]: !prev[`${characterKey}_editing`] 
-                              }));
-                            }}
-                            isEditing={characterEditData[`${characterKey}_editing`]}
-                            variant="ghost"
-                            size="sm"
-                          />
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleGenerateCharacterDescription(characterKey);
-                            }}
-                            disabled={isGeneratingDescription[characterKey]}
-                            functionId={functions['generate-character-description']?.id}
-                            showCredits={true}
-                            className="flex items-center gap-1.5 px-3"
-                          >
-                            {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            <RefreshCw className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      )}
+                     {t('description')}
+                   </CardTitle>
+                   <div className="flex items-center gap-2">
+                     {characterEditData[`${characterKey}_editing`] ? (
+                       <div className="flex gap-2">
+                         <Button
+                           size="sm"
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             handleValidateCharacterDescription(characterKey, characterEditData[characterKey]);
+                           }}
+                           disabled={isValidatingDescription[characterKey]}
+                           className="flex items-center gap-1.5 px-3"
+                         >
+                           {isValidatingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                           <Save className="h-4 w-4" />
+                           {t('save')}
+                         </Button>
+                         <Button
+                           size="sm"
+                           variant="outline"
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             setCharacterEditData(prev => ({ 
+                               ...prev, 
+                               [`${characterKey}_editing`]: false 
+                             }));
+                           }}
+                           className="flex items-center gap-1.5 px-3"
+                         >
+                           <X className="h-4 w-4" />
+                           {t('cancel')}
+                         </Button>
+                       </div>
+                     ) : (
+                       <div className="flex gap-2">
+                         <EditButton
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             setCharacterEditData(prev => ({ 
+                               ...prev, 
+                               [`${characterKey}_editing`]: !prev[`${characterKey}_editing`] 
+                             }));
+                           }}
+                           isEditing={characterEditData[`${characterKey}_editing`]}
+                           variant="ghost"
+                           size="sm"
+                         />
+                         <Button
+                           variant="outline"
+                           size="sm"
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             handleGenerateCharacterDescription(characterKey);
+                           }}
+                           disabled={isGeneratingDescription[characterKey]}
+                           functionId={functions['generate-character-description']?.id}
+                           showCredits={true}
+                           className="flex items-center gap-1.5 px-3"
+                         >
+                           {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                           <RefreshCw className="h-4 w-4" />
+                         </Button>
+                       </div>
+                     )}
                     </div>
                   </div>
                 </CardHeader>
