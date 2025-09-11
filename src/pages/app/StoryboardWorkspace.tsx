@@ -3108,8 +3108,8 @@ export default function StoryboardWorkspace() {
                 (sectionWarnings[section.key] || getSectionInconsistencyWarning(section.key)) && "ring-2 ring-amber-500/50 border-amber-500/30 bg-amber-500/10"
               )}>
                 <Collapsible 
-                  open={openSections[section.key] !== false || isEditing} 
-                  onOpenChange={(open) => !isEditing && setOpenSections(prev => ({ ...prev, [section.key]: open }))}
+                  open={openSections[section.key] !== false} 
+                  onOpenChange={(open) => setOpenSections(prev => ({ ...prev, [section.key]: open }))}
                 >
                   <CollapsibleTrigger asChild>
                     <CardHeader 
