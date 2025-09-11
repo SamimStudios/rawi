@@ -932,119 +932,160 @@ export default function StoryboardWorkspace() {
             </CardContent>
           </Card>
         ) : (
-          <div className="border rounded-lg p-4 bg-card">
-            <div className="flex items-center justify-between mb-3">
-              <h5 className="font-medium">{t('description')}</h5>
-              <div className="flex gap-2">
-                <EditButton
-                  variant="outline"
-                  onClick={() => setCharacterEditData(prev => ({ 
-                    ...prev, 
-                    [`${characterKey}_editing`]: !prev[`${characterKey}_editing`] 
-                  }))}
-                  isEditing={characterEditData[`${characterKey}_editing`]}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleGenerateCharacterDescription(characterKey)}
-                  disabled={isGeneratingDescription[characterKey]}
-                  functionId={functions['generate-character-description']?.id}
-                  showCredits={true}
-                >
-                  {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {t('regenerate')}
-                </Button>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-base">{t('description')}</CardTitle>
+              <div className="absolute top-2 right-2">
+                {characterEditData[`${characterKey}_editing`] ? (
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => handleValidateCharacterDescription(characterKey, characterEditData[characterKey])}
+                      disabled={isValidatingDescription[characterKey]}
+                      className="flex items-center gap-1.5 px-3"
+                    >
+                      {isValidatingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      <Save className="h-4 w-4" />
+                      {t('save')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCharacterEditData(prev => ({ 
+                        ...prev, 
+                        [`${characterKey}_editing`]: false 
+                      }))}
+                      className="flex items-center gap-1.5 px-3"
+                    >
+                      <X className="h-4 w-4" />
+                      {t('cancel')}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <EditButton
+                      onClick={() => setCharacterEditData(prev => ({ 
+                        ...prev, 
+                        [`${characterKey}_editing`]: !prev[`${characterKey}_editing`] 
+                      }))}
+                      isEditing={characterEditData[`${characterKey}_editing`]}
+                      variant="ghost"
+                      size="sm"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleGenerateCharacterDescription(characterKey)}
+                      disabled={isGeneratingDescription[characterKey]}
+                      functionId={functions['generate-character-description']?.id}
+                      showCredits={true}
+                      className="flex items-center gap-1.5 px-3"
+                    >
+                      {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
-            </div>
+            </CardHeader>
+            <CardContent>
+              {characterEditData[`${characterKey}_editing`] ? (
+                <div className="space-y-3">
+                  {renderEditableDescriptionFields(characterKey, characterInfo.description)}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-sm font-medium text-primary">{t('ageRange')}:</span>
+                      <div className="text-sm text-foreground mt-1">{characterInfo.description.age_range || '-'}</div>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-primary">{t('ethnicity')}:</span>
+                      <div className="text-sm text-foreground mt-1">{characterInfo.description.ethnicity || '-'}</div>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-primary">{t('skinTone')}:</span>
+                      <div className="text-sm text-foreground mt-1">{characterInfo.description.skin_tone || '-'}</div>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-primary">{t('body')}:</span>
+                      <div className="text-sm text-foreground mt-1">{characterInfo.description.body || '-'}</div>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-primary">{t('faceFeatures')}:</span>
+                      <div className="text-sm text-foreground mt-1">{characterInfo.description.face_features || '-'}</div>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-primary">{t('head')}:</span>
+                      <div className="text-sm text-foreground mt-1">{characterInfo.description.head || '-'}</div>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-primary">{t('clothes')}:</span>
+                      <div className="text-sm text-foreground mt-1">{characterInfo.description.clothes || '-'}</div>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-primary">{t('personality')}:</span>
+                      <div className="text-sm text-foreground mt-1">{characterInfo.description.personality || '-'}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
-            {characterEditData[`${characterKey}_editing`] ? (
-              <div className="space-y-3">
-                {renderEditableDescriptionFields(characterKey, characterInfo.description)}
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => handleValidateCharacterDescription(characterKey, characterEditData[characterKey])}
-                    disabled={isValidatingDescription[characterKey]}
-                  >
-                    {isValidatingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {t('validate')}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="font-medium">{t('ageRange')}:</span>
-                  <span className="ml-2">{characterInfo.description.age_range || '-'}</span>
-                </div>
-                <div>
-                  <span className="font-medium">{t('ethnicity')}:</span>
-                  <span className="ml-2">{characterInfo.description.ethnicity || '-'}</span>
-                </div>
-                <div>
-                  <span className="font-medium">{t('skinTone')}:</span>
-                  <span className="ml-2">{characterInfo.description.skin_tone || '-'}</span>
-                </div>
-                <div>
-                  <span className="font-medium">{t('body')}:</span>
-                  <span className="ml-2">{characterInfo.description.body || '-'}</span>
-                </div>
-                <div>
-                  <span className="font-medium">{t('faceFeatures')}:</span>
-                  <span className="ml-2">{characterInfo.description.face_features || '-'}</span>
-                </div>
-                <div>
-                  <span className="font-medium">{t('head')}:</span>
-                  <span className="ml-2">{characterInfo.description.head || '-'}</span>
-                </div>
-                <div>
-                  <span className="font-medium">{t('clothes')}:</span>
-                  <span className="ml-2">{characterInfo.description.clothes || '-'}</span>
-                </div>
-                <div>
-                  <span className="font-medium">{t('personality')}:</span>
-                  <span className="ml-2">{characterInfo.description.personality || '-'}</span>
-                </div>
-              </div>
-            )}
-
-            {!characterInfo.portrait_url && characterInfo.description && (
+        {/* Part 3: Generate Portrait */}
+        {!characterInfo.portrait_url && characterInfo.description && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{t('generatePortrait')}</CardTitle>
+            </CardHeader>
+            <CardContent>
               <Button
                 onClick={() => handleGenerateCharacterPortrait(characterKey)}
                 disabled={isGeneratingPortrait[characterKey]}
-                className="w-full mt-4"
+                className="w-full"
+                functionId={functions['generate-character-portrait']?.id}
+                showCredits={true}
               >
                 {isGeneratingPortrait[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {t('generatePortrait')}
               </Button>
-            )}
-          </div>
+            </CardContent>
+          </Card>
         )}
 
-        {/* Part 3: Portrait */}
+        {/* Part 4: Portrait */}
         {characterInfo.portrait_url && (
-          <div className="border rounded-lg p-4 bg-card">
-            <div className="flex items-center justify-between mb-3">
-              <h5 className="font-medium">{t('portrait')}</h5>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleGenerateCharacterPortrait(characterKey)}
-                disabled={isGeneratingPortrait[characterKey]}
-              >
-                {isGeneratingPortrait[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {t('regenerate')}
-              </Button>
-            </div>
-            
-            <div className="flex justify-center">
-              <img
-                src={characterInfo.portrait_url}
-                alt={`${characterInfo.base?.name} ${t('portrait')}`}
-                className="max-w-64 max-h-64 object-cover rounded-lg border"
-              />
-            </div>
-          </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-base">{t('portrait')}</CardTitle>
+              <div className="absolute top-2 right-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleGenerateCharacterPortrait(characterKey)}
+                  disabled={isGeneratingPortrait[characterKey]}
+                  functionId={functions['generate-character-portrait']?.id}
+                  showCredits={true}
+                  className="flex items-center gap-1.5 px-3"
+                >
+                  {isGeneratingPortrait[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-center">
+                <img
+                  src={characterInfo.portrait_url}
+                  alt={`${characterInfo.base?.name} ${t('portrait')}`}
+                  className="max-w-64 max-h-64 object-cover rounded-lg border"
+                />
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     );
