@@ -908,21 +908,29 @@ export default function StoryboardWorkspace() {
               )}
             </div>
 
-            {!isEditingBaseInfo && !characterInfo.description && (
-              <Button
-                onClick={() => handleGenerateCharacterDescription(characterKey)}
-                disabled={isGeneratingDescription[characterKey]}
-                className="w-full"
-              >
-                {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {t('generateDescription')}
-              </Button>
-            )}
           </CardContent>
         </Card>
 
         {/* Part 2: Description */}
-        {characterInfo.description && (
+        {!characterInfo.description ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{t('description')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Button
+                onClick={() => handleGenerateCharacterDescription(characterKey)}
+                disabled={isGeneratingDescription[characterKey]}
+                className="w-full"
+                functionId={functions['generate-character-description']?.id}
+                showCredits={true}
+              >
+                {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {t('generateDescription')}
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
           <div className="border rounded-lg p-4 bg-card">
             <div className="flex items-center justify-between mb-3">
               <h5 className="font-medium">{t('description')}</h5>
@@ -940,6 +948,8 @@ export default function StoryboardWorkspace() {
                   size="sm"
                   onClick={() => handleGenerateCharacterDescription(characterKey)}
                   disabled={isGeneratingDescription[characterKey]}
+                  functionId={functions['generate-character-description']?.id}
+                  showCredits={true}
                 >
                   {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {t('regenerate')}
