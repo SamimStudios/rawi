@@ -38,7 +38,7 @@ import { useUserCredits } from '@/hooks/useUserCredits';
 import { useGuestSession } from '@/hooks/useGuestSession';
 import { EditButton } from '@/components/ui/edit-button';
 import { SystemAlertDialog, SystemAlertAction } from '@/components/ui/system-alert-dialog';
-import { cn } from '@/lib/utils';
+import { cn, formatBiMessage } from '@/lib/utils';
 import { SupportingCharacterSection } from '@/components/storyboard/SupportingCharacterSection';
 
 // Progressive section configuration - titles will be localized using t()
@@ -156,7 +156,7 @@ interface FunctionData {
 export default function StoryboardWorkspace() {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
-  const { t, isRTL } = useLanguage();
+  const { t, isRTL, language } = useLanguage();
   
   // Safe auth usage with fallback
   let user = null;
@@ -1321,7 +1321,7 @@ export default function StoryboardWorkspace() {
     // Check envelope status instead of legacy success field
     if (envelope?.status === 'error') {
       const errorCode = envelope.error?.code;
-      const errorMessage = envelope.error?.message || `${functionName} execution failed`;
+      const errorMessage = formatBiMessage(envelope.error?.message as any, language) || `${functionName} execution failed`;
       
       // Handle specific error codes with better user messages
       if (errorCode === 'INSUFFICIENT_CREDITS') {

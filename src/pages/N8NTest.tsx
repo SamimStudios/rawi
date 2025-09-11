@@ -9,9 +9,12 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { formatBiMessage } from '@/lib/utils';
 
 export default function N8NTest() {
   const { user } = useAuth();
+  const { language } = useLanguage();
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [results, setResults] = useState<Record<string, any>>({});
   
@@ -37,18 +40,10 @@ export default function N8NTest() {
     }
     
     if (envelope?.status === 'error') {
-      // Handle bilingual error messages
-      let errorMessage = envelope.error?.message || 'Function execution failed';
-      if (typeof errorMessage === 'object' && errorMessage.en) {
-        errorMessage = errorMessage.en;
-      }
-      
-      // Include error details if available
-      if (envelope.error?.details) {
-        errorMessage += ` (Details: ${JSON.stringify(envelope.error.details)})`;
-      }
-      
-      throw new Error(errorMessage);
+      const errorMessage = formatBiMessage(envelope.error?.message as any, language) || 'Function execution failed';
+      // Include error details if available (stringify safely)
+      const details = envelope.error?.details ? ` (Details: ${typeof envelope.error.details === 'string' ? envelope.error.details : JSON.stringify(envelope.error.details)})` : '';
+      throw new Error(`${errorMessage}${details}`);
     }
     
     return envelope;
