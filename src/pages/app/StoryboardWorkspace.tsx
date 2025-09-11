@@ -1807,11 +1807,21 @@ export default function StoryboardWorkspace() {
     setCharacterValidationStatus(prev => ({ ...prev, [characterKey]: 'validating' }));
     
     try {
+      // Build a complete 'edits' object by merging current edits with existing description
+      const baseDesc = (job?.characters as any)?.[characterKey]?.description || {};
+      const pendingEdits = characterEditData[characterKey] || descriptionData || {};
+      const fields = ['body','head','clothes','age_range','ethnicity','skin_tone','personality','face_features'] as const;
+      const edits: Record<string, string> = fields.reduce((acc, field) => {
+        const v = (pendingEdits?.[field as string] ?? baseDesc?.[field as string] ?? '');
+        acc[field as string] = typeof v === 'string' ? v : String(v ?? '');
+        return acc;
+      }, {} as Record<string, string>);
+
       const result = await executeFunction('validate-character-description', {
         table_id: 'storyboard_jobs',
         row_id: jobId,
         character_key: characterKey,
-        edits: descriptionData
+        edits
       });
 
       // Parse validation response
