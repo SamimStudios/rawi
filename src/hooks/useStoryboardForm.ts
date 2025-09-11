@@ -7,74 +7,26 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { MAX_FILE_SIZE, MAX_GENRES, MAX_SUPPORTING_CHARACTERS } from '@/lib/storyboard-constants';
 import type { StoryboardFormData, SupportingCharacter } from '@/types/storyboard';
 
-interface UseStoryboardFormProps {
-  initialData?: any; // Job user_input data for edit mode
-}
-
-export function useStoryboardForm(props?: UseStoryboardFormProps) {
+export function useStoryboardForm() {
   const { t } = useLanguage();
   const { toast } = useToast();
   const { user } = useAuth();
   const { sessionId } = useGuestSession();
 
-  // Map database format to form format for edit mode
-  const mapJobDataToForm = useCallback((jobUserInput: any): StoryboardFormData => {
-    if (!jobUserInput) {
-      return {
-        template: '',
-        leadName: user?.user_metadata?.full_name || '',
-        leadGender: '',
-        language: 'English',
-        accent: 'US',
-        size: '',
-        prompt: ''
-      };
-    }
-
-    return {
-      template: jobUserInput.template || '',
-      leadName: jobUserInput.characters?.lead?.name || jobUserInput.leadName || user?.user_metadata?.full_name || '',
-      leadGender: jobUserInput.characters?.lead?.gender || jobUserInput.leadGender || '',
-      language: jobUserInput.language || 'English',
-      accent: jobUserInput.accent || 'US',
-      size: jobUserInput.size || '',
-      prompt: jobUserInput.prompt || ''
-    };
-  }, [user?.user_metadata?.full_name]);
-
-  const [formData, setFormData] = useState<StoryboardFormData>(() => 
-    mapJobDataToForm(props?.initialData)
-  );
-
-  const [selectedGenres, setSelectedGenres] = useState<string[]>(() => {
-    // Initialize genres from job data in edit mode
-    if (props?.initialData?.genres) {
-      return Array.isArray(props.initialData.genres) ? props.initialData.genres : [];
-    }
-    return [];
+  const [formData, setFormData] = useState<StoryboardFormData>({
+    template: '',
+    leadName: user?.user_metadata?.full_name || '',
+    leadGender: '',
+    language: 'English',
+    accent: 'US',
+    size: '',
+    prompt: ''
   });
-  
-  const [faceImageUrl, setFaceImageUrl] = useState<string | null>(() => {
-    // Initialize face image from job data in edit mode
-    return props?.initialData?.characters?.lead?.faceImageUrl || 
-           props?.initialData?.faceImageUrl || null;
-  });
-  
+
+  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [faceImageUrl, setFaceImageUrl] = useState<string | null>(null);
   const [isUploadingFaceImage, setIsUploadingFaceImage] = useState(false);
-  
-  const [supportingCharacters, setSupportingCharacters] = useState<SupportingCharacter[]>(() => {
-    // Initialize supporting characters from job data in edit mode
-    if (props?.initialData?.characters?.supporting && Array.isArray(props.initialData.characters.supporting)) {
-      return props.initialData.characters.supporting.map((char: any, index: number) => ({
-        id: char.id || `supporting-${index}`,
-        name: char.name || '',
-        gender: char.gender || '',
-        faceImageUrl: char.faceImageUrl,
-        isUploading: false
-      }));
-    }
-    return [];
-  });
+  const [supportingCharacters, setSupportingCharacters] = useState<SupportingCharacter[]>([]);
 
   const handleInputChange = useCallback((field: keyof StoryboardFormData, value: string | boolean) => {
     setFormData(prev => {
@@ -255,33 +207,6 @@ export function useStoryboardForm(props?: UseStoryboardFormProps) {
     setSupportingCharacters([]);
   }, [user?.user_metadata?.full_name]);
 
-  // Function to convert form data back to database format
-  const convertToJobFormat = useCallback(() => {
-    return {
-      template: formData.template,
-      language: formData.language,
-      accent: formData.accent,
-      size: formData.size,
-      prompt: formData.prompt,
-      genres: selectedGenres,
-      characters: {
-        lead: {
-          name: formData.leadName,
-          gender: formData.leadGender,
-          faceImageUrl: faceImageUrl
-        },
-        supporting: supportingCharacters
-          .filter(char => char.name && char.gender)
-          .map(char => ({
-            id: char.id,
-            name: char.name,
-            gender: char.gender,
-            faceImageUrl: char.faceImageUrl
-          }))
-      }
-    };
-  }, [formData, selectedGenres, faceImageUrl, supportingCharacters]);
-
   return {
     // Form state
     formData,
@@ -300,7 +225,6 @@ export function useStoryboardForm(props?: UseStoryboardFormProps) {
     
     // Validation & utilities
     validateForm,
-    resetForm,
-    convertToJobFormat
+    resetForm
   };
 }
