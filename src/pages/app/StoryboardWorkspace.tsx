@@ -271,7 +271,7 @@ export default function StoryboardWorkspace() {
       has_music: !!job.music && Object.keys(job.music).length > 0,
       user_input_language: (job.user_input as any)?.language,
       timestamps: {
-        input_updated_at: job.user_input_updated_at,
+        user_input_updated_at: job.user_input_updated_at,
         movie_info_updated_at: job.movie_info_updated_at,
         characters_updated_at: job.characters_updated_at,
         props_updated_at: job.props_updated_at,
