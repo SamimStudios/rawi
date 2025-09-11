@@ -30,7 +30,8 @@ import {
   Loader2,
   CheckCircle,
   RefreshCw,
-  Trash2
+  Trash2,
+  Package
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -693,6 +694,78 @@ export default function StoryboardWorkspace() {
   };
 
   const renderCharacterCard = (characterKey: string, characterInfo: any, characterTitle: string) => {
+    const [isEditingBase, setIsEditingBase] = React.useState(false);
+    const [editBaseData, setEditBaseData] = React.useState({
+      name: characterInfo.base?.name || '',
+      gender: characterInfo.base?.gender || '',
+      face_ref: characterInfo.base?.face_ref || ''
+    });
+
+    // Get face reference from user input if not in character data
+    const getFaceRef = () => {
+      if (characterInfo.base?.face_ref) return characterInfo.base.face_ref;
+      
+      // Check user input for face image if this is the lead character
+      if (characterKey === 'lead' && job?.user_input) {
+        const userInput = job.user_input as any;
+        if (userInput.faceImageUrl || faceImagePreview) {
+          return userInput.faceImageUrl || faceImagePreview;
+        }
+      }
+      
+      return null;
+    };
+
+    const handleSaveBaseInfo = async () => {
+      try {
+        const updates = {
+          characters: {
+            ...job?.characters,
+            [characterKey]: {
+              ...characterInfo,
+              base: {
+                ...characterInfo.base,
+                name: editBaseData.name,
+                gender: editBaseData.gender,
+                face_ref: editBaseData.face_ref
+              }
+            }
+          }
+        };
+
+        const { error } = await supabase
+          .from('storyboard_jobs')
+          .update(updates)
+          .eq('id', jobId);
+
+        if (error) throw error;
+
+        toast({
+          title: t('success'),
+          description: t('characterUpdated'),
+        });
+        
+        setIsEditingBase(false);
+        fetchJob(); // Refresh data
+      } catch (error) {
+        console.error('Error saving base info:', error);
+        toast({
+          title: t('error'),
+          description: t('failedToUpdateCharacter'),
+          variant: 'destructive'
+        });
+      }
+    };
+
+    const handleCancelEdit = () => {
+      setEditBaseData({
+        name: characterInfo.base?.name || '',
+        gender: characterInfo.base?.gender || '',
+        face_ref: characterInfo.base?.face_ref || ''
+      });
+      setIsEditingBase(false);
+    };
+
     return (
       <div className="border rounded-lg p-4 space-y-4">
         <h4 className="font-semibold text-lg">{characterTitle}</h4>
@@ -701,16 +774,43 @@ export default function StoryboardWorkspace() {
         <div className="border rounded-lg p-4 bg-card">
           <div className="flex items-center justify-between mb-3">
             <h5 className="font-medium">{t('baseInfo')}</h5>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => isEditingBase ? handleCancelEdit() : setIsEditingBase(true)}
+            >
+              {isEditingBase ? t('cancel') : t('edit')}
+            </Button>
           </div>
           
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <label className="text-sm font-medium">{t('name')}</label>
-              <Input value={characterInfo.base?.name || ''} disabled className="mt-1" />
+              {isEditingBase ? (
+                <Input 
+                  value={editBaseData.name} 
+                  onChange={(e) => setEditBaseData({...editBaseData, name: e.target.value})}
+                  className="mt-1" 
+                />
+              ) : (
+                <Input value={characterInfo.base?.name || ''} disabled className="mt-1" />
+              )}
             </div>
             <div>
               <label className="text-sm font-medium">{t('gender')}</label>
-              <Input value={characterInfo.base?.gender || ''} disabled className="mt-1" />
+              {isEditingBase ? (
+                <Select value={editBaseData.gender} onValueChange={(value) => setEditBaseData({...editBaseData, gender: value})}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="male">{t('male')}</SelectItem>
+                    <SelectItem value="female">{t('female')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input value={characterInfo.base?.gender || ''} disabled className="mt-1" />
+              )}
             </div>
           </div>
 
@@ -719,44 +819,53 @@ export default function StoryboardWorkspace() {
             <label className="text-sm font-medium">{t('faceReference')}</label>
             <p className="text-xs text-muted-foreground mb-2">{t('leaveEmptyForAIGenerated')}</p>
             
-            {characterInfo.base?.face_ref ? (
+            {getFaceRef() ? (
               <div className="flex items-center gap-3">
                 <img 
-                  src={characterInfo.base.face_ref} 
+                  src={getFaceRef()!} 
                   alt={t('faceReference')}
                   className="w-16 h-16 object-cover rounded-lg border"
                 />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleRemoveCharacterFaceRef(characterKey)}
-                >
-                  {t('remove')}
-                </Button>
+                {isEditingBase && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditBaseData({...editBaseData, face_ref: ''})}
+                  >
+                    {t('remove')}
+                  </Button>
+                )}
               </div>
-            ) : (
+            ) : isEditingBase ? (
               <Input
                 type="file"
                 accept="image/*"
                 onChange={(e) => handleCharacterImageUpload(characterKey, e)}
                 className="mt-1"
               />
+            ) : (
+              <div className="text-sm text-muted-foreground mt-1">{t('noFileChosen') || 'No file chosen'}</div>
             )}
           </div>
 
-          {!characterInfo.description && (
+          {isEditingBase && (
+            <Button
+              onClick={handleSaveBaseInfo}
+              className="w-full"
+            >
+              {t('save')}
+            </Button>
+          )}
+
+          {!isEditingBase && !characterInfo.description && (
             <Button
               onClick={() => handleGenerateCharacterDescription(characterKey)}
               disabled={isGeneratingDescription[characterKey]}
+              functionId="generate-character-description"
               className="w-full"
             >
               {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {t('generateDescription')}
-              {functions['generate-character-description'] && (
-                <span className="text-xs opacity-75 ml-2">
-                  ({functions['generate-character-description'].price} {t('credits')})
-                </span>
-              )}
             </Button>
           )}
         </div>
@@ -782,6 +891,7 @@ export default function StoryboardWorkspace() {
                   size="sm"
                   onClick={() => handleGenerateCharacterDescription(characterKey)}
                   disabled={isGeneratingDescription[characterKey]}
+                  functionId="generate-character-description"
                 >
                   {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {t('regenerate')}
@@ -796,14 +906,10 @@ export default function StoryboardWorkspace() {
                   <Button
                     onClick={() => handleValidateCharacterDescription(characterKey, characterEditData[characterKey])}
                     disabled={isValidatingDescription[characterKey]}
+                    functionId="validate-character-description"
                   >
                     {isValidatingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {t('validate')}
-                    {functions['validate-character-description'] && (
-                      <span className="text-xs opacity-75 ml-2">
-                        ({functions['validate-character-description'].price} {t('credits')})
-                      </span>
-                    )}
                   </Button>
                 </div>
               </div>
@@ -848,15 +954,11 @@ export default function StoryboardWorkspace() {
               <Button
                 onClick={() => handleGenerateCharacterPortrait(characterKey)}
                 disabled={isGeneratingPortrait[characterKey]}
+                functionId="generate-character-portrait"
                 className="w-full mt-4"
               >
                 {isGeneratingPortrait[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {t('generatePortrait')}
-                {functions['generate-character-portrait'] && (
-                  <span className="text-xs opacity-75 ml-2">
-                    ({functions['generate-character-portrait'].price} {t('credits')})
-                  </span>
-                )}
               </Button>
             )}
           </div>
@@ -872,6 +974,7 @@ export default function StoryboardWorkspace() {
                 size="sm"
                 onClick={() => handleGenerateCharacterPortrait(characterKey)}
                 disabled={isGeneratingPortrait[characterKey]}
+                functionId="generate-character-portrait"
               >
                 {isGeneratingPortrait[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {t('regenerate')}
@@ -2477,16 +2580,11 @@ export default function StoryboardWorkspace() {
                   className="text-lg px-8 py-4"
                   onClick={() => handleGenerate(section.key)}
                   disabled={isAnyEditMode}
+                  functionId={section.key === 'movie_info' ? 'generate-movie-info' : section.key === 'characters' ? 'generate-character-description' : undefined}
                 >
                   <section.icon className="h-5 w-5 mr-2" />
                   {t('generate')} {section.title}
                 </Button>
-                {functionData && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Coins className="h-3 w-3" />
-                    <span>{t('cost')}: {functionData.price} {t('credits')} • {t('balance')}: {credits} {t('credits')}</span>
-                  </div>
-                )}
               </div>
             );
           }
@@ -2536,30 +2634,47 @@ export default function StoryboardWorkspace() {
                            {new Date(lastUpdated).toLocaleString()}
                          </div>
                        )}
-                        {/* View mode buttons - only show when not editing */}
-                        {!isEditing && section.key === 'movie_info' && (
-                          <>
-                             {/* Regenerate Button */}
-                             {functions['generate-movie-info'] && (
-                               <Button
-                                 size="sm"
-                                 variant="outline"
-                                 onClick={(e) => {
-                                   e.stopPropagation();
-                                   handleRegenerateMovieInfo();
-                                }}
-                                disabled={isAnyEditMode || loadingSections[section.key]}
-                                className="flex items-center gap-1.5 px-3"
-                              >
-                                <RefreshCw className="h-4 w-4" />
-                                <div className="flex items-center gap-1">
-                                  <span className="text-xs font-light text-muted-foreground">{functions['generate-movie-info'].price}</span>
-                                  <Coins className="h-3 w-3 text-muted-foreground/60" />
-                                </div>
-                              </Button>
-                            )}
-                         </>
-                        )}
+                         {/* View mode buttons - only show when not editing */}
+                         {!isEditing && section.key === 'movie_info' && (
+                           <>
+                              {/* Regenerate Button */}
+                              {functions['generate-movie-info'] && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRegenerateMovieInfo();
+                                 }}
+                                 disabled={isAnyEditMode || loadingSections[section.key]}
+                                 className="flex items-center gap-1.5 px-3"
+                               >
+                                 <RefreshCw className="h-4 w-4" />
+                                 <div className="flex items-center gap-1">
+                                   <span className="text-xs font-light text-muted-foreground">{functions['generate-movie-info'].price}</span>
+                                   <Coins className="h-3 w-3 text-muted-foreground/60" />
+                                 </div>
+                               </Button>
+                             )}
+                          </>
+                         )}
+                         
+                         {/* Characters regenerate button */}
+                         {!isEditing && section.key === 'characters' && (
+                           <Button
+                             size="sm"
+                             variant="outline"
+                             onClick={(e) => {
+                               e.stopPropagation();
+                               handleGenerate('characters');
+                            }}
+                            disabled={isAnyEditMode || loadingSections[section.key]}
+                            functionId="generate-character-description"
+                            className="flex items-center gap-1.5 px-3"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
+                         )}
                         
                         {/* Delete Button - only show when open and not editing */}
                         {openSections[section.key] && !isAnyEditMode && (
@@ -2576,18 +2691,20 @@ export default function StoryboardWorkspace() {
                           </Button>
                         )}
                         
-                        {/* Edit Button */}
-                       <Button
-                         size="sm"
-                         variant="ghost"
-                         onClick={(e) => {
-                           e.stopPropagation();
-                           handleEditToggle(section.key);
-                         }}
-                         disabled={isAnyEditMode && !isEditing}
-                       >
-                         {isEditing ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
-                       </Button>
+                        {/* Edit Button - only show for movie_info section, characters section doesn't have edit */}
+                        {section.key === 'movie_info' && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditToggle(section.key);
+                            }}
+                            disabled={isAnyEditMode && !isEditing}
+                          >
+                            {isEditing ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
+                          </Button>
+                        )}
                      </div>
                   </div>
                 </CardHeader>

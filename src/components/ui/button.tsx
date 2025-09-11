@@ -1,8 +1,10 @@
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
+import { Coins } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
@@ -45,12 +47,61 @@ export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
+  functionId?: string; // N8N function ID for automatic credit display
+  showCredits?: boolean; // Override to force show/hide credits
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, functionId, showCredits, children, ...props }, ref) => {
+    const [functionData, setFunctionData] = React.useState<any>(null);
+    const [loading, setLoading] = React.useState(false);
+
+    React.useEffect(() => {
+      const fetchFunctionData = async () => {
+        if (!functionId) return;
+        
+        setLoading(true);
+        try {
+          const { data, error } = await supabase
+            .from('n8n_functions')
+            .select('price')
+            .eq('id', functionId)
+            .eq('active', true)
+            .single();
+
+          if (!error && data) {
+            setFunctionData(data);
+          }
+        } catch (error) {
+          console.error('Error fetching function data:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchFunctionData();
+    }, [functionId]);
+
     const Comp = asChild ? Slot : "button";
-    return <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />;
+    const shouldShowCredits = (functionId && functionData && !loading) || showCredits === true;
+
+    return (
+      <div className={shouldShowCredits ? "flex flex-col items-center gap-1" : ""}>
+        <Comp 
+          className={cn(buttonVariants({ variant, size, className }))} 
+          ref={ref} 
+          {...props}
+        >
+          {children}
+        </Comp>
+        {shouldShowCredits && !props.disabled && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Coins className="h-3 w-3" />
+            <span>{functionData?.price || '0'} credits</span>
+          </div>
+        )}
+      </div>
+    );
   },
 );
 Button.displayName = "Button";
