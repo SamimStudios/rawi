@@ -228,6 +228,7 @@ export default function StoryboardWorkspace() {
   // Character states
   const [characterData, setCharacterData] = useState<any>(null);
   const [characterEditData, setCharacterEditData] = useState<any>({});
+  const [charactersBaseDraft, setCharactersBaseDraft] = useState<any>({});
   const [isGeneratingCharacters, setIsGeneratingCharacters] = useState(false);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState<{[key: string]: boolean}>({});
   const [isValidatingDescription, setIsValidatingDescription] = useState<{[key: string]: boolean}>({});
@@ -667,12 +668,7 @@ export default function StoryboardWorkspace() {
     characterInfo: any; 
     characterTitle: string; 
   }) => {
-    const [isEditingBase, setIsEditingBase] = React.useState(false);
-    const [editBaseData, setEditBaseData] = React.useState({
-      name: characterInfo.base?.name || '',
-      gender: characterInfo.base?.gender || '',
-      face_ref: characterInfo.base?.face_ref || ''
-    });
+    const isEditingCharacters = editingSections.characters;
 
     const handleCharacterImageUpload = async (characterKey: string, e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -691,10 +687,13 @@ export default function StoryboardWorkspace() {
       try {
         const imageUrl = await uploadImageToStorage(file);
         
-        // Update local state only (don't save to database yet)
-        setEditBaseData(prev => ({
+        // Update local draft state only (don't save to database yet)
+        setCharactersBaseDraft(prev => ({
           ...prev,
-          face_ref: imageUrl
+          [characterKey]: {
+            ...prev[characterKey],
+            face_ref: imageUrl
+          }
         }));
         
         toast({
@@ -711,11 +710,11 @@ export default function StoryboardWorkspace() {
       }
     };
 
-    // Get face reference - prioritize character data over user input
+    // Get face reference - prioritize draft data when editing
     const getFaceRef = () => {
-      // If we're in edit mode, show what's currently in edit data
-      if (isEditingBase) {
-        return editBaseData.face_ref || null;
+      // If we're in edit mode, show what's currently in draft data
+      if (isEditingCharacters && charactersBaseDraft[characterKey]?.face_ref !== undefined) {
+        return charactersBaseDraft[characterKey].face_ref || null;
       }
       
       // Otherwise show the character's saved face_ref
@@ -734,54 +733,17 @@ export default function StoryboardWorkspace() {
       return null;
     };
 
-    const handleSaveBaseInfo = async () => {
-      try {
-        const updates = {
-          characters: {
-            ...job?.characters,
-            [characterKey]: {
-              ...characterInfo,
-              base: {
-                ...characterInfo.base,
-                name: editBaseData.name,
-                gender: editBaseData.gender,
-                face_ref: editBaseData.face_ref
-              }
-            }
+    const handleRemoveImage = () => {
+      if (isEditingCharacters) {
+        // In edit mode - only update local draft
+        setCharactersBaseDraft(prev => ({
+          ...prev,
+          [characterKey]: {
+            ...prev[characterKey],
+            face_ref: ''
           }
-        };
-
-        const { error } = await supabase
-          .from('storyboard_jobs')
-          .update(updates)
-          .eq('id', jobId);
-
-        if (error) throw error;
-
-        toast({
-          title: t('success'),
-          description: t('characterUpdated'),
-        });
-        
-        setIsEditingBase(false);
-        fetchJob(); // Refresh data
-      } catch (error) {
-        console.error('Error saving base info:', error);
-        toast({
-          title: t('error'),
-          description: t('failedToUpdateCharacter'),
-          variant: 'destructive'
-        });
+        }));
       }
-    };
-
-    const handleCancelEdit = () => {
-      setEditBaseData({
-        name: characterInfo.base?.name || '',
-        gender: characterInfo.base?.gender || '',
-        face_ref: characterInfo.base?.face_ref || ''
-      });
-      setIsEditingBase(false);
     };
 
     return (
@@ -792,37 +754,31 @@ export default function StoryboardWorkspace() {
         <div className="border rounded-lg p-4 bg-card">
           <div className="flex items-center justify-between mb-3">
             <h5 className="font-medium">{t('baseInfo')}</h5>
-            <EditButton
-              onClick={() => isEditingBase ? handleCancelEdit() : setIsEditingBase(true)}
-              isEditing={isEditingBase}
-            />
           </div>
           
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <label className="text-sm font-medium">{t('name')}</label>
-              {isEditingBase ? (
-                <Input 
-                  value={editBaseData.name} 
-                  onChange={(e) => setEditBaseData({...editBaseData, name: e.target.value})}
-                  className="mt-1" 
-                />
+              {isEditingCharacters ? (
+                <div className="mt-1">
+                  <Input value={characterInfo.base?.name || ''} disabled className="bg-muted" />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t('editNameFromMovieInfo') || 'To edit name, use the Movie Info section'}
+                  </p>
+                </div>
               ) : (
                 <Input value={characterInfo.base?.name || ''} disabled className="mt-1" />
               )}
             </div>
             <div>
               <label className="text-sm font-medium">{t('gender')}</label>
-              {isEditingBase ? (
-                <Select value={editBaseData.gender} onValueChange={(value) => setEditBaseData({...editBaseData, gender: value})}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="male">{t('male')}</SelectItem>
-                    <SelectItem value="female">{t('female')}</SelectItem>
-                  </SelectContent>
-                </Select>
+              {isEditingCharacters ? (
+                <div className="mt-1">
+                  <Input value={characterInfo.base?.gender || ''} disabled className="bg-muted" />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t('editGenderFromMovieInfo') || 'To edit gender, use the Movie Info section'}
+                  </p>
+                </div>
               ) : (
                 <Input value={characterInfo.base?.gender || ''} disabled className="mt-1" />
               )}
@@ -841,57 +797,17 @@ export default function StoryboardWorkspace() {
                   alt={t('faceReference')}
                   className="w-16 h-16 object-cover rounded-lg border"
                 />
-                 {isEditingBase && (
+                 {isEditingCharacters && (
                    <Button
                      variant="outline"
                      size="sm"
-                     onClick={async () => {
-                       setEditBaseData({...editBaseData, face_ref: ''});
-                       // Auto-save the removal
-                       try {
-                         const updates = {
-                           characters: {
-                             ...job?.characters,
-                             [characterKey]: {
-                               ...characterInfo,
-                               base: {
-                                 ...characterInfo.base,
-                                 name: editBaseData.name,
-                                 gender: editBaseData.gender,
-                                 face_ref: ''
-                               }
-                             }
-                           }
-                         };
-
-                         const { error } = await supabase
-                           .from('storyboard_jobs')
-                           .update(updates)
-                           .eq('id', jobId);
-
-                         if (error) throw error;
-
-                         toast({
-                           title: t('success'),
-                           description: t('faceReferenceRemoved'),
-                         });
-                         
-                         fetchJob(); // Refresh data
-                       } catch (error) {
-                         console.error('Error removing face reference:', error);
-                         toast({
-                           title: t('error'),
-                           description: t('failedToRemoveFaceReference'),
-                           variant: 'destructive'
-                         });
-                       }
-                     }}
+                     onClick={handleRemoveImage}
                    >
                      {t('remove')}
                    </Button>
                  )}
               </div>
-            ) : isEditingBase ? (
+            ) : isEditingCharacters ? (
               <Input
                 type="file"
                 accept="image/*"
@@ -903,16 +819,7 @@ export default function StoryboardWorkspace() {
             )}
           </div>
 
-          {isEditingBase && (
-            <Button
-              onClick={handleSaveBaseInfo}
-              className="w-full"
-            >
-              {t('save')}
-            </Button>
-          )}
-
-          {!isEditingBase && !characterInfo.description && (
+          {!isEditingCharacters && !characterInfo.description && (
             <Button
               onClick={() => handleGenerateCharacterDescription(characterKey)}
               disabled={isGeneratingDescription[characterKey]}
@@ -1571,6 +1478,51 @@ export default function StoryboardWorkspace() {
     }
   };
 
+  // Handle Characters Save
+  const handleSaveCharacters = async () => {
+    try {
+      const updates: any = { characters: { ...job?.characters } };
+      
+      // Apply changes from draft
+      Object.keys(charactersBaseDraft).forEach(characterKey => {
+        if (updates.characters[characterKey]) {
+          updates.characters[characterKey] = {
+            ...updates.characters[characterKey],
+            base: {
+              ...updates.characters[characterKey].base,
+              ...charactersBaseDraft[characterKey]
+            }
+          };
+        }
+      });
+
+      updates.characters_updated_at = new Date().toISOString();
+
+      const { error } = await supabase
+        .from('storyboard_jobs')
+        .update(updates)
+        .eq('id', jobId);
+
+      if (error) throw error;
+
+      toast({
+        title: t('success'),
+        description: t('charactersUpdated') || 'Characters updated successfully',
+      });
+      
+      setEditingSections(prev => ({ ...prev, characters: false }));
+      setCharactersBaseDraft({});
+      fetchJob(); // Refresh data
+    } catch (error) {
+      console.error('Error saving characters:', error);
+      toast({
+        title: t('error'),
+        description: t('failedToUpdateCharacters') || 'Failed to update characters',
+        variant: 'destructive'
+      });
+    }
+  };
+
   // Edit toggle with warning system
   const handleEditToggle = (sectionKey: string) => {
     const isCurrentlyEditing = editingSections[sectionKey];
@@ -1636,6 +1588,9 @@ export default function StoryboardWorkspace() {
             }
           });
         }
+      } else if (sectionKey === 'characters') {
+        // Reset characters draft data
+        setCharactersBaseDraft({});
       }
       
       setEditingSections(prev => ({ ...prev, [sectionKey]: false }));
@@ -1665,6 +1620,19 @@ export default function StoryboardWorkspace() {
       setAffectedSections(impactResult.affectedSections);
       setShowEditWarning(true);
     } else {
+      // Initialize edit data based on section
+      if (sectionKey === 'characters' && job?.characters) {
+        // Initialize characters draft with current base data
+        const initialDraft: any = {};
+        if (job.characters.lead?.base) {
+          initialDraft.lead = { ...job.characters.lead.base };
+        }
+        if (job.characters.supporting?.base) {
+          initialDraft.supporting = { ...job.characters.supporting.base };
+        }
+        setCharactersBaseDraft(initialDraft);
+      }
+      
       setEditingSections(prev => ({ ...prev, [sectionKey]: true }));
     }
   };
@@ -1686,6 +1654,20 @@ export default function StoryboardWorkspace() {
       
       // Ensure section is expanded when editing starts
       setOpenSections(prev => ({ ...prev, [section]: true }));
+      
+      // Initialize edit data based on section
+      if (section === 'characters' && job?.characters) {
+        // Initialize characters draft with current base data
+        const initialDraft: any = {};
+        if (job.characters.lead?.base) {
+          initialDraft.lead = { ...job.characters.lead.base };
+        }
+        if (job.characters.supporting?.base) {
+          initialDraft.supporting = { ...job.characters.supporting.base };
+        }
+        setCharactersBaseDraft(initialDraft);
+      }
+      
       setEditingSections(prev => ({ ...prev, [section]: true }));
       setShowEditWarning(false);
       setPendingEdit(null);
@@ -1694,6 +1676,20 @@ export default function StoryboardWorkspace() {
     } else if (action === 'override') {
       // Start editing with warning acknowledged and mark affected sections
       setOpenSections(prev => ({ ...prev, [section]: true }));
+      
+      // Initialize edit data based on section
+      if (section === 'characters' && job?.characters) {
+        // Initialize characters draft with current base data
+        const initialDraft: any = {};
+        if (job.characters.lead?.base) {
+          initialDraft.lead = { ...job.characters.lead.base };
+        }
+        if (job.characters.supporting?.base) {
+          initialDraft.supporting = { ...job.characters.supporting.base };
+        }
+        setCharactersBaseDraft(initialDraft);
+      }
+      
       setEditingSections(prev => ({ ...prev, [section]: true }));
       setOverrideMode(true);
       
@@ -2786,17 +2782,17 @@ export default function StoryboardWorkspace() {
                           </Button>
                         )}
                         
-                        {/* Edit Button - only show for movie_info section, characters section doesn't have edit */}
-                        {section.key === 'movie_info' && (
-                          <EditButton
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditToggle(section.key);
-                            }}
-                            disabled={isAnyEditMode && !isEditing}
-                            isEditing={isEditing}
-                          />
-                        )}
+        {/* Edit Button - show for movie_info and characters sections */}
+        {(section.key === 'movie_info' || section.key === 'characters') && (
+          <EditButton
+            onClick={(e) => {
+              e.stopPropagation();
+              handleEditToggle(section.key);
+            }}
+            disabled={isAnyEditMode && !isEditing}
+            isEditing={isEditing}
+          />
+        )}
                      </div>
                   </div>
                 </CardHeader>
