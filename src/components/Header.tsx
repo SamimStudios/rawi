@@ -37,11 +37,11 @@ const Header = () => {
   const walletCredits = user ? credits : 0;
 
   return (
-    <header className="sticky top-0 z-50 bg-gradient-glass backdrop-blur-md border-b border-border/50 shadow-soft">
+    <header className="sticky top-0 z-50 glass border-b border-border/50">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between" dir={isRTL ? 'rtl' : 'ltr'}>
           {/* Logo */}
-          <Link to="/" className="flex items-center interactive-scale-small">
+          <Link to="/" className="flex items-center interactive">
             <img 
               src={logoSrc}
               alt={t('rawiApp')} 
@@ -72,7 +72,7 @@ const Header = () => {
                   <span className="hidden sm:inline">{language.toUpperCase()}</span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-popover border border-border shadow-cinematic z-50">
+              <DropdownMenuContent align="end" className="glass border border-border glow z-50">
                 <DropdownMenuItem 
                   onClick={() => setLanguage('en')}
                   className={cn("cursor-pointer", language === 'en' && "bg-accent")}
@@ -90,7 +90,7 @@ const Header = () => {
 
             {/* Wallet */}
             <Link to={user ? "/app/wallet" : "/auth/sign-in"}>
-              <Button variant="glass" size="sm" className="flex items-center gap-2 interactive-scale-small">
+              <Button variant="outline" size="sm" className="flex items-center gap-2 interactive">
                 <Wallet className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium">{walletCredits} {t('credits')}</span>
               </Button>
@@ -105,7 +105,7 @@ const Header = () => {
                     <span className="hidden md:inline">{user.email?.split('@')[0]}</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="bg-popover border border-border shadow-cinematic z-50">
+                <DropdownMenuContent align="end" className="glass border border-border glow z-50">
                   <DropdownMenuItem asChild>
                     <Link to="/app" className="cursor-pointer">{t('dashboard')}</Link>
                   </DropdownMenuItem>
@@ -123,7 +123,7 @@ const Header = () => {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button variant="gradient" size="sm" className="hidden sm:flex interactive-scale-small" asChild>
+              <Button className="hidden sm:flex interactive gradient" size="sm" asChild>
                 <Link to="/auth/sign-in">
                   {t('signIn')}
                 </Link>

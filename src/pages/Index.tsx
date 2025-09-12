@@ -10,24 +10,23 @@ const Index = () => {
   useSEOConfig(seoConfigs.homepage[language]);
 
   return (
-    <div className="page-container bg-mesh">
+    <div className="min-h-screen flex items-center justify-center">
       {/* Hero Section */}
-      <main className="page-content container mx-auto mobile-padding py-16 md:py-24">
+      <main className="container mx-auto p-4 py-16 md:py-24">
         <div className="text-center space-y-8 max-w-4xl mx-auto">
-          <h1 className="title-hero text-gradient-primary">
+          <h1 className="title-hero text-gradient">
             {t('heroHeadline')}
           </h1>
           
-          <p className="text-responsive-xl text-foreground/80 max-w-3xl mx-auto">
+          <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
             {t('heroSubtext')}
           </p>
 
           <div className="pt-8 mobile-stack flex flex-col sm:flex-row gap-4 justify-center items-center">
             <Button 
-              variant="gradient"
               size="lg" 
               asChild
-              className="text-lg px-8 py-4 h-auto glow-primary interactive-scale"
+              className="text-lg px-8 py-4 h-auto gradient glow interactive ripple"
             >
               <Link to="/auth/sign-up">
                 {t('getStarted')}
@@ -35,10 +34,10 @@ const Index = () => {
             </Button>
             
             <Button 
-              variant="glass"
+              variant="outline"
               size="lg" 
               asChild
-              className="text-lg px-8 py-4 h-auto interactive-scale"
+              className="text-lg px-8 py-4 h-auto interactive"
             >
               <Link to="/try/cinematic-teaser">
                 {t('tryFreeButton')}
@@ -48,11 +47,11 @@ const Index = () => {
 
           {/* Sign In Link */}
           <div className="pt-8">
-            <p className="text-foreground/70">
+            <p className="text-muted-foreground">
               {t('alreadyHaveAccount')}{' '}
               <Link 
                 to="/auth/sign-in" 
-                className="text-gradient-accent hover:opacity-80 transition-opacity"
+                className="text-gradient hover:opacity-80 transition-opacity"
               >
                 {t('signIn')}
               </Link>

@@ -112,42 +112,42 @@ const SignIn = () => {
   };
 
   return (
-    <div className="page-container bg-mesh flex flex-col items-center justify-center mobile-padding">
-      <div className="page-content w-full max-w-md mx-auto">
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="w-full max-w-md mx-auto">
         {/* Logo */}
         <div className="mb-8 text-center">
           <img 
             src={language === 'ar' ? '/brand/logo-lockup-ar-vertical.svg' : '/brand/logo-lockup-en-vertical.svg'} 
             alt={t('rawiLogo')} 
-            className="h-20 w-auto mx-auto interactive-scale-small"
+            className="h-20 w-auto mx-auto interactive"
           />
         </div>
 
         {/* Language Toggle */}
         <div className="mb-8 flex gap-2 justify-center">
           <Button
-            variant={language === 'en' ? 'gradient' : 'glass'}
+            variant={language === 'en' ? 'default' : 'outline'}
             onClick={() => setLanguage('en')}
-            className="interactive-scale-small"
+            className="interactive"
           >
             EN
           </Button>
           <Button
-            variant={language === 'ar' ? 'gradient' : 'glass'}
+            variant={language === 'ar' ? 'default' : 'outline'}
             onClick={() => setLanguage('ar')}
-            className="interactive-scale-small"
+            className="interactive"
           >
             AR
           </Button>
         </div>
 
         {/* Sign In Form */}
-        <div className="space-y-6 card-enhanced p-8 rounded-xl">
+        <div className="space-y-6 glass glow p-8 rounded-xl">
           <div className="text-center">
-            <h1 className="title-section text-gradient-primary mb-2">
+            <h1 className="title-section text-gradient mb-2">
               {language === 'ar' ? 'تسجيل الدخول' : 'Sign In'}
             </h1>
-            <p className="text-foreground/70">
+            <p className="text-muted-foreground">
               {language === 'ar' ? 'ادخل إلى حسابك' : 'Access your account'}
             </p>
           </div>
@@ -157,9 +157,8 @@ const SignIn = () => {
             {/* Social Login Buttons */}
             <Button
               onClick={() => handleOAuthSignIn('google')}
-              variant="gradient"
+              className="w-full h-12 gradient ripple"
               disabled={isLoading}
-              className="w-full h-12 interactive-scale"
             >
               <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -173,9 +172,8 @@ const SignIn = () => {
 
             <Button
               onClick={() => handleOAuthSignIn('facebook')}
-              variant="gradient"
+              className="w-full h-12 gradient-accent ripple"
               disabled={isLoading}
-              className="w-full h-12 interactive-scale"
             >
               <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
@@ -188,16 +186,16 @@ const SignIn = () => {
                 <span className="w-full border-t border-white/20" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-[#0F1320] px-2 text-white/70">
+                <span className="bg-background px-2 text-muted-foreground">
                   {language === 'ar' ? 'أو' : 'or'}
                 </span>
               </div>
             </div>
 
             <Button
-              variant="glass"
+              variant="outline"
               onClick={() => setShowEmailForm(true)}
-              className="w-full interactive-scale"
+              className="w-full interactive"
             >
               {language === 'ar' ? 'تسجيل الدخول بالإيميل' : 'Sign in with Email'}
             </Button>
