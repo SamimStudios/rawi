@@ -107,6 +107,7 @@ export function WorkspaceLayout({ jobId }: WorkspaceLayoutProps) {
             onToggleSection={actions.toggleSection}
             onSetEditMode={actions.setEditMode}
             onStartGeneration={actions.startGeneration}
+            onSetValidation={actions.setSectionValidation}
             isMobile={isMobile}
           />
         </div>

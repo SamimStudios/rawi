@@ -69,7 +69,7 @@ const initialState: WorkspaceState = {
   generationQueue: [],
   generatingSection: null,
   generationProgress: {},
-  openSections: new Set(['movie_info']), // Start with first section open
+  openSections: new Set(['user_input']), // Start with user input section open
   editMode: {},
   unsavedChanges: new Set()
 };

@@ -26,6 +26,7 @@ interface WorkspaceSidebarProps {
 }
 
 const SECTION_ICONS = {
+  'user_input': Users,
   'movie_info': Film,
   'characters': Users,
   'props': Package,

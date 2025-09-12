@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Loader2, RefreshCw, Edit, Save, X } from 'lucide-react';
+import { Loader2, RefreshCw, Edit, Save, X, CheckCircle } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 
@@ -15,6 +15,9 @@ interface MovieInfoSectionProps {
   validation: any;
   onUpdate: (data: any) => void;
   onGenerate: () => void;
+  onValidate?: (data: any) => void;
+  generateFunctionId?: string;
+  validateFunctionId?: string;
   onSetEditMode: (enabled: boolean) => void;
   isMobile: boolean;
 }
@@ -26,6 +29,9 @@ export function MovieInfoSection({
   validation,
   onUpdate,
   onGenerate,
+  onValidate,
+  generateFunctionId,
+  validateFunctionId,
   onSetEditMode,
   isMobile
 }: MovieInfoSectionProps) {
@@ -90,10 +96,25 @@ export function MovieInfoSection({
                 <Edit className="w-4 h-4" />
                 {t('edit')}
               </Button>
+              {onValidate && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onValidate(localData)}
+                  className="flex items-center gap-2"
+                  functionId={validateFunctionId}
+                  showCredits
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  {t('validate')}
+                </Button>
+              )}
               <Button
                 onClick={onGenerate}
                 disabled={isGenerating}
                 className="flex items-center gap-2"
+                functionId={generateFunctionId}
+                showCredits
               >
                 {isGenerating ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

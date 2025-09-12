@@ -31,12 +31,19 @@ export interface WorkspaceField {
 // Main workspace sections configuration
 export const WORKSPACE_SECTIONS: WorkspaceSection[] = [
   {
+    key: 'user_input',
+    titleKey: 'initialInput',
+    icon: 'Users',
+    description: '',
+    fields: []
+  },
+  {
     key: 'movie_info',
     titleKey: 'movieInformation',
     icon: 'Film',
     generateFunctionId: 'generate-movie-info',
     editFunctionId: 'edit-movie-info',
-    validateFunctionId: 'validate-movie-info',
+    validateFunctionId: 'validate-movie-info', 
     affectedSections: ['characters', 'props', 'timeline', 'music'],
     fields: [
       {
