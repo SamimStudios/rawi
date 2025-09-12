@@ -108,19 +108,76 @@ export function UserInputSection({ data, isEditing, onUpdate, onSetEditMode, isM
         {/* Lead name */}
         <div className="space-y-2">
           <Label>{t('leadName')}</Label>
-          <Input value={local.characters?.lead?.name || ''} onChange={(e) => handleCharacterChange('lead','name', e.target.value)} disabled={!isEditing} />
+          <Input 
+            value={local.characters?.lead?.name || ''} 
+            onChange={(e) => handleCharacterChange('lead','name', e.target.value)} 
+            disabled={!isEditing}
+            placeholder={t('enterLeadCharacterName') || 'Enter lead character name...'}
+          />
         </div>
 
         {/* Lead gender */}
         <div className="space-y-2">
           <Label>{t('gender')}</Label>
-          <Input value={local.characters?.lead?.gender || ''} onChange={(e) => handleCharacterChange('lead','gender', e.target.value)} disabled={!isEditing} />
+          <Select 
+            value={local.characters?.lead?.gender || ''} 
+            onValueChange={(v) => handleCharacterChange('lead','gender', v)} 
+            disabled={!isEditing}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder={t('selectGender')} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="male">{t('male')}</SelectItem>
+              <SelectItem value="female">{t('female')}</SelectItem>
+              <SelectItem value="ذكر">{t('male')}</SelectItem>
+              <SelectItem value="أنثى">{t('female')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Supporting character name */}
+        <div className="space-y-2">
+          <Label>{t('supportingCharacterName') || 'Supporting Character'}</Label>
+          <Input 
+            value={local.characters?.supporting?.name || ''} 
+            onChange={(e) => handleCharacterChange('supporting','name', e.target.value)} 
+            disabled={!isEditing}
+            placeholder={t('enterSupportingCharacterName') || 'Enter supporting character name...'}
+          />
+        </div>
+
+        {/* Supporting character gender */}
+        <div className="space-y-2">
+          <Label>{t('supportingGender') || 'Supporting Gender'}</Label>
+          <Select 
+            value={local.characters?.supporting?.gender || ''} 
+            onValueChange={(v) => handleCharacterChange('supporting','gender', v)} 
+            disabled={!isEditing}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder={t('selectGender')} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="male">{t('male')}</SelectItem>
+              <SelectItem value="female">{t('female')}</SelectItem>
+              <SelectItem value="ذكر">{t('male')}</SelectItem>
+              <SelectItem value="أنثى">{t('female')}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Prompt */}
         <div className="space-y-2 lg:col-span-2">
           <Label>{t('prompt')}</Label>
-          <Textarea rows={3} value={local.prompt || ''} onChange={(e) => handleChange('prompt', e.target.value)} disabled={!isEditing} />
+          <Textarea 
+            rows={4} 
+            value={local.prompt || ''} 
+            onChange={(e) => handleChange('prompt', e.target.value)} 
+            disabled={!isEditing}
+            placeholder={t('enterStoryDescription') || 'Describe your story idea...'}
+            className={cn(!isEditing && "bg-muted/50 cursor-default resize-none")}
+          />
         </div>
       </div>
     </div>
@@ -130,21 +187,38 @@ export function UserInputSection({ data, isEditing, onUpdate, onSetEditMode, isM
 // Normalize incoming data to a consistent shape for the form
 function normalizeIn(raw: any) {
   const ui = raw || {};
+  
+  // Handle multiple possible formats for character data
   const characters = ui.characters || {};
-  const lead = characters.lead || {};
-  const supporting = characters.supporting || {};
+  let lead = characters.lead || {};
+  let supporting = characters.supporting || {};
+  
+  // Fallback to old format if new format doesn't exist
+  if (!lead.name && !lead.gender) {
+    lead = {
+      name: ui.leadName || ui.lead_name || '',
+      gender: ui.leadGender || ui.lead_gender || ''
+    };
+  }
+  
+  // Handle supporting character fallbacks
+  if (!supporting.name && !supporting.gender) {
+    const supportingChars = ui.supportingCharacters || ui.supporting_characters;
+    if (supportingChars && supportingChars.length > 0) {
+      supporting = supportingChars[0];
+    }
+  }
+  
   return {
     template: ui.template || '',
     language: ui.language || 'English',
     accent: ui.accent || 'US',
     size: ui.size || '',
     prompt: ui.prompt || '',
+    genres: ui.genres || [],
     characters: {
-      lead: {
-        name: lead.name || ui.leadName || ui.lead_name || '',
-        gender: lead.gender || ui.leadGender || ui.lead_gender || ''
-      },
-      supporting: supporting.name || supporting.gender ? supporting : undefined
+      lead,
+      supporting: (supporting.name || supporting.gender) ? supporting : undefined
     }
   };
 }

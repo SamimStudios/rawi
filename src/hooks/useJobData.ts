@@ -173,8 +173,9 @@ export function useJobData(jobId: string) {
   // Auto-save function with debouncing
   const debouncedUpdate = useMutation({
     mutationFn: updateJobMutation.mutateAsync,
-    onError: () => {
-      // Silent auto-save errors, user will see manual save errors
+    onError: (error) => {
+      // Only show error if it's not a guest session issue
+      console.warn('Auto-save failed:', error);
     }
   });
 

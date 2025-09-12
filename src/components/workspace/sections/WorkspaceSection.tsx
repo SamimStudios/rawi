@@ -47,7 +47,7 @@ export function WorkspaceSection({
       case 'Film':
         return <span className="w-5 h-5 flex items-center justify-center">🎬</span>;
       case 'Users':
-        return <span className="w-5 h-5 flex items-center justify-center">👥</span>;
+        return <span className="w-5 h-5 flex items-center justify-center">👤</span>;
       case 'Package':
         return <span className="w-5 h-5 flex items-center justify-center">📦</span>;
       case 'Play':
@@ -55,7 +55,7 @@ export function WorkspaceSection({
       case 'Music':
         return <span className="w-5 h-5 flex items-center justify-center">🎵</span>;
       default:
-        return <span className="w-5 h-5 flex items-center justify-center">📋</span>;
+        return <span className="w-5 h-5 flex items-center justify-center">📝</span>;
     }
   };
   

@@ -76,7 +76,7 @@ export function WorkspaceContent({
         {/* Welcome message */}
         <div className="bg-card border border-border rounded-lg p-6">
           <h1 className="text-2xl font-bold text-foreground mb-2">Workspace</h1>
-          <p className="text-muted-foreground">Build your storyboard step by step.</p>
+          <p className="text-muted-foreground">Build your storyboard step by step. Start with your initial input, then generate movie information and characters.</p>
         </div>
 
         {/* User Input Section (custom) */}
@@ -205,24 +205,8 @@ export function WorkspaceContent({
             );
           }
 
-          // Default section rendering
-          return (
-            <WorkspaceSection
-              key={section.key}
-              section={section}
-              job={job}
-              data={sectionData[section.key]}
-              validation={validationStatus[section.key]}
-              progress={generationProgress[section.key] || 0}
-              isOpen={openSections.has(section.key)}
-              isEditing={editMode[section.key] || false}
-              onToggle={() => onToggleSection(section.key)}
-              onUpdateData={(data) => onUpdateSection(section.key, data)}
-              onSetEditMode={(enabled) => onSetEditMode(section.key, enabled)}
-              onStartGeneration={() => onStartGeneration(section.key)}
-              isMobile={isMobile}
-            />
-          );
+          // Skip other sections for now (props, timeline, music)
+          return null;
         })}
         
         {/* Bottom spacing for mobile navigation */}

@@ -81,6 +81,11 @@ export function CharactersSection({ jobId, data, isEditing, onUpdate, isMobile, 
     const description = info.description || null;
     const portraitUrl = info.portrait_url || null;
 
+    // Don't render supporting character if no data exists
+    if (role === 'supporting' && !base.name && !base.gender) {
+      return null;
+    }
+
     return (
       <div className="border rounded-lg p-4 space-y-4">
         <h4 className="font-semibold text-lg">{title}</h4>
@@ -97,52 +102,103 @@ export function CharactersSection({ jobId, data, isEditing, onUpdate, isMobile, 
           </div>
         </div>
 
-        {/* Description actions */}
-        <div className="flex flex-wrap gap-2">
-          <Button 
-            onClick={() => handleGenerateDescription(role)}
-            disabled={!!generatingDesc[role]}
-            functionId={functionIds.generateDescription}
-            showCredits
-            className="flex items-center gap-2"
-          >
-            {generatingDesc[role] ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            {t('generateDescription')}
-          </Button>
+        {/* Description section */}
+        <div className="space-y-2">
+          <Label className="text-sm">{t('description')}</Label>
+          {description ? (
+            <div className="bg-muted/50 p-3 rounded-lg text-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                {Object.entries(description).map(([key, value]) => (
+                  <div key={key}>
+                    <span className="font-medium capitalize">{key.replace(/_/g, ' ')}: </span>
+                    <span>{String(value)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">{t('noDescriptionYet') || 'No description generated yet'}</div>
+          )}
 
-          <Button 
-            onClick={() => handleValidateDescription(role)}
-            disabled={!!validatingDesc[role]}
-            variant="outline"
-            functionId={functionIds.validateDescription}
-            showCredits
-            className="flex items-center gap-2"
-          >
-            {validatingDesc[role] ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-            {t('validate')}
-          </Button>
+          {/* Description actions */}
+          <div className="flex flex-wrap gap-2 pt-2">
+            <Button 
+              onClick={() => handleGenerateDescription(role)}
+              disabled={!!generatingDesc[role] || !base.name || !base.gender}
+              functionId={functionIds.generateDescription}
+              showCredits
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              {generatingDesc[role] ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              {description ? t('regenerateDescription') || 'Regenerate' : t('generateDescription') || 'Generate Description'}
+            </Button>
+
+            {description && (
+              <Button 
+                onClick={() => handleValidateDescription(role)}
+                disabled={!!validatingDesc[role]}
+                variant="outline"
+                size="sm"
+                functionId={functionIds.validateDescription}
+                showCredits
+                className="flex items-center gap-2"
+              >
+                {validatingDesc[role] ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                {t('validate')}
+              </Button>
+            )}
+          </div>
+
+          {!base.name || !base.gender ? (
+            <p className="text-xs text-muted-foreground italic">
+              {t('completeMovieInfoFirst') || 'Complete movie information first to generate character description'}
+            </p>
+          ) : null}
         </div>
 
         {/* Portrait */}
         <div className="space-y-2">
           <Label className="text-sm">{t('portrait')}</Label>
           {portraitUrl ? (
-            <img src={portraitUrl} alt={`${title} portrait`} className="w-40 h-40 object-cover rounded-lg border" />
+            <div className="space-y-2">
+              <img src={portraitUrl} alt={`${title} portrait`} className="w-32 h-32 object-cover rounded-lg border" />
+              <Button 
+                onClick={() => handleGeneratePortrait(role)}
+                disabled={!!generatingPortrait[role] || !description}
+                functionId={functionIds.generatePortrait}
+                showCredits
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                {generatingPortrait[role] ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                {t('regeneratePortrait') || 'Regenerate Portrait'}
+              </Button>
+            </div>
           ) : (
-            <div className="text-sm text-muted-foreground">{t('noPortraitYet') || 'No portrait yet'}</div>
+            <div className="space-y-2">
+              <div className="w-32 h-32 bg-muted/50 rounded-lg border-2 border-dashed flex items-center justify-center">
+                <span className="text-muted-foreground text-xs">{t('noPortrait') || 'No Portrait'}</span>
+              </div>
+              <Button 
+                onClick={() => handleGeneratePortrait(role)}
+                disabled={!!generatingPortrait[role] || !description}
+                functionId={functionIds.generatePortrait}
+                showCredits
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                {generatingPortrait[role] ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                {t('generatePortrait') || 'Generate Portrait'}
+              </Button>
+              
+              {!description && (
+                <p className="text-xs text-muted-foreground italic">
+                  {t('generateDescriptionFirst') || 'Generate character description first'}
+                </p>
+              )}
+            </div>
           )}
-          <div>
-            <Button 
-              onClick={() => handleGeneratePortrait(role)}
-              disabled={!!generatingPortrait[role]}
-              functionId={functionIds.generatePortrait}
-              showCredits
-              className="flex items-center gap-2"
-            >
-              {generatingPortrait[role] ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-              {t('generatePortrait')}
-            </Button>
-          </div>
         </div>
       </div>
     );
@@ -151,7 +207,7 @@ export function CharactersSection({ jobId, data, isEditing, onUpdate, isMobile, 
   return (
     <div className={cn('space-y-4', isMobile && 'px-1')}>
       <CharacterBlock role="lead" title={t('leadCharacter')} />
-      <CharacterBlock role="supporting" title={t('supportingCharacter') || 'Supporting Character'} />
+      {characters.supporting && <CharacterBlock role="supporting" title={t('supportingCharacter') || 'Supporting Character'} />}
     </div>
   );
 }

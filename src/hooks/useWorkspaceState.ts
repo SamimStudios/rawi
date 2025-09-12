@@ -184,6 +184,11 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
 function extractSectionData(job: WorkspaceJob): Record<string, any> {
   const sectionData: Record<string, any> = {};
   
+  // Add user_input manually since it's not in WORKSPACE_SECTIONS
+  if (job.user_input) {
+    sectionData.user_input = job.user_input;
+  }
+  
   WORKSPACE_SECTIONS.forEach(section => {
     if (job[section.key]) {
       sectionData[section.key] = job[section.key];
