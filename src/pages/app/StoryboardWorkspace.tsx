@@ -1254,47 +1254,47 @@ export default function StoryboardWorkspace() {
           </Card>
         )}
 
-        {/* Part 4: Portrait */}
-        {characterInfo.portrait_url && (
-          <Collapsible 
-            open={openCharacterSections[`${characterKey}_portrait`] !== false}
-            onOpenChange={(open) => setOpenCharacterSections(prev => ({ 
-              ...prev, 
-              [`${characterKey}_portrait`]: open 
-            }))}
-          >
-            <Card>
-              <CollapsibleTrigger asChild>
-                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      {openCharacterSections[`${characterKey}_portrait`] !== false ? (
-                        <ChevronDown className="h-4 w-4" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4" />
-                      )}
-                      {t('portrait')}
-                    </CardTitle>
-                    <div className="absolute top-2 right-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleGenerateCharacterPortrait(characterKey);
-                        }}
-                        disabled={isGeneratingPortrait[characterKey]}
-                        functionId={functions['generate-character-portrait']?.id}
-                        showCredits={true}
-                        className="flex items-center gap-1.5 px-3"
-                      >
-                        {isGeneratingPortrait[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        <RefreshCw className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-              </CollapsibleTrigger>
+         {/* Part 4: Portrait */}
+         {characterInfo.portrait_url && (
+           <Collapsible 
+             open={openCharacterSections[`${characterKey}_portrait`] !== false}
+             onOpenChange={(open) => setOpenCharacterSections(prev => ({ 
+               ...prev, 
+               [`${characterKey}_portrait`]: open 
+             }))}
+           >
+             <Card>
+               <CollapsibleTrigger asChild>
+                 <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                   <div className="flex items-center justify-between">
+                     <CardTitle className="flex items-center gap-2 text-base">
+                       {openCharacterSections[`${characterKey}_portrait`] !== false ? (
+                         <ChevronDown className="h-4 w-4" />
+                       ) : (
+                         <ChevronRight className="h-4 w-4" />
+                       )}
+                       {t('portrait')}
+                     </CardTitle>
+                     <div className="flex items-center gap-2">
+                       <Button
+                         variant="outline"
+                         size="sm"
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           handleGenerateCharacterPortrait(characterKey);
+                         }}
+                         disabled={isGeneratingPortrait[characterKey]}
+                         functionId={functions['generate-character-portrait']?.id}
+                         showCredits={true}
+                         className="flex items-center gap-1.5 px-3"
+                       >
+                         {isGeneratingPortrait[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                         <RefreshCw className="h-4 w-4" />
+                       </Button>
+                     </div>
+                   </div>
+                 </CardHeader>
+               </CollapsibleTrigger>
               <CollapsibleContent>
                 <CardContent>
                   <div className="flex justify-center">
