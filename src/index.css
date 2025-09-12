@@ -263,7 +263,7 @@ All colors MUST be HSL. Mobile-first, responsive, with advanced interactions.
   }
 
   .title-section {
-    font-family: var(--font-header);
+    font-family: var(--font-body);
     font-weight: 600;
     font-size: var(--text-3xl);
     line-height: 1.2;
