@@ -4,6 +4,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { WorkspaceSidebar } from './WorkspaceSidebar';
 import { WorkspaceContent } from './WorkspaceContent';
+import { DebugPanel } from './DebugPanel';
 import { useWorkspaceState } from '@/hooks/useWorkspaceState';
 
 interface WorkspaceLayoutProps {
@@ -61,6 +62,15 @@ export function WorkspaceLayout({ jobId }: WorkspaceLayoutProps) {
   
   return (
     <div className="min-h-screen bg-background">
+      {/* Debug Panel - Only in development */}
+      <div className="container mx-auto px-4 pt-4">
+        <DebugPanel 
+          job={state.job}
+          isLoading={state.loading}
+          error={state.error}
+        />
+      </div>
+      
       {/* Header - Always visible */}
       <WorkspaceHeader 
         job={state.job}

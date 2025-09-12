@@ -18,23 +18,35 @@ export function useJobData(jobId: string) {
     error,
     refetch
   } = useQuery({
-    queryKey: ['job', jobId],
+    queryKey: ['storyboard-job', jobId],
     queryFn: async (): Promise<WorkspaceJob | null> => {
       if (!jobId) return null;
 
-      const { data, error } = await supabase
+      console.log('Fetching job:', jobId, 'with sessionId:', sessionId);
+
+      let query = supabase
         .from('storyboard_jobs')
         .select('*')
-        .eq('id', jobId)
-        .single();
+        .eq('id', jobId);
+
+      // Add session filter for guest users
+      if (!user && sessionId) {
+        query = query.eq('session_id', sessionId);
+      }
+
+      const { data, error } = await query.maybeSingle();
 
       if (error) {
-        if (error.code === 'PGRST116') { // Not found
-          throw new Error('Job not found');
-        }
+        console.error('Job fetch error:', error);
         throw new Error(`Failed to fetch job: ${error.message}`);
       }
 
+      if (!data) {
+        console.warn('Job not found:', jobId);
+        return null;
+      }
+
+      console.log('Job data loaded:', data);
       return data as WorkspaceJob;
     },
     retry: (failureCount, error) => {
@@ -53,33 +65,46 @@ export function useJobData(jobId: string) {
     mutationFn: async ({ section, data }: { section: string; data: any }) => {
       if (!jobId) throw new Error('No job ID');
 
+      console.log('Updating job section:', section, 'with data:', data);
+
       const updateData = {
         [section]: data,
         [`${section}_updated_at`]: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
 
-      const { error } = await supabase
+      let query = supabase
         .from('storyboard_jobs')
         .update(updateData)
         .eq('id', jobId);
 
+      // Add session filter for guest users
+      if (!user && sessionId) {
+        query = query.eq('session_id', sessionId);
+      }
+
+      const { error } = await query;
+
       if (error) {
+        console.error('Job update error:', error);
         throw new Error(`Failed to update ${section}: ${error.message}`);
       }
 
+      console.log('Job section updated successfully:', section);
       return { section, data };
     },
     onSuccess: ({ section, data }) => {
-      // Update the cache
-      queryClient.setQueryData(['job', jobId], (oldJob: WorkspaceJob | undefined) => {
+      // Update the cache optimistically
+      queryClient.setQueryData(['storyboard-job', jobId], (oldJob: WorkspaceJob | undefined) => {
         if (!oldJob) return oldJob;
-        return {
+        const newJob = {
           ...oldJob,
           [section]: data,
           [`${section}_updated_at`]: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
+        console.log('Updated job cache:', newJob);
+        return newJob;
       });
       
       toast({
@@ -121,7 +146,7 @@ export function useJobData(jobId: string) {
     },
     onSuccess: (section) => {
       // Update the cache
-      queryClient.setQueryData(['job', jobId], (oldJob: WorkspaceJob | undefined) => {
+      queryClient.setQueryData(['storyboard-job', jobId], (oldJob: WorkspaceJob | undefined) => {
         if (!oldJob) return oldJob;
         const newJob = { ...oldJob };
         delete newJob[section];
