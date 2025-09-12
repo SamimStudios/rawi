@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -44,8 +44,6 @@ import { EditButton } from '@/components/ui/edit-button';
 import { SystemAlertDialog, SystemAlertAction } from '@/components/ui/system-alert-dialog';
 import { cn, formatBiMessage } from '@/lib/utils';
 import { SupportingCharacterSection } from '@/components/storyboard/SupportingCharacterSection';
-import { MemoizedCharacterButtons } from '@/components/storyboard/MemoizedCharacterButtons';
-import { MemoizedCharacterField } from '@/components/storyboard/MemoizedCharacterField';
 
 // Progressive section configuration - titles will be localized using t()
 const getSections = (t: any) => [
@@ -1054,38 +1052,108 @@ export default function StoryboardWorkspace() {
                      {t('description')}
                    </CardTitle>
                    <div className="flex items-center gap-2">
-                       <MemoizedCharacterButtons
-                         characterKey={characterKey}
-                         isEditing={characterEditData[`${characterKey}_editing`]}
-                         isValidating={characterValidationStatus[characterKey] === 'validating'}
-                         isGeneratingDescription={isGeneratingDescription[characterKey]}
-                         validationStatus={characterValidationStatus[characterKey]}
-                         hasValidateFunction={!!functions['validate-character-description']}
-                         onValidate={handleCharacterValidate(characterKey)}
-                         onSave={handleCharacterSave(characterKey)}
-                         onCancel={handleCharacterCancel(characterKey)}
-                         onEdit={handleCharacterEdit(characterKey)}
-                         onRegenerate={handleCharacterRegenerate(characterKey)}
-                         validateFunctionId={functions['validate-character-description']?.id}
-                         generateFunctionId={functions['generate-character-description']?.id}
-                         t={t}
-                       />
+                      {characterEditData[`${characterKey}_editing`] ? (
+                        <div className="flex gap-2">
+                          {/* Validate Button - Shows credits */}
+                          <Button
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleValidateCharacterDescription(characterKey, characterEditData[characterKey]);
+                            }}
+                            disabled={characterValidationStatus[characterKey] === 'validating'}
+                            className="flex items-center gap-1.5 px-3"
+                            functionId={functions['validate-character-description']?.id}
+                            showCredits={true}
+                          >
+                            {characterValidationStatus[characterKey] === 'validating' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            <CheckCircle className="h-4 w-4" />
+                            {characterValidationStatus[characterKey] === 'validating' ? t('validating') : t('validate')}
+                          </Button>
+
+                          {/* Save Button - Disabled until validated */}
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSaveCharacterDescription(characterKey, characterEditData[characterKey]);
+                            }}
+                            disabled={
+                              isValidatingDescription[characterKey] ||
+                              (functions['validate-character-description'] && characterValidationStatus[characterKey] !== 'valid')
+                            }
+                            className="flex items-center gap-1.5 px-3"
+                          >
+                            {isValidatingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            <Save className="h-4 w-4" />
+                            {isValidatingDescription[characterKey] ? t('saving') : t('save')}
+                            {functions['validate-character-description'] && characterValidationStatus[characterKey] !== 'valid' && (
+                              <span className="text-xs opacity-75">
+                                {t('validateFirst')}
+                              </span>
+                            )}
+                          </Button>
+
+                          {/* Cancel Button */}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Reset validation state when canceling
+                              setCharacterValidationStatus(prev => ({ ...prev, [characterKey]: null }));
+                              setCharacterValidationReason(prev => ({ ...prev, [characterKey]: null }));
+                              setCharacterEditData(prev => ({ 
+                                ...prev, 
+                                [`${characterKey}_editing`]: false 
+                              }));
+                            }}
+                            className="flex items-center gap-1.5 px-3"
+                          >
+                            <X className="h-4 w-4" />
+                            {t('cancel')}
+                          </Button>
+                        </div>
+                     ) : (
+                       <div className="flex gap-2">
+                         <EditButton
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             setCharacterEditData(prev => ({ 
+                               ...prev, 
+                               [`${characterKey}_editing`]: !prev[`${characterKey}_editing`] 
+                             }));
+                           }}
+                           isEditing={characterEditData[`${characterKey}_editing`]}
+                           variant="ghost"
+                           size="sm"
+                         />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRegenerateWithConfirmation(`characters_description_${characterKey}`);
+                            }}
+                            disabled={isGeneratingDescription[characterKey]}
+                            functionId={functions['generate-character-description']?.id}
+                            showCredits={true}
+                            className="flex items-center gap-1.5 px-3"
+                          >
+                            {isGeneratingDescription[characterKey] && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
+                       </div>
+                     )}
                     </div>
                   </div>
                 </CardHeader>
               </CollapsibleTrigger>
-              <CollapsibleContent forceMount>
+              <CollapsibleContent>
                 <CardContent>
                   {characterEditData[`${characterKey}_editing`] ? (
-                    <div 
-                      className="space-y-3"
-                      onKeyDownCapture={(e) => {
-                        // Prevent event bubbling that might cause focus loss
-                        if (e.key === 'Tab' || e.key === 'Enter') {
-                          e.stopPropagation();
-                        }
-                      }}
-                    >
+                    <div className="space-y-3">
                       {/* Validation Status Display */}
                       {characterValidationStatus[characterKey] && (
                         <div className={cn(
@@ -1125,16 +1193,11 @@ export default function StoryboardWorkspace() {
                         <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
                           <div className="flex items-center justify-between mb-2">
                             <span className="font-medium text-amber-300">{t('suggestedImprovements')}:</span>
-                             <Button 
-                               type="button"
-                               onClick={(e) => {
-                                 e.stopPropagation();
-                                 console.log('🔧 Apply suggestions button clicked for character:', characterKey);
-                                 handleApplyCharacterSuggestions(characterKey);
-                               }}
-                               size="sm"
-                               variant="outline"
-                             >
+                            <Button 
+                              onClick={() => handleApplyCharacterSuggestions(characterKey)}
+                              size="sm"
+                              variant="outline"
+                            >
                               {t('applySuggestions')}
                             </Button>
                           </div>
@@ -1275,58 +1338,9 @@ export default function StoryboardWorkspace() {
   };
 
   // Create debounced handlers for character description fields
-  const handleCharacterFieldChange = useCallback((characterKey: string, field: string, value: string) => {
-    console.log('📝 Field changed:', characterKey, field, value);
-    setCharacterEditData(prev => ({
-      ...prev,
-      [characterKey]: {
-        ...prev[characterKey],
-        [field]: value
-      }
-    }));
-  }, []);
-
-  const handleCharacterValidate = useCallback((characterKey: string) => (e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    console.log('🔍 Validate button clicked for character:', characterKey);
-    handleValidateCharacterDescription(characterKey, characterEditData[characterKey]);
-  }, [characterEditData]);
-
-  const handleCharacterSave = useCallback((characterKey: string) => (e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    console.log('💾 Save button clicked for character:', characterKey);
-    handleSaveCharacterDescription(characterKey, characterEditData[characterKey]);
-  }, [characterEditData]);
-
-  const handleCharacterCancel = useCallback((characterKey: string) => (e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    console.log('❌ Cancel button clicked for character:', characterKey);
-    // Reset validation state when canceling
-    setCharacterValidationStatus(prev => ({ ...prev, [characterKey]: null }));
-    setCharacterValidationReason(prev => ({ ...prev, [characterKey]: null }));
-    setCharacterEditData(prev => ({ 
-      ...prev, 
-      [`${characterKey}_editing`]: false 
-    }));
-  }, []);
-
-  const handleCharacterEdit = useCallback((characterKey: string) => (e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    setCharacterEditData(prev => ({ 
-      ...prev, 
-      [`${characterKey}_editing`]: !prev[`${characterKey}_editing`] 
-    }));
-  }, []);
-
-  const handleCharacterRegenerate = useCallback((characterKey: string) => (e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    handleRegenerateWithConfirmation(`characters_description_${characterKey}`);
-  }, []);
-
   const createCharacterFieldHandler = useCallback((characterKey: string, field: string) => {
     return (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value;
-      console.log('📝 Field changed:', characterKey, field, value);
       setCharacterEditData(prev => ({
         ...prev,
         [characterKey]: {
@@ -1337,25 +1351,24 @@ export default function StoryboardWorkspace() {
     };
   }, []);
 
-  const renderEditableDescriptionFields = useCallback((characterKey: string, description: any) => {
-    console.log('🔄 renderEditableDescriptionFields called for:', characterKey);
+  const renderEditableDescriptionFields = (characterKey: string, description: any) => {
     const fields = ['age_range', 'ethnicity', 'skin_tone', 'body', 'face_features', 'head', 'clothes', 'personality'];
     
     return (
       <div className="grid grid-cols-2 gap-3">
         {fields.map(field => (
-          <MemoizedCharacterField
-            key={field}
-            characterKey={characterKey}
-            field={field}
-            value={characterEditData[characterKey]?.[field] || description[field] || ''}
-            label={t(field)}
-            onChange={handleCharacterFieldChange}
-          />
+          <div key={field}>
+            <label className="text-sm font-medium">{t(field)}</label>
+            <Input
+              value={characterEditData[characterKey]?.[field] || description[field] || ''}
+              onChange={createCharacterFieldHandler(characterKey, field)}
+              className="mt-1"
+            />
+          </div>
         ))}
       </div>
     );
-  }, [characterEditData, handleCharacterFieldChange, t]);
+  };
 
   // Enhanced edit impact check with detailed information
   const checkEditImpact = (sectionKey: string): { hasImpact: boolean; affectedSections: string[] } => {
@@ -2680,16 +2693,6 @@ export default function StoryboardWorkspace() {
   useEffect(() => {
     if (!jobId) return;
 
-    // Check if any character is currently being edited
-    const isEditingAnyCharacter = Object.keys(characterEditData).some(key => 
-      key.includes('_editing') && characterEditData[key]
-    );
-    
-    if (isEditingAnyCharacter) {
-      console.log('🚫 Pausing realtime updates due to character editing');
-      return;
-    }
-
     const channel = supabase
       .channel('storyboard-job-changes')
       .on(
@@ -2746,7 +2749,7 @@ export default function StoryboardWorkspace() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [jobId, loadingSections, characterEditData]);
+  }, [jobId, loadingSections]);
 
   // Initialize data on mount
   useEffect(() => {
