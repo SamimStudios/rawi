@@ -275,31 +275,7 @@ export default function StoryboardWorkspace() {
   const [overrideMode, setOverrideMode] = useState(false);
   const [sectionWarnings, setSectionWarnings] = useState<Record<string, boolean>>({});
 
-  console.log('🚀 StoryboardWorkspace render:', {
-    jobId,
-    job: job ? {
-      id: job.id,
-      has_movie_info: !!job.movie_info && Object.keys(job.movie_info).length > 0,
-      has_characters: !!job.characters && Object.keys(job.characters).length > 0,
-      has_props: !!job.props && Object.keys(job.props).length > 0,
-      has_timeline: !!job.timeline && Object.keys(job.timeline).length > 0,
-      has_music: !!job.music && Object.keys(job.music).length > 0,
-      user_input_language: (job.user_input as any)?.language,
-      timestamps: {
-        user_input_updated_at: job.user_input_updated_at,
-        movie_info_updated_at: job.movie_info_updated_at,
-        characters_updated_at: job.characters_updated_at,
-        props_updated_at: job.props_updated_at,
-        timeline_updated_at: job.timeline_updated_at,
-        music_updated_at: job.music_updated_at
-      }
-    } : null,
-    functions: Object.keys(functions),
-    credits,
-    openSections,
-    editingSections,
-    loadingSections
-  });
+  // Debug logging removed to prevent excessive console output
 
   // Helper to get user input language (not site language)
   const getUserInputLanguage = () => {
@@ -3626,13 +3602,7 @@ export default function StoryboardWorkspace() {
                                 <div>{getMovieInfoValue(job.movie_info, 'look', t('notAvailable'))}</div>
                               </div>
                             </div>
-                            {/* Debug logging for characters */}
-                            {console.log('🎬 Movie info characters debug:', {
-                              hasCharacters: !!job.movie_info?.characters,
-                              characters: job.movie_info?.characters,
-                              leadExists: !!job.movie_info?.characters?.lead,
-                              supportingExists: !!job.movie_info?.characters?.supporting
-                            })}
+                            {/* Debug logging removed */}
                             {job.movie_info?.characters && (
                               <div>
                                 <div className="text-sm font-medium text-primary mb-2">Initial Characters</div>

@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { SEOProvider } from "@/contexts/SEOContext";
 import { AnalyticsProvider } from "@/contexts/AnalyticsContext";
+import { FunctionDataProvider } from "@/contexts/FunctionDataContext";
 import { AuthProvider } from "@/hooks/useAuth";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Header from "@/components/Header";
@@ -48,10 +49,11 @@ const MainApp = () => (
     <LanguageProvider>
       <SEOProvider>
         <AnalyticsProvider>
-          <TooltipProvider>
-            <ErrorBoundary>
-              <Toaster />
-              <Sonner />
+          <FunctionDataProvider>
+            <TooltipProvider>
+              <ErrorBoundary>
+                <Toaster />
+                <Sonner />
               <BrowserRouter>
                 <AuthProvider>
                   <div className="min-h-screen bg-background">
@@ -247,8 +249,9 @@ const MainApp = () => (
                   </div>
                 </AuthProvider>
               </BrowserRouter>
-            </ErrorBoundary>
-          </TooltipProvider>
+              </ErrorBoundary>
+            </TooltipProvider>
+          </FunctionDataProvider>
         </AnalyticsProvider>
       </SEOProvider>
     </LanguageProvider>
