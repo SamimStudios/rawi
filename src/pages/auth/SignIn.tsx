@@ -112,43 +112,48 @@ const SignIn = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-md mx-auto">
+    <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden">
+      {/* Ambient Background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-900/20 via-purple-900/10 to-orange-900/20"></div>
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
+      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl"></div>
+      
+      <div className="relative z-10 w-full max-w-lg mx-auto">
         {/* Logo */}
-        <div className="mb-8 text-center">
+        <div className="mb-12 text-center">
           <img 
             src={language === 'ar' ? '/brand/logo-lockup-ar-vertical.svg' : '/brand/logo-lockup-en-vertical.svg'} 
             alt={t('rawiLogo')} 
-            className="h-20 w-auto mx-auto interactive"
+            className="h-24 w-auto mx-auto interactive"
           />
         </div>
 
         {/* Language Toggle */}
-        <div className="mb-8 flex gap-2 justify-center">
+        <div className="mb-10 flex gap-3 justify-center">
           <Button
             variant={language === 'en' ? 'default' : 'outline'}
             onClick={() => setLanguage('en')}
-            className="interactive"
+            className={`px-6 py-3 font-medium interactive ${language === 'en' ? 'gradient glow' : 'glass'}`}
           >
-            EN
+            English
           </Button>
           <Button
             variant={language === 'ar' ? 'default' : 'outline'}
             onClick={() => setLanguage('ar')}
-            className="interactive"
+            className={`px-6 py-3 font-medium interactive ${language === 'ar' ? 'gradient glow' : 'glass'}`}
           >
-            AR
+            العربية
           </Button>
         </div>
 
         {/* Sign In Form */}
-        <div className="space-y-6 glass glow p-8 rounded-xl">
-          <div className="text-center">
-            <h1 className="title-section text-gradient mb-2">
+        <div className="premium-box p-10 rounded-2xl space-y-8">
+          <div className="text-center space-y-3">
+            <h1 className="title-section text-gradient">
               {language === 'ar' ? 'تسجيل الدخول' : 'Sign In'}
             </h1>
-            <p className="text-muted-foreground">
-              {language === 'ar' ? 'ادخل إلى حسابك' : 'Access your account'}
+            <p className="text-muted-foreground text-lg">
+              {language === 'ar' ? 'مرحباً بعودتك! ادخل إلى حسابك' : 'Welcome back! Access your account'}
             </p>
           </div>
 
@@ -281,19 +286,22 @@ const SignIn = () => {
           </form>
         )}
 
-          <div className="text-center">
-            <p className="text-foreground/70">
+          <div className="text-center space-y-4">
+            <p className="text-muted-foreground text-lg">
               {language === 'ar' ? 'ليس لديك حساب؟' : "Don't have an account?"}{' '}
-              <Link to="/auth/sign-up" className="text-gradient-accent hover:opacity-80 transition-opacity">
-                {language === 'ar' ? 'إنشاء حساب' : 'Sign up'}
+              <Link to="/auth/sign-up" className="text-gradient hover:opacity-80 transition-opacity font-medium">
+                {language === 'ar' ? 'إنشاء حساب جديد' : 'Create new account'}
               </Link>
             </p>
-          </div>
 
-          <div className="text-center">
-            <Link to="/" className="text-foreground/70 hover:text-foreground transition-colors">
-              {language === 'ar' ? 'العودة للصفحة الرئيسية' : 'Back to Home'}
-            </Link>
+            <div className="pt-4 border-t border-blue-300/20">
+              <Link to="/" className="text-blue-200 hover:text-blue-100 transition-colors inline-flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                {language === 'ar' ? 'العودة للصفحة الرئيسية' : 'Back to Home'}
+              </Link>
+            </div>
           </div>
         </div>
       </div>

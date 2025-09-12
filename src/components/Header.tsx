@@ -37,7 +37,7 @@ const Header = () => {
   const walletCredits = user ? credits : 0;
 
   return (
-    <header className="sticky top-0 z-50 glass border-b border-border/50">
+    <header className="sticky top-0 z-50 premium-box border-b border-blue-300/30">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between" dir={isRTL ? 'rtl' : 'ltr'}>
           {/* Logo */}
