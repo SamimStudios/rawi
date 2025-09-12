@@ -87,14 +87,14 @@ const Settings = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0F1320]">
-      <main className="container mx-auto px-4 py-16">
+    <div className="page-container bg-mesh">
+      <main className="page-content container mx-auto mobile-padding py-16">
         <div className="max-w-4xl mx-auto">
           {/* Page Header */}
           <div className="mb-12">
             <div className="flex items-center gap-3 mb-4">
-              <SettingsIcon className="w-8 h-8 text-primary" />
-              <h1 className="text-4xl md:text-5xl font-bold text-white">
+              <SettingsIcon className="w-8 h-8 text-primary glow-primary" />
+              <h1 className="title-hero text-gradient-primary">
                 {t('settings')}
               </h1>
             </div>
@@ -102,7 +102,7 @@ const Settings = () => {
 
           <div className="space-y-8">
             {/* Profile Settings */}
-            <Card className="bg-card border-border">
+            <Card className="card-enhanced interactive-scale-small">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-foreground">
                   <User className="w-6 h-6 text-primary" />
@@ -123,7 +123,7 @@ const Settings = () => {
             </Card>
 
             {/* Language Settings */}
-            <Card className="bg-card border-border">
+            <Card className="card-enhanced interactive-scale-small">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-foreground">
                   <Globe className="w-6 h-6 text-primary" />
@@ -159,7 +159,7 @@ const Settings = () => {
             </Card>
 
             {/* Account Connections */}
-            <Card className="bg-card border-border">
+            <Card className="card-enhanced interactive-scale-small">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-foreground">
                   <LinkIcon className="w-6 h-6 text-primary" />
@@ -186,7 +186,7 @@ const Settings = () => {
             </Card>
 
             {/* Consent Information */}
-            <Card className="bg-card border-border">
+            <Card className="card-enhanced interactive-scale-small">
               <CardContent className="pt-6">
                 <div className="text-muted-foreground text-sm">
                   {t('consentLogNote')}
@@ -255,9 +255,10 @@ const Settings = () => {
             {/* Save Button */}
             <div className="flex justify-end">
               <Button 
-                variant="primary"
+                variant="gradient"
                 onClick={handleSave}
                 size="lg"
+                className="interactive-scale glow-primary"
               >
                 <Save className="w-5 h-5 mr-2" />
                 {t('save')}

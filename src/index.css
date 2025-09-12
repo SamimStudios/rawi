@@ -78,8 +78,8 @@ All colors MUST be HSL. Mobile-first, responsive, with advanced interactions.
                      radial-gradient(circle at 40% 80%, hsla(338, 93%, 68%, 0.3) 0%, transparent 50%);
     --gradient-glass: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
     
-    /* Grain and Texture */
-    --grain-texture: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.08'/%3E%3C/svg%3E");
+    /* Grain and Texture - Much smaller grain */
+    --grain-texture: url("data:image/svg+xml,%3Csvg viewBox='0 0 64 64' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.5' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
     
     /* Enhanced Shadows System */
     --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.1);
@@ -242,6 +242,35 @@ All colors MUST be HSL. Mobile-first, responsive, with advanced interactions.
   }
 
   .font-body {
+    font-family: var(--font-body);
+  }
+
+  /* Title classes for Kufam font - only for very large titles */
+  .title-hero {
+    font-family: var(--font-header);
+    font-weight: 700;
+    font-size: var(--text-5xl);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+
+  .title-page {
+    font-family: var(--font-header);
+    font-weight: 600;
+    font-size: var(--text-4xl);
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+
+  .title-section {
+    font-family: var(--font-header);
+    font-weight: 600;
+    font-size: var(--text-3xl);
+    line-height: 1.2;
+  }
+
+  /* Regular headers use body font */
+  h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-body);
   }
 
@@ -435,5 +464,53 @@ All colors MUST be HSL. Mobile-first, responsive, with advanced interactions.
 
   @media (min-width: 1024px) {
     .space-mobile { padding: var(--padding-desktop); }
+  }
+
+  /* Global page styling */
+  .page-container {
+    min-height: 100vh;
+    background: var(--gradient-hero);
+    position: relative;
+  }
+
+  .page-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--grain-texture);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .page-content {
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Enhanced mobile responsiveness */
+  @media (max-width: 640px) {
+    .mobile-stack > * {
+      width: 100% !important;
+      margin-bottom: var(--space-md);
+    }
+
+    .mobile-stack > *:last-child {
+      margin-bottom: 0;
+    }
+
+    .mobile-text-center {
+      text-align: center;
+    }
+
+    .mobile-padding {
+      padding: var(--space-md) !important;
+    }
+
+    .mobile-padding-sm {
+      padding: var(--space-sm) !important;
+    }
   }
 }

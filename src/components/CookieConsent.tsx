@@ -35,9 +35,9 @@ const CookieConsent: React.FC = () => {
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 p-2 sm:p-4 animate-fade-in">
-      <Card className="max-w-4xl mx-auto bg-glass border-border/50 shadow-glow backdrop-blur-xl interactive-scale-small">
-        <div className={`p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 ${isRTL ? 'sm:flex-row-reverse' : ''}`}>
+    <div className="fixed bottom-0 left-0 right-0 z-50 mobile-padding-sm p-2 sm:p-4 animate-fade-in">
+      <Card className="max-w-4xl mx-auto card-enhanced shadow-glow backdrop-blur-xl">
+        <div className={`mobile-padding p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 ${isRTL ? 'sm:flex-row-reverse' : ''}`}>
           {/* Cookie Icon */}
           <div className="flex-shrink-0 hidden sm:block">
             <Cookie className="w-6 h-6 text-primary animate-float" />
@@ -53,19 +53,19 @@ const CookieConsent: React.FC = () => {
           {/* Action Buttons - Stacked on mobile, inline on desktop */}
           <div className={`flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto flex-shrink-0 ${isRTL ? 'sm:flex-row-reverse' : ''}`}>
             <Button
-              variant="primary"
+              variant="gradient"
               size="sm"
               onClick={handleAccept}
-              className="whitespace-nowrap ripple bg-gradient-primary hover:shadow-glow transition-all duration-300"
+              className="whitespace-nowrap interactive-scale-small glow-primary"
             >
               {t('acceptCookies')}
             </Button>
             
             <Button
-              variant="outline"
+              variant="glass"
               size="sm"
               asChild
-              className="whitespace-nowrap bg-background/50 hover:bg-background/80 transition-all duration-300"
+              className="whitespace-nowrap interactive-scale-small"
             >
               <Link to="/legal/privacy">
                 {t('learnMore')}
@@ -76,7 +76,7 @@ const CookieConsent: React.FC = () => {
               variant="ghost"
               size="icon"
               onClick={handleDismiss}
-              className="w-8 h-8 hover:bg-background/50 transition-all duration-300 sm:self-center"
+              className="w-8 h-8 interactive-scale-small sm:self-center"
               aria-label={t('dismiss')}
             >
               <X className="w-4 h-4" />

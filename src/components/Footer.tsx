@@ -17,12 +17,12 @@ const Footer = () => {
   ];
 
   return (
-    <footer className="bg-[#0F1320] text-white border-t border-white/10">
+    <footer className="bg-gradient-hero bg-grain text-foreground border-t border-border/50">
       <div className="container mx-auto px-4 py-12">
         <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-8">
           {/* Left: Logo */}
           <div className="flex-shrink-0">
-            <Link to="/" className="block">
+            <Link to="/" className="block interactive-scale-small">
               <img 
                 src={logoSrc}
                 alt={t('rawiApp')} 
@@ -37,7 +37,7 @@ const Footer = () => {
               <Link
                 key={item.key}
                 to={item.href}
-                className="text-white/80 hover:text-white transition-colors font-medium"
+                className="text-foreground/80 hover:text-foreground transition-colors font-medium"
               >
                 {t(item.key)}
               </Link>
@@ -46,14 +46,14 @@ const Footer = () => {
         </div>
         
         {/* Company Copyright Section */}
-        <div className="border-t border-white/10 mt-8 pt-6">
-          <div className="text-center text-white/60 text-sm">
+        <div className="border-t border-border/30 mt-8 pt-6">
+          <div className="text-center text-foreground/60 text-sm">
             <p className="mb-2">
               {language === 'ar' 
                 ? 'تطبيق راوي مملوك ومُشغل من قِبل' 
                 : 'Rawi is owned and operated by'}
             </p>
-            <p className="font-medium text-white/80">
+            <p className="font-medium text-foreground/80">
               ﺻﻤﻴﻢ ﺳﺘﻮدﻳﻮز ش.ذ.م.م-ﻣﻨﻄﻘﺔ ﺣﺮة (SAMIM STUDIOS L.L.C-FZ)
             </p>
             <p className="mt-2">

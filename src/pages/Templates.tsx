@@ -8,13 +8,13 @@ const Templates = () => {
   useSEOConfig(seoConfigs.templates[language]);
 
   return (
-    <div className="min-h-screen bg-gradient-hero">
-      <div className="container mx-auto px-4 py-16">
+    <div className="page-container bg-mesh">
+      <div className="page-content container mx-auto mobile-padding py-16">
         <div className="text-center space-y-8">
-          <h1 className="text-4xl md:text-6xl font-bold text-foreground">
+          <h1 className="title-hero text-gradient-primary">
             {t('templates')}
           </h1>
-          <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
+          <p className="text-responsive-xl text-foreground/80 max-w-3xl mx-auto">
             {t('templatesSubtitle')}
           </p>
         </div>
