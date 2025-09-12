@@ -37,6 +37,7 @@ import Wallet from "./pages/app/Wallet";
 import Settings from "./pages/app/Settings";
 import StoryboardPlayground from "./pages/app/StoryboardPlayground";
 import StoryboardWorkspace from "./pages/app/StoryboardWorkspace";
+import WorkspaceNew from "./pages/app/WorkspaceNew";
 import Result from "./pages/app/Result";
 import StyleGuideline from "./pages/StyleGuideline";
 import N8NTest from "./pages/N8NTest";
@@ -114,6 +115,13 @@ const MainApp = () => (
                      <div>
                        <Header />
                        <StoryboardWorkspace />
+                       <Footer />
+                     </div>
+                   } />
+                   <Route path="/app/workspace/:jobId" element={
+                     <div>
+                       <Header />
+                       <WorkspaceNew />
                        <Footer />
                      </div>
                    } />
