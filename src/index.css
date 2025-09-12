@@ -245,7 +245,7 @@ All colors MUST be HSL. Mobile-first, responsive, with advanced interactions.
     font-family: var(--font-body);
   }
 
-  /* Title classes for Kufam font - ONLY for very large titles/heroes */
+  /* Title classes for Kufam font - only for very large titles */
   .title-hero {
     font-family: var(--font-header);
     font-weight: 700;
@@ -269,10 +269,9 @@ All colors MUST be HSL. Mobile-first, responsive, with advanced interactions.
     line-height: 1.2;
   }
 
-  /* ALL headers use Noto Sans Arabic (body font) */
+  /* Regular headers use body font */
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-body);
-    font-weight: 600;
   }
 
   /* Responsive Text Sizes */
