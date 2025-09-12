@@ -208,30 +208,52 @@ const Wallet = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-background bg-grain relative overflow-hidden">
+      {/* Background Effects */}
+      <div className="absolute inset-0 bg-mesh opacity-50 pointer-events-none" />
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-primary rounded-full opacity-10 blur-3xl pointer-events-none animate-float" />
+      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-gradient-secondary rounded-full opacity-10 blur-3xl pointer-events-none animate-float" style={{ animationDelay: "1s" }} />
+      
+      <main className="relative container mx-auto space-mobile">
         <div className="max-w-6xl mx-auto">
-          {/* Page Header */}
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold mb-2">{t('walletTitle')}</h1>
-            <p className="text-muted-foreground">{t('walletDescription')}</p>
+          {/* Hero Header with Compelling Copy */}
+          <div className="mb-6 sm:mb-8 text-center">
+            <h1 className="text-responsive-4xl font-header font-bold mb-3 text-gradient-primary animate-fade-in">
+              {t('walletTitle')}
+            </h1>
+            <p className="text-responsive-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed animate-fade-in" style={{ animationDelay: "0.2s" }}>
+              {t('walletDescription')}
+            </p>
+            <div className="mt-4 animate-fade-in" style={{ animationDelay: "0.4s" }}>
+              <span className="inline-flex items-center gap-2 text-sm bg-glass px-4 py-2 rounded-full border border-white/20">
+                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                {t('walletCreditsNeverExpire')}
+              </span>
+            </div>
           </div>
 
-          {/* Balance Card */}
-          <Card className="mb-8">
+          {/* Enhanced Balance Card */}
+          <Card className="mb-6 sm:mb-8 bg-glass border-white/20 shadow-glow animate-fade-in" style={{ animationDelay: "0.6s" }}>
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span>{t('walletCurrentBalance')}</span>
-                <Badge variant="outline">{currency}</Badge>
+              <CardTitle className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <span className="font-header text-responsive-xl">{t('walletCurrentBalance')}</span>
+                <Badge variant="outline" className="bg-glass border-white/30 self-start sm:self-center">{currency}</Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-4xl font-bold text-primary mb-2">
+              <div className="text-responsive-4xl font-header font-bold text-gradient-primary mb-3 animate-pulse-glow">
                 {credits.toFixed(2)} {t('walletCredits')}
               </div>
-              <p className="text-muted-foreground">
-                {t('walletCreditsNeverExpire')}
-              </p>
+              <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                <span className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-primary rounded-full"></span>
+                  {t('walletCreditsNeverExpire')}
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+                  Instant activation
+                </span>
+              </div>
             </CardContent>
           </Card>
 
