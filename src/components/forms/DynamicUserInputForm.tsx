@@ -3,10 +3,10 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LoadingSpinner } from '@/components/ui/loading';
-import { DynamicWidget } from './DynamicWidget';
+import { ResolvedWidget } from './ResolvedWidget';
 import { useNodeDefinition } from '@/hooks/useNodeDefinition';
 import { useFieldRegistry } from '@/hooks/useFieldRegistry';
-import { useFieldItem, FieldItem } from '@/hooks/useFieldItem';
+import { useFieldResolver, FieldItem } from '@/hooks/useFieldResolver';
 import { useToast } from '@/hooks/use-toast';
 
 interface DynamicUserInputFormProps {
@@ -27,42 +27,65 @@ export const DynamicUserInputForm: React.FC<DynamicUserInputFormProps> = ({
   const { nodeDefinition, loading: nodeLoading, error: nodeError } = useNodeDefinition('root.user_input.form');
   
   // Get field items from node definition
-  const fieldItems = (nodeDefinition?.content_template as FieldItem[]) || [];
-  
-  // Use field item processor hook
-  const {
-    extractedFieldIds,
-    groupedFieldItems,
-    getFieldRegistryEntry,
-    mapFormDataToStructure,
-    getFormDefaults
-  } = useFieldItem({ 
-    fieldItems, 
-    fieldRegistry: [] // Will be populated once we fetch the data
-  });
+  const fieldItems: FieldItem[] = useMemo(() => {
+    if (!nodeDefinition?.content_template) return [];
+    
+    // Transform from old format to new format
+    return (nodeDefinition.content_template as any[]).map(item => ({
+      schema_ref_id: item.ref?.split('.').pop() || item.ref,
+      required: item.hierarchy === 'important',
+      value: item.value,
+      group: item.group
+    }));
+  }, [nodeDefinition]);
 
-  // Fetch field registry entries based on extracted field IDs
-  const { fields, getFieldById, loading: fieldsLoading, error: fieldsError } = useFieldRegistry(extractedFieldIds);
+  // Extract field IDs for registry lookup
+  const extractedFieldIds = useMemo(() => {
+    return fieldItems.map(item => item.schema_ref_id).filter((id, index, arr) => arr.indexOf(id) === index);
+  }, [fieldItems]);
 
-  // Update field item processor with fetched field registry
-  const {
-    groupedFieldItems: finalGroupedFieldItems,
-    mapFormDataToStructure: finalMapFormData,
-    getFormDefaults: finalGetFormDefaults
-  } = useFieldItem({ 
-    fieldItems, 
-    fieldRegistry: fields
-  });
+  // Fetch field registry entries
+  const { fields, loading: fieldsLoading, error: fieldsError } = useFieldRegistry(extractedFieldIds);
 
-  // Initialize form with defaults from field registry
-  const formDefaults = finalGetFormDefaults();
+  // Initialize form
   const methods = useForm({
-    defaultValues: { ...formDefaults, ...initialData }
+    defaultValues: initialData
+  });
+
+  // Use field resolver
+  const { groupedFields, summary } = useFieldResolver({
+    fieldItems,
+    fieldRegistry: fields,
+    currentValues: methods.watch(),
+    editMode: {
+      has_editables: true,
+      validation: { mode: 'lenient' }
+    },
+    locale: 'en'
   });
 
   const handleSubmit = (formData: any) => {
     try {
-      const mappedData = finalMapFormData(formData);
+      // Map form data to structured format based on field groups
+      const mappedData: any = {};
+      
+      fieldItems.forEach(item => {
+        const value = formData[item.schema_ref_id];
+        if (value !== undefined) {
+          if (item.group) {
+            const parts = item.group.split('.');
+            let current = mappedData;
+            for (let i = 0; i < parts.length; i++) {
+              if (!current[parts[i]]) current[parts[i]] = {};
+              current = current[parts[i]];
+            }
+            current[item.schema_ref_id] = value;
+          } else {
+            mappedData[item.schema_ref_id] = value;
+          }
+        }
+      });
+      
       onSubmit(mappedData);
     } catch (error) {
       toast({
@@ -113,7 +136,22 @@ export const DynamicUserInputForm: React.FC<DynamicUserInputFormProps> = ({
   return (
     <FormProvider {...methods}>
       <form onSubmit={methods.handleSubmit(handleSubmit)} className="space-y-8">
-        {Object.entries(finalGroupedFieldItems).map(([groupName, groupFields]) => (
+        {summary.blockingErrors.length > 0 && (
+          <Card className="max-w-2xl mx-auto border-destructive">
+            <CardContent className="pt-6">
+              <div className="text-destructive">
+                <h3 className="font-semibold mb-2">Please fix the following issues:</h3>
+                <ul className="list-disc list-inside space-y-1">
+                  {summary.blockingErrors.map((error, index) => (
+                    <li key={index} className="text-sm">{error}</li>
+                  ))}
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {Object.entries(groupedFields).map(([groupName, groupFields]) => (
           <Card key={groupName} className="max-w-2xl mx-auto">
             <CardHeader>
               <CardTitle className="text-xl capitalize">
@@ -121,34 +159,12 @@ export const DynamicUserInputForm: React.FC<DynamicUserInputFormProps> = ({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {groupFields.map((item) => {
-                const fieldDef = getFieldRegistryEntry(item);
-                
-                if (!fieldDef) {
-                  return (
-                    <div key={item.ref} className="p-4 border border-dashed border-muted rounded">
-                      <p className="text-sm text-muted-foreground">
-                        Field definition not found: {item.ref}
-                      </p>
-                    </div>
-                  );
-                }
-
-                // Skip hidden fields
-                if (item.hierarchy === 'hidden') return null;
-
-                const baseFieldId = item.ref.split('.').pop()!;
-                
-                return (
-                  <DynamicWidget
-                    key={item.ref}
-                    field={fieldDef}
-                    name={baseFieldId}
-                    label={item.label}
-                    required={item.hierarchy === 'important'}
-                  />
-                );
-              })}
+              {groupFields.map((field) => (
+                <ResolvedWidget
+                  key={field.id}
+                  field={field}
+                />
+              ))}
             </CardContent>
           </Card>
         ))}
@@ -157,7 +173,7 @@ export const DynamicUserInputForm: React.FC<DynamicUserInputFormProps> = ({
           <Button 
             type="submit" 
             size="lg" 
-            disabled={submitLoading}
+            disabled={submitLoading || !summary.isValid}
             className="min-w-[200px]"
           >
             {submitLoading ? (
