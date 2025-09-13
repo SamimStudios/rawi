@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -52,11 +52,11 @@ export const DynamicUserInputForm: React.FC<DynamicUserInputFormProps> = ({
     defaultValues: initialData
   });
 
-  // Use field resolver
+  // Use field resolver (only resolve once, not on every form change)
   const { groupedFields, summary } = useFieldResolver({
     fieldItems,
     fieldRegistry: fields,
-    currentValues: methods.watch(),
+    currentValues: {}, // Don't pass current values to prevent re-renders
     editMode: {
       has_editables: true,
       validation: { mode: 'lenient' }

@@ -291,7 +291,7 @@ export function useFieldResolver({
     if (fieldItems.length > 0 && fieldRegistry.length > 0) {
       resolveFields();
     }
-  }, [fieldItems, fieldRegistry, currentValues, editMode, registryById]);
+  }, [fieldItems, fieldRegistry, currentValues, editMode]);
 
   // Group fields by group property
   const groupedFields = useMemo(() => {
