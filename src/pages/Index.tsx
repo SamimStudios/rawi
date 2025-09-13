@@ -29,8 +29,8 @@ const Index = () => {
               asChild
               className="text-lg px-8 py-4 h-auto"
             >
-              <Link to="/auth/sign-up">
-                {t('getStarted')}
+              <Link to="/user-input">
+                Create Your Story
               </Link>
             </Button>
             
