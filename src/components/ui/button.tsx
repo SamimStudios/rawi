@@ -20,8 +20,6 @@ const buttonVariants = cva(
         ghost: "bg-transparent text-foreground hover:text-primary hover:bg-primary/10 transition-all duration-200", // Type 4 Blue
         link: "text-primary underline-offset-4 hover:underline",
         primary: "bg-gradient-primary text-white font-bold hover:shadow-glow transition-all duration-300", // Type 1
-        gradient: "bg-gradient-primary text-white font-bold hover:shadow-glow transition-all duration-300", // Type 1 Gradient
-        glass: "bg-gradient-glass border border-white/20 text-foreground hover:border-white/30 backdrop-blur-sm transition-all duration-300",
         
         // Additional type variants for variety
         type_3_blue: "bg-transparent border border-primary/30 text-foreground hover:bg-primary hover:text-white hover:border-primary transition-all duration-200",

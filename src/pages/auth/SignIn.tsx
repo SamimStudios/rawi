@@ -112,58 +112,53 @@ const SignIn = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden">
-      {/* Ambient Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-900/20 via-purple-900/10 to-orange-900/20"></div>
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
-      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl"></div>
-      
-      <div className="relative z-10 w-full max-w-lg mx-auto">
-        {/* Logo */}
-        <div className="mb-12 text-center">
-          <img 
-            src={language === 'ar' ? '/brand/logo-lockup-ar-vertical.svg' : '/brand/logo-lockup-en-vertical.svg'} 
-            alt={t('rawiLogo')} 
-            className="h-24 w-auto mx-auto interactive"
-          />
-        </div>
+    <div className="min-h-screen bg-[#0F1320] flex flex-col items-center justify-center px-4">
+      {/* Logo */}
+      <div className="mb-8">
+        <img 
+          src={language === 'ar' ? '/brand/logo-lockup-ar-vertical.svg' : '/brand/logo-lockup-en-vertical.svg'} 
+          alt={t('rawiLogo')} 
+          className="h-20 w-auto"
+        />
+      </div>
 
-        {/* Language Toggle */}
-        <div className="mb-10 flex gap-3 justify-center">
-          <Button
-            variant={language === 'en' ? 'default' : 'outline'}
-            onClick={() => setLanguage('en')}
-            className={`px-6 py-3 font-medium interactive ${language === 'en' ? 'gradient glow' : 'glass'}`}
-          >
-            English
-          </Button>
-          <Button
-            variant={language === 'ar' ? 'default' : 'outline'}
-            onClick={() => setLanguage('ar')}
-            className={`px-6 py-3 font-medium interactive ${language === 'ar' ? 'gradient glow' : 'glass'}`}
-          >
-            العربية
-          </Button>
-        </div>
+      {/* Language Toggle */}
+      <div className="mb-8 flex gap-2">
+        <Button
+          variant={language === 'en' ? 'default' : 'ghost'}
+          onClick={() => setLanguage('en')}
+          className="text-white"
+        >
+          EN
+        </Button>
+        <Button
+          variant={language === 'ar' ? 'default' : 'ghost'}
+          onClick={() => setLanguage('ar')}
+          className="text-white"
+        >
+          AR
+        </Button>
+      </div>
 
-        {/* Sign In Form */}
-        <div className="premium-box p-10 rounded-2xl space-y-8">
-          <div className="text-center space-y-3">
-            <h1 className="title-section text-gradient">
-              {language === 'ar' ? 'تسجيل الدخول' : 'Sign In'}
-            </h1>
-            <p className="text-muted-foreground text-lg">
-              {language === 'ar' ? 'مرحباً بعودتك! ادخل إلى حسابك' : 'Welcome back! Access your account'}
-            </p>
-          </div>
+      {/* Sign In Form */}
+      <div className="w-full max-w-md space-y-6">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-white mb-2">
+            {language === 'ar' ? 'تسجيل الدخول' : 'Sign In'}
+          </h1>
+          <p className="text-white/70">
+            {language === 'ar' ? 'ادخل إلى حسابك' : 'Access your account'}
+          </p>
+        </div>
 
         {!showEmailForm ? (
           <div className="space-y-4">
             {/* Social Login Buttons */}
             <Button
               onClick={() => handleOAuthSignIn('google')}
-              className="w-full h-12 gradient ripple"
+              variant="primary"
               disabled={isLoading}
+              className="w-full h-12"
             >
               <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -177,8 +172,9 @@ const SignIn = () => {
 
             <Button
               onClick={() => handleOAuthSignIn('facebook')}
-              className="w-full h-12 gradient-accent ripple"
+              variant="primary"
               disabled={isLoading}
+              className="w-full h-12"
             >
               <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
@@ -191,7 +187,7 @@ const SignIn = () => {
                 <span className="w-full border-t border-white/20" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
+                <span className="bg-[#0F1320] px-2 text-white/70">
                   {language === 'ar' ? 'أو' : 'or'}
                 </span>
               </div>
@@ -200,7 +196,7 @@ const SignIn = () => {
             <Button
               variant="outline"
               onClick={() => setShowEmailForm(true)}
-              className="w-full interactive"
+              className="w-full text-white border-white/20 hover:bg-white/5"
             >
               {language === 'ar' ? 'تسجيل الدخول بالإيميل' : 'Sign in with Email'}
             </Button>
@@ -221,13 +217,13 @@ const SignIn = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="bg-input border-border text-foreground placeholder:text-muted-foreground"
+              className="bg-white/5 border-white/20 text-white placeholder:text-white/50"
             />
             <Button
               type="submit"
-              variant="gradient"
+              variant="primary"
               disabled={isLoading}
-              className="w-full interactive-scale"
+              className="w-full"
             >
               {language === 'ar' ? 'إرسال رابط إعادة التعيين' : 'Send Reset Link'}
             </Button>
@@ -286,23 +282,19 @@ const SignIn = () => {
           </form>
         )}
 
-          <div className="text-center space-y-4">
-            <p className="text-muted-foreground text-lg">
-              {language === 'ar' ? 'ليس لديك حساب؟' : "Don't have an account?"}{' '}
-              <Link to="/auth/sign-up" className="text-gradient hover:opacity-80 transition-opacity font-medium">
-                {language === 'ar' ? 'إنشاء حساب جديد' : 'Create new account'}
-              </Link>
-            </p>
+        <div className="text-center">
+          <p className="text-white/70">
+            {language === 'ar' ? 'ليس لديك حساب؟' : "Don't have an account?"}{' '}
+            <Link to="/auth/sign-up" className="text-white underline hover:no-underline">
+              {language === 'ar' ? 'إنشاء حساب' : 'Sign up'}
+            </Link>
+          </p>
+        </div>
 
-            <div className="pt-4 border-t border-blue-300/20">
-              <Link to="/" className="text-blue-200 hover:text-blue-100 transition-colors inline-flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                {language === 'ar' ? 'العودة للصفحة الرئيسية' : 'Back to Home'}
-              </Link>
-            </div>
-          </div>
+        <div className="text-center">
+          <Link to="/" className="text-white/70 hover:text-white">
+            {language === 'ar' ? 'العودة للصفحة الرئيسية' : 'Back to Home'}
+          </Link>
         </div>
       </div>
     </div>

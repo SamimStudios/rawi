@@ -15,21 +15,21 @@ const Help = () => {
   ];
 
   return (
-    <div className="page-container bg-mesh">
-      <main className="page-content container mx-auto mobile-padding py-16">
+    <div className="min-h-screen bg-background">
+      <main className="container mx-auto px-4 py-16">
         <div className="max-w-4xl mx-auto">
           <div className="text-center space-y-8 mb-16">
-            <h1 className="title-hero text-gradient-primary">
+            <h1 className="text-4xl md:text-6xl font-bold text-white">
               {t('helpPageTitle')}
             </h1>
-            <p className="text-responsive-xl text-foreground/80 max-w-3xl mx-auto">
+            <p className="text-xl text-white/80 max-w-3xl mx-auto">
               {t('helpPageSubtitle')}
             </p>
           </div>
 
           {/* FAQ Section */}
-          <Card className="card-enhanced p-8">
-            <h2 className="title-section text-gradient-secondary mb-8 text-center">
+          <Card className="p-8">
+            <h2 className="text-3xl font-bold text-foreground mb-8 text-center">
               {t('faqTitle')}
             </h2>
             

@@ -35,37 +35,37 @@ const CookieConsent: React.FC = () => {
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 mobile-padding-sm p-2 sm:p-4 animate-fade-in">
-      <Card className="max-w-4xl mx-auto card-enhanced shadow-glow backdrop-blur-xl">
-        <div className={`mobile-padding p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 ${isRTL ? 'sm:flex-row-reverse' : ''}`}>
+    <div className="fixed bottom-0 left-0 right-0 z-50 p-4">
+      <Card className="max-w-4xl mx-auto bg-card border-border shadow-[var(--shadow-soft)]">
+        <div className={`p-4 flex items-center gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
           {/* Cookie Icon */}
-          <div className="flex-shrink-0 hidden sm:block">
-            <Cookie className="w-6 h-6 text-primary animate-float" />
+          <div className="flex-shrink-0">
+            <Cookie className="w-6 h-6 text-primary" />
           </div>
 
           {/* Content */}
           <div className="flex-1 min-w-0">
-            <p className={`text-sm sm:text-base text-foreground leading-relaxed ${isRTL ? 'text-right' : 'text-left'}`}>
+            <p className={`text-sm text-foreground ${isRTL ? 'text-right' : 'text-left'}`}>
               {t('cookieMessage')}
             </p>
           </div>
 
-          {/* Action Buttons - Stacked on mobile, inline on desktop */}
-          <div className={`flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto flex-shrink-0 ${isRTL ? 'sm:flex-row-reverse' : ''}`}>
+          {/* Action Buttons */}
+          <div className={`flex items-center gap-2 flex-shrink-0 ${isRTL ? 'flex-row-reverse' : ''}`}>
             <Button
-              variant="gradient"
+              variant="primary"
               size="sm"
               onClick={handleAccept}
-              className="whitespace-nowrap interactive-scale-small glow-primary"
+              className="whitespace-nowrap"
             >
               {t('acceptCookies')}
             </Button>
             
             <Button
-              variant="glass"
+              variant="outline"
               size="sm"
               asChild
-              className="whitespace-nowrap interactive-scale-small"
+              className="whitespace-nowrap"
             >
               <Link to="/legal/privacy">
                 {t('learnMore')}
@@ -76,7 +76,7 @@ const CookieConsent: React.FC = () => {
               variant="ghost"
               size="icon"
               onClick={handleDismiss}
-              className="w-8 h-8 interactive-scale-small sm:self-center"
+              className="w-8 h-8"
               aria-label={t('dismiss')}
             >
               <X className="w-4 h-4" />

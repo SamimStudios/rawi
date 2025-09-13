@@ -10,28 +10,24 @@ const Index = () => {
   useSEOConfig(seoConfigs.homepage[language]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
-      {/* Ambient Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-900/20 via-purple-900/10 to-orange-900/20"></div>
-      <div className="absolute top-1/3 left-1/3 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
-      <div className="absolute bottom-1/3 right-1/3 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl"></div>
-      
+    <div className="bg-[#0F1320]">
       {/* Hero Section */}
-      <main className="relative z-10 container mx-auto p-6 py-20 md:py-28">
-        <div className="text-center space-y-12 max-w-5xl mx-auto">
-          <h1 className="title-hero text-gradient leading-tight">
+      <main className="container mx-auto px-4 py-16 md:py-24">
+        <div className="text-center space-y-8 max-w-4xl mx-auto">
+          <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-white leading-tight">
             {t('heroHeadline')}
           </h1>
           
-          <p className="text-2xl text-muted-foreground max-w-4xl mx-auto leading-relaxed">
+          <p className="text-xl md:text-2xl text-white/80 max-w-3xl mx-auto">
             {t('heroSubtext')}
           </p>
 
-          <div className="pt-12 mobile-stack flex flex-col sm:flex-row gap-6 justify-center items-center">
+          <div className="pt-8 flex flex-col sm:flex-row gap-4 justify-center items-center">
             <Button 
+              variant="primary"
               size="lg" 
               asChild
-              className="text-xl px-12 py-6 h-auto gradient glow interactive ripple font-medium"
+              className="text-lg px-8 py-4 h-auto"
             >
               <Link to="/auth/sign-up">
                 {t('getStarted')}
@@ -42,7 +38,7 @@ const Index = () => {
               variant="outline"
               size="lg" 
               asChild
-              className="text-xl px-12 py-6 h-auto glass border-blue-300/40 hover:border-blue-300/60 hover:glow-hover font-medium"
+              className="text-lg px-8 py-4 h-auto bg-white/10 text-white border-white/20 hover:bg-white/20"
             >
               <Link to="/try/cinematic-teaser">
                 {t('tryFreeButton')}
@@ -51,12 +47,12 @@ const Index = () => {
           </div>
 
           {/* Sign In Link */}
-          <div className="pt-12">
-            <p className="text-muted-foreground text-xl">
+          <div className="pt-8">
+            <p className="text-white/70">
               {t('alreadyHaveAccount')}{' '}
               <Link 
                 to="/auth/sign-in" 
-                className="text-gradient hover:opacity-80 transition-opacity font-medium"
+                className="text-white underline hover:no-underline"
               >
                 {t('signIn')}
               </Link>
