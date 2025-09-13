@@ -364,15 +364,132 @@ const StyleGuideline = () => {
             </ComponentShowcase>
 
             <ComponentShowcase title="Cards">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Card Title</CardTitle>
-                  <CardDescription>Card description goes here</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p>This is the card content area.</p>
-                </CardContent>
-              </Card>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <Card variant="default">
+                  <CardHeader>
+                    <CardTitle>Default Card</CardTitle>
+                    <CardDescription>A basic card component</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p>This is the content of a default card.</p>
+                  </CardContent>
+                </Card>
+
+                <Card variant="elevated">
+                  <CardHeader>
+                    <CardTitle>Elevated Card</CardTitle>
+                    <CardDescription>Enhanced shadow on hover</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p>Elevated card with premium shadows.</p>
+                  </CardContent>
+                </Card>
+
+                <Card variant="glass">
+                  <CardHeader>
+                    <CardTitle>Glass Card</CardTitle>
+                    <CardDescription>Glassmorphism effect</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p>Translucent card with backdrop blur.</p>
+                  </CardContent>
+                </Card>
+
+                <Card variant="gradient">
+                  <CardHeader>
+                    <CardTitle>Gradient Card</CardTitle>
+                    <CardDescription>Subtle gradient background</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p>Card with gradient background effect.</p>
+                  </CardContent>
+                </Card>
+
+                <Card variant="premium">
+                  <CardHeader>
+                    <CardTitle>Premium Card</CardTitle>
+                    <CardDescription>Premium styling with glow</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p>Premium card with enhanced styling.</p>
+                  </CardContent>
+                </Card>
+
+                <Card variant="solid">
+                  <CardHeader>
+                    <CardTitle>Solid Card</CardTitle>
+                    <CardDescription>Primary colored background</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p>Solid background card variant.</p>
+                  </CardContent>
+                </Card>
+
+                <Card variant="outline">
+                  <CardHeader>
+                    <CardTitle>Outline Card</CardTitle>
+                    <CardDescription>Border-only styling</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p>Clean outline card design.</p>
+                  </CardContent>
+                </Card>
+
+                <Card variant="ghost">
+                  <CardHeader>
+                    <CardTitle>Ghost Card</CardTitle>
+                    <CardDescription>Minimal transparent style</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p>Subtle ghost card variant.</p>
+                  </CardContent>
+                </Card>
+
+                <Card variant="neon">
+                  <CardHeader>
+                    <CardTitle>Neon Card</CardTitle>
+                    <CardDescription>Glowing neon effect</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p>Card with neon glow styling.</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="mt-8 space-y-4">
+                <h3 className="text-xl font-semibold">Card Sizes & Padding</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card variant="elevated" size="sm" padding="sm">
+                    <CardHeader>
+                      <CardTitle>Small Card</CardTitle>
+                      <CardDescription>Compact sizing</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <p>Small card with reduced padding.</p>
+                    </CardContent>
+                  </Card>
+
+                  <Card variant="elevated" size="default">
+                    <CardHeader>
+                      <CardTitle>Default Card</CardTitle>
+                      <CardDescription>Standard sizing</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <p>Default card with standard padding.</p>
+                    </CardContent>
+                  </Card>
+
+                  <Card variant="elevated" size="lg" padding="lg">
+                    <CardHeader>
+                      <CardTitle>Large Card</CardTitle>
+                      <CardDescription>Expanded sizing</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <p>Large card with increased padding.</p>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
             </ComponentShowcase>
 
             <ComponentShowcase title="Progress & Loading">

@@ -1,10 +1,56 @@
 import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
-const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("rounded-[var(--radius)] border bg-card text-card-foreground shadow-[var(--shadow-soft)]", className)} {...props} />
-));
+const cardVariants = cva(
+  "rounded-[var(--radius)] text-card-foreground transition-all duration-200",
+  {
+    variants: {
+      variant: {
+        default: "border bg-card shadow-[var(--shadow-soft)]",
+        elevated: "border bg-card shadow-[var(--shadow-elevated)] hover:shadow-[var(--shadow-premium)]",
+        glass: "border border-white/20 bg-white/10 backdrop-blur-md shadow-[var(--shadow-glass)]",
+        gradient: "border-0 bg-gradient-to-br from-primary/20 via-background to-secondary/20 shadow-[var(--shadow-glow)]",
+        premium: "border border-primary/20 bg-gradient-to-br from-primary/5 via-background to-primary/10 shadow-[var(--shadow-premium)] hover:shadow-[var(--shadow-glow)]",
+        solid: "border-0 bg-primary text-primary-foreground shadow-[var(--shadow-elevated)]",
+        outline: "border-2 border-primary bg-transparent shadow-none hover:bg-primary/5",
+        ghost: "border-0 bg-transparent shadow-none hover:bg-accent",
+        neon: "border border-primary bg-card shadow-[0_0_20px_hsl(var(--primary)/0.3)] hover:shadow-[0_0_30px_hsl(var(--primary)/0.5)]",
+      },
+      size: {
+        default: "",
+        sm: "text-sm",
+        lg: "text-lg",
+      },
+      padding: {
+        default: "",
+        none: "[&>*]:p-0",
+        sm: "[&>*]:p-3",
+        lg: "[&>*]:p-8",
+      }
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+      padding: "default",
+    },
+  }
+);
+
+export interface CardProps
+  extends React.HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof cardVariants> {}
+
+const Card = React.forwardRef<HTMLDivElement, CardProps>(
+  ({ className, variant, size, padding, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn(cardVariants({ variant, size, padding }), className)}
+      {...props}
+    />
+  )
+);
 Card.displayName = "Card";
 
 const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
