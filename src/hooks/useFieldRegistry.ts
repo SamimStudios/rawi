@@ -29,20 +29,16 @@ export function useFieldRegistry(fieldIds: string[]) {
           return;
         }
 
-        // Mock data for development since field_registry table doesn't exist yet
-        // Replace this with actual query once table is available
-        const mockFields: FieldRegistryEntry[] = [
-          {
+        // Mock field registry - simulating how options should be fetched dynamically
+        const mockFieldRegistry: Record<string, FieldRegistryEntry> = {
+          size: {
             id: 'field-1',
             field_id: 'size',
             datatype: 'string',
             widget: 'select',
             options: {
               source: 'static',
-              values: [
-                { value: 'medium', label: { fallback: 'Medium (Recommended)' } },
-                { value: 'large', label: { fallback: 'Large (Premium)' } }
-              ]
+              values: [] // Will be populated from separate options lookup
             },
             rules: {},
             ui: { 
@@ -52,17 +48,14 @@ export function useFieldRegistry(fieldIds: string[]) {
             default_value: 'medium',
             version: 1
           },
-          {
+          language: {
             id: 'field-2',
             field_id: 'language',
             datatype: 'string',
             widget: 'select',
             options: {
               source: 'static',
-              values: [
-                { value: 'en', label: { fallback: 'English' } },
-                { value: 'ar', label: { fallback: 'Arabic' } }
-              ]
+              values: []
             },
             rules: {},
             ui: { 
@@ -72,18 +65,14 @@ export function useFieldRegistry(fieldIds: string[]) {
             default_value: 'en',
             version: 1
           },
-          {
+          accent: {
             id: 'field-3',
             field_id: 'accent',
             datatype: 'string',
             widget: 'select',
             options: {
               source: 'static',
-              values: [
-                { value: 'neutral', label: { fallback: 'Neutral' } },
-                { value: 'british', label: { fallback: 'British' } },
-                { value: 'american', label: { fallback: 'American' } }
-              ]
+              values: []
             },
             rules: {},
             ui: { 
@@ -93,21 +82,14 @@ export function useFieldRegistry(fieldIds: string[]) {
             default_value: 'neutral',
             version: 1
           },
-          {
+          genres: {
             id: 'field-4',
             field_id: 'genres',
             datatype: 'array',
             widget: 'tags',
             options: {
               source: 'static',
-              values: [
-                { value: 'action', label: { fallback: 'Action' } },
-                { value: 'drama', label: { fallback: 'Drama' } },
-                { value: 'comedy', label: { fallback: 'Comedy' } },
-                { value: 'horror', label: { fallback: 'Horror' } },
-                { value: 'romance', label: { fallback: 'Romance' } },
-                { value: 'thriller', label: { fallback: 'Thriller' } }
-              ]
+              values: []
             },
             rules: { minItems: 1, maxItems: 3 },
             ui: { 
@@ -117,17 +99,14 @@ export function useFieldRegistry(fieldIds: string[]) {
             default_value: [],
             version: 1
           },
-          {
+          template: {
             id: 'field-5',
             field_id: 'template',
             datatype: 'string',
             widget: 'select',
             options: {
               source: 'static',
-              values: [
-                { value: 'cinematic_trailer', label: { fallback: 'Cinematic Trailer' } },
-                { value: 'short_film', label: { fallback: 'Short Film' } }
-              ]
+              values: []
             },
             rules: {},
             ui: { 
@@ -137,7 +116,7 @@ export function useFieldRegistry(fieldIds: string[]) {
             default_value: 'cinematic_trailer',
             version: 1
           },
-          {
+          character_name: {
             id: 'field-6',
             field_id: 'character_name',
             datatype: 'string',
@@ -151,17 +130,14 @@ export function useFieldRegistry(fieldIds: string[]) {
             default_value: '',
             version: 1
           },
-          {
+          character_gender: {
             id: 'field-7',
             field_id: 'character_gender',
             datatype: 'string',
             widget: 'radio',
             options: {
               source: 'static',
-              values: [
-                { value: 'male', label: { fallback: 'Male' } },
-                { value: 'female', label: { fallback: 'Female' } }
-              ]
+              values: []
             },
             rules: {},
             ui: { 
@@ -170,7 +146,7 @@ export function useFieldRegistry(fieldIds: string[]) {
             default_value: '',
             version: 1
           },
-          {
+          face_ref: {
             id: 'field-8',
             field_id: 'face_ref',
             datatype: 'string',
@@ -185,10 +161,62 @@ export function useFieldRegistry(fieldIds: string[]) {
             default_value: '',
             version: 1
           }
-        ];
+        };
+
+        // Mock options registry - simulating dynamic options fetching
+        const mockOptionsRegistry: Record<string, any[]> = {
+          size: [
+            { value: 'medium', label: { fallback: 'Medium (Recommended)' } },
+            { value: 'large', label: { fallback: 'Large (Premium)' } }
+          ],
+          language: [
+            { value: 'en', label: { fallback: 'English' } },
+            { value: 'ar', label: { fallback: 'Arabic' } }
+          ],
+          accent: [
+            { value: 'neutral', label: { fallback: 'Neutral' } },
+            { value: 'british', label: { fallback: 'British' } },
+            { value: 'american', label: { fallback: 'American' } }
+          ],
+          genres: [
+            { value: 'action', label: { fallback: 'Action' } },
+            { value: 'drama', label: { fallback: 'Drama' } },
+            { value: 'comedy', label: { fallback: 'Comedy' } },
+            { value: 'horror', label: { fallback: 'Horror' } },
+            { value: 'romance', label: { fallback: 'Romance' } },
+            { value: 'thriller', label: { fallback: 'Thriller' } }
+          ],
+          template: [
+            { value: 'cinematic_trailer', label: { fallback: 'Cinematic Trailer' } },
+            { value: 'short_film', label: { fallback: 'Short Film' } }
+          ],
+          character_gender: [
+            { value: 'male', label: { fallback: 'Male' } },
+            { value: 'female', label: { fallback: 'Female' } }
+          ]
+        };
+
+        // Build the fields with their options populated dynamically
+        const mockFields = fieldIds.map(fieldId => {
+          const field = mockFieldRegistry[fieldId];
+          if (!field) return null;
+
+          // If field has static options, populate them from the options registry
+          if (field.options?.source === 'static') {
+            const options = mockOptionsRegistry[fieldId] || [];
+            return {
+              ...field,
+              options: {
+                ...field.options,
+                values: options
+              }
+            };
+          }
+
+          return field;
+        }).filter(Boolean) as FieldRegistryEntry[];
         
-        const filteredFields = mockFields.filter(field => fieldIds.includes(field.field_id));
-        setFields(filteredFields);
+        setFields(mockFields);
       } catch (err: any) {
         setError(err.message || 'Failed to fetch field registry');
       } finally {
