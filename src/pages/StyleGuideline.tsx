@@ -454,6 +454,36 @@ const StyleGuideline = () => {
                     <p>Card with neon glow styling.</p>
                   </CardContent>
                 </Card>
+
+                <Card variant="focus">
+                  <CardHeader>
+                    <CardTitle>Focus Card</CardTitle>
+                    <CardDescription>Active focus state</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p>Card in focused state with ring.</p>
+                  </CardContent>
+                </Card>
+
+                <Card variant="edit">
+                  <CardHeader>
+                    <CardTitle>Edit Mode Card</CardTitle>
+                    <CardDescription>Currently being edited</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p>Card in edit mode with orange accent.</p>
+                  </CardContent>
+                </Card>
+
+                <Card variant="danger">
+                  <CardHeader>
+                    <CardTitle>Danger Card</CardTitle>
+                    <CardDescription>Destructive action warning</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p>Card for dangerous operations.</p>
+                  </CardContent>
+                </Card>
               </div>
 
               <div className="mt-8 space-y-4">

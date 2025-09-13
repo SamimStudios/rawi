@@ -17,6 +17,9 @@ const cardVariants = cva(
         outline: "border-2 border-primary bg-transparent shadow-none hover:bg-primary/5",
         ghost: "border-0 bg-transparent shadow-none hover:bg-accent",
         neon: "border border-primary bg-card shadow-[0_0_20px_hsl(var(--primary)/0.3)] hover:shadow-[0_0_30px_hsl(var(--primary)/0.5)]",
+        focus: "border-2 border-primary bg-card shadow-[0_0_15px_hsl(var(--primary)/0.4)] ring-2 ring-primary/20",
+        edit: "border border-orange-400 bg-orange-50 dark:bg-orange-950/20 shadow-[0_0_10px_hsl(39_90%_50%/0.2)] relative",
+        danger: "border border-destructive bg-destructive/5 shadow-[0_0_10px_hsl(var(--destructive)/0.2)] hover:shadow-[0_0_15px_hsl(var(--destructive)/0.3)]",
       },
       size: {
         default: "",
