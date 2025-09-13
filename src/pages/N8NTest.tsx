@@ -55,7 +55,7 @@ export default function N8NTest() {
     try {
       // Use the specified test row ID
       const result = await executeFunction('e9ec8814-cef4-4e3d-adf1-deaa16d47dd0', {
-        table_id: 'storyboard_jobs',
+        table_id: 'generic_jobs',
         row_id: '084435a8-5e2c-4045-8196-4992a850a8d5'
       });
       

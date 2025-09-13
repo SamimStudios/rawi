@@ -32,17 +32,14 @@ import Privacy from "./pages/legal/Privacy";
 import Consent from "./pages/legal/Consent";
 import Refund from "./pages/legal/Refund";
 import Dashboard from "./pages/app/Dashboard";
-import History from "./pages/app/History";
+
 import Wallet from "./pages/app/Wallet";
 import Settings from "./pages/app/Settings";
-import StoryboardPlayground from "./pages/app/StoryboardPlayground";
-import StoryboardWorkspace from "./pages/app/StoryboardWorkspace";
-import WorkspaceNew from "./pages/app/WorkspaceNew";
 import Result from "./pages/app/Result";
 import StyleGuideline from "./pages/StyleGuideline";
 import N8NTest from "./pages/N8NTest";
 import ButtonShowcase from "./pages/ButtonShowcase";
-import UserInput from "./pages/UserInput";
+
 
 const queryClient = new QueryClient();
 
@@ -84,13 +81,6 @@ const MainApp = () => (
                       <Footer />
                     </div>
                   } />
-                  <Route path="/app/history" element={
-                    <div>
-                      <Header />
-                      <History />
-                      <Footer />
-                    </div>
-                  } />
                   <Route path="/app/wallet" element={
                     <div>
                       <Header />
@@ -105,27 +95,6 @@ const MainApp = () => (
                       <Footer />
                     </div>
                   } />
-                   <Route path="/app/storyboard" element={
-                     <div>
-                       <Header />
-                       <StoryboardPlayground />
-                       <Footer />
-                     </div>
-                   } />
-                   <Route path="/app/storyboard/:jobId" element={
-                     <div>
-                       <Header />
-                       <StoryboardWorkspace />
-                       <Footer />
-                     </div>
-                   } />
-                   <Route path="/app/workspace/:jobId" element={
-                     <div>
-                       <Header />
-                       <WorkspaceNew />
-                       <Footer />
-                     </div>
-                   } />
                    <Route path="/app/results/:id" element={
                     <div>
                       <Header />
@@ -242,13 +211,6 @@ const MainApp = () => (
                      <div>
                        <Header />
                        <ButtonShowcase />
-                       <Footer />
-                     </div>
-                   } />
-                   <Route path="/user-input" element={
-                     <div>
-                       <Header />
-                       <UserInput />
                        <Footer />
                      </div>
                    } />

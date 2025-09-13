@@ -167,9 +167,9 @@ const ButtonShowcase = () => {
         <CardContent>
           <div className="space-y-6">
             <div className="p-4 border rounded bg-card">
-              <h3 className="text-lg font-semibold mb-4">Storyboard Actions</h3>
+              <h3 className="text-lg font-semibold mb-4">Generic Actions</h3>
               <div className="flex flex-wrap gap-2">
-                <Button variant="primary" showCredits={true}>Generate Storyboard</Button>
+                <Button variant="primary" showCredits={true}>Generate Content</Button>
                 <EditButton onClick={() => {}} variant="default" />
                 <Button variant="type_3_blue">Save Progress</Button>
                 <Button variant="ghost">Preview</Button>
