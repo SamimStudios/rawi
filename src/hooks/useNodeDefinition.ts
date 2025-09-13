@@ -26,39 +26,24 @@ export function useNodeDefinition(defKey: string) {
         setLoading(true);
         setError(null);
         
-        // Mock data for development since tables don't exist in types yet
-        // Replace this with actual query once tables are available
-        const mockNodeDefinition = {
-          id: 'mock-id',
-          def_key: defKey,
-          title: 'User Input Form',
-          node_type: 'form',
-          path_template: 'root.user_input.form',
-          content_template: [
-            { ref: 'size', group: 'project_details', hierarchy: 'important' },
-            { ref: 'language', group: 'project_details', hierarchy: 'important' },
-            { ref: 'accent', group: 'project_details', hierarchy: 'default' },
-            { ref: 'genres', group: 'project_details', hierarchy: 'important' },
-            { ref: 'template', group: 'project_details', hierarchy: 'default' },
-            { ref: 'lead.character_name', group: 'lead_character', hierarchy: 'important' },
-            { ref: 'lead.character_gender', group: 'lead_character', hierarchy: 'important' },
-            { ref: 'lead.face_ref', group: 'lead_character', hierarchy: 'default' },
-            { ref: 'supporting.character_name', group: 'supporting_character', hierarchy: 'important' },
-            { ref: 'supporting.character_gender', group: 'supporting_character', hierarchy: 'important' },
-            { ref: 'supporting.face_ref', group: 'supporting_character', hierarchy: 'default' }
-          ],
-          edit_template: { has_editables: false },
-          actions_template: {},
-          dependencies_template: [],
-          active: true,
-          version: 1
-        };
-        
-        if (defKey === 'root.user_input.form') {
-          setNodeDefinition(mockNodeDefinition);
-        } else {
-          setNodeDefinition(null);
+        // Query the actual node_definitions table (with type casting until table is in types)
+        const { data, error: queryError } = await (supabase as any)
+          .from('node_definitions')
+          .select('*')
+          .eq('def_key', defKey)
+          .eq('active', true)
+          .single();
+
+        if (queryError) {
+          if (queryError.code === 'PGRST116') {
+            // No rows returned
+            setNodeDefinition(null);
+            return;
+          }
+          throw queryError;
         }
+        
+        setNodeDefinition(data as NodeDefinition);
       } catch (err: any) {
         setError(err.message || 'Failed to fetch node definition');
       } finally {

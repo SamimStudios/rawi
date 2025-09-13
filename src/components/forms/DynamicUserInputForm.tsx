@@ -6,6 +6,7 @@ import { LoadingSpinner } from '@/components/ui/loading';
 import { DynamicWidget } from './DynamicWidget';
 import { useNodeDefinition } from '@/hooks/useNodeDefinition';
 import { useFieldRegistry } from '@/hooks/useFieldRegistry';
+import { useFieldItem, FieldItem } from '@/hooks/useFieldItem';
 import { useToast } from '@/hooks/use-toast';
 
 interface DynamicUserInputFormProps {
@@ -14,15 +15,6 @@ interface DynamicUserInputFormProps {
   initialData?: any;
 }
 
-interface FieldItem {
-  ref: string;
-  value?: any;
-  editable?: 'none' | 'simple' | 'n8n';
-  hierarchy?: 'important' | 'default' | 'small' | 'hidden';
-  removable?: boolean;
-  label?: string;
-  group?: string;
-}
 
 export const DynamicUserInputForm: React.FC<DynamicUserInputFormProps> = ({
   onSubmit,
@@ -34,75 +26,43 @@ export const DynamicUserInputForm: React.FC<DynamicUserInputFormProps> = ({
   // Fetch the node definition for user input form
   const { nodeDefinition, loading: nodeLoading, error: nodeError } = useNodeDefinition('root.user_input.form');
   
-  // Extract field references from node definition
-  const fieldRefs = useMemo(() => {
-    if (!nodeDefinition?.content_template) return [];
-    
-    return (nodeDefinition.content_template as FieldItem[])
-      .map(item => {
-        // Extract base field ID from dotted references
-        // e.g., "lead.character_name" -> "character_name"
-        // e.g., "supporting.character_gender" -> "character_gender"
-        // e.g., "size" -> "size"
-        const parts = item.ref.split('.');
-        return parts[parts.length - 1];
-      })
-      .filter((ref, index, arr) => arr.indexOf(ref) === index); // Remove duplicates
-  }, [nodeDefinition]);
-
-  // Fetch field registry entries
-  const { fields, getFieldById, loading: fieldsLoading, error: fieldsError } = useFieldRegistry(fieldRefs);
-
-  // Initialize form
-  const methods = useForm({
-    defaultValues: initialData
+  // Get field items from node definition
+  const fieldItems = (nodeDefinition?.content_template as FieldItem[]) || [];
+  
+  // Use field item processor hook
+  const {
+    extractedFieldIds,
+    groupedFieldItems,
+    getFieldRegistryEntry,
+    mapFormDataToStructure,
+    getFormDefaults
+  } = useFieldItem({ 
+    fieldItems, 
+    fieldRegistry: [] // Will be populated once we fetch the data
   });
 
-  // Group fields by their group property
-  const groupedFields = useMemo(() => {
-    if (!nodeDefinition?.content_template || !fields.length) return {};
-    
-    const groups: Record<string, FieldItem[]> = {};
-    
-    (nodeDefinition.content_template as FieldItem[]).forEach(item => {
-      const group = item.group || 'default';
-      if (!groups[group]) groups[group] = [];
-      groups[group].push(item);
-    });
-    
-    return groups;
-  }, [nodeDefinition, fields]);
+  // Fetch field registry entries based on extracted field IDs
+  const { fields, getFieldById, loading: fieldsLoading, error: fieldsError } = useFieldRegistry(extractedFieldIds);
 
-  // Map field references to their paths for form submission
-  const mapFormDataToUserInput = (formData: any) => {
-    const userInput: any = {};
-    
-    if (!nodeDefinition?.content_template) return userInput;
-    
-    (nodeDefinition.content_template as FieldItem[]).forEach(item => {
-      const parts = item.ref.split('.');
-      const baseFieldId = parts[parts.length - 1];
-      const value = formData[baseFieldId];
-      
-      if (value !== undefined) {
-        if (parts.length === 1) {
-          // Simple field (e.g., "size", "language", "genres")
-          userInput[parts[0]] = value;
-        } else if (parts.length === 2) {
-          // Nested field (e.g., "lead.character_name", "supporting.character_gender")
-          const [category, field] = parts;
-          if (!userInput[category]) userInput[category] = {};
-          userInput[category][field] = value;
-        }
-      }
-    });
-    
-    return userInput;
-  };
+  // Update field item processor with fetched field registry
+  const {
+    groupedFieldItems: finalGroupedFieldItems,
+    mapFormDataToStructure: finalMapFormData,
+    getFormDefaults: finalGetFormDefaults
+  } = useFieldItem({ 
+    fieldItems, 
+    fieldRegistry: fields
+  });
+
+  // Initialize form with defaults from field registry
+  const formDefaults = finalGetFormDefaults();
+  const methods = useForm({
+    defaultValues: { ...formDefaults, ...initialData }
+  });
 
   const handleSubmit = (formData: any) => {
     try {
-      const mappedData = mapFormDataToUserInput(formData);
+      const mappedData = finalMapFormData(formData);
       onSubmit(mappedData);
     } catch (error) {
       toast({
@@ -153,7 +113,7 @@ export const DynamicUserInputForm: React.FC<DynamicUserInputFormProps> = ({
   return (
     <FormProvider {...methods}>
       <form onSubmit={methods.handleSubmit(handleSubmit)} className="space-y-8">
-        {Object.entries(groupedFields).map(([groupName, groupFields]) => (
+        {Object.entries(finalGroupedFieldItems).map(([groupName, groupFields]) => (
           <Card key={groupName} className="max-w-2xl mx-auto">
             <CardHeader>
               <CardTitle className="text-xl capitalize">
@@ -162,14 +122,13 @@ export const DynamicUserInputForm: React.FC<DynamicUserInputFormProps> = ({
             </CardHeader>
             <CardContent className="space-y-6">
               {groupFields.map((item) => {
-                const baseFieldId = item.ref.split('.').pop()!;
-                const fieldDef = getFieldById(baseFieldId);
+                const fieldDef = getFieldRegistryEntry(item);
                 
                 if (!fieldDef) {
                   return (
                     <div key={item.ref} className="p-4 border border-dashed border-muted rounded">
                       <p className="text-sm text-muted-foreground">
-                        Field definition not found: {baseFieldId}
+                        Field definition not found: {item.ref}
                       </p>
                     </div>
                   );
@@ -178,6 +137,8 @@ export const DynamicUserInputForm: React.FC<DynamicUserInputFormProps> = ({
                 // Skip hidden fields
                 if (item.hierarchy === 'hidden') return null;
 
+                const baseFieldId = item.ref.split('.').pop()!;
+                
                 return (
                   <DynamicWidget
                     key={item.ref}
