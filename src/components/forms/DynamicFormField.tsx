@@ -225,7 +225,7 @@ interface TagsWidgetProps {
 }
 
 function TagsWidget({ value, onChange, options, fieldRef, error }: TagsWidgetProps) {
-  const maxTags = fieldRef === 'genres' ? 3 : options?.rules?.maxItems || 10;
+  const maxTags = options?.maxItems || 10;
   const canAddMore = value.length < maxTags;
 
   const handleToggle = (optionValue: string) => {
@@ -284,9 +284,9 @@ function TagsWidget({ value, onChange, options, fieldRef, error }: TagsWidgetPro
         })}
       </div>
       
-      {fieldRef === 'genres' && (
+      {maxTags < 10 && (
         <p className="text-sm text-muted-foreground">
-          Select up to {maxTags} genres ({value.length}/{maxTags})
+          Select up to {maxTags} items ({value.length}/{maxTags})
         </p>
       )}
     </div>

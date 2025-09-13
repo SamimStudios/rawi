@@ -261,12 +261,20 @@ export function DynamicUserInputForm({ jobId }: DynamicUserInputFormProps) {
 
 // Helper functions
 function getValueFromUserInput(ref: string, userInput: any): any {
-  // Handle dotted refs like 'lead.character_name' -> characters.lead.base.name
   if (ref.includes('.')) {
-    const [category, field] = ref.split('.');
-    if (category === 'lead' || category === 'supporting') {
-      return userInput.characters?.[category]?.base?.[field.replace('character_', '')];
+    // Handle dotted notation dynamically
+    const parts = ref.split('.');
+    let current = userInput;
+    
+    for (const part of parts) {
+      if (current && typeof current === 'object' && part in current) {
+        current = current[part];
+      } else {
+        return undefined;
+      }
     }
+    
+    return current;
   }
   
   // Handle direct refs
@@ -274,21 +282,26 @@ function getValueFromUserInput(ref: string, userInput: any): any {
 }
 
 function mapToUserInput(formValues: Record<string, any>): any {
-  const result: any = {
-    characters: {
-      lead: { base: {} },
-      supporting: { base: {} }
-    }
-  };
+  const result: any = {};
   
   Object.entries(formValues).forEach(([ref, value]) => {
     if (ref.includes('.')) {
-      const [category, field] = ref.split('.');
-      if (category === 'lead' || category === 'supporting') {
-        const mappedField = field.replace('character_', '');
-        result.characters[category].base[mappedField] = value;
+      // Handle dotted notation dynamically
+      const parts = ref.split('.');
+      let current = result;
+      
+      // Navigate/create nested structure
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!current[parts[i]]) {
+          current[parts[i]] = {};
+        }
+        current = current[parts[i]];
       }
+      
+      // Set the final value
+      current[parts[parts.length - 1]] = value;
     } else {
+      // Direct assignment for non-dotted refs
       result[ref] = value;
     }
   });
