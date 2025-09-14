@@ -39,6 +39,7 @@ import Result from "./pages/app/Result";
 import StyleGuideline from "./pages/StyleGuideline";
 import N8NTest from "./pages/N8NTest";
 import ButtonShowcase from "./pages/ButtonShowcase";
+import { NodeExplorer } from "@/node-explorer/pages/NodeExplorer";
 
 
 
@@ -208,6 +209,7 @@ const MainApp = () => (
                       <Footer />
                     </div>
                   } />
+                  <Route path="/nodes/:id" element={<NodeExplorer />} />
                    {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={
                     <div>
