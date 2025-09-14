@@ -41,6 +41,7 @@ import N8NTest from "./pages/N8NTest";
 import ButtonShowcase from "./pages/ButtonShowcase";
 import FieldRegistry from "./pages/FieldRegistry";
 import Nodes from "./pages/Nodes";
+import WidgetShowcase from "./pages/WidgetShowcase";
 
 
 
@@ -221,6 +222,13 @@ const MainApp = () => (
                      <div>
                        <Header />
                        <Nodes />
+                       <Footer />
+                     </div>
+                   } />
+                   <Route path="/widget-showcase" element={
+                     <div>
+                       <Header />
+                       <WidgetShowcase />
                        <Footer />
                      </div>
                    } />

@@ -32,6 +32,7 @@ const Header = () => {
     { key: 'templates', href: '/templates' },
     { key: 'tryFree', href: '/try/cinematic-teaser' },
     { key: 'help', href: '/help' },
+    { key: 'widgets', href: '/widget-showcase', label: 'Widget Showcase' },
   ];
 
   const walletCredits = user ? credits : 0;
@@ -57,7 +58,7 @@ const Header = () => {
                 to={item.href}
                 className="text-foreground hover:text-primary transition-colors font-medium"
               >
-                {t(item.key)}
+                {item.label || t(item.key)}
               </Link>
             ))}
           </nav>
@@ -153,7 +154,7 @@ const Header = () => {
                   className="text-foreground hover:text-primary transition-colors font-medium py-2"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  {t(item.key)}
+                  {item.label || t(item.key)}
                 </Link>
               ))}
               <div className="flex items-center justify-between pt-4 border-t border-border">
