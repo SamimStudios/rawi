@@ -45,9 +45,16 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
 
   // Filter options based on dependsOn conditions
   const getFilteredOptions = () => {
-    if (!field.resolvedOptions) return [];
+    // Try resolvedOptions first, then fall back to raw options for static sources
+    let options = field.resolvedOptions;
+    
+    if (!options && field.options?.source === 'static' && field.options?.values) {
+      options = field.options.values;
+    }
+    
+    if (!options) return [];
 
-    return field.resolvedOptions.filter(option => {
+    return options.filter(option => {
       // If no dependsOn, include the option
       if (!option.dependsOn || !Array.isArray(option.dependsOn)) {
         return true;
