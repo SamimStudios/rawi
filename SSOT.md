@@ -1288,150 +1288,299 @@ $$;
 
 ---
 
-# Section 3: Media Items (Planned)
 
-### Purpose
+# Section 3: Media (Locked v1)
 
-`node_type="media"` content that lists assets (images, audio, video, files) with light metadata and optional per-item UI overrides. Lean now, extensible later.
+## Purpose
 
-### Simplified Prose
+* Versioned assets per node, **one kind per node**: `image` or `video` or `audio`.
+* **Node-level versions** for undo/redo; **items are immutable** inside a version.
+* Stable storage paths generated server-side.
 
-* **MediaItem** (array element)
+## Core Rules
 
-  * `asset_type` *(req)*: enum `asset_type` = `image|audio|video|file`.
-  * `url` *(req)*: string; must look like `http(s)://…`.
-  * `meta?` *(obj)*: optional hints; if present, keys (when present) must be typed:
+* `node_type`: `"media"`
+* `content.kind`: `"image" | "video" | "audio"` (single kind per node)
+* `content.current_v`: integer pointing to an entry in `content.versions[*].v`
+* `content.versions`: append-only; any change creates a new version
+* Items (`images|videos|audios`) are **never edited in place**; array order is render order
+* Item IDs must be **unique within the version**
 
-    * `width?` (number), `height?` (number), `duration_sec?` (number), `fps?` (number),
-      `codec?` (string), `size_bytes?` (number), `mime?` (string).
-    * Extra keys allowed (forward-compatible), but value types must be JSON primitives/objects/arrays.
-  * `editable?` *(bool, def true)*, `removable?` *(bool, def true)*.
-  * `ui_override?` *(obj)*: i18n like fields `{ label?, placeholder?, help? }`.
-  * `parent_group?` *(obj, optional)*: `{ group_name: string, group_instance_id?: string }` (for colocating media with form groups; not cross-validated yet).
-  * **Order**: array order.
-* **MediaContent** (node content)
+## Data Contract
 
-  * JSON array of `MediaItem`.
-  * Will be validated by `is_valid_media_items(arr)` and (later) routed from `is_valid_content_shape('media', content)`.
-
-### Top-Level Contract
+### `node.content` (when `node_type="media"`)
 
 ```json
 {
-  "MediaItem": {
-    "asset_type": "image|audio|video|file",
-    "url": "https://…",
-    "meta": {
-      "width": 1920,
-      "height": 1080,
-      "duration_sec": 12.5,
-      "fps": 24,
-      "codec": "h264",
-      "size_bytes": 12345678,
-      "mime": "video/mp4"
-    },
-    "editable": true,
-    "removable": true,
-    "ui_override": { "label": { "fallback": "…" }, "help": { "fallback": "…" } },
-    "parent_group": { "group_name": "characters", "group_instance_id": "ex1" }
-  },
-  "MediaContent": [
-    { "asset_type": "image", "url": "https://…/frame01.jpg" }
+  "kind": "image | video | audio",
+  "current_v": 1,
+  "versions": [
+    {
+      "v": 1,
+      "images": [],                      // present only when kind="image"
+      "videos": [],                      // present only when kind="video"
+      "audios": [],                      // present only when kind="audio"
+      "ai_models": [ { "provider": "fal", "model": "kling-2.1", "version": "2.1" } ],
+      "credits_used": 0.0,
+      "created_at": "2025-09-14T09:30:00Z",
+      "source": { "actor": "user|system", "job_id": "uuid", "node_path": "ltree", "function_id": "uuid" }
+    }
   ]
 }
 ```
 
-### SQL Definition
+### Items
+
+#### ImageItem
+
+```json
+{
+  "id": "uuid-or-ulid",
+  "asset_type": "image",
+  "url": "https://…",
+  "storage": { "bucket": "media", "path": "jobs/{job}/nodes/{node}/v{v}/images/{id}.jpg" },
+  "meta": {
+    "width": 1024, "height": 1536, "mime": "image/jpeg",
+    "size_bytes": 2345678,
+    "orientation": "portrait"          // portrait | landscape | square (optional)
+  }
+}
+```
+
+#### VideoItem
+
+```json
+{
+  "id": "uuid-or-ulid",
+  "asset_type": "video",
+  "url": "https://…",
+  "storage": { "bucket": "media", "path": "jobs/{job}/nodes/{node}/v{v}/videos/{id}.mp4" },
+  "meta": {
+    "width": 1920, "height": 1080, "duration_sec": 7.2, "fps": 24, "mime": "video/mp4",
+    "video_codec": "h264", "audio_codec": "aac", "has_audio": true, "bitrate_kbps": 2400
+  }
+}
+```
+
+#### AudioItem
+
+```json
+{
+  "id": "uuid-or-ulid",
+  "asset_type": "audio",
+  "url": "https://…",
+  "storage": { "bucket": "media", "path": "jobs/{job}/nodes/{node}/v{v}/audios/{id}.wav" },
+  "meta": {
+    "duration_sec": 3.1, "sample_rate_hz": 44100, "channels": 2, "mime": "audio/wav", "bitrate_kbps": 1411
+  }
+}
+```
+
+## Storage & URL
+
+* **Backend decides** `storage.path`; frontend never crafts it.
+* Convention: `jobs/{job_id}/nodes/{node_id}/v{v}/{images|videos|audios}/{item_id}.{ext}`
+* Stable key: `storage.bucket + storage.path`
+* `url` is server-derived (public or signed)
+
+## Frontend Contract
+
+* Read:
+
+  * `const ver = content.versions.find(x => x.v === content.current_v)`
+  * Render `ver.images | ver.videos | ver.audios`
+* Changes:
+
+  * Any add/remove/reorder/replace ⇒ **create a new version**
+  * Undo/redo ⇒ switch `current_v`
+
+## Plans (Edge Functions)
+
+* `POST /api/nodes/:nodeId/media/:kind/prepare-upload`
+* `POST /api/nodes/:nodeId/media/:kind/finalize-version`
+* `PATCH /api/nodes/:nodeId/media/:kind/current`
+
+---
+
+# SQL Bundle (copy-paste)
+
+> Safe to run multiple times; guards against duplicates.
 
 ```sql
--- =========================================
--- Enums (idempotent) — add once
--- =========================================
+-- =========================
+-- ENUM (optional, for future use)
+-- =========================
 do $$ begin
+  create type public.media_kind as enum ('image','video','audio');
+exception when duplicate_object then null; end $$;
+
+-- =========================
+-- HELPER: build versioned storage path (server-owned)
+-- =========================
+create or replace function public.make_media_path(
+  p_kind text, p_job uuid, p_node uuid, p_v int, p_item_id text, p_ext text
+) returns text
+language sql
+stable
+as $$
+  select 'jobs/'||p_job||'/nodes/'||p_node||'/v'||p_v||'/'||
+         case when p_kind='image' then 'images/'
+              when p_kind='video' then 'videos/'
+              when p_kind='audio' then 'audios/'
+              else 'files/' end
+         || p_item_id || '.' || p_ext
+$$;
+
+-- =========================
+-- VALIDATORS: items
+-- =========================
+
+-- Image
+create or replace function public.is_valid_image_item(j jsonb)
+returns boolean
+language sql
+stable
+as $$
+select
+  jsonb_typeof(j)='object'
+  and (j ? 'id') and jsonb_typeof(j->'id')='string'
+  and (j ? 'asset_type') and (j->>'asset_type')='image'
+  and (j ? 'url') and jsonb_typeof(j->'url')='string' and (j->>'url') ~* '^https?://'
+  and (j ? 'storage') and jsonb_typeof(j->'storage')='object'
+  and ((j->'storage') ? 'bucket') and jsonb_typeof(j->'storage'->'bucket')='string'
+  and ((j->'storage') ? 'path') and jsonb_typeof(j->'storage'->'path')='string'
+  and (j ? 'meta') and jsonb_typeof(j->'meta')='object'
+  and ((j->'meta') ? 'width') and jsonb_typeof(j->'meta'->'width')='number' and (j->'meta'->>'width')::numeric > 0
+  and ((j->'meta') ? 'height') and jsonb_typeof(j->'meta'->'height')='number' and (j->'meta'->>'height')::numeric > 0
+  and ((j->'meta') ? 'mime') and jsonb_typeof(j->'meta'->'mime')='string'
+  and (
+       coalesce((j->'meta'->>'orientation') in ('portrait','landscape','square'), true)
+      )
+$$;
+
+-- Video
+create or replace function public.is_valid_video_item(j jsonb)
+returns boolean
+language sql
+stable
+as $$
+select
+  jsonb_typeof(j)='object'
+  and (j ? 'id') and jsonb_typeof(j->'id')='string'
+  and (j ? 'asset_type') and (j->>'asset_type')='video'
+  and (j ? 'url') and jsonb_typeof(j->'url')='string' and (j->>'url') ~* '^https?://'
+  and (j ? 'storage') and jsonb_typeof(j->'storage')='object'
+  and ((j->'storage') ? 'bucket') and jsonb_typeof(j->'storage'->'bucket')='string'
+  and ((j->'storage') ? 'path') and jsonb_typeof(j->'storage'->'path')='string'
+  and (j ? 'meta') and jsonb_typeof(j->'meta')='object'
+  and ((j->'meta') ? 'width') and jsonb_typeof(j->'meta'->'width')='number' and (j->'meta'->>'width')::numeric > 0
+  and ((j->'meta') ? 'height') and jsonb_typeof(j->'meta'->'height')='number' and (j->'meta'->>'height')::numeric > 0
+  and ((j->'meta') ? 'duration_sec') and jsonb_typeof(j->'meta'->'duration_sec')='number' and (j->'meta'->>'duration_sec')::numeric >= 0
+  and ((j->'meta') ? 'fps') and jsonb_typeof(j->'meta'->'fps')='number' and (j->'meta'->>'fps')::numeric > 0
+  and ((j->'meta') ? 'mime') and jsonb_typeof(j->'meta'->'mime')='string'
+$$;
+
+-- Audio
+create or replace function public.is_valid_audio_item(j jsonb)
+returns boolean
+language sql
+stable
+as $$
+select
+  jsonb_typeof(j)='object'
+  and (j ? 'id') and jsonb_typeof(j->'id')='string'
+  and (j ? 'asset_type') and (j->>'asset_type')='audio'
+  and (j ? 'url') and jsonb_typeof(j->'url')='string' and (j->>'url') ~* '^https?://'
+  and (j ? 'storage') and jsonb_typeof(j->'storage')='object'
+  and ((j->'storage') ? 'bucket') and jsonb_typeof(j->'storage'->'bucket')='string'
+  and ((j->'storage') ? 'path') and jsonb_typeof(j->'storage'->'path')='string'
+  and (j ? 'meta') and jsonb_typeof(j->'meta')='object'
+  and ((j->'meta') ? 'duration_sec') and jsonb_typeof(j->'meta'->'duration_sec')='number' and (j->'meta'->>'duration_sec')::numeric >= 0
+  and ((j->'meta') ? 'sample_rate_hz') and jsonb_typeof(j->'meta'->'sample_rate_hz')='number' and (j->'meta'->>'sample_rate_hz')::numeric > 0
+  and ((j->'meta') ? 'channels') and jsonb_typeof(j->'meta'->'channels')='number' and (j->'meta'->>'channels')::numeric >= 1
+  and ((j->'meta') ? 'mime') and jsonb_typeof(j->'meta'->'mime')='string'
+$$;
+
+-- =========================
+-- VALIDATOR: node.content for media (router)
+-- =========================
+create or replace function public.is_valid_media_content(j jsonb)
+returns boolean
+language plpgsql
+stable
+as $$
+declare
+  k text;
+  curr int;
+  arr_key text;
+  ver jsonb;
+  items jsonb;
+begin
+  if jsonb_typeof(j) <> 'object' then return false; end if;
+
+  k := j->>'kind';
+  if k not in ('image','video','audio') then return false; end if;
+
+  if not (j ? 'current_v') or jsonb_typeof(j->'current_v') <> 'number' then return false; end if;
+  if not (j ? 'versions') or jsonb_typeof(j->'versions') <> 'array' then return false; end if;
+
+  curr := (j->>'current_v')::int;
   if not exists (
-    select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
-    where t.typname='asset_type' and n.nspname='public'
-  ) then
-    create type public.asset_type as enum ('image','audio','video','file');
-  end if;
+    select 1 from jsonb_array_elements(j->'versions') v where (v->>'v')::int = curr
+  ) then return false; end if;
+
+  arr_key := case k when 'image' then 'images'
+                    when 'video' then 'videos'
+                    else 'audios' end;
+
+  -- validate each version
+  for ver in select * from jsonb_array_elements(j->'versions')
+  loop
+    if jsonb_typeof(ver) <> 'object' then return false; end if;
+    if not (ver ? 'v') or jsonb_typeof(ver->'v') <> 'number' or (ver->>'v')::int < 1 then return false; end if;
+
+    items := jsonb_extract_path(ver, arr_key);
+    if items is null or jsonb_typeof(items) <> 'array' then return false; end if;
+
+    -- item-level validation
+    if k='image' and exists (
+      select 1 from jsonb_array_elements(items) itm where not public.is_valid_image_item(itm)
+    ) then return false; end if;
+
+    if k='video' and exists (
+      select 1 from jsonb_array_elements(items) itm where not public.is_valid_video_item(itm)
+    ) then return false; end if;
+
+    if k='audio' and exists (
+      select 1 from jsonb_array_elements(items) itm where not public.is_valid_audio_item(itm)
+    ) then return false; end if;
+
+    -- unique ids within this version
+    if exists (
+      select 1
+      from (
+        select count(*) cnt, count(distinct (itm->>'id')) cntd
+        from jsonb_array_elements(items) itm
+      ) s
+      where s.cnt <> s.cntd
+    ) then return false; end if;
+  end loop;
+
+  return true;
 end $$;
 
--- =========================================
--- Media item validator (single)
--- =========================================
-create or replace function public.is_valid_media_item(m jsonb)
-returns boolean
-language sql
-stable
-as $$
-  select
-    jsonb_typeof(m) = 'object'
-
-    -- required: asset_type, url
-    and (m ? 'asset_type')
-    and jsonb_typeof(m->'asset_type') = 'string'
-    and public.in_enum(m->>'asset_type', null::public.asset_type)
-
-    and (m ? 'url')
-    and jsonb_typeof(m->'url') = 'string'
-    and (m->>'url') ~* '^https?://'
-
-    -- optional flags
-    and (not (m ? 'editable')  or jsonb_typeof(m->'editable')  = 'boolean')
-    and (not (m ? 'removable') or jsonb_typeof(m->'removable') = 'boolean')
-
-    -- optional ui override (same shape as field ui)
-    and (not (m ? 'ui_override') or public.is_valid_ui(m->'ui_override'))
-
-    -- optional parent_group shape
-    and (not (m ? 'parent_group') or (
-      jsonb_typeof(m->'parent_group') = 'object'
-      and ((m->'parent_group') ? 'group_name')
-      and jsonb_typeof((m->'parent_group')->'group_name') = 'string'
-      and (not ((m->'parent_group') ? 'group_instance_id')
-           or jsonb_typeof((m->'parent_group')->'group_instance_id') = 'string')
-    ))
-
-    -- optional meta with typed known keys; extra keys allowed
-    and (not (m ? 'meta') or (
-      jsonb_typeof(m->'meta') = 'object'
-      and not exists (
-        select 1
-        from jsonb_each(m->'meta') kv(k, v)
-        where (k in ('width','height','duration_sec','fps','size_bytes') and jsonb_typeof(v) <> 'number')
-           or (k in ('codec','mime') and jsonb_typeof(v) <> 'string')
-      )
-    ));
-$$;
-
--- =========================================
--- Media items validator (array)
--- =========================================
-create or replace function public.is_valid_media_items(arr jsonb)
-returns boolean
-language sql
-stable
-as $$
-  with a as (select coalesce(arr, '[]'::jsonb) j),
-  is_arr as (select jsonb_typeof(j) = 'array' as ok from a),
-  elems as (select jsonb_array_elements((select j from a)) e),
-  all_ok as (select not exists (select 1 from elems where not public.is_valid_media_item(e)) as ok)
-  select (select ok from is_arr) and (select ok from all_ok);
-$$;
-
--- =========================================
--- (Planned) Route 'media' through the strict validator
--- When you’re ready, update the content-shape router:
--- =========================================
--- create or replace function public.is_valid_content_shape(node_type text, content jsonb)
--- returns boolean language sql stable as $$
---   select case
---     when node_type = 'form'  then public.is_valid_form_content(content)
---     when node_type = 'group' then jsonb_typeof(coalesce(content,'[]'::jsonb))='array' -- tighten later
---     when node_type = 'media' then public.is_valid_media_items(content)
---     else false
---   end;
--- $$;
+-- =========================
+-- TABLE CHECK (storyboard_nodes)
+-- =========================
+alter table public.storyboard_nodes
+  drop constraint if exists chk_media_content_valid,
+  add constraint chk_media_content_valid
+  check (
+    case
+      when node_type = 'media' then public.is_valid_media_content(content)
+      else true
+    end
+  );
 ```
 
 ---
