@@ -1436,26 +1436,29 @@ $$;
 
 ---
 
-## Section 2: Storyboard Nodes
+# Section 4: Storyboard Nodes (Strucure Locked needs full recheck)
 
 ### Purpose
 
-* Capture storyboard hierarchy.
-* Store node content (fields, groups, media) and relationships.
+Capture the storyboard tree per job. Each node is a `form`, `group`, or `media` container; paths are ltree-based; content is strictly validated by node type.
 
 ### Simplified Prose
 
 * **id**: UUID PK.
-* **job\_id**: FK → storyboard\_jobs.id.
-* **node\_type**: form|group|media.
-* **path**: ltree path.
-* **parent\_id**: FK self.
-* **is\_section**: auto boolean.
-* **content**: type-specific array.
-* **edit**: has\_editables flag + optional validate.
-* **actions**: generate function link.
-* **dependencies**: array of paths.
-* **timestamps**: created\_at, updated\_at.
+* **job\_id**: FK → `storyboard_jobs.id`.
+* **node\_type**: one of `form|group|media` (validated).
+* **path**: `ltree` unique per job (e.g., `root.user_input`, `root.characters.extras`).
+* **parent\_id**: optional FK → self; must be same `job_id`; `parent.path @> path` and **immediate child** (`nlevel(path)=nlevel(parent.path)+1`).
+* **is\_section**: auto-set by trigger to `true` when `nlevel(path)=2` (e.g., `root.basic`).
+* **content**: by type
+
+  * `form` → `FormContent` (see §2: FieldGroup/FieldItem)
+  * `group` → array (TBD tighter validator later)
+  * `media` → `MediaContent` (see §3)
+* **edit**: `{ has_editables: boolean, validate? { n8n_function_id: uuid|string } }`.
+* **actions**: `{ generate? { n8n_function_id: uuid|string } }`.
+* **dependencies**: array of ltree paths or `{ path, optional? }`.
+* **version**: ≥1; **active**: boolean; timestamps.
 
 ### Top-Level Contract
 
@@ -1466,18 +1469,139 @@ $$;
   "node_type": "form|group|media",
   "path": "ltree",
   "parent_id": "uuid|null",
-  "content": [ { /* field/group/media */ } ],
-  "edit": { "has_editables": true, "validate": {"n8n_function_id": "uuid"} },
-  "actions": { "generate": {"n8n_function_id": "uuid"} },
-  "dependencies": ["root.characters.lead", {"path":"root.props","optional":true}],
-  "removable": true
+  "is_section": true,
+  "content": {},
+  "edit": { "has_editables": true, "validate": { "n8n_function_id": "uuid-or-name" } },
+  "actions": { "generate": { "n8n_function_id": "uuid-or-name" } },
+  "dependencies": [ "root.characters.lead", { "path": "root.props", "optional": true } ],
+  "version": 1,
+  "active": true
 }
 ```
 
 ### SQL Definition
 
 ```sql
--- see strict schema with constraints, triggers for parent guard, has_editables, is_section
+-- Required extension
+create extension if not exists ltree;
+
+-- Helper: node_type validator (idempotent)
+create or replace function public.is_valid_node_type(t text)
+returns boolean language sql immutable as $$
+  select t in ('form','group','media');
+$$;
+
+-- Helper: path text validator (used by definitions; ltree column self-validates)
+create or replace function public.is_valid_path_text(t text)
+returns boolean language sql immutable as $$
+  -- Accept ltree-compatible labels separated by dots
+  select t ~ '^[a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)*$';
+$$;
+
+-- === TABLE ===
+create table if not exists public.storyboard_nodes (
+  id uuid primary key default gen_random_uuid(),
+  job_id uuid not null references public.storyboard_jobs(id) on delete cascade,
+
+  node_type text not null,
+  path ltree not null,
+  parent_id uuid null references public.storyboard_nodes(id) on delete cascade,
+
+  is_section boolean not null default false,
+
+  content jsonb not null default '{}'::jsonb,
+  edit jsonb not null default '{}'::jsonb,
+  actions jsonb not null default '{}'::jsonb,
+  dependencies jsonb not null default '[]'::jsonb,
+
+  version int not null default 1,
+  active boolean not null default true,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+
+  -- Basic shape checks
+  constraint chk_sn_node_type     check (public.is_valid_node_type(node_type)),
+  constraint chk_sn_content_shape check (public.is_valid_content_shape(node_type, content)),
+  constraint chk_sn_edit_shape    check (public.is_valid_node_edit_strict(edit)),
+  constraint chk_sn_actions_shape check (public.is_valid_node_actions_strict(actions)),
+  constraint chk_sn_deps_shape    check (public.is_valid_node_dependencies(dependencies)),
+  constraint chk_sn_version       check (version >= 1)
+);
+
+-- Uniqueness and lookup
+create unique index if not exists ux_storyboard_nodes_job_path on public.storyboard_nodes(job_id, path);
+create index if not exists ix_storyboard_nodes_job on public.storyboard_nodes(job_id);
+create index if not exists ix_storyboard_nodes_parent on public.storyboard_nodes(parent_id);
+create index if not exists ix_storyboard_nodes_type on public.storyboard_nodes(node_type);
+create index if not exists ix_storyboard_nodes_path_gist on public.storyboard_nodes using gist (path);
+
+-- Touch trigger
+create or replace function public.t_storyboard_nodes_touch()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at := now();
+  return new;
+end $$;
+
+drop trigger if exists trg_storyboard_nodes_touch on public.storyboard_nodes;
+create trigger trg_storyboard_nodes_touch
+before update on public.storyboard_nodes
+for each row execute function public.t_storyboard_nodes_touch();
+
+-- Parent/Path guard (CHECKs cannot reference siblings; enforce via trigger)
+create or replace function public.t_storyboard_nodes_guard()
+returns trigger language plpgsql as $$
+declare
+  p_job uuid;
+  p_path ltree;
+begin
+  -- is_section auto: true when depth == 2 (e.g., root.basic)
+  new.is_section := (nlevel(new.path) = 2);
+
+  if new.parent_id is null then
+    -- must be a top-level or deeper node without an explicit parent (allowed), no extra rule here
+    return new;
+  end if;
+
+  select job_id, path into p_job, p_path
+  from public.storyboard_nodes
+  where id = new.parent_id;
+
+  if not found then
+    raise exception 'Parent % not found', new.parent_id using errcode = '23503';
+  end if;
+
+  if p_job <> new.job_id then
+    raise exception 'Parent job_id mismatch' using errcode = '23514';
+  end if;
+
+  -- parent must be an ancestor and immediate parent
+  if not (p_path @> new.path) then
+    raise exception 'Parent path % is not an ancestor of child path %', p_path::text, new.path::text using errcode = '23514';
+  end if;
+
+  if nlevel(new.path) <> nlevel(p_path) + 1 then
+    raise exception 'Child path must be exactly one level below parent (got % vs %)', nlevel(new.path), nlevel(p_path) using errcode = '23514';
+  end if;
+
+  return new;
+end $$;
+
+drop trigger if exists trg_storyboard_nodes_guard on public.storyboard_nodes;
+create trigger trg_storyboard_nodes_guard
+before insert or update on public.storyboard_nodes
+for each row execute function public.t_storyboard_nodes_guard();
+
+-- Notes:
+-- - content validation is routed by public.is_valid_content_shape(node_type, content):
+--     * 'form'  -> public.is_valid_form_content(content)   (Locked in §2)
+--     * 'media' -> public.is_valid_media_items(content)    (Planned in §3)
+--     * 'group' -> (TBD tighter shape; currently array placeholder)
+-- - edit/actions/dependencies are validated by your existing strict validators:
+--     public.is_valid_node_edit_strict(jsonb),
+--     public.is_valid_node_actions_strict(jsonb),
+--     public.is_valid_node_dependencies(jsonb).
 ```
 
 
