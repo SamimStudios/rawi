@@ -13,33 +13,34 @@ This document is the **single reference** for schemas, constraints, contracts, a
 
 ### Purpose
 
-* Central registry for reusable fields.
-* Ensures strict typing, UI consistency, and defaulting.
+- Central registry for reusable fields.
+- Enforces strict typing, defaulting, and selection options.
 
 ### Simplified Prose
 
-* **id**: UUID PK.
-* **field\_id**: unique string identifier.
-* **datatype**: `string|number|boolean|array|object|uuid|url|date|datetime`.
-* **widget**: UI hint.
-* **options**: JSON describing choices.
-* **rules**: datatype-aware constraints.
-* **ui**: `{label?, placeholder?, help?}` i18n-ready.
-* **default\_value**: must match datatype and options.
-* **version**: integer ≥1.
-* **timestamps**: created\_at, updated\_at.
+- **id**: UUID PK.
+- **field_id**: unique string identifier.
+- **datatype**: enum `field_datatype` = `string|number|boolean|array|object|uuid|url|date|datetime`.
+- **widget**: enum `field_widget` = `text|textarea|select|radio|checkbox|tags|group|date|datetime|url|color|file`.
+- **options**: JSON describing choices (see 1.A).
+- **rules**: datatype-aware constraints (see 1.B).
+- **ui**: `{label?, placeholder?, help?}` i18n-ready (no validator in this section).
+- **default_value**: must match `datatype` and (when relevant) be allowed by `options`.
+- **version**: integer ≥ 1.
+- **timestamps**: `created_at`, `updated_at`.
 
 ### Top-Level Contract
 
 ```json
 {
   "field_id": "string",
-  "datatype": "string",
-  "widget": "string",
-  "options": { },
-  "rules": { },
-  "ui": { "label": "…", "placeholder": "…", "help": "…" },
-  "default_value": "valid instance"
+  "datatype": "string|number|boolean|array|object|uuid|url|date|datetime",
+  "widget": "text|textarea|select|radio|checkbox|tags|group|date|datetime|url|color|file",
+  "options": {},
+  "rules": {},
+  "ui": { "label": "...", "placeholder": "...", "help": "..." },
+  "default_value": "valid instance",
+  "version": 1
 }
 ```
 
@@ -56,7 +57,7 @@ This document is the **single reference** for schemas, constraints, contracts, a
 ### Purpose
 - Standardize `options` JSON used by widgets (selects, lookups, etc.).
 - Support three sources: **static**, **endpoint**, **table**.
-- Keep **closed sets** strict via Postgres enums while preserving JSON flexibility.
+- Keep closed sets strict via Postgres enums while preserving JSON flexibility.
 
 ### Simplified Prose
 - `source`: one of `static | endpoint | table`.
@@ -70,7 +71,7 @@ This document is the **single reference** for schemas, constraints, contracts, a
 - **table**:
   - `table` (string), `valueColumn` (string), `labelColumn` (string) required.
   - `extraColumns?` (string[]).
-  - `where?`: array of `{ column: string, op: one of (eq, neq, gt, gte, lt, lte, like, ilike, in), value: any }`.
+  - `where?`: array of `{ column: string, op: (eq|neq|gt|gte|lt|lte|like|ilike|in), value: any }`.
   - `orderBy?`: array of `{ column: string, dir: asc|desc }`.
   - `limit?` (number > 0).
 
@@ -84,17 +85,17 @@ This document is the **single reference** for schemas, constraints, contracts, a
       {
         "value": "string",
         "label": { "fallback": "string", "key": "string?" },
-        "extras": { },
+        "extras": {},
         "disabled": false
       }
     ],
     "dependsOn": [
-      { "field": "string", "allow": ["string", "string"] }
+      { "field": "string", "allow": ["string"] }
     ],
 
     "url": "string",
     "method": "GET|POST|PUT|PATCH|DELETE",
-    "query": { },
+    "query": {},
     "valueKey": "string",
     "labelKey": "string",
     "extraKeys": ["string"],
@@ -114,172 +115,163 @@ This document is the **single reference** for schemas, constraints, contracts, a
   }
 }
 ```
+
 ### SQL Definition
-
 ```sql
--- Enums (idempotent guards)
-do $$
-begin
+-- Enums for options JSON (idempotent guards)
+do $$ begin
   if not exists (
     select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
-    where t.typname='string_format' and n.nspname='public'
-  ) then
-    create type public.string_format as enum ('none','email','phone','color','slug','uri','url');
-  end if;
-end$$;
+    where t.typname='options_source' and n.nspname='public'
+  ) then create type public.options_source as enum ('static','endpoint','table'); end if;
+end $$;
 
-do $$
-declare v text;
-begin
-  foreach v in array array['none','email','phone','color','slug','uri','url'] loop
-    begin execute format('alter type public.string_format add value %L', v);
-    exception when duplicate_object then null;
-    end;
-  end loop;
-end$$;
-
-do $$
-begin
+do $$ begin
   if not exists (
     select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
-    where t.typname='array_item_type' and n.nspname='public'
-  ) then
-    create type public.array_item_type as enum
-      ('string','number','boolean','uuid','url','date','datetime','object');
-  end if;
-end$$;
+    where t.typname='http_method' and n.nspname='public'
+  ) then create type public.http_method as enum ('GET','POST','PUT','PATCH','DELETE'); end if;
+end $$;
 
-do $$
-declare v text;
-begin
-  foreach v in array array['string','number','boolean','uuid','url','date','datetime','object'] loop
-    begin execute format('alter type public.array_item_type add value %L', v);
-    exception when duplicate_object then null;
-    end;
-  end loop;
-end$$;
+do $$ begin
+  if not exists (
+    select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
+    where t.typname='order_dir' and n.nspname='public'
+  ) then create type public.order_dir as enum ('asc','desc'); end if;
+end $$;
 
--- Safe enum-membership helper
+do $$ begin
+  if not exists (
+    select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
+    where t.typname='table_where_op' and n.nspname='public'
+  ) then create type public.table_where_op as enum ('eq','neq','gt','gte','lt','lte','like','ilike','in'); end if;
+end $$;
+
+-- Shared helper (safe to define multiple times)
 create or replace function public.in_enum(val text, etype anyenum)
 returns boolean language sql immutable as $$
-  select case
-           when val is null then false
-           else val = any (enum_range(etype)::text[])
-         end;
+  select case when val is null then false else val = any (enum_range(etype)::text[]) end;
 $$;
 
--- Validator: returns true if rules JSON matches the datatype contract
-create or replace function public.is_valid_rules(p jsonb, p_datatype text)
-returns boolean
-language sql immutable
-as $$
-  with base as (select coalesce(p, '{}'::jsonb) as j),
-  is_obj as (select jsonb_typeof(j) = 'object' as ok from base),
-  t as (
-    select
-      (p_datatype::text in ('string','uuid','url','date','datetime')) as is_str,
-      (p_datatype::text = 'number')  as is_num,
-      (p_datatype::text = 'boolean') as is_bool,
-      (p_datatype::text = 'array')   as is_arr,
-      (p_datatype::text = 'object')  as is_objtype
-  ),
-  keys_ok as (
-    select not exists (
-      select 1
-      from base b, jsonb_object_keys(b.j) k, t
-      where case
-        when t.is_str     then k not in ('minLength','maxLength','pattern','format')
-        when t.is_num     then k not in ('minimum','maximum')
-        when t.is_bool    then true
-        when t.is_arr     then k not in ('minItems','maxItems','uniqueItems','itemType')
-        when t.is_objtype then false   -- no key-level restriction for object
-        else false
-      end
-    ) as ok
-  ),
-  types_ok as (
-    select (
-      select case
-        when t.is_str then
-          (not (b.j ? 'minLength') or jsonb_typeof(b.j->'minLength') = 'number')
-          and (not (b.j ? 'maxLength') or jsonb_typeof(b.j->'maxLength') = 'number')
-          and (not (b.j ? 'pattern')   or jsonb_typeof(b.j->'pattern')   = 'string')
-          and (
-            not (b.j ? 'format')
-            or (
-              jsonb_typeof(b.j->'format') = 'string'
-              and public.in_enum(b.j->>'format', null::public.string_format)
+-- OPTIONS validator
+create or replace function public.is_valid_field_options(p jsonb)
+returns boolean language sql immutable as $$
+  select
+    p is null
+    or (
+      jsonb_typeof(p) = 'object'
+      and (p ? 'source') and jsonb_typeof(p->'source') = 'string'
+      and public.in_enum(p->>'source', null::public.options_source)
+      and (
+        -- STATIC
+        (p->>'source' = 'static'
+          and (p ? 'values') and jsonb_typeof(p->'values') = 'array'
+          and not exists (
+            select 1
+            from jsonb_array_elements(p->'values') v
+            where not (
+              jsonb_typeof(v) = 'object'
+              and (v ? 'value') and jsonb_typeof(v->'value') = 'string'
+              and (v ? 'label') and jsonb_typeof(v->'label') = 'object'
+              and ((v->'label') ? 'fallback') and jsonb_typeof((v->'label')->'fallback') = 'string'
+              and (not ((v->'label') ? 'key') or jsonb_typeof((v->'label')->'key') = 'string')
+              and (not (v ? 'extras') or jsonb_typeof(v->'extras') = 'object')
+              and (not (v ? 'disabled') or jsonb_typeof(v->'disabled') = 'boolean')
             )
           )
-        when t.is_num then
-          (not (b.j ? 'minimum') or jsonb_typeof(b.j->'minimum') = 'number')
-          and (not (b.j ? 'maximum') or jsonb_typeof(b.j->'maximum') = 'number')
-        when t.is_bool then
-          jsonb_typeof(b.j) = 'object'
-          and (select count(*) from jsonb_object_keys(b.j)) = 0
-        when t.is_arr then
-          (not (b.j ? 'minItems')     or jsonb_typeof(b.j->'minItems')     = 'number')
-          and (not (b.j ? 'maxItems') or jsonb_typeof(b.j->'maxItems')     = 'number')
-          and (not (b.j ? 'uniqueItems') or jsonb_typeof(b.j->'uniqueItems') = 'boolean')
           and (
-            not (b.j ? 'itemType')
-            or (
-              jsonb_typeof(b.j->'itemType') = 'string'
-              and public.in_enum(b.j->>'itemType', null::public.array_item_type)
+            not (p ? 'dependsOn') or (
+              jsonb_typeof(p->'dependsOn') = 'array'
+              and not exists (
+                select 1
+                from jsonb_array_elements(p->'dependsOn') d
+                where not (
+                  jsonb_typeof(d) = 'object'
+                  and (d ? 'field') and jsonb_typeof(d->'field') = 'string'
+                  and (d ? 'allow') and jsonb_typeof(d->'allow') = 'array'
+                  and not exists (
+                    select 1 from jsonb_array_elements_text(d->'allow') a
+                    where a is null or a = ''
+                  )
+                )
+              )
             )
           )
-        when t.is_objtype then jsonb_typeof(b.j) = 'object'
-        else jsonb_typeof(b.j) = 'object'
-      end
-      from base b, t
-    ) as ok
-  ),
-  ranges_ok as (
-    select (
-      select case
-        when t.is_str then
-          (not (b.j ? 'minLength') or not (b.j ? 'maxLength')
-           or ((b.j->>'minLength')::numeric <= (b.j->>'maxLength')::numeric))
-        when t.is_num then
-          (not (b.j ? 'minimum') or not (b.j ? 'maximum')
-           or ((b.j->>'minimum')::numeric <= (b.j->>'maximum')::numeric))
-        when t.is_arr then
-          (not (b.j ? 'minItems') or not (b.j ? 'maxItems')
-           or ((b.j->>'minItems')::numeric <= (b.j->>'maxItems')::numeric))
-        else true
-      end
-      from base b, t
-    ) as ok
-  ),
-  nonneg_ok as (
-    select (
-      select case
-        when t.is_str then
-          (not (b.j ? 'minLength') or (b.j->>'minLength')::numeric >= 0)
-          and (not (b.j ? 'maxLength') or (b.j->>'maxLength')::numeric >= 0)
-        when t.is_arr then
-          (not (b.j ? 'minItems') or (b.j->>'minItems')::numeric >= 0)
-          and (not (b.j ? 'maxItems') or (b.j->>'maxItems')::numeric >= 0)
-        else true
-      end
-      from base b, t
-    ) as ok
-  )
-  select (select ok from is_obj)
-      and (select ok from keys_ok)
-      and (select ok from types_ok)
-      and (select ok from ranges_ok)
-      and (select ok from nonneg_ok);
+        )
+        or
+        -- ENDPOINT
+        (p->>'source' = 'endpoint'
+          and (p ? 'url') and jsonb_typeof(p->'url') = 'string'
+          and (
+            not (p ? 'method')
+            or (jsonb_typeof(p->'method') = 'string'
+                and public.in_enum(p->>'method', null::public.http_method))
+          )
+          and (not (p ? 'query')    or jsonb_typeof(p->'query')    = 'object')
+          and (not (p ? 'valueKey') or jsonb_typeof(p->'valueKey') = 'string')
+          and (not (p ? 'labelKey') or jsonb_typeof(p->'labelKey') = 'string')
+          and (
+            not (p ? 'extraKeys') or (
+              jsonb_typeof(p->'extraKeys') = 'array'
+              and not exists (
+                select 1 from jsonb_array_elements(p->'extraKeys') ek
+                where jsonb_typeof(ek) <> 'string'
+              )
+            )
+          )
+          and (not (p ? 'cacheTtlSec') or jsonb_typeof(p->'cacheTtlSec') = 'number')
+        )
+        or
+        -- TABLE
+        (p->>'source' = 'table'
+          and (p ? 'table')       and jsonb_typeof(p->'table')       = 'string'
+          and (p ? 'valueColumn') and jsonb_typeof(p->'valueColumn') = 'string'
+          and (p ? 'labelColumn') and jsonb_typeof(p->'labelColumn') = 'string'
+          and (
+            not (p ? 'extraColumns') or (
+              jsonb_typeof(p->'extraColumns') = 'array'
+              and not exists (
+                select 1 from jsonb_array_elements(p->'extraColumns') ec
+                where jsonb_typeof(ec) <> 'string'
+              )
+            )
+          )
+          and (
+            not (p ? 'where') or (
+              jsonb_typeof(p->'where') = 'array'
+              and not exists (
+                select 1
+                from jsonb_array_elements(p->'where') w
+                where not (
+                  jsonb_typeof(w) = 'object'
+                  and (w ? 'column') and jsonb_typeof(w->'column') = 'string'
+                  and (w ? 'op')     and jsonb_typeof(w->'op')     = 'string'
+                  and public.in_enum(w->>'op', null::public.table_where_op)
+                  and (w ? 'value')
+                )
+              )
+            )
+          )
+          and (
+            not (p ? 'orderBy') or (
+              jsonb_typeof(p->'orderBy') = 'array'
+              and not exists (
+                select 1
+                from jsonb_array_elements(p->'orderBy') ob
+                where not (
+                  jsonb_typeof(ob) = 'object'
+                  and (ob ? 'column') and jsonb_typeof(ob->'column') = 'string'
+                  and (ob ? 'dir')    and jsonb_typeof(ob->'dir')    = 'string'
+                  and public.in_enum(ob->>'dir', null::public.order_dir)
+                )
+              )
+            )
+          )
+          and (not (p ? 'limit') or (jsonb_typeof(p->'limit') = 'number' and (p->>'limit')::numeric > 0))
+        )
+      )
+    );
 $$;
-
--- Optional table constraint (add first as NOT VALID, then validate)
--- alter table public.field_registry
---   add constraint chk_field_registry_rules
---   check (public.is_valid_rules(rules, datatype::text)) not valid;
-
--- -- Validate when ready:
--- alter table public.field_registry
---   validate constraint chk_field_registry_rules;
 ```
 
 ---
@@ -289,39 +281,34 @@ $$;
 ### Purpose
 - Standardize `rules` JSON per `datatype` for validation and UI hints.
 - Use enums for closed sets (e.g., `format`, `itemType`) while keeping JSON flexible.
-- Keep compatibility with existing rows and enforce via a single PG function + CHECK.
+- Enforced centrally via a Postgres function + CHECK.
 
 ### Simplified Prose
 - `rules` is a JSON object; allowed keys depend on `datatype`:
   - **string | uuid | url | date | datetime**:
-    - Keys: `minLength?` (number ≥0), `maxLength?` (number ≥0), `pattern?` (string, regex), `format?` (enum).
-    - `format` ∈ `string_format`: `none | email | phone | color | slug | uri | url`.
+    - Keys: `minLength?` (number ≥ 0), `maxLength?` (number ≥ 0), `pattern?` (string regex), `format?` (enum).
+    - `format` ∈ `string_format`: `none|email|phone|color|slug|uri|url`.
   - **number**:
     - Keys: `minimum?` (number), `maximum?` (number).
   - **boolean**:
-    - Must be an **empty object** `{}` (no keys).
+    - Must be `{}` (no keys).
   - **array**:
-    - Keys: `minItems?` (number ≥0), `maxItems?` (number ≥0), `uniqueItems?` (boolean), `itemType?` (enum).
-    - `itemType` ∈ `array_item_type`: `string | number | boolean | uuid | url | date | datetime | object`.
+    - Keys: `minItems?` (number ≥ 0), `maxItems?` (number ≥ 0), `uniqueItems?` (boolean), `itemType?` (enum).
+    - `itemType` ∈ `array_item_type`: `string|number|boolean|uuid|url|date|datetime|object`.
   - **object**:
-    - Any object allowed (pass-through today).
+    - Any object allowed (pass-through).
 - Ranges: when both min/max exist, min ≤ max.
 
 ### Top-Level Contract
 ```json
 {
   "rules": {
-    // string-like datatypes
     "minLength": 0,
     "maxLength": 120,
     "pattern": "^[A-Za-z].*$",
     "format": "none|email|phone|color|slug|uri|url",
-
-    // number
     "minimum": 0,
     "maximum": 100,
-
-    // array
     "minItems": 1,
     "maxItems": 3,
     "uniqueItems": true,
@@ -331,59 +318,51 @@ $$;
 ```
 
 ### SQL Definition
-
 ```sql
--- ENUMS (idempotent)
-do $$
-begin
+-- Enums for rules JSON (idempotent)
+do $$ begin
   if not exists (
     select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
     where t.typname='string_format' and n.nspname='public'
   ) then
     create type public.string_format as enum ('none','email','phone','color','slug','uri','url');
   end if;
-end$$;
+end $$;
 
-do $$
-declare v text;
+do $$ declare v text;
 begin
   foreach v in array array['none','email','phone','color','slug','uri','url'] loop
     begin execute format('alter type public.string_format add value %L', v);
     exception when duplicate_object then null; end;
   end loop;
-end$$;
+end $$;
 
-do $$
-begin
+do $$ begin
   if not exists (
     select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
     where t.typname='array_item_type' and n.nspname='public'
   ) then
-    create type public.array_item_type as enum
-      ('string','number','boolean','uuid','url','date','datetime','object');
+    create type public.array_item_type as enum ('string','number','boolean','uuid','url','date','datetime','object');
   end if;
-end$$;
+end $$;
 
-do $$
-declare v text;
+do $$ declare v text;
 begin
   foreach v in array array['string','number','boolean','uuid','url','date','datetime','object'] loop
     begin execute format('alter type public.array_item_type add value %L', v);
     exception when duplicate_object then null; end;
   end loop;
-end$$;
+end $$;
 
 -- Shared helper (safe if already created)
 create or replace function public.in_enum(val text, etype anyenum)
 returns boolean language sql immutable as $$
-  select case when val is null then false
-              else val = any (enum_range(etype)::text[]) end;
+  select case when val is null then false else val = any (enum_range(etype)::text[]) end;
 $$;
 
--- Validator
+-- RULES validator
 create or replace function public.is_valid_rules(p jsonb, p_datatype text)
-returns boolean
-language sql immutable
+returns boolean language sql immutable
 as $$
   with base as (select coalesce(p, '{}'::jsonb) as j),
   is_obj as (select jsonb_typeof(j) = 'object' as ok from base),
@@ -397,8 +376,7 @@ as $$
   ),
   keys_ok as (
     select not exists (
-      select 1
-      from base b, jsonb_object_keys(b.j) k, t
+      select 1 from base b, jsonb_object_keys(b.j) k, t
       where case
         when t.is_str     then k not in ('minLength','maxLength','pattern','format')
         when t.is_num     then k not in ('minimum','maximum')
@@ -430,8 +408,8 @@ as $$
           jsonb_typeof(b.j) = 'object'
           and (select count(*) from jsonb_object_keys(b.j)) = 0
         when t.is_arr then
-          (not (b.j ? 'minItems')     or jsonb_typeof(b.j->'minItems')     = 'number')
-          and (not (b.j ? 'maxItems') or jsonb_typeof(b.j->'maxItems')     = 'number')
+          (not (b.j ? 'minItems') or jsonb_typeof(b.j->'minItems') = 'number')
+          and (not (b.j ? 'maxItems') or jsonb_typeof(b.j->'maxItems') = 'number')
           and (not (b.j ? 'uniqueItems') or jsonb_typeof(b.j->'uniqueItems') = 'boolean')
           and (
             not (b.j ? 'itemType')
@@ -483,13 +461,8 @@ as $$
       and (select ok from ranges_ok)
       and (select ok from nonneg_ok);
 $$;
-
--- Optional table constraint for field_registry.rules
--- alter table public.field_registry
---   add constraint chk_field_registry_rules
---   check (public.is_valid_rules(rules, datatype::text)) not valid;
--- alter table public.field_registry validate constraint chk_field_registry_rules;
 ```
+
 ---
 
 ## Section 2: Storyboard Nodes
