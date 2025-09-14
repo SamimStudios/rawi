@@ -1,4 +1,4 @@
-# AI Scenes System Specification (Global Doc, Consolidated — Full)
+# Rawi App System Specification (Global Doc, Consolidated — Full)
 
 This document is the **single reference** for schemas, constraints, contracts, and triggers across the AI Scenes system. Each section has four parts:
 
