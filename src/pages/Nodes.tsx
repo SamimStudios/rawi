@@ -28,6 +28,8 @@ interface FieldRegistry {
 }
 
 export default function Nodes() {
+  console.log('Nodes component is running!');
+  
   const { t } = useLanguage();
   const [nodes, setNodes] = useState<StoryboardNode[]>([]);
   const [fields, setFields] = useState<FieldRegistry[]>([]);
@@ -36,11 +38,13 @@ export default function Nodes() {
   const [formValues, setFormValues] = useState<Record<string, Record<string, any>>>({});
 
   useEffect(() => {
+    console.log('useEffect running, calling fetchNodesAndFields');
     fetchNodesAndFields();
   }, []);
 
   const fetchNodesAndFields = async () => {
     try {
+      console.log('fetchNodesAndFields started');
       setLoading(true);
       setError(null);
 
@@ -51,6 +55,8 @@ export default function Nodes() {
         .eq('node_type', 'form')
         .order('updated_at', { ascending: false });
 
+      console.log('Nodes query result:', { nodesData, nodesError });
+
       if (nodesError) throw nodesError;
 
       // Fetch field definitions
@@ -58,14 +64,19 @@ export default function Nodes() {
         .from('field_registry')
         .select('*');
 
+      console.log('Fields query result:', { fieldsData, fieldsError });
+
       if (fieldsError) throw fieldsError;
 
       setNodes(nodesData || []);
       setFields(fieldsData || []);
+      console.log('Data set successfully. Nodes:', nodesData?.length, 'Fields:', fieldsData?.length);
     } catch (e: any) {
+      console.error('Error in fetchNodesAndFields:', e);
       setError(e?.message || 'Failed to load data');
     } finally {
       setLoading(false);
+      console.log('Loading finished');
     }
   };
 
@@ -80,19 +91,27 @@ export default function Nodes() {
   };
 
   const getFieldById = (fieldId: string) => {
-    return fields.find(f => f.field_id === fieldId);
+    const field = fields.find(f => f.field_id === fieldId);
+    console.log('getFieldById called for:', fieldId, 'found:', !!field);
+    return field;
   };
 
   const getGroupLabel = (group: { name: string; label: { fallback: string; key?: string } }) => {
     return group.label?.key ? t(group.label.key) : group.label?.fallback;
   };
 
-  if (loading) return <LoadingSpinner />;
+  console.log('Render state - loading:', loading, 'error:', error, 'nodes:', nodes.length, 'fields:', fields.length);
+
+  if (loading) {
+    console.log('Rendering loading spinner');
+    return <LoadingSpinner />;
+  }
   
   if (error) {
+    console.log('Rendering error:', error);
     return (
       <div className="container mx-auto p-6">
-        <Card variant="danger">
+        <Card>
           <CardContent className="p-6">
             <p className="text-destructive">Error: {error}</p>
           </CardContent>
@@ -101,12 +120,17 @@ export default function Nodes() {
     );
   }
 
+  console.log('Rendering main content');
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex flex-col space-y-2">
         <h1 className="text-3xl font-bold">Storyboard Nodes</h1>
         <p className="text-muted-foreground">
           Form nodes from the storyboard system with field definitions
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Found {nodes.length} nodes and {fields.length} fields
         </p>
       </div>
 
@@ -119,6 +143,7 @@ export default function Nodes() {
       ) : (
         <div className="grid gap-6">
           {nodes.map((node) => {
+            console.log('Rendering node:', node.id, 'content:', node.content);
             const nodeFormValues = formValues[node.id] || {};
             
             return (
@@ -144,6 +169,8 @@ export default function Nodes() {
                         item => item.parent?.group_name === group.name
                       ) || [];
 
+                      console.log('Group:', group.name, 'items:', groupItems.length);
+
                       if (groupItems.length === 0) return null;
 
                       return (
@@ -157,13 +184,18 @@ export default function Nodes() {
                           
                           <CollapsibleContent className="space-y-4 pt-4">
                             {groupItems.map((item, index) => {
+                              console.log('Processing item:', item.ref);
                               const field = getFieldById(item.ref);
                               
                               if (!field) {
+                                console.log('Field not found for ref:', item.ref);
                                 return (
                                   <div key={index} className="p-3 bg-destructive/10 rounded border border-destructive/20">
                                     <p className="text-destructive text-sm">
                                       Field "{item.ref}" not found in registry
+                                    </p>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      Available fields: {fields.map(f => f.field_id).join(', ')}
                                     </p>
                                   </div>
                                 );
