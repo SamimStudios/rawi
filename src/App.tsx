@@ -40,6 +40,7 @@ import StyleGuideline from "./pages/StyleGuideline";
 import N8NTest from "./pages/N8NTest";
 import ButtonShowcase from "./pages/ButtonShowcase";
 import FieldRegistry from "./pages/FieldRegistry";
+import Nodes from "./pages/Nodes";
 
 
 
@@ -213,6 +214,13 @@ const MainApp = () => (
                      <div>
                        <Header />
                        <FieldRegistry />
+                       <Footer />
+                     </div>
+                   } />
+                   <Route path="/nodes" element={
+                     <div>
+                       <Header />
+                       <Nodes />
                        <Footer />
                      </div>
                    } />
