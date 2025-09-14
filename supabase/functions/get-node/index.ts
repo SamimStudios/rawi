@@ -12,11 +12,18 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Initialize Supabase client
+    // Initialize Supabase client and forward auth for RLS
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { auth: { persistSession: false } }
+      {
+        auth: { persistSession: false },
+        global: {
+          headers: {
+            Authorization: req.headers.get('Authorization') || ''
+          }
+        }
+      }
     );
 
     // Extract node ID from URL
@@ -41,20 +48,35 @@ Deno.serve(async (req) => {
 
     console.log('Fetching node:', { nodeId, ancestors, children, descendants, depth, types, normalizedForms });
 
-    // First, get the main node
-    let mainNodeQuery = normalizedForms 
-      ? supabase.from('v_storyboard_forms_normalized').select('*').eq('id', nodeId).single()
-      : supabase.from('storyboard_nodes').select('*').eq('id', nodeId).single();
+    // First, get the main node (prefer normalized view if available)
+    let mainNode: any = null;
 
-    const { data: mainNode, error: mainError } = await mainNodeQuery;
-
-    if (mainError || !mainNode) {
-      console.error('Main node error:', mainError);
-      return new Response(
-        JSON.stringify({ error: 'Node not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (normalizedForms) {
+      const { data: normalizedNode } = await supabase
+        .from('v_storyboard_forms_normalized')
+        .select('*')
+        .eq('id', nodeId)
+        .maybeSingle();
+      if (normalizedNode) mainNode = normalizedNode;
     }
+
+    if (!mainNode) {
+      const { data: rawNode, error: rawErr } = await supabase
+        .from('storyboard_nodes')
+        .select('*')
+        .eq('id', nodeId)
+        .maybeSingle();
+
+      if (rawErr || !rawNode) {
+        console.error('Main node error:', rawErr);
+        return new Response(
+          JSON.stringify({ error: 'Node not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      mainNode = rawNode;
+    }
+
 
     const response = {
       node: mainNode,
@@ -68,20 +90,24 @@ Deno.serve(async (req) => {
 
     // Get ancestors if requested
     if (ancestors && mainNode.path) {
-      let ancestorsQuery = supabase
+      const segs = String(mainNode.path).split('.');
+      const prefixes: string[] = [];
+      for (let i = 1; i <= segs.length; i++) {
+        prefixes.push(segs.slice(0, i).join('.'));
+      }
+      const targetSet = prefixes.filter(p => p !== mainNode.path);
+
+      let { data: ancestorsData } = await supabase
         .from('storyboard_nodes')
         .select('*')
-        .textSearch('path', `@> ${mainNode.path}`)
-        .neq('path', mainNode.path)
-        .order('path', { ascending: true });
+        .in('path', targetSet);
 
-      if (types) {
-        ancestorsQuery = ancestorsQuery.in('node_type', types);
-      }
+      ancestorsData = (ancestorsData || []).filter(n => (types ? types.includes(n.node_type) : true));
 
-      const { data: ancestorsData, error: ancestorsError } = await ancestorsQuery;
-      
-      if (!ancestorsError && ancestorsData) {
+      // Order by nlevel(path) ASC (by segment count)
+      ancestorsData.sort((a, b) => String(a.path).split('.').length - String(b.path).split('.').length);
+
+      if (ancestorsData && ancestorsData.length) {
         response.ancestors = ancestorsData;
         allUpdatedAts.push(...ancestorsData.map(n => n.updated_at));
       }
@@ -117,35 +143,25 @@ Deno.serve(async (req) => {
 
     // Get descendants if requested
     if (descendants && mainNode.path) {
-      let descendantsQuery = supabase
+      // Fetch same job nodes and filter by path prefix client-side for reliable behavior
+      const { data: sameJobNodes } = await supabase
         .from('storyboard_nodes')
         .select('*')
-        .textSearch('path', `<@ ${mainNode.path}`)
-        .neq('path', mainNode.path)
+        .eq('job_id', mainNode.job_id)
         .order('path', { ascending: true });
 
-      if (normalizedForms) {
-        descendantsQuery = supabase
-          .from('v_storyboard_forms_normalized')
-          .select('*')
-          .textSearch('path', `<@ ${mainNode.path}`)
-          .neq('path', mainNode.path)
-          .order('path', { ascending: true });
+      let descendantsData = (sameJobNodes || []).filter(n => String(n.path).startsWith(String(mainNode.path) + '.') && String(n.path) !== String(mainNode.path));
+
+      if (typeof depth === 'number') {
+        const baseDepth = String(mainNode.path).split('.').length;
+        descendantsData = descendantsData.filter(n => String(n.path).split('.').length <= baseDepth + depth);
       }
 
       if (types) {
-        descendantsQuery = descendantsQuery.in('node_type', types);
+        descendantsData = descendantsData.filter(n => types.includes(n.node_type));
       }
 
-      // Apply depth limit if specified
-      if (depth !== null && mainNode.path) {
-        // This is a simplified depth check - in production you'd want to use nlevel() PostgreSQL function
-        descendantsQuery = descendantsQuery.lte('path', `${mainNode.path}.${depth}`);
-      }
-
-      const { data: descendantsData, error: descendantsError } = await descendantsQuery;
-      
-      if (!descendantsError && descendantsData) {
+      if (descendantsData.length) {
         response.descendants = descendantsData;
         allUpdatedAts.push(...descendantsData.map(n => n.updated_at));
       }
