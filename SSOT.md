@@ -113,7 +113,383 @@ This document is the **single reference** for schemas, constraints, contracts, a
     "limit": 25
   }
 }
+```
+### SQL Definition
 
+```sql
+-- Enums (idempotent guards)
+do $$
+begin
+  if not exists (
+    select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
+    where t.typname='string_format' and n.nspname='public'
+  ) then
+    create type public.string_format as enum ('none','email','phone','color','slug','uri','url');
+  end if;
+end$$;
+
+do $$
+declare v text;
+begin
+  foreach v in array array['none','email','phone','color','slug','uri','url'] loop
+    begin execute format('alter type public.string_format add value %L', v);
+    exception when duplicate_object then null;
+    end;
+  end loop;
+end$$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
+    where t.typname='array_item_type' and n.nspname='public'
+  ) then
+    create type public.array_item_type as enum
+      ('string','number','boolean','uuid','url','date','datetime','object');
+  end if;
+end$$;
+
+do $$
+declare v text;
+begin
+  foreach v in array array['string','number','boolean','uuid','url','date','datetime','object'] loop
+    begin execute format('alter type public.array_item_type add value %L', v);
+    exception when duplicate_object then null;
+    end;
+  end loop;
+end$$;
+
+-- Safe enum-membership helper
+create or replace function public.in_enum(val text, etype anyenum)
+returns boolean language sql immutable as $$
+  select case
+           when val is null then false
+           else val = any (enum_range(etype)::text[])
+         end;
+$$;
+
+-- Validator: returns true if rules JSON matches the datatype contract
+create or replace function public.is_valid_rules(p jsonb, p_datatype text)
+returns boolean
+language sql immutable
+as $$
+  with base as (select coalesce(p, '{}'::jsonb) as j),
+  is_obj as (select jsonb_typeof(j) = 'object' as ok from base),
+  t as (
+    select
+      (p_datatype::text in ('string','uuid','url','date','datetime')) as is_str,
+      (p_datatype::text = 'number')  as is_num,
+      (p_datatype::text = 'boolean') as is_bool,
+      (p_datatype::text = 'array')   as is_arr,
+      (p_datatype::text = 'object')  as is_objtype
+  ),
+  keys_ok as (
+    select not exists (
+      select 1
+      from base b, jsonb_object_keys(b.j) k, t
+      where case
+        when t.is_str     then k not in ('minLength','maxLength','pattern','format')
+        when t.is_num     then k not in ('minimum','maximum')
+        when t.is_bool    then true
+        when t.is_arr     then k not in ('minItems','maxItems','uniqueItems','itemType')
+        when t.is_objtype then false   -- no key-level restriction for object
+        else false
+      end
+    ) as ok
+  ),
+  types_ok as (
+    select (
+      select case
+        when t.is_str then
+          (not (b.j ? 'minLength') or jsonb_typeof(b.j->'minLength') = 'number')
+          and (not (b.j ? 'maxLength') or jsonb_typeof(b.j->'maxLength') = 'number')
+          and (not (b.j ? 'pattern')   or jsonb_typeof(b.j->'pattern')   = 'string')
+          and (
+            not (b.j ? 'format')
+            or (
+              jsonb_typeof(b.j->'format') = 'string'
+              and public.in_enum(b.j->>'format', null::public.string_format)
+            )
+          )
+        when t.is_num then
+          (not (b.j ? 'minimum') or jsonb_typeof(b.j->'minimum') = 'number')
+          and (not (b.j ? 'maximum') or jsonb_typeof(b.j->'maximum') = 'number')
+        when t.is_bool then
+          jsonb_typeof(b.j) = 'object'
+          and (select count(*) from jsonb_object_keys(b.j)) = 0
+        when t.is_arr then
+          (not (b.j ? 'minItems')     or jsonb_typeof(b.j->'minItems')     = 'number')
+          and (not (b.j ? 'maxItems') or jsonb_typeof(b.j->'maxItems')     = 'number')
+          and (not (b.j ? 'uniqueItems') or jsonb_typeof(b.j->'uniqueItems') = 'boolean')
+          and (
+            not (b.j ? 'itemType')
+            or (
+              jsonb_typeof(b.j->'itemType') = 'string'
+              and public.in_enum(b.j->>'itemType', null::public.array_item_type)
+            )
+          )
+        when t.is_objtype then jsonb_typeof(b.j) = 'object'
+        else jsonb_typeof(b.j) = 'object'
+      end
+      from base b, t
+    ) as ok
+  ),
+  ranges_ok as (
+    select (
+      select case
+        when t.is_str then
+          (not (b.j ? 'minLength') or not (b.j ? 'maxLength')
+           or ((b.j->>'minLength')::numeric <= (b.j->>'maxLength')::numeric))
+        when t.is_num then
+          (not (b.j ? 'minimum') or not (b.j ? 'maximum')
+           or ((b.j->>'minimum')::numeric <= (b.j->>'maximum')::numeric))
+        when t.is_arr then
+          (not (b.j ? 'minItems') or not (b.j ? 'maxItems')
+           or ((b.j->>'minItems')::numeric <= (b.j->>'maxItems')::numeric))
+        else true
+      end
+      from base b, t
+    ) as ok
+  ),
+  nonneg_ok as (
+    select (
+      select case
+        when t.is_str then
+          (not (b.j ? 'minLength') or (b.j->>'minLength')::numeric >= 0)
+          and (not (b.j ? 'maxLength') or (b.j->>'maxLength')::numeric >= 0)
+        when t.is_arr then
+          (not (b.j ? 'minItems') or (b.j->>'minItems')::numeric >= 0)
+          and (not (b.j ? 'maxItems') or (b.j->>'maxItems')::numeric >= 0)
+        else true
+      end
+      from base b, t
+    ) as ok
+  )
+  select (select ok from is_obj)
+      and (select ok from keys_ok)
+      and (select ok from types_ok)
+      and (select ok from ranges_ok)
+      and (select ok from nonneg_ok);
+$$;
+
+-- Optional table constraint (add first as NOT VALID, then validate)
+-- alter table public.field_registry
+--   add constraint chk_field_registry_rules
+--   check (public.is_valid_rules(rules, datatype::text)) not valid;
+
+-- -- Validate when ready:
+-- alter table public.field_registry
+--   validate constraint chk_field_registry_rules;
+```
+
+---
+
+## Section 1.B: Field Rules Schema (Detailed)
+
+### Purpose
+- Standardize `rules` JSON per `datatype` for validation and UI hints.
+- Use enums for closed sets (e.g., `format`, `itemType`) while keeping JSON flexible.
+- Keep compatibility with existing rows and enforce via a single PG function + CHECK.
+
+### Simplified Prose
+- `rules` is a JSON object; allowed keys depend on `datatype`:
+  - **string | uuid | url | date | datetime**:
+    - Keys: `minLength?` (number ≥0), `maxLength?` (number ≥0), `pattern?` (string, regex), `format?` (enum).
+    - `format` ∈ `string_format`: `none | email | phone | color | slug | uri | url`.
+  - **number**:
+    - Keys: `minimum?` (number), `maximum?` (number).
+  - **boolean**:
+    - Must be an **empty object** `{}` (no keys).
+  - **array**:
+    - Keys: `minItems?` (number ≥0), `maxItems?` (number ≥0), `uniqueItems?` (boolean), `itemType?` (enum).
+    - `itemType` ∈ `array_item_type`: `string | number | boolean | uuid | url | date | datetime | object`.
+  - **object**:
+    - Any object allowed (pass-through today).
+- Ranges: when both min/max exist, min ≤ max.
+
+### Top-Level Contract
+```json
+{
+  "rules": {
+    // string-like datatypes
+    "minLength": 0,
+    "maxLength": 120,
+    "pattern": "^[A-Za-z].*$",
+    "format": "none|email|phone|color|slug|uri|url",
+
+    // number
+    "minimum": 0,
+    "maximum": 100,
+
+    // array
+    "minItems": 1,
+    "maxItems": 3,
+    "uniqueItems": true,
+    "itemType": "string|number|boolean|uuid|url|date|datetime|object"
+  }
+}
+```
+
+### SQL Definition
+
+```sql
+-- ENUMS (idempotent)
+do $$
+begin
+  if not exists (
+    select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
+    where t.typname='string_format' and n.nspname='public'
+  ) then
+    create type public.string_format as enum ('none','email','phone','color','slug','uri','url');
+  end if;
+end$$;
+
+do $$
+declare v text;
+begin
+  foreach v in array array['none','email','phone','color','slug','uri','url'] loop
+    begin execute format('alter type public.string_format add value %L', v);
+    exception when duplicate_object then null; end;
+  end loop;
+end$$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
+    where t.typname='array_item_type' and n.nspname='public'
+  ) then
+    create type public.array_item_type as enum
+      ('string','number','boolean','uuid','url','date','datetime','object');
+  end if;
+end$$;
+
+do $$
+declare v text;
+begin
+  foreach v in array array['string','number','boolean','uuid','url','date','datetime','object'] loop
+    begin execute format('alter type public.array_item_type add value %L', v);
+    exception when duplicate_object then null; end;
+  end loop;
+end$$;
+
+-- Shared helper (safe if already created)
+create or replace function public.in_enum(val text, etype anyenum)
+returns boolean language sql immutable as $$
+  select case when val is null then false
+              else val = any (enum_range(etype)::text[]) end;
+$$;
+
+-- Validator
+create or replace function public.is_valid_rules(p jsonb, p_datatype text)
+returns boolean
+language sql immutable
+as $$
+  with base as (select coalesce(p, '{}'::jsonb) as j),
+  is_obj as (select jsonb_typeof(j) = 'object' as ok from base),
+  t as (
+    select
+      (p_datatype::text in ('string','uuid','url','date','datetime')) as is_str,
+      (p_datatype::text = 'number')  as is_num,
+      (p_datatype::text = 'boolean') as is_bool,
+      (p_datatype::text = 'array')   as is_arr,
+      (p_datatype::text = 'object')  as is_objtype
+  ),
+  keys_ok as (
+    select not exists (
+      select 1
+      from base b, jsonb_object_keys(b.j) k, t
+      where case
+        when t.is_str     then k not in ('minLength','maxLength','pattern','format')
+        when t.is_num     then k not in ('minimum','maximum')
+        when t.is_bool    then true
+        when t.is_arr     then k not in ('minItems','maxItems','uniqueItems','itemType')
+        when t.is_objtype then false
+        else false
+      end
+    ) as ok
+  ),
+  types_ok as (
+    select (
+      select case
+        when t.is_str then
+          (not (b.j ? 'minLength') or jsonb_typeof(b.j->'minLength') = 'number')
+          and (not (b.j ? 'maxLength') or jsonb_typeof(b.j->'maxLength') = 'number')
+          and (not (b.j ? 'pattern')   or jsonb_typeof(b.j->'pattern')   = 'string')
+          and (
+            not (b.j ? 'format')
+            or (
+              jsonb_typeof(b.j->'format') = 'string'
+              and public.in_enum(b.j->>'format', null::public.string_format)
+            )
+          )
+        when t.is_num then
+          (not (b.j ? 'minimum') or jsonb_typeof(b.j->'minimum') = 'number')
+          and (not (b.j ? 'maximum') or jsonb_typeof(b.j->'maximum') = 'number')
+        when t.is_bool then
+          jsonb_typeof(b.j) = 'object'
+          and (select count(*) from jsonb_object_keys(b.j)) = 0
+        when t.is_arr then
+          (not (b.j ? 'minItems')     or jsonb_typeof(b.j->'minItems')     = 'number')
+          and (not (b.j ? 'maxItems') or jsonb_typeof(b.j->'maxItems')     = 'number')
+          and (not (b.j ? 'uniqueItems') or jsonb_typeof(b.j->'uniqueItems') = 'boolean')
+          and (
+            not (b.j ? 'itemType')
+            or (
+              jsonb_typeof(b.j->'itemType') = 'string'
+              and public.in_enum(b.j->>'itemType', null::public.array_item_type)
+            )
+          )
+        when t.is_objtype then jsonb_typeof(b.j) = 'object'
+        else jsonb_typeof(b.j) = 'object'
+      end
+      from base b, t
+    ) as ok
+  ),
+  ranges_ok as (
+    select (
+      select case
+        when t.is_str then
+          (not (b.j ? 'minLength') or not (b.j ? 'maxLength')
+           or ((b.j->>'minLength')::numeric <= (b.j->>'maxLength')::numeric))
+        when t.is_num then
+          (not (b.j ? 'minimum') or not (b.j ? 'maximum')
+           or ((b.j->>'minimum')::numeric <= (b.j->>'maximum')::numeric))
+        when t.is_arr then
+          (not (b.j ? 'minItems') or not (b.j ? 'maxItems')
+           or ((b.j->>'minItems')::numeric <= (b.j->>'maxItems')::numeric))
+        else true
+      end
+      from base b, t
+    ) as ok
+  ),
+  nonneg_ok as (
+    select (
+      select case
+        when t.is_str then
+          (not (b.j ? 'minLength') or (b.j->>'minLength')::numeric >= 0)
+          and (not (b.j ? 'maxLength') or (b.j->>'maxLength')::numeric >= 0)
+        when t.is_arr then
+          (not (b.j ? 'minItems') or (b.j->>'minItems')::numeric >= 0)
+          and (not (b.j ? 'maxItems') or (b.j->>'maxItems')::numeric >= 0)
+        else true
+      end
+      from base b, t
+    ) as ok
+  )
+  select (select ok from is_obj)
+      and (select ok from keys_ok)
+      and (select ok from types_ok)
+      and (select ok from ranges_ok)
+      and (select ok from nonneg_ok);
+$$;
+
+-- Optional table constraint for field_registry.rules
+-- alter table public.field_registry
+--   add constraint chk_field_registry_rules
+--   check (public.is_valid_rules(rules, datatype::text)) not valid;
+-- alter table public.field_registry validate constraint chk_field_registry_rules;
+```
 ---
 
 ## Section 2: Storyboard Nodes
