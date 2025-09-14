@@ -100,7 +100,7 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
             <SelectContent>
               {filteredOptions.map((option, index) => (
                 <SelectItem key={index} value={String(option.value)}>
-                  {option.label.fallback}
+                  {option.label?.key ? t(option.label.key) : option.label?.fallback}
                 </SelectItem>
               ))}
             </SelectContent>
