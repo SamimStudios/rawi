@@ -5,7 +5,7 @@ This document is the **single reference** for schemas, constraints, contracts, a
 1. Purpose
 2. Simplified prose
 3. Top-level contract
-4. SQL definition (collapsible)
+4. SQL definition
 
 ---
 
