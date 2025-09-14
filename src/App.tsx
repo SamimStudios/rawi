@@ -39,7 +39,7 @@ import Result from "./pages/app/Result";
 import StyleGuideline from "./pages/StyleGuideline";
 import N8NTest from "./pages/N8NTest";
 import ButtonShowcase from "./pages/ButtonShowcase";
-import UserInput from "./pages/UserInput";
+
 
 
 const queryClient = new QueryClient();
@@ -208,13 +208,6 @@ const MainApp = () => (
                       <Footer />
                     </div>
                   } />
-          <Route path="/user-input" element={
-            <div>
-              <Header />
-              <UserInput />
-              <Footer />
-            </div>
-          } />
                    {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={
                     <div>

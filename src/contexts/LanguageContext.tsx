@@ -148,16 +148,6 @@ const translations = {
     faqTitle: 'Frequently Asked Questions',
     
     // Success/Error Messages
-    
-    // Storyboard Form
-    selectUpToThreeGenres: 'Select up to 3 genres',
-    plotPrompt: 'Plot Prompt',
-    plotPromptPlaceholder: 'Describe your story idea, characters, and main plot points...',
-    consentAgreement: 'I agree to the',
-    termsOfService: 'Terms of Service',
-    privacyPolicyText: 'Privacy Policy',
-    andText: 'and',
-    consentIpPolicyText: 'Consent & IP Policy',
     regenerateConfirmation: 'Are you sure you want to regenerate this section? This will overwrite existing data.',
     paymentSuccessful: 'Payment successful — credits added.',
     paymentCanceled: 'Payment canceled.',
@@ -318,16 +308,6 @@ const translations = {
     
     // Guest Registration Full
     saveYourResultCreate: 'Save Your Result - Create Account',
-    
-    // Storyboard Page
-    storyboardPlayground: 'Storyboard Playground',
-    createPersonalizedStoryboard: 'Create your personalized storyboard by filling out the details below',
-    storyboardTemplate: 'Template',
-    loadingTemplates: 'Loading templates...',
-    selectTemplate: 'Select a template',
-    leadCharacter: 'Lead Character',
-    leadName: 'Name',
-    enterLeadCharacterName: 'Enter the lead character\'s name',
     gender: 'Gender',
     selectGender: 'Select gender',
     male: 'Male',
@@ -348,56 +328,10 @@ const translations = {
     accent: 'Accent',
     storyPrompt: 'Story Prompt',
     describeStoryScene: 'Describe your story or scene in detail',
-    createStoryboard: 'Create Storyboard',
-    creating: 'Creating...',
-    
-    // Error Messages - Storyboard
-    fileTooLarge: 'File too large',
-    imageUnder5MB: 'Please select an image under 5MB',
-    missingFields: 'Missing fields',
-    fillAllRequired: 'Please fill in all required fields including template selection',
-    missingGenres: 'Missing genres',
-    selectAtLeastOneGenre: 'Please select at least one genre',
-    insufficientCredits: 'Insufficient Credits',
-    needCreditsMessage: 'You need {credits} credits to start this job. Please purchase more credits.',
-    storyboardJobCreated: 'Storyboard job created!',
-    processingRedirecting: 'Your storyboard is being processed. Redirecting to status page...',
-    unexpectedError: 'An unexpected error occurred. Please try again.',
     
     // Common Status Messages
     warning: 'Warning',
     couldNotLoadTemplates: 'Could not load templates. You can still proceed without selecting a template.',
-    
-    // Additional storyboard translations
-    consentRequired: 'Consent Required',
-    consentRequiredDescription: 'You must agree to our terms and IP policy to create a storyboard',
-    
-    // Additional Storyboard Elements
-    maxOneSupportingChar: '(Max 1)',
-    supportingCharCount: '({count}/1)',
-    voiceLanguage: 'Language',
-    selectLanguage: 'Select language',
-    selectAccent: 'Select accent',
-    genresMax3: 'Genres * (Max 3)',
-    selectedGenres: 'Selected: {genres} ({count}/3)',
-    plotInstructions: 'Plot & Instructions (Optional)',
-    plotPlaceholder: 'Describe your story plot or provide specific instructions. Example: \'A thriller about a detective in Paris\' or \'Title: The Last Stand - A sci-fi adventure...\'',
-    creatingStoryboard: 'Creating Storyboard...',
-    
-    // Size Options
-    sizeOption: 'Output Size *',
-    sizePortrait: 'Portrait (Mobile)',
-    sizeLandscape: 'Landscape (Widescreen)',
-    selectSize: 'Select output size',
-    
-    // Storyboard Workspace
-    'Failed to load storyboard job': 'Failed to load storyboard job',
-    'An unexpected error occurred': 'An unexpected error occurred',
-    'Storyboard not found': 'Storyboard not found',
-    'Back to Dashboard': 'Back to Dashboard',
-    'Storyboard Workspace': 'Storyboard Workspace',
-    'Job ID': 'Job ID',
-    'Status': 'Status',
     'Job Information': 'Job Information',
     'Not specified': 'Not specified',
     'Movie Information': 'Movie Information',
@@ -416,9 +350,6 @@ const translations = {
     'Scene planning section - coming soon': 'Scene planning section - coming soon',
     'Movie information saved': 'Movie information saved',
     'Generate function will be implemented': 'Generate function will be implemented',
-    'Generate Storyboard': 'Generate Storyboard',
-    'Regenerate': 'Regenerate',
-    'Complete first generation to view/edit details': 'Complete first generation to view/edit details',
     'Save': 'Save',
     'Cancel': 'Cancel',
     'Validate': 'Validate',
@@ -585,23 +516,6 @@ const translations = {
     walletSubscribeNow: 'Subscribe Now',
     walletTransactionHistory: 'Transaction History',
     walletTransactionHistoryDescription: 'View your recent credit purchases and subscriptions',
-    
-    // Storyboard Workspace
-    initialInput: 'Initial Input',
-    generateMovieInfo: 'Generate Movie Info',
-    lastUpdated: 'Last Updated',
-    notAvailable: 'Not Available',
-    movieInformation: 'Movie Information',
-    priceLabel: 'Price',
-    movieTitle: 'Movie Title',
-    movieLogline: 'Movie Logline',
-    movieWorld: 'Movie World',
-    movieLook: 'Movie Look',
-    enterMovieTitle: 'Enter movie title',
-    enterMovieLogline: 'Enter movie logline',
-    enterMovieWorld: 'Enter movie world',
-    enterMovieLook: 'Enter movie look',
-    regenerateStoryboard: 'Regenerate Storyboard',
     
     // Simple field labels
     logline: 'Logline',
@@ -903,21 +817,6 @@ const translations = {
     
     // Guest Registration Full (Arabic)
     saveYourResultCreate: 'احفظ نتيجتك - إنشاء حساب',
-    
-    // Storyboard Page (Arabic)
-    storyboardPlayground: 'ملعب القصة المصورة',
-    createPersonalizedStoryboard: 'أنشئ قصتك المصورة الشخصية من خلال ملء التفاصيل أدناه',
-    storyboardTemplate: 'القالب',
-    loadingTemplates: 'جارٍ تحميل القوالب...',
-    selectTemplate: 'اختر قالباً',
-    leadCharacter: 'الشخصية الرئيسية',
-    leadName: 'الاسم',
-    enterLeadCharacterName: 'أدخل اسم الشخصية الرئيسية',
-    gender: 'الجنس',
-    selectGender: 'اختر الجنس',
-    male: 'ذكر',
-    female: 'أنثى',
-    aiGeneratedCharacter: 'شخصية مولدة بالذكاء الاصطناعي',
     faceReferenceImage: 'صورة مرجعية للوجه',
     uploadFaceReference: 'ارفع صورة مرجعية للوجه',
     chooseImage: 'اختر صورة',
@@ -933,56 +832,10 @@ const translations = {
     accent: 'اللهجة',
     storyPrompt: 'موجه القصة',
     describeStoryScene: 'صف قصتك أو مشهدك بالتفصيل',
-    createStoryboard: 'أنشئ القصة المصورة',
-    creating: 'جارٍ الإنشاء...',
-    
-    // Error Messages - Storyboard (Arabic)
-    fileTooLarge: 'الملف كبير جداً',
-    imageUnder5MB: 'يرجى اختيار صورة أقل من 5 ميجابايت',
-    missingFields: 'حقول مفقودة',
-    fillAllRequired: 'يرجى ملء جميع الحقول المطلوبة بما في ذلك اختيار القالب',
-    missingGenres: 'أنواع مفقودة',
-    selectAtLeastOneGenre: 'يرجى اختيار نوع واحد على الأقل',
-    insufficientCredits: 'رصيد غير كافٍ',
-    needCreditsMessage: 'تحتاج إلى {credits} رصيد لبدء هذه المهمة. يرجى شراء المزيد من الرصيد.',
-    storyboardJobCreated: 'تم إنشاء مهمة القصة المصورة!',
-    processingRedirecting: 'قصتك المصورة قيد المعالجة. جارٍ التوجيه إلى صفحة الحالة...',
-    unexpectedError: 'حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.',
     
     // Common Status Messages (Arabic)
     warning: 'تحذير',
     couldNotLoadTemplates: 'لا يمكن تحميل القوالب. يمكنك المتابعة دون اختيار قالب.',
-    
-    // Additional storyboard translations (Arabic)
-    consentRequired: 'الموافقة مطلوبة',
-    consentRequiredDescription: 'يجب الموافقة على شروطنا وسياسة الملكية الفكرية لإنشاء القصة المصورة',
-    
-    // Additional Storyboard Elements (Arabic)
-    maxOneSupportingChar: '(حد أقصى 1)',
-    supportingCharCount: '({count}/1)',
-    voiceLanguage: 'اللغة',
-    selectLanguage: 'اختر اللغة',
-    selectAccent: 'اختر اللهجة',
-    genresMax3: 'الأنواع * (حد أقصى 3)',
-    selectedGenres: 'المختار: {genres} ({count}/3)',
-    plotInstructions: 'الحبكة والتعليمات (اختياري)',
-    plotPlaceholder: 'صف حبكة قصتك أو قدم تعليمات محددة. مثال: \'إثارة حول محقش في باريس\' أو \'العنوان: الموقف الأخير - مغامرة خيال علمي...\'',
-    creatingStoryboard: 'جارٍ إنشاء القصة المصورة...',
-    
-    // Size Options (Arabic)
-    sizeOption: 'حجم الإخراج *',
-    sizePortrait: 'عمودي (موبايل)',
-    sizeLandscape: 'أفقي (شاشة عريضة)',
-    selectSize: 'اختر حجم الإخراج',
-    
-    // Storyboard Workspace (Arabic)
-    'Failed to load storyboard job': 'فشل في تحميل مهمة القصة المصورة',
-    'An unexpected error occurred': 'حدث خطأ غير متوقع',
-    'Storyboard not found': 'القصة المصورة غير موجودة',
-    'Back to Dashboard': 'العودة إلى لوحة التحكم',
-    'Storyboard Workspace': 'مساحة عمل القصة المصورة',
-    'Job ID': 'معرف المهمة',
-    'Status': 'الحالة',
     'Job Information': 'معلومات المهمة',
     'Not specified': 'غير محدد',
     'Movie Information': 'معلومات الفيلم',
@@ -1001,13 +854,6 @@ const translations = {
     'Scene planning section - coming soon': 'قسم تخطيط المشاهد - قريباً',
     'Movie information saved': 'تم حفظ معلومات الفيلم',
     'Generate function will be implemented': 'سيتم تنفيذ وظيفة الإنشاء',
-    'Generate Storyboard': 'إنشاء القصة المصورة',
-    'Regenerate': 'إعادة إنشاء',
-    'Complete first generation to view/edit details': 'أكمل الإنشاء الأول لعرض/تعديل التفاصيل',
-    'Save': 'حفظ',
-    'Cancel': 'إلغاء',
-    'Lead Character': 'الشخصية الرئيسية',
-    'Language': 'اللغة',
     'Accent': 'اللهجة',
     'Genres': 'الأنواع',
     'Job information saved': 'تم حفظ معلومات المهمة',
@@ -1034,10 +880,7 @@ const translations = {
     'Custom face image': 'صورة وجه مخصصة',
     'No face image': 'لا توجد صورة وجه',
     'Yes': 'نعم',
-    'No': 'لا',
-    'No storyboards found': 'لم يتم العثور على قصص مصورة',
     'Create Your First Storyboard': 'إنشاء أول قصة مصورة لك',
-    'View Progress': 'عرض التقدم',
     
     // Language and Accent Options (Arabic)
     englishLang: 'الإنجليزية',
@@ -1062,17 +905,6 @@ const translations = {
     genreThriller: 'إثارة',
     genreDocumentary: 'وثائقي',
     genreAnimation: 'رسوم متحركة',
-    
-    // Additional Storyboard Workspace keys (Arabic)
-    storyboardWorkspace: 'مساحة عمل اللوحة المصورة',
-    initialInput: 'المدخلات الأولية',
-    editing: 'تحرير',
-    notSpecified: 'غير محدد',
-    movieInformation: 'معلومات الفيلم',
-    characters: 'الشخصيات',
-    propsAndItems: 'الدعائم والعناصر',
-    timelineAndShots: 'الجدول الزمني واللقطات',
-    musicAndAudio: 'الموسيقى والصوت',
     generateCharacters: 'توليد الشخصيات',
     generateProps: 'توليد الدعائم',
     generateTimeline: 'توليد الجدول الزمني',
@@ -1118,35 +950,6 @@ const translations = {
     walletSubscribeNow: 'اشترك الآن',
     walletTransactionHistory: 'تاريخ المعاملات',
     walletTransactionHistoryDescription: 'عرض مشتريات النقاط والاشتراكات الأخيرة',
-    
-    // Storyboard Workspace (Arabic)
-    generateMovieInfo: 'إنشاء معلومات الفيلم',
-    lastUpdated: 'آخر تحديث',
-    notAvailable: 'غير متوفر',
-    priceLabel: 'السعر',
-    movieTitle: 'عنوان الفيلم',
-    movieLogline: 'ملخص الفيلم',
-    movieWorld: 'عالم الفيلم',
-    movieLook: 'مظهر الفيلم',
-    enterMovieTitle: 'أدخل عنوان الفيلم',
-    enterMovieLogline: 'أدخل ملخص الفيلم',
-    enterMovieWorld: 'أدخل عالم الفيلم',
-    enterMovieLook: 'أدخل مظهر الفيلم',
-    regenerateStoryboard: 'إعادة إنشاء القصة المصورة',
-    
-    // Simple field labels (Arabic)
-    logline: 'الملخص',
-    world: 'العالم',
-    look: 'المظهر',
-    saving: 'جاري الحفظ...',
-    
-    // Storyboard Form (Arabic)
-    selectUpToThreeGenres: 'اختر حتى ٣ أنواع',
-    plotPrompt: 'فكرة الحبكة',
-    plotPromptPlaceholder: 'اشرح فكرة قصتك والشخصيات والأحداث الرئيسية...',
-    consentAgreement: 'أوافق على',
-    termsOfService: 'شروط الخدمة',
-    privacyPolicyText: 'سياسة الخصوصية',
     andText: 'و',
     consentIpPolicyText: 'سياسة الموافقة والملكية الفكرية',
     regenerateConfirmation: 'هل أنت متأكد من أنك تريد إعادة توليد معلومات الفيلم؟ سيؤدي هذا إلى استبدال البيانات الموجودة.',

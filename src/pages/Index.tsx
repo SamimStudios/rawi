@@ -29,8 +29,8 @@ const Index = () => {
               asChild
               className="text-lg px-8 py-4 h-auto"
             >
-              <Link to="/user-input">
-                Create Your Story
+              <Link to="/templates">
+                Explore Templates
               </Link>
             </Button>
             
