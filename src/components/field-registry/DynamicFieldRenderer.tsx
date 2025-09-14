@@ -155,8 +155,8 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
             {/* Selected tags */}
             {tagValues.length > 0 && (
               <div className="flex flex-wrap gap-2">
-              {tagValues.map((tagValue: any, index: number) => {
-                const option = filteredOptions.find(opt => opt.value === tagValue);
+                {tagValues.map((tagValue: any, index: number) => {
+                  const option = filteredOptions.find(opt => opt.value === tagValue);
                   return (
                     <Badge key={index} variant="secondary" className="flex items-center gap-1">
                       {option?.label.fallback || tagValue}
@@ -176,28 +176,29 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
               </div>
             )}
             
-            {/* Available options to add */}
-            <Select
-              value=""
-              onValueChange={(selectedValue) => {
-                if (!tagValues.includes(selectedValue)) {
-                  onChange([...tagValues, selectedValue]);
-                }
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Add tag..." />
-              </SelectTrigger>
-              <SelectContent>
+            {/* Available options as clickable chips */}
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-muted-foreground">
+                Available options:
+              </div>
+              <div className="flex flex-wrap gap-2">
                 {filteredOptions
                   .filter(option => !tagValues.includes(option.value))
                   .map((option, index) => (
-                    <SelectItem key={index} value={String(option.value)}>
+                    <Button
+                      key={index}
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs"
+                      onClick={() => {
+                        onChange([...tagValues, option.value]);
+                      }}
+                    >
                       {option.label.fallback}
-                    </SelectItem>
+                    </Button>
                   ))}
-              </SelectContent>
-            </Select>
+              </div>
+            </div>
           </div>
         );
 
