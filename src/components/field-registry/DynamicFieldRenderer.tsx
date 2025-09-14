@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -7,7 +7,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { X } from 'lucide-react';
+import { X, Upload, File, Image, FileText, Music, Video } from 'lucide-react';
+import { FileUploadField } from './FileUploadField';
 
 interface FieldRegistry {
   id: string;
@@ -251,15 +252,11 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
 
       case 'file':
         return (
-          <Input
-            type="file"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                // For demo purposes, just store the file name
-                onChange(file.name);
-              }
-            }}
+          <FileUploadField
+            value={value}
+            onChange={onChange}
+            placeholder={getPlaceholder()}
+            field={field}
           />
         );
 
