@@ -105,27 +105,36 @@ async function resolveFieldOptions(field: FieldRegistry, supabase: any) {
 async function resolveTableOptions(options: any, supabase: any) {
   const { table, valueColumn, labelColumn, extraColumns = [], where = [], orderBy = [], limit } = options;
 
-  let query = supabase.from(table).select(`${valueColumn}, ${labelColumn}${extraColumns.length ? `, ${extraColumns.join(', ')}` : ''}`);
+  // Remove any schema prefix if present, as supabase.from() expects just table name
+  const tableName = table.replace(/^public\./, '');
+  
+  let query = supabase.from(tableName).select(`${valueColumn}, ${labelColumn}${extraColumns.length ? `, ${extraColumns.join(', ')}` : ''}`);
 
   // Apply where conditions
   where.forEach((condition: any) => {
     const { column, op, value } = condition;
     switch (op) {
+      case '=':
       case 'eq':
         query = query.eq(column, value);
         break;
+      case '!=':
       case 'neq':
         query = query.neq(column, value);
         break;
+      case '>':
       case 'gt':
         query = query.gt(column, value);
         break;
+      case '>=':
       case 'gte':
         query = query.gte(column, value);
         break;
+      case '<':
       case 'lt':
         query = query.lt(column, value);
         break;
+      case '<=':
       case 'lte':
         query = query.lte(column, value);
         break;
@@ -136,8 +145,10 @@ async function resolveTableOptions(options: any, supabase: any) {
         query = query.ilike(column, value);
         break;
       case 'in':
-        query = query.in(column, value);
+        query = query.in(column, Array.isArray(value) ? value : [value]);
         break;
+      default:
+        console.warn(`Unsupported operator: ${op}`);
     }
   });
 
@@ -151,11 +162,15 @@ async function resolveTableOptions(options: any, supabase: any) {
     query = query.limit(limit);
   }
 
+  console.log(`Querying table: ${tableName}`);
   const { data, error } = await query;
 
   if (error) {
+    console.error(`Table query error:`, error);
     throw new Error(`Table query failed: ${error.message}`);
   }
+
+  console.log(`Table query successful, got ${data?.length || 0} rows`);
 
   // Transform to standard format
   return data?.map((row: any) => ({
