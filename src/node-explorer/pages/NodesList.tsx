@@ -37,6 +37,8 @@ export function NodesList() {
     limit: 100
   });
 
+  console.log('NodesList render:', { data, loading, error, search: debouncedSearch, nodeTypeFilter, jobIdFilter });
+
   // Extract unique job IDs for filter dropdown
   const uniqueJobIds = useMemo(() => {
     if (!data?.nodes) return [];

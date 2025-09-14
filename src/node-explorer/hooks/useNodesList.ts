@@ -59,10 +59,14 @@ export function useNodesList(options: UseNodesListOptions = {}) {
         }
 
         if (response?.error) {
+          console.error('API response error:', response.error);
           throw new Error(response.error);
         }
 
+        console.log('Raw API response:', response);
+
         setData(response);
+        console.log('Nodes list data set:', response);
       } catch (err) {
         console.error('Error fetching nodes list:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch nodes');
