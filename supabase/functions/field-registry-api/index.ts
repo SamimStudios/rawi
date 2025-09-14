@@ -105,85 +105,103 @@ async function resolveFieldOptions(field: FieldRegistry, supabase: any) {
 async function resolveTableOptions(options: any, supabase: any) {
   const { table, valueColumn, labelColumn, extraColumns = [], where = [], orderBy = [], limit } = options;
 
-  // Remove any schema prefix if present, as supabase.from() expects just table name
-  const tableName = table.replace(/^public\./, '');
-  
-  let query = supabase.from(tableName).select(`${valueColumn}, ${labelColumn}${extraColumns.length ? `, ${extraColumns.join(', ')}` : ''}`);
+  // Normalize table name (remove schema prefix if present)
+  const tableName = String(table || '').replace(/^public\./, '');
 
-  // Apply where conditions
-  where.forEach((condition: any) => {
-    const { column, op, value } = condition;
-    switch (op) {
-      case '=':
-      case 'eq':
-        query = query.eq(column, value);
-        break;
-      case '!=':
-      case 'neq':
-        query = query.neq(column, value);
-        break;
-      case '>':
-      case 'gt':
-        query = query.gt(column, value);
-        break;
-      case '>=':
-      case 'gte':
-        query = query.gte(column, value);
-        break;
-      case '<':
-      case 'lt':
-        query = query.lt(column, value);
-        break;
-      case '<=':
-      case 'lte':
-        query = query.lte(column, value);
-        break;
-      case 'like':
-        query = query.like(column, value);
-        break;
-      case 'ilike':
-        query = query.ilike(column, value);
-        break;
-      case 'in':
-        query = query.in(column, Array.isArray(value) ? value : [value]);
-        break;
-      default:
-        console.warn(`Unsupported operator: ${op}`);
-    }
-  });
+  const applyWhere = (q: any) => {
+    where.forEach((condition: any) => {
+      const { column, op, value } = condition || {};
+      switch (op) {
+        case '=':
+        case 'eq':
+          q = q.eq(column, value);
+          break;
+        case '!=':
+        case 'neq':
+          q = q.neq(column, value);
+          break;
+        case '>':
+        case 'gt':
+          q = q.gt(column, value);
+          break;
+        case '>=':
+        case 'gte':
+          q = q.gte(column, value);
+          break;
+        case '<':
+        case 'lt':
+          q = q.lt(column, value);
+          break;
+        case '<=':
+        case 'lte':
+          q = q.lte(column, value);
+          break;
+        case 'like':
+          q = q.like(column, value);
+          break;
+        case 'ilike':
+          q = q.ilike(column, value);
+          break;
+        case 'in':
+          q = q.in(column, Array.isArray(value) ? value : [value]);
+          break;
+        default:
+          console.warn(`Unsupported operator in where: ${op}`);
+      }
+    });
+    return q;
+  };
 
-  // Apply ordering
-  orderBy.forEach((order: any) => {
-    query = query.order(order.column, { ascending: order.dir === 'asc' });
-  });
+  const applyOrder = (q: any) => {
+    orderBy.forEach((order: any) => {
+      if (!order || !order.column) return;
+      q = q.order(order.column, { ascending: order.dir === 'asc' });
+    });
+    return q;
+  };
 
-  // Apply limit
-  if (limit) {
-    query = query.limit(limit);
-  }
+  const run = async (selectCols: string, withWhere: boolean, withOrder: boolean) => {
+    let q = supabase.from(tableName).select(selectCols);
+    if (withWhere && Array.isArray(where) && where.length) q = applyWhere(q);
+    if (withOrder && Array.isArray(orderBy) && orderBy.length) q = applyOrder(q);
+    if (limit) q = q.limit(limit);
+    return await q;
+  };
 
-  console.log(`Querying table: ${tableName}`);
-  const { data, error } = await query;
+  const requiredSelect = `${valueColumn}, ${labelColumn}`;
+  const extrasSelect = extraColumns.length ? `, ${extraColumns.join(', ')}` : '';
 
+  // Try full query first
+  let { data, error } = await run(requiredSelect + extrasSelect, true, true);
   if (error) {
-    console.error(`Table query error:`, error);
+    console.warn(`Full table query failed for ${tableName}: ${error.message}. Retrying without extraColumns...`);
+    ({ data, error } = await run(requiredSelect, true, true));
+  }
+  if (error) {
+    console.warn(`Retry without extraColumns failed: ${error.message}. Retrying without where...`);
+    ({ data, error } = await run(requiredSelect, false, true));
+  }
+  if (error) {
+    console.warn(`Retry without where failed: ${error.message}. Retrying without orderBy...`);
+    ({ data, error } = await run(requiredSelect, false, false));
+  }
+  if (error) {
+    console.error(`Table query failed after fallbacks for ${tableName}:`, error);
     throw new Error(`Table query failed: ${error.message}`);
   }
 
-  console.log(`Table query successful, got ${data?.length || 0} rows`);
-
-  // Transform to standard format
-  return data?.map((row: any) => ({
-    value: row[valueColumn],
+  // Transform to normalized options format
+  return (data || []).map((row: any) => ({
+    value: row?.[valueColumn],
     label: {
-      fallback: row[labelColumn],
+      fallback: String(row?.[labelColumn] ?? ''),
       key: null
     },
     extras: extraColumns.reduce((acc: any, col: string) => {
-      acc[col] = row[col];
+      acc[col] = row?.[col];
       return acc;
     }, {})
-  })) || [];
+  }));
 }
 
 async function resolveEndpointOptions(options: any) {
