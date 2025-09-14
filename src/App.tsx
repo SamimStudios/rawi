@@ -39,6 +39,7 @@ import Result from "./pages/app/Result";
 import StyleGuideline from "./pages/StyleGuideline";
 import N8NTest from "./pages/N8NTest";
 import ButtonShowcase from "./pages/ButtonShowcase";
+import FieldRegistry from "./pages/FieldRegistry";
 
 
 
@@ -201,13 +202,20 @@ const MainApp = () => (
                       <Footer />
                     </div>
                   } />
-                  <Route path="/n8n-test" element={
-                    <div>
-                      <Header />
-                      <N8NTest />
-                      <Footer />
-                    </div>
-                  } />
+                   <Route path="/n8n-test" element={
+                     <div>
+                       <Header />
+                       <N8NTest />
+                       <Footer />
+                     </div>
+                   } />
+                   <Route path="/field-registry" element={
+                     <div>
+                       <Header />
+                       <FieldRegistry />
+                       <Footer />
+                     </div>
+                   } />
                    {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={
                     <div>
