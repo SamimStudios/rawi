@@ -25,11 +25,38 @@ interface DynamicFieldRendererProps {
   field: FieldRegistry;
   value: any;
   onChange: (value: any) => void;
+  formValues?: Record<string, any>;
 }
 
-export function DynamicFieldRenderer({ field, value, onChange }: DynamicFieldRendererProps) {
+export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }: DynamicFieldRendererProps) {
   const getLabel = () => field.ui?.label?.fallback || field.field_id;
   const getPlaceholder = () => field.ui?.placeholder?.fallback || '';
+
+  // Filter options based on dependsOn conditions
+  const getFilteredOptions = () => {
+    if (!field.resolvedOptions) return [];
+
+    return field.resolvedOptions.filter(option => {
+      // If no dependsOn, include the option
+      if (!option.dependsOn || !Array.isArray(option.dependsOn)) {
+        return true;
+      }
+
+      // Check all dependencies - ALL must be satisfied
+      return option.dependsOn.every((dep: any) => {
+        const parentFieldValue = formValues[dep.field];
+        const allowedValues = dep.allow || [];
+        
+        // If parent field has no value, don't show dependent options
+        if (!parentFieldValue) return false;
+        
+        // Check if current parent value is in allowed values
+        return allowedValues.includes(parentFieldValue);
+      });
+    });
+  };
+
+  const filteredOptions = getFilteredOptions();
 
   const renderByWidget = () => {
     switch (field.widget) {
@@ -60,7 +87,7 @@ export function DynamicFieldRenderer({ field, value, onChange }: DynamicFieldRen
               <SelectValue placeholder={getPlaceholder() || 'Select an option'} />
             </SelectTrigger>
             <SelectContent>
-              {field.resolvedOptions?.map((option, index) => (
+              {filteredOptions.map((option, index) => (
                 <SelectItem key={index} value={String(option.value)}>
                   {option.label.fallback}
                 </SelectItem>
@@ -72,7 +99,7 @@ export function DynamicFieldRenderer({ field, value, onChange }: DynamicFieldRen
       case 'radio':
         return (
           <RadioGroup value={value || ''} onValueChange={onChange}>
-            {field.resolvedOptions?.map((option, index) => (
+            {filteredOptions.map((option, index) => (
               <div key={index} className="flex items-center space-x-2">
                 <RadioGroupItem value={String(option.value)} id={`${field.field_id}-${index}`} />
                 <Label htmlFor={`${field.field_id}-${index}`}>
@@ -84,11 +111,11 @@ export function DynamicFieldRenderer({ field, value, onChange }: DynamicFieldRen
         );
 
       case 'checkbox':
-        if (field.datatype === 'array' && field.resolvedOptions) {
+        if (field.datatype === 'array' && filteredOptions.length > 0) {
           const selectedValues = Array.isArray(value) ? value : [];
           return (
             <div className="space-y-2">
-              {field.resolvedOptions.map((option, index) => (
+              {filteredOptions.map((option, index) => (
                 <div key={index} className="flex items-center space-x-2">
                   <Checkbox
                     id={`${field.field_id}-${index}`}
@@ -128,8 +155,8 @@ export function DynamicFieldRenderer({ field, value, onChange }: DynamicFieldRen
             {/* Selected tags */}
             {tagValues.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {tagValues.map((tagValue: any, index: number) => {
-                  const option = field.resolvedOptions?.find(opt => opt.value === tagValue);
+              {tagValues.map((tagValue: any, index: number) => {
+                const option = filteredOptions.find(opt => opt.value === tagValue);
                   return (
                     <Badge key={index} variant="secondary" className="flex items-center gap-1">
                       {option?.label.fallback || tagValue}
@@ -162,8 +189,8 @@ export function DynamicFieldRenderer({ field, value, onChange }: DynamicFieldRen
                 <SelectValue placeholder="Add tag..." />
               </SelectTrigger>
               <SelectContent>
-                {field.resolvedOptions
-                  ?.filter(option => !tagValues.includes(option.value))
+                {filteredOptions
+                  .filter(option => !tagValues.includes(option.value))
                   .map((option, index) => (
                     <SelectItem key={index} value={String(option.value)}>
                       {option.label.fallback}

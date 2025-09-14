@@ -27,7 +27,12 @@ export default function FieldRegistry() {
   const [fields, setFields] = useState<FieldRegistry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [formValues, setFormValues] = useState<Record<string, any>>({});
   const { toast } = useToast();
+
+  const updateFieldValue = (fieldId: string, value: any) => {
+    setFormValues(prev => ({ ...prev, [fieldId]: value }));
+  };
 
   const fetchFields = async () => {
     try {
@@ -117,7 +122,12 @@ export default function FieldRegistry() {
 
       <div className="grid gap-6">
         {fields.map((field) => (
-          <FieldCard key={field.id} field={field} />
+          <FieldCard 
+            key={field.id} 
+            field={field} 
+            formValues={formValues}
+            onFieldChange={updateFieldValue}
+          />
         ))}
       </div>
 

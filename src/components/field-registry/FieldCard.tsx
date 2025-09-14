@@ -23,11 +23,18 @@ interface FieldRegistry {
 
 interface FieldCardProps {
   field: FieldRegistry;
+  formValues?: Record<string, any>;
+  onFieldChange?: (fieldId: string, value: any) => void;
 }
 
-export function FieldCard({ field }: FieldCardProps) {
+export function FieldCard({ field, formValues = {}, onFieldChange }: FieldCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [testValue, setTestValue] = useState(field.default_value);
+
+  const handleValueChange = (value: any) => {
+    setTestValue(value);
+    onFieldChange?.(field.field_id, value);
+  };
 
   const getDataTypeBadgeColor = (datatype: string) => {
     const colors: Record<string, string> = {
@@ -111,11 +118,12 @@ export function FieldCard({ field }: FieldCardProps) {
               {/* Field Renderer */}
               <div className="space-y-4">
                 <h4 className="font-semibold">Interactive Preview</h4>
-                <DynamicFieldRenderer
-                  field={field}
-                  value={testValue}
-                  onChange={setTestValue}
-                />
+              <DynamicFieldRenderer
+                field={field}
+                value={testValue}
+                onChange={handleValueChange}
+                formValues={formValues}
+              />
                 
                 {testValue !== undefined && testValue !== null && testValue !== '' && (
                   <div className="p-3 bg-muted rounded-lg">
