@@ -192,7 +192,7 @@ $$;
 
 ---
 
-## Section 1: Field Registry
+# Section 1: Field Registry
 
 ### Purpose
 
