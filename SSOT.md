@@ -1,3 +1,5 @@
+
+
 # Rawi App System Specification (Global Doc, Consolidated — Full)
 
 This document is the **single reference** for schemas, constraints, contracts, and triggers across the AI Scenes system. Each section has four parts:
@@ -6,6 +8,187 @@ This document is the **single reference** for schemas, constraints, contracts, a
 2. Simplified prose
 3. Top-level contract
 4. SQL definition
+
+---
+# Section 0: Core Enums & Helpers (Locked)
+
+### Purpose
+
+Canonical enums and tiny helpers shared across validators and tables. Idempotent, safe to re-run.
+
+### Simplified Prose
+
+* Enums:
+
+  * `field_datatype`: `string|number|boolean|array|object|uuid|url|date|datetime`
+  * `field_widget`: `text|textarea|select|radio|checkbox|tags|group|date|datetime|url|color|file`
+  * `options_source`: `static|endpoint|table`
+  * `http_method`: `GET|POST|PUT|PATCH|DELETE`
+  * `order_dir`: `asc|desc`
+  * `table_where_op`: `eq|neq|gt|gte|lt|lte|like|ilike|in`
+  * `string_format`: `none|email|phone|color|slug|uri|url`
+  * `array_item_type`: `string|number|boolean|uuid|url|date|datetime|object`
+  * `importance_level`: `low|normal|high`
+  * `group_layout`: `section|accordion|tab|inline`
+* Helpers:
+
+  * `in_enum(val text, etype anyenum)` → boolean (generic membership)
+  * Overloads so checks can pass enums directly to existing validators:
+
+    * `is_valid_rules(p jsonb, p_datatype field_datatype)`
+    * `is_valid_field_rules_strict(p jsonb, p_datatype field_datatype)`
+    * `is_valid_field_default_strict(p_default jsonb, p_datatype field_datatype, p_widget text, p_options jsonb)`
+    * `is_valid_field_default_strict(p_default jsonb, p_datatype field_datatype, p_widget field_widget, p_options jsonb)`
+
+### SQL Definition
+
+```sql
+-- =========================
+-- Enums (idempotent guards)
+-- =========================
+
+do $$ begin
+  if not exists (select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
+                 where t.typname='field_datatype' and n.nspname='public')
+  then create type public.field_datatype as enum
+    ('string','number','boolean','array','object','uuid','url','date','datetime'); end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
+                 where t.typname='field_widget' and n.nspname='public')
+  then create type public.field_widget as enum
+    ('text','textarea','select','radio','checkbox','tags','group','date','datetime','url','color','file'); end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
+                 where t.typname='options_source' and n.nspname='public')
+  then create type public.options_source as enum
+    ('static','endpoint','table'); end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
+                 where t.typname='http_method' and n.nspname='public')
+  then create type public.http_method as enum
+    ('GET','POST','PUT','PATCH','DELETE'); end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
+                 where t.typname='order_dir' and n.nspname='public')
+  then create type public.order_dir as enum
+    ('asc','desc'); end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
+                 where t.typname='table_where_op' and n.nspname='public')
+  then create type public.table_where_op as enum
+    ('eq','neq','gt','gte','lt','lte','like','ilike','in'); end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
+                 where t.typname='string_format' and n.nspname='public')
+  then create type public.string_format as enum
+    ('none','email','phone','color','slug','uri','url'); end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
+                 where t.typname='array_item_type' and n.nspname='public')
+  then create type public.array_item_type as enum
+    ('string','number','boolean','uuid','url','date','datetime','object'); end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
+                 where t.typname='importance_level' and n.nspname='public')
+  then create type public.importance_level as enum
+    ('low','normal','high'); end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
+                 where t.typname='group_layout' and n.nspname='public')
+  then create type public.group_layout as enum
+    ('section','accordion','tab','inline'); end if;
+end $$;
+
+-- (Optional) Ensure members exist if enums predate these values
+do $$
+declare
+  v text;
+begin
+  -- string_format
+  foreach v in array array['none','email','phone','color','slug','uri','url'] loop
+    begin execute format('alter type public.string_format add value %L', v);
+    exception when duplicate_object then null; end;
+  end loop;
+
+  -- array_item_type
+  foreach v in array array['string','number','boolean','uuid','url','date','datetime','object'] loop
+    begin execute format('alter type public.array_item_type add value %L', v);
+    exception when duplicate_object then null; end;
+  end loop;
+end $$;
+
+-- =========================
+-- Helpers & overloads
+-- =========================
+
+-- Generic enum membership test
+create or replace function public.in_enum(val text, etype anyenum)
+returns boolean
+language sql
+immutable
+as $$
+  select case when val is null then false
+              else val = any (enum_range(etype)::text[]) end;
+$$;
+
+-- Overloads so table CHECKs can pass enums directly to existing validators
+
+-- rules(jsonb, field_datatype)
+create or replace function public.is_valid_rules(p jsonb, p_datatype public.field_datatype)
+returns boolean
+language sql
+immutable
+as $$
+  select public.is_valid_rules(p, p_datatype::text);
+$$;
+
+-- field_rules_strict(jsonb, field_datatype)
+create or replace function public.is_valid_field_rules_strict(p jsonb, p_datatype public.field_datatype)
+returns boolean
+language sql
+immutable
+as $$
+  select public.is_valid_rules(p, p_datatype::text);
+$$;
+
+-- default_strict(jsonb, field_datatype, TEXT widget, options)
+create or replace function public.is_valid_field_default_strict(
+  p_default jsonb, p_datatype public.field_datatype, p_widget text, p_options jsonb)
+returns boolean
+language sql
+immutable
+as $$
+  select public.is_valid_field_default_strict(p_default, p_datatype::text, p_widget, p_options);
+$$;
+
+-- default_strict(jsonb, field_datatype, field_widget widget, options)
+create or replace function public.is_valid_field_default_strict(
+  p_default jsonb, p_datatype public.field_datatype, p_widget public.field_widget, p_options jsonb)
+returns boolean
+language sql
+immutable
+as $$
+  select public.is_valid_field_default_strict(p_default, p_datatype::text, p_widget::text, p_options);
+$$;
+```
 
 ---
 
