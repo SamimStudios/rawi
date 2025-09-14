@@ -1587,105 +1587,185 @@ alter table public.storyboard_nodes
 
 # Section 4: Storyboard Nodes (Strucure Locked needs full recheck)
 
-### Purpose
+Awesome — here’s the doc pack you asked for.
 
-Capture the storyboard tree per job. Each node is a `form`, `group`, or `media` container; paths are ltree-based; content is strictly validated by node type.
+## Purpose
 
-### Simplified Prose
+* Make storyboard nodes **predictable and safe** to read/write.
+* Enforce **shape-by-type** (group/form/media) so UI and jobs can rely on consistent data.
+* Guard **hierarchy rules** (root sections, immediate children, same job) and **touch** timestamps.
+* Normalize form authoring: if `required` is omitted, it defaults to `false`; if `required: true` is present, a valid `value` is mandatory (per §2).
 
-* **id**: UUID PK.
-* **job\_id**: FK → `storyboard_jobs.id`.
-* **node\_type**: one of `form|group|media` (validated).
-* **path**: `ltree` unique per job (e.g., `root.user_input`, `root.characters.extras`).
-* **parent\_id**: optional FK → self; must be same `job_id`; `parent.path @> path` and **immediate child** (`nlevel(path)=nlevel(parent.path)+1`).
-* **is\_section**: auto-set by trigger to `true` when `nlevel(path)=2` (e.g., `root.basic`).
-* **content**: by type
+## Simplified prose
 
-  * `form` → `FormContent` (see §2: FieldGroup/FieldItem)
-  * `group` → array (TBD tighter validator later)
-  * `media` → `MediaContent` (see §3)
-* **edit**: `{ has_editables: boolean, validate? { n8n_function_id: uuid|string } }`.
-* **actions**: `{ generate? { n8n_function_id: uuid|string } }`.
-* **dependencies**: array of ltree paths or `{ path, optional? }`.
-* **version**: ≥1; **active**: boolean; timestamps.
+* A storyboard is a **tree** of nodes.
+* **Root sections** live at `root.<section>` (depth=2). Any child is **exactly one level deeper** than its parent and shares the same `job_id`.
+* **group** nodes are **structural only** → their `content` is `{}`.
+* **form** nodes are validated by §2:
 
-### Top-Level Contract
+  * Top-level keys: `{ groups, items }`.
+  * Each item has `ref` (must exist in Field Registry) and `parent.group_name`.
+  * If `required: true` appears, the item must also include a valid `value` (type-checked by §2).
+  * If `required` is **omitted**, a trigger sets it to `false`.
+* **media** nodes are validated by §3:
+
+  * `{ kind: 'image'|'video'|'audio', current_v: int, versions: [{ v: int, images|videos|audios: [...] }] }`.
+  * Each media item passes its per-kind validator (e.g., `is_valid_image_item`).
+
+## Top-level contract (what’s guaranteed)
+
+* **Uniqueness:** `(job_id, path)` unique.
+* **Node types:** `node_type ∈ {'group','form','media'}`.
+* **Paths:** `ltree`; root sections depth=2; child path = **immediate ancestor = parent.path**.
+* **Auto flags:** `is_section = (nlevel(path)=2)`.
+* **Content by type:**
+
+  * `group` → `content = {}` only.
+  * `form`  → `is_valid_form_content(content)` (per §2).
+  * `media` → `is_valid_media_content(content)` (per §3).
+* **Edit/Actions:**
+
+  * `edit`: `{ has_editables?: boolean, validate?: { n8n_function_id: uuid|string } }`.
+  * `actions`: `{ generate?: { n8n_function_id: uuid|string } }`.
+* **Dependencies:** `string[] | {path:string, optional?:boolean}[]` where `path` matches `^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$`.
+* **Touch:** `updated_at` auto-updated on any change; triggers never mutate `content`.
+
+### Minimal examples
+
+* **group**
+
+```json
+{ }
+```
+
+* **form**
 
 ```json
 {
-  "id": "uuid",
-  "job_id": "uuid",
-  "node_type": "form|group|media",
-  "path": "ltree",
-  "parent_id": "uuid|null",
-  "is_section": true,
-  "content": {},
-  "edit": { "has_editables": true, "validate": { "n8n_function_id": "uuid-or-name" } },
-  "actions": { "generate": { "n8n_function_id": "uuid-or-name" } },
-  "dependencies": [ "root.characters.lead", { "path": "root.props", "optional": true } ],
-  "version": 1,
-  "active": true
+  "groups": [
+    { "name": "basic",     "label": { "fallback": "Basic" } },
+    { "name": "character", "label": { "fallback": "Character" } }
+  ],
+  "items": [
+    { "ref": "language", "parent": { "group_name": "basic" } },
+    { "ref": "character_name", "parent": { "group_name": "character" } }
+  ]
 }
 ```
 
-### SQL Definition
+* **media (image)**
+
+```json
+{
+  "kind": "image",
+  "current_v": 1,
+  "versions": [
+    {
+      "v": 1,
+      "images": [
+        {
+          "asset_type": "image",
+          "id": "img_001",
+          "url": "https://…/img_001.jpg",
+          "storage": { "bucket": "storyboard", "path": "jobs/<job>/media/portrait/v1/img_001.jpg" },
+          "meta": { "width": 1024, "height": 1536, "mime": "image/jpeg", "orientation": "portrait" }
+        }
+      ]
+    }
+  ]
+}
+```
+
+## SQL definition (idempotent; assumes §1–§3 helpers already exist)
 
 ```sql
--- Required extension
-create extension if not exists ltree;
-
--- Helper: node_type validator (idempotent)
-create or replace function public.is_valid_node_type(t text)
+-- Helpers (safe to re-run; param names match existing)
+create or replace function public.is_uuid(p text)
 returns boolean language sql immutable as $$
-  select t in ('form','group','media');
+  select coalesce(p ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', false);
 $$;
 
--- Helper: path text validator (used by definitions; ltree column self-validates)
-create or replace function public.is_valid_path_text(t text)
+create or replace function public.is_valid_path_text(p text)
 returns boolean language sql immutable as $$
-  -- Accept ltree-compatible labels separated by dots
-  select t ~ '^[a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)*$';
+  select p ~ '^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$';
 $$;
 
--- === TABLE ===
-create table if not exists public.storyboard_nodes (
-  id uuid primary key default gen_random_uuid(),
-  job_id uuid not null references public.storyboard_jobs(id) on delete cascade,
+-- Section-4 validators (names match what you already have)
+create or replace function public.is_valid_node_edit_strict(p jsonb)
+returns boolean language sql immutable as $$
+  select
+    jsonb_typeof(p)='object'
+    and (not (p ? 'has_editables') or jsonb_typeof(p->'has_editables')='boolean')
+    and (not (p ? 'validate') or (
+      jsonb_typeof(p->'validate')='object'
+      and (p->'validate') ? 'n8n_function_id'
+      and jsonb_typeof((p->'validate')->'n8n_function_id')='string'
+      and ( public.is_uuid((p->'validate')->>'n8n_function_id')
+            or length((p->'validate')->>'n8n_function_id') between 1 and 128 )
+    ));
+$$;
 
-  node_type text not null,
-  path ltree not null,
-  parent_id uuid null references public.storyboard_nodes(id) on delete cascade,
+create or replace function public.is_valid_node_actions_strict(p jsonb)
+returns boolean language sql immutable as $$
+  select
+    jsonb_typeof(p)='object'
+    and (not (p ? 'generate') or (
+      jsonb_typeof(p->'generate')='object'
+      and (p->'generate') ? 'n8n_function_id'
+      and jsonb_typeof((p->'generate')->'n8n_function_id')='string'
+      and ( public.is_uuid((p->'generate')->>'n8n_function_id')
+            or length((p->'generate')->>'n8n_function_id') between 1 and 128 )
+    ));
+$$;
 
-  is_section boolean not null default false,
+-- ["root.a", {"path":"root.b.c","optional":true}]
+create or replace function public.is_valid_node_dependencies(p jsonb)
+returns boolean language sql immutable as $$
+  with els as (select e from jsonb_array_elements(coalesce(p,'[]'::jsonb)) e)
+  select
+    jsonb_typeof(coalesce(p,'[]'::jsonb))='array'
+    and not exists (
+      select 1 from els
+      where not (
+        (jsonb_typeof(e)='string' and public.is_valid_path_text(e #>> '{}'))
+        or (
+          jsonb_typeof(e)='object'
+          and (e ? 'path') and jsonb_typeof(e->'path')='string'
+          and public.is_valid_path_text(e->>'path')
+          and (not (e ? 'optional') or jsonb_typeof(e->'optional')='boolean')
+        )
+      )
+    );
+$$;
 
-  content jsonb not null default '{}'::jsonb,
-  edit jsonb not null default '{}'::jsonb,
-  actions jsonb not null default '{}'::jsonb,
-  dependencies jsonb not null default '[]'::jsonb,
+-- Router into §2 + §3 + strict group
+create or replace function public.is_valid_content_shape(node_type text, content jsonb)
+returns boolean language sql immutable as $$
+  select case
+    when node_type = 'form'  then public.is_valid_form_content(content)
+    when node_type = 'media' then public.is_valid_media_content(content)
+    when node_type = 'group' then jsonb_typeof(content)='object' and content='{}'::jsonb
+    else false
+  end;
+$$;
 
-  version int not null default 1,
-  active boolean not null default true,
+-- Normalizer: default missing "required" → false (used by trigger)
+create or replace function public.form_default_required_false(j jsonb)
+returns jsonb language sql immutable as $$
+  select case
+    when jsonb_typeof(j)='object' and (j ? 'items') and jsonb_typeof(j->'items')='array'
+    then jsonb_set(
+           j,'{items}',
+           (select jsonb_agg(
+                    case when not (e ? 'required')
+                         then e || jsonb_build_object('required', false)
+                         else e end)
+            from jsonb_array_elements(j->'items') e))
+    else j
+  end;
+$$;
 
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-
-  -- Basic shape checks
-  constraint chk_sn_node_type     check (public.is_valid_node_type(node_type)),
-  constraint chk_sn_content_shape check (public.is_valid_content_shape(node_type, content)),
-  constraint chk_sn_edit_shape    check (public.is_valid_node_edit_strict(edit)),
-  constraint chk_sn_actions_shape check (public.is_valid_node_actions_strict(actions)),
-  constraint chk_sn_deps_shape    check (public.is_valid_node_dependencies(dependencies)),
-  constraint chk_sn_version       check (version >= 1)
-);
-
--- Uniqueness and lookup
-create unique index if not exists ux_storyboard_nodes_job_path on public.storyboard_nodes(job_id, path);
-create index if not exists ix_storyboard_nodes_job on public.storyboard_nodes(job_id);
-create index if not exists ix_storyboard_nodes_parent on public.storyboard_nodes(parent_id);
-create index if not exists ix_storyboard_nodes_type on public.storyboard_nodes(node_type);
-create index if not exists ix_storyboard_nodes_path_gist on public.storyboard_nodes using gist (path);
-
--- Touch trigger
+-- Triggers
 create or replace function public.t_storyboard_nodes_touch()
 returns trigger language plpgsql as $$
 begin
@@ -1693,66 +1773,120 @@ begin
   return new;
 end $$;
 
-drop trigger if exists trg_storyboard_nodes_touch on public.storyboard_nodes;
-create trigger trg_storyboard_nodes_touch
-before update on public.storyboard_nodes
-for each row execute function public.t_storyboard_nodes_touch();
-
--- Parent/Path guard (CHECKs cannot reference siblings; enforce via trigger)
-create or replace function public.t_storyboard_nodes_guard()
+create or replace function public.t_storyboard_nodes_parent_guard()
 returns trigger language plpgsql as $$
 declare
   p_job uuid;
   p_path ltree;
 begin
-  -- is_section auto: true when depth == 2 (e.g., root.basic)
+  -- auto-flag sections at depth 2
   new.is_section := (nlevel(new.path) = 2);
 
   if new.parent_id is null then
-    -- must be a top-level or deeper node without an explicit parent (allowed), no extra rule here
+    if nlevel(new.path) <> 2 then
+      raise exception 'root-level nodes must have depth 2 (got %)', nlevel(new.path) using errcode='23514';
+    end if;
     return new;
   end if;
 
-  select job_id, path into p_job, p_path
-  from public.storyboard_nodes
-  where id = new.parent_id;
+  select n.job_id, n.path into p_job, p_path
+  from public.storyboard_nodes n
+  where n.id = new.parent_id;
 
-  if not found then
-    raise exception 'Parent % not found', new.parent_id using errcode = '23503';
+  if p_job is null then
+    raise exception 'parent_id % not found', new.parent_id using errcode='23503';
   end if;
-
   if p_job <> new.job_id then
-    raise exception 'Parent job_id mismatch' using errcode = '23514';
+    raise exception 'parent.job_id (%) does not match new.job_id (%)', p_job, new.job_id using errcode='23514';
   end if;
-
-  -- parent must be an ancestor and immediate parent
-  if not (p_path @> new.path) then
-    raise exception 'Parent path % is not an ancestor of child path %', p_path::text, new.path::text using errcode = '23514';
+  if subpath(new.path, 0, nlevel(new.path)-1) <> p_path then
+    raise exception 'parent.path (%) must equal immediate ancestor of child.path (%)', p_path::text, new.path::text using errcode='23514';
   end if;
-
   if nlevel(new.path) <> nlevel(p_path) + 1 then
-    raise exception 'Child path must be exactly one level below parent (got % vs %)', nlevel(new.path), nlevel(p_path) using errcode = '23514';
+    raise exception 'child path depth must be exactly one level deeper than parent' using errcode='23514';
   end if;
 
   return new;
 end $$;
 
-drop trigger if exists trg_storyboard_nodes_guard on public.storyboard_nodes;
-create trigger trg_storyboard_nodes_guard
-before insert or update on public.storyboard_nodes
-for each row execute function public.t_storyboard_nodes_guard();
+create or replace function public.t_storyboard_nodes_form_normalize()
+returns trigger language plpgsql as $$
+begin
+  if new.node_type = 'form' then
+    new.content := public.form_default_required_false(new.content);
+  end if;
+  return new;
+end $$;
 
--- Notes:
--- - content validation is routed by public.is_valid_content_shape(node_type, content):
---     * 'form'  -> public.is_valid_form_content(content)   (Locked in §2)
---     * 'media' -> public.is_valid_media_items(content)    (Planned in §3)
---     * 'group' -> (TBD tighter shape; currently array placeholder)
--- - edit/actions/dependencies are validated by your existing strict validators:
---     public.is_valid_node_edit_strict(jsonb),
---     public.is_valid_node_actions_strict(jsonb),
---     public.is_valid_node_dependencies(jsonb).
+-- Attach triggers (safe re-create)
+do $$
+begin
+  if exists (select 1 from pg_trigger where tgname='trg_storyboard_nodes_touch' and tgrelid='public.storyboard_nodes'::regclass) then
+    execute 'drop trigger trg_storyboard_nodes_touch on public.storyboard_nodes';
+  end if;
+  execute 'create trigger trg_storyboard_nodes_touch before update on public.storyboard_nodes
+           for each row execute function public.t_storyboard_nodes_touch()';
+
+  if exists (select 1 from pg_trigger where tgname='trg_storyboard_nodes_parent_guard' and tgrelid='public.storyboard_nodes'::regclass) then
+    execute 'drop trigger trg_storyboard_nodes_parent_guard on public.storyboard_nodes';
+  end if;
+  execute 'create trigger trg_storyboard_nodes_parent_guard before insert or update on public.storyboard_nodes
+           for each row execute function public.t_storyboard_nodes_parent_guard()';
+
+  if exists (select 1 from pg_trigger where tgname='trg_storyboard_nodes_form_normalize' and tgrelid='public.storyboard_nodes'::regclass) then
+    execute 'drop trigger trg_storyboard_nodes_form_normalize on public.storyboard_nodes';
+  end if;
+  execute 'create trigger trg_storyboard_nodes_form_normalize before insert or update on public.storyboard_nodes
+           for each row execute function public.t_storyboard_nodes_form_normalize()';
+end $$;
+
+-- Constraints (add if missing)
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname='chk_sn_node_type' and conrelid='public.storyboard_nodes'::regclass) then
+    execute $$alter table public.storyboard_nodes
+             add constraint chk_sn_node_type check (node_type in ('form','group','media'))$$;
+  end if;
+  if not exists (select 1 from pg_constraint where conname='chk_sn_content_shape' and conrelid='public.storyboard_nodes'::regclass) then
+    execute $$alter table public.storyboard_nodes
+             add constraint chk_sn_content_shape check (public.is_valid_content_shape(node_type, content))$$;
+  end if;
+  if not exists (select 1 from pg_constraint where conname='chk_sn_edit_shape' and conrelid='public.storyboard_nodes'::regclass) then
+    execute $$alter table public.storyboard_nodes
+             add constraint chk_sn_edit_shape check (public.is_valid_node_edit_strict(edit))$$;
+  end if;
+  if not exists (select 1 from pg_constraint where conname='chk_sn_actions_shape' and conrelid='public.storyboard_nodes'::regclass) then
+    execute $$alter table public.storyboard_nodes
+             add constraint chk_sn_actions_shape check (public.is_valid_node_actions_strict(actions))$$;
+  end if;
+  if not exists (select 1 from pg_constraint where conname='chk_sn_deps_shape' and conrelid='public.storyboard_nodes'::regclass) then
+    execute $$alter table public.storyboard_nodes
+             add constraint chk_sn_deps_shape check (public.is_valid_node_dependencies(dependencies))$$;
+  end if;
+  if not exists (select 1 from pg_constraint where conname='chk_sn_version' and conrelid='public.storyboard_nodes'::regclass) then
+    execute $$alter table public.storyboard_nodes
+             add constraint chk_sn_version check (version >= 1)$$;
+  end if;
+end $$;
+
+-- Deferred self-FK on parent (add if missing)
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname='fk_storyboard_nodes_parent' and conrelid='public.storyboard_nodes'::regclass) then
+    execute $$alter table public.storyboard_nodes
+             add constraint fk_storyboard_nodes_parent
+             foreign key (parent_id) references public.storyboard_nodes(id)
+             deferrable initially deferred
+             not valid$$;
+    execute $$alter table public.storyboard_nodes validate constraint fk_storyboard_nodes_parent$$;
+  end if;
+end $$;
+
+-- Indexes (safe)
+create unique index if not exists ux_storyboard_nodes_job_path on public.storyboard_nodes(job_id, path);
+create index if not exists ix_storyboard_nodes_job_type    on public.storyboard_nodes(job_id, node_type);
+create index if not exists ix_storyboard_nodes_job_section on public.storyboard_nodes(job_id) where is_section = true;
 ```
-
 
 ---
 
