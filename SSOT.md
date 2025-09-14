@@ -335,27 +335,67 @@ for each row execute function public.t_node_definitions_touch();
 
 ---
 
+---
 
--- ENUMS
-create type if not exists public.options_source as enum ('static','endpoint','table');
-create type if not exists public.http_method   as enum ('GET','POST','PUT','PATCH','DELETE');
-create type if not exists public.order_dir     as enum ('asc','desc');
-create type if not exists public.table_where_op as enum
-  ('eq','neq','gt','gte','lt','lte','like','ilike','in');
+## Section 1.A: Field Options Schema (Detailed)
 
--- Helper
-create or replace function public.in_enum(val text, etype anyenum)
-returns boolean language sql immutable as $$
-  select val = any (enum_range(null::anyenum)::text[]);
-$$;
+### Purpose
+- Standardize `options` JSON used by widgets (selects, lookups, etc.).
+- Support three sources: **static**, **endpoint**, **table**.
+- Keep **closed sets** strict via Postgres enums while preserving JSON flexibility.
 
--- Validator
-create or replace function public.is_valid_field_options(p jsonb)
-returns boolean language sql immutable as $$
-  -- full select statement from validation
-$$;
+### Simplified Prose
+- `source`: one of `static | endpoint | table`.
+- **static**:
+  - `values`: array of normalized items.
+  - Each item: `{ value: string, label: { fallback: string, key?: string }, extras?: object, disabled?: boolean }`.
+  - Optional `dependsOn`: array of `{ field: string, allow: string[] }`.
+- **endpoint**:
+  - `url` (string, required), `method?` (GET|POST|PUT|PATCH|DELETE), `query?` (object).
+  - Mapping keys: `valueKey?`, `labelKey?`, `extraKeys?` (string[]), `cacheTtlSec?` (number > 0).
+- **table**:
+  - `table` (string), `valueColumn` (string), `labelColumn` (string) required.
+  - `extraColumns?` (string[]).
+  - `where?`: array of `{ column: string, op: one of (eq, neq, gt, gte, lt, lte, like, ilike, in), value: any }`.
+  - `orderBy?`: array of `{ column: string, dir: asc|desc }`.
+  - `limit?` (number > 0).
 
--- Optional table constraint
--- alter table public.field_registry
---   add constraint chk_field_options check (public.is_valid_field_options(options));
+### Top-Level Contract
+```json
+{
+  "options": {
+    "source": "static | endpoint | table",
 
+    "values": [
+      {
+        "value": "string",
+        "label": { "fallback": "string", "key": "string?" },
+        "extras": { },
+        "disabled": false
+      }
+    ],
+    "dependsOn": [
+      { "field": "string", "allow": ["string", "string"] }
+    ],
+
+    "url": "string",
+    "method": "GET|POST|PUT|PATCH|DELETE",
+    "query": { },
+    "valueKey": "string",
+    "labelKey": "string",
+    "extraKeys": ["string"],
+    "cacheTtlSec": 300,
+
+    "table": "string",
+    "valueColumn": "string",
+    "labelColumn": "string",
+    "extraColumns": ["string"],
+    "where": [
+      { "column": "string", "op": "eq|neq|gt|gte|lt|lte|like|ilike|in", "value": {} }
+    ],
+    "orderBy": [
+      { "column": "string", "dir": "asc|desc" }
+    ],
+    "limit": 25
+  }
+}
