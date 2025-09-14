@@ -131,7 +131,7 @@ export function MediaRenderer({ node }: MediaRendererProps) {
 interface MediaAssetsGridProps {
   assets: MediaAsset[];
   type: 'image' | 'video' | 'audio';
-  language: string;
+  language: 'en' | 'ar';
 }
 
 function MediaAssetsGrid({ assets, type, language }: MediaAssetsGridProps) {
@@ -175,7 +175,7 @@ interface MediaAssetCardProps {
   asset: MediaAsset;
   type: 'image' | 'video' | 'audio';
   index: number;
-  language: string;
+  language: 'en' | 'ar';
 }
 
 function MediaAssetCard({ asset, type, index, language }: MediaAssetCardProps) {

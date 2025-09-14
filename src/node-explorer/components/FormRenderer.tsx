@@ -127,10 +127,10 @@ interface FormGroupCardProps {
   items: FormItem[];
   fields: any;
   loading: boolean;
-  language: string;
-  getFieldLabel: (ref: string, lang: string) => string;
-  getFieldPlaceholder: (ref: string, lang: string) => string;
-  getFieldHelp: (ref: string, lang: string) => string;
+  language: 'en' | 'ar';
+  getFieldLabel: (ref: string, lang: 'en' | 'ar') => string;
+  getFieldPlaceholder: (ref: string, lang: 'en' | 'ar') => string;
+  getFieldHelp: (ref: string, lang: 'en' | 'ar') => string;
 }
 
 function FormGroupCard({ 
@@ -237,10 +237,10 @@ interface FormItemCardProps {
   item: FormItem;
   field: any;
   loading: boolean;
-  language: string;
-  getFieldLabel: (ref: string, lang: string) => string;
-  getFieldPlaceholder: (ref: string, lang: string) => string;
-  getFieldHelp: (ref: string, lang: string) => string;
+  language: 'en' | 'ar';
+  getFieldLabel: (ref: string, lang: 'en' | 'ar') => string;
+  getFieldPlaceholder: (ref: string, lang: 'en' | 'ar') => string;
+  getFieldHelp: (ref: string, lang: 'en' | 'ar') => string;
 }
 
 function FormItemCard({ 

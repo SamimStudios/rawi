@@ -1,4 +1,5 @@
-export type Language = 'en' | 'ar';
+// Language type is imported from LanguageContext
+type Language = 'en' | 'ar';
 
 export interface I18nText {
   fallback: string;
