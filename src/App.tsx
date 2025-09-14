@@ -39,8 +39,6 @@ import Result from "./pages/app/Result";
 import StyleGuideline from "./pages/StyleGuideline";
 import N8NTest from "./pages/N8NTest";
 import ButtonShowcase from "./pages/ButtonShowcase";
-import { NodeExplorer } from "@/node-explorer/pages/NodeExplorer";
-import { NodesList } from "@/node-explorer/pages/NodesList";
 
 
 
@@ -53,11 +51,11 @@ const MainApp = () => (
         <AnalyticsProvider>
           <FunctionDataProvider>
             <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <AuthProvider>
-                <ErrorBoundary>
+              <ErrorBoundary>
+                <Toaster />
+                <Sonner />
+              <BrowserRouter>
+                <AuthProvider>
                   <div className="min-h-screen bg-background">
                     <Routes>
                    <Route path="/auth/sign-in" element={<SignIn />} />
@@ -210,8 +208,6 @@ const MainApp = () => (
                       <Footer />
                     </div>
                   } />
-                  <Route path="/nodes/:id" element={<NodeExplorer />} />
-                  <Route path="/nodes" element={<NodesList />} />
                    {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={
                     <div>
@@ -223,10 +219,9 @@ const MainApp = () => (
                     </Routes>
                     <CookieConsent />
                   </div>
-                </ErrorBoundary>
-              </AuthProvider>
-            </BrowserRouter>
-
+                </AuthProvider>
+              </BrowserRouter>
+              </ErrorBoundary>
             </TooltipProvider>
           </FunctionDataProvider>
         </AnalyticsProvider>
