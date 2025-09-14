@@ -287,6 +287,55 @@ const translations = {
     andMore: 'and',
     more: 'more',
     
+    // Field Registry Specific Fields
+    'fields.prompt.label': 'Prompt',
+    'fields.prompt.placeholder': 'Optional notes or story cues...',
+    'fields.template.label': 'Template',
+    'fields.genres.label': 'Genres',
+    'fields.character_gender.label': 'Gender',
+    'fields.character_name.label': 'Character Name',
+    'fields.language.label': 'Language',
+    'fields.accent.label': 'Accent',
+    'fields.character_look.label': 'Character Look',
+    'fields.character_age.label': 'Character Age',
+    'fields.size.label': 'Frame Size',
+    'fields.size.placeholder': 'Select...',
+    'fields.face_image.label': 'Face Image URL',
+    'fields.face_image.placeholder': 'https://...',
+    
+    // Genre Options
+    'genre.action': 'Action',
+    'genre.adventure': 'Adventure',
+    'genre.comedy': 'Comedy',
+    'genre.drama': 'Drama',
+    'genre.fantasy': 'Fantasy',
+    'genre.horror': 'Horror',
+    'genre.mystery': 'Mystery',
+    'genre.romance': 'Romance',
+    'genre.scifi': 'Sci-Fi',
+    'genre.thriller': 'Thriller',
+    'genre.documentary': 'Documentary',
+    
+    // Gender Options
+    'gender.male': 'Male',
+    'gender.female': 'Female',
+    
+    // Size Options
+    'size.portrait': 'Portrait',
+    'size.landscape': 'Landscape',
+    
+    // Language Options
+    'language.english': 'English',
+    'language.arabic': 'Arabic',
+    
+    // Accent Options
+    'accent.us': 'US',
+    'accent.uk': 'UK',
+    'accent.egyptian': 'Egyptian',
+    'accent.msa': 'MSA',
+    'accent.gulf': 'Gulf',
+    'accent.levantine': 'Levantine',
+    
     // Form Elements
     email: 'Email',
     password: 'Password',
@@ -824,6 +873,55 @@ const translations = {
     options: 'الخيارات',
     andMore: 'و',
     more: 'أكثر',
+    
+    // Field Registry Specific Fields (Arabic)
+    'fields.prompt.label': 'المطالبة',
+    'fields.prompt.placeholder': 'ملاحظات أو إشارات القصة الاختيارية...',
+    'fields.template.label': 'القالب',
+    'fields.genres.label': 'الأنواع',
+    'fields.character_gender.label': 'الجنس',
+    'fields.character_name.label': 'اسم الشخصية',
+    'fields.language.label': 'اللغة',
+    'fields.accent.label': 'اللهجة',
+    'fields.character_look.label': 'مظهر الشخصية',
+    'fields.character_age.label': 'عمر الشخصية',
+    'fields.size.label': 'حجم الإطار',
+    'fields.size.placeholder': 'اختر...',
+    'fields.face_image.label': 'رابط صورة الوجه',
+    'fields.face_image.placeholder': 'https://...',
+    
+    // Genre Options (Arabic)
+    'genre.action': 'أكشن',
+    'genre.adventure': 'مغامرة',
+    'genre.comedy': 'كوميدي',
+    'genre.drama': 'دراما',
+    'genre.fantasy': 'خيال',
+    'genre.horror': 'رعب',
+    'genre.mystery': 'غموض',
+    'genre.romance': 'رومانسي',
+    'genre.scifi': 'خيال علمي',
+    'genre.thriller': 'إثارة',
+    'genre.documentary': 'وثائقي',
+    
+    // Gender Options (Arabic)
+    'gender.male': 'ذكر',
+    'gender.female': 'أنثى',
+    
+    // Size Options (Arabic)
+    'size.portrait': 'عمودي',
+    'size.landscape': 'أفقي',
+    
+    // Language Options (Arabic)
+    'language.english': 'الإنجليزية',
+    'language.arabic': 'العربية',
+    
+    // Accent Options (Arabic)
+    'accent.us': 'أمريكي',
+    'accent.uk': 'بريطاني',
+    'accent.egyptian': 'مصري',
+    'accent.msa': 'فصحى',
+    'accent.gulf': 'خليجي',
+    'accent.levantine': 'شامي',
     
     // Form Elements (Arabic)
     email: 'البريد الإلكتروني',
