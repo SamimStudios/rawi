@@ -192,7 +192,7 @@ $$;
 
 ---
 
-# Section 1: Field Registry
+# Section 1: Field Registry (Locked)
 
 ### Purpose
 
@@ -819,7 +819,7 @@ $$;
 
 ---
 
-# Section 2: Form Schema — FieldGroup & FieldItem (Locked)
+# Section 2: Form Schema (Locked)
 
 ### Purpose
 
@@ -1291,7 +1291,7 @@ $$;
 
 # Section 3: Media (Locked v1)
 
-## Purpose
+### Purpose
 
 * Versioned assets per node, **one kind per node**: `image` or `video` or `audio`.
 * **Node-level versions** for undo/redo; **items are immutable** inside a version.
@@ -1585,18 +1585,18 @@ alter table public.storyboard_nodes
 
 ---
 
-# Section 4: Storyboard Nodes (Strucure Locked needs full recheck)
+# Section 4: Storyboard Nodes (Final)
 
 Awesome — here’s the doc pack you asked for.
 
-## Purpose
+### Purpose
 
 * Make storyboard nodes **predictable and safe** to read/write.
 * Enforce **shape-by-type** (group/form/media) so UI and jobs can rely on consistent data.
 * Guard **hierarchy rules** (root sections, immediate children, same job) and **touch** timestamps.
 * Normalize form authoring: if `required` is omitted, it defaults to `false`; if `required: true` is present, a valid `value` is mandatory (per §2).
 
-## Simplified prose
+### Simplified Prose
 
 * A storyboard is a **tree** of nodes.
 * **Root sections** live at `root.<section>` (depth=2). Any child is **exactly one level deeper** than its parent and shares the same `job_id`.
@@ -1612,23 +1612,35 @@ Awesome — here’s the doc pack you asked for.
   * `{ kind: 'image'|'video'|'audio', current_v: int, versions: [{ v: int, images|videos|audios: [...] }] }`.
   * Each media item passes its per-kind validator (e.g., `is_valid_image_item`).
 
-## Top-level contract (what’s guaranteed)
+### Top-Level Contract
+
+> **Note on version metadata:** Additional per-version keys such as `ai_models`, `credits_used`,
+> `created_at`, and `source` MAY appear and are persisted but are **not validated** by the SQL
+> function in this MVP. Treat them as opaque metadata at read-time.
 
 * **Uniqueness:** `(job_id, path)` unique.
 * **Node types:** `node_type ∈ {'group','form','media'}`.
-* **Paths:** `ltree`; root sections depth=2; child path = **immediate ancestor = parent.path**.
+- **Paths (ltree):**
+  - Root sections must have depth **2**: `root.<section>`.
+  - For a child: `subpath(child.path, 0, nlevel(child.path) - 1) = parent.path`
+    **and** `nlevel(child.path) = nlevel(parent.path) + 1`.
+  - All children must share the same `job_id` as their parent.
 * **Auto flags:** `is_section = (nlevel(path)=2)`.
 * **Content by type:**
+- `group` → `content` must be exactly `{}`.
+- `form`  → validated by §2 (`is_valid_form_content`). If an item has `"required": true`,
+  it **must** include a valid `value` per §2; if `required` is omitted, the trigger defaults it to `false`.
+- `media` → validated by §3 (`is_valid_media_content`), versioned shape with per-kind item validators.
 
-  * `group` → `content = {}` only.
-  * `form`  → `is_valid_form_content(content)` (per §2).
-  * `media` → `is_valid_media_content(content)` (per §3).
 * **Edit/Actions:**
 
   * `edit`: `{ has_editables?: boolean, validate?: { n8n_function_id: uuid|string } }`.
   * `actions`: `{ generate?: { n8n_function_id: uuid|string } }`.
 * **Dependencies:** `string[] | {path:string, optional?:boolean}[]` where `path` matches `^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$`.
-* **Touch:** `updated_at` auto-updated on any change; triggers never mutate `content`.
+- **Touch & normalization:**
+  - `updated_at` is auto-updated on any change.
+  - Triggers do **not** mutate `content` except for **form** nodes, where a normalizer
+    defaults missing `required` to `false` on each item (see §2).
 
 ### Minimal examples
 
@@ -1676,7 +1688,7 @@ Awesome — here’s the doc pack you asked for.
 }
 ```
 
-## SQL definition (idempotent; assumes §1–§3 helpers already exist)
+### SQL Definition (idempotent; assumes §1–§3 helpers already exist)
 
 ```sql
 -- Helpers (safe to re-run; param names match existing)
