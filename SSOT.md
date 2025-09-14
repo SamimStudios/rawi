@@ -819,6 +819,623 @@ $$;
 
 ---
 
+# Section 2: Form Schema — FieldGroup & FieldItem (Locked)
+
+### Purpose
+
+Normalized, strictly-validated form model kept as:
+
+* `FormContent = { groups: FieldGroup[], items: FieldItem[] }`
+* Groups define **hierarchy & layout**; Items bind to **Field Registry** and hold values.
+
+### Simplified Prose
+
+* **FieldGroup** (tree node)
+
+  * `name` (slug; ltree-safe; **unique among siblings**)
+  * `parent` (slug|null); `children: string[]` (must reference existing groups whose `parent` = this `name`)
+  * `label` (i18n `{fallback, key?}`); `description?` (i18n)
+  * Flags: `hidden?`, `advanced?`, `collapsed?`
+  * `importance?: importance_level` (`low|normal|high`)
+  * `layout?: group_layout` (`section|accordion|tab|inline`)
+  * `required?` (if true → at least one **FieldItem** exists under this group **or any descendant**)
+  * `repeatable?: { min?, max?, labelSingular?, labelPlural? }` (min/max instance bounds)
+  * **Order**: index in parent’s `children[]`
+* **FieldItem** (leaf bound to registry)
+
+  * `ref` → `field_registry.field_id` (FK by contract)
+  * `parent: { group_name, group_instance_id? }` (instance id **required** iff parent group is repeatable)
+  * `value?` (must satisfy registry datatype/widget/options on save)
+  * Flags: `editable?` (def true), `removable?` (def true), `required?` (def false)
+  * Overrides: `hierarchy?: { hidden?, advanced?, importance? }` (overrides group flags)
+  * `ui_override?: { label?, placeholder?, help? }` (same shape as registry UI)
+  * Per-field repeat: `repeatable?: { min?, max?, labelSingular?, labelPlural? }`; requires `item_instance_id?` if present
+  * **Uniqueness**
+
+    * Non-repeatable: max **1** item per `(group_name, group_instance_id?, ref)`
+    * Repeatable: `(group_name, group_instance_id?, ref, item_instance_id)` must be unique
+
+### Top-Level Contracts
+
+```json
+{
+  "FieldGroup": {
+    "name": "string",
+    "parent": "string|null",
+    "children": ["string"],
+    "label": { "fallback": "string", "key": "string?" },
+    "description": { "fallback": "string", "key": "string?" },
+    "hidden": false,
+    "advanced": false,
+    "collapsed": false,
+    "importance": "low|normal|high",
+    "required": false,
+    "repeatable": { "min": 0, "max": 5, "labelSingular": "Item", "labelPlural": "Items" },
+    "layout": "section|accordion|tab|inline"
+  },
+  "FieldItem": {
+    "ref": "field_registry.field_id",
+    "parent": { "group_name": "string", "group_instance_id": "string?" },
+    "value": {},
+    "editable": true,
+    "removable": true,
+    "required": false,
+    "hierarchy": { "hidden": false, "advanced": false, "importance": "normal" },
+    "ui_override": {
+      "label": { "fallback": "..." },
+      "placeholder": { "fallback": "..." },
+      "help": { "fallback": "..." }
+    },
+    "repeatable": { "min": 0, "max": 3, "labelSingular": "Entry", "labelPlural": "Entries" },
+    "item_instance_id": "string?"
+  },
+  "FormContent": {
+    "groups": ["FieldGroup"],
+    "items": ["FieldItem"]
+  }
+}
+```
+
+### SQL Definition
+
+```sql
+-- =========================
+-- Single group validator
+-- =========================
+create or replace function public.is_valid_field_group(g jsonb)
+returns boolean
+language sql
+immutable
+as $$
+  select
+    jsonb_typeof(g) = 'object'
+    and (g ? 'name') and jsonb_typeof(g->'name')='string' and (g->>'name') ~ '^[a-z0-9_]+$'
+    and (not (g ? 'parent') or jsonb_typeof(g->'parent')='string')
+    and (not (g ? 'children') or (
+      jsonb_typeof(g->'children')='array'
+      and not exists (select 1 from jsonb_array_elements(g->'children') c where jsonb_typeof(c) <> 'string')
+    ))
+    and (g ? 'label') and jsonb_typeof(g->'label')='object'
+    and ((g->'label') ? 'fallback') and jsonb_typeof((g->'label')->'fallback')='string'
+    and (not ((g->'label') ? 'key') or jsonb_typeof((g->'label')->'key')='string')
+    and (not (g ? 'description') or (
+      jsonb_typeof(g->'description')='object'
+      and ((g->'description') ? 'fallback') and jsonb_typeof((g->'description')->'fallback')='string'
+      and (not ((g->'description') ? 'key') or jsonb_typeof((g->'description')->'key')='string')
+    ))
+    and (not (g ? 'hidden')    or jsonb_typeof(g->'hidden')='boolean')
+    and (not (g ? 'advanced')  or jsonb_typeof(g->'advanced')='boolean')
+    and (not (g ? 'collapsed') or jsonb_typeof(g->'collapsed')='boolean')
+    and (not (g ? 'importance') or (
+      jsonb_typeof(g->'importance')='string'
+      and public.in_enum(g->>'importance', null::public.importance_level)
+    ))
+    and (not (g ? 'required') or jsonb_typeof(g->'required')='boolean')
+    and (not (g ? 'repeatable') or (
+      jsonb_typeof(g->'repeatable')='object'
+      and (not (g->'repeatable' ? 'min') or jsonb_typeof(g->'repeatable'->'min')='number')
+      and (not (g->'repeatable' ? 'max') or jsonb_typeof(g->'repeatable'->'max')='number')
+      and (not (g->'repeatable' ? 'labelSingular') or jsonb_typeof(g->'repeatable'->'labelSingular')='string')
+      and (not (g->'repeatable' ? 'labelPlural')   or jsonb_typeof(g->'repeatable'->'labelPlural')='string')
+    ))
+    and (not (g ? 'layout') or (
+      jsonb_typeof(g->'layout')='string'
+      and public.in_enum(g->>'layout', null::public.group_layout)
+    ));
+$$;
+
+-- =========================
+-- Groups array/tree validator
+-- - sibling-unique names
+-- - children exist & point back to parent
+-- - DAG, depth <= 6
+-- =========================
+create or replace function public.is_valid_field_groups(arr jsonb)
+returns boolean
+language sql
+stable
+as $$
+  with a as (select coalesce(arr,'[]'::jsonb) j),
+  is_arr as (select jsonb_typeof(j)='array' ok from a),
+  elems as (select jsonb_array_elements((select j from a)) g),
+  all_ok as (select not exists (select 1 from elems where not public.is_valid_field_group(g)) ok),
+
+  gt as (
+    select
+      g->>'name' name,
+      case when (g ? 'parent') then g->>'parent' else null end as parent,
+      case when (g ? 'children') then (g->'children') else '[]'::jsonb end as children
+    from elems
+  ),
+  names_ok as (
+    select count(*) = count(distinct name) as ok from gt
+  ),
+  children_exist_ok as (
+    select not exists (
+      select 1
+      from gt, jsonb_array_elements_text(children) c(child)
+      left join gt cgt on cgt.name = child
+      where cgt.name is null
+    ) as ok
+  ),
+  parent_links_ok as (
+    select not exists (
+      select 1
+      from gt p
+      join jsonb_array_elements_text(p.children) c(child) on true
+      join gt ch on ch.name = child
+      where coalesce(ch.parent,'') <> p.name
+    ) as ok
+  ),
+  roots as (select name from gt where parent is null),
+  walk as (
+    select r.name as root, r.name as cur, 1 as depth from roots r
+    union all
+    select w.root, gt2.name as cur, w.depth+1
+    from walk w
+    join gt gt1 on gt1.name = w.cur
+    join jsonb_array_elements_text(gt1.children) c(child) on true
+    join gt gt2 on gt2.name = child
+    where w.depth < 6
+  ),
+  depth_ok as (
+    select not exists (
+      select 1 from (select cur, max(depth) d from walk group by cur) mx where mx.d > 6
+    ) as ok
+  ),
+  no_cycles as (
+    select case when (select count(*) from roots) = 0 then false
+                else (select count(distinct cur) from walk) = (select count(*) from gt)
+           end as ok
+  )
+
+  select (select ok from is_arr)
+     and (select ok from all_ok)
+     and (select ok from names_ok)
+     and (select ok from children_exist_ok)
+     and (select ok from parent_links_ok)
+     and (select ok from depth_ok)
+     and (select ok from no_cycles);
+$$;
+
+-- =========================
+-- Single field item validator
+-- =========================
+create or replace function public.is_valid_field_item(e jsonb)
+returns boolean
+language sql
+stable
+as $$
+  select
+    jsonb_typeof(e)='object'
+    and (e ? 'ref') and jsonb_typeof(e->'ref')='string'
+    and (e ? 'parent') and jsonb_typeof(e->'parent')='object'
+    and ((e->'parent') ? 'group_name') and jsonb_typeof((e->'parent')->'group_name')='string'
+    and (not ((e->'parent') ? 'group_instance_id') or jsonb_typeof((e->'parent')->'group_instance_id')='string')
+    and (not (e ? 'value') or true) -- datatype/options correctness enforced at save with registry-aware checks
+    and (not (e ? 'editable')  or jsonb_typeof(e->'editable')='boolean')
+    and (not (e ? 'removable') or jsonb_typeof(e->'removable')='boolean')
+    and (not (e ? 'required')  or jsonb_typeof(e->'required')='boolean')
+    and (not (e ? 'hierarchy') or (
+      jsonb_typeof(e->'hierarchy')='object'
+      and (not ((e->'hierarchy') ? 'hidden')    or jsonb_typeof((e->'hierarchy')->'hidden')='boolean')
+      and (not ((e->'hierarchy') ? 'advanced')  or jsonb_typeof((e->'hierarchy')->'advanced')='boolean')
+      and (not ((e->'hierarchy') ? 'importance') or (
+        jsonb_typeof((e->'hierarchy')->'importance')='string'
+        and public.in_enum((e->'hierarchy')->>'importance', null::public.importance_level)
+      ))
+    ))
+    and (not (e ? 'ui_override') or public.is_valid_ui(e->'ui_override'))
+    and (not (e ? 'repeatable') or (
+      jsonb_typeof(e->'repeatable')='object'
+      and (not (e->'repeatable' ? 'min') or jsonb_typeof(e->'repeatable'->'min')='number')
+      and (not (e->'repeatable' ? 'max') or jsonb_typeof(e->'repeatable'->'max')='number')
+      and (not (e->'repeatable' ? 'labelSingular') or jsonb_typeof(e->'repeatable'->'labelSingular')='string')
+      and (not (e->'repeatable' ? 'labelPlural')   or jsonb_typeof(e->'repeatable'->'labelPlural')='string')
+    ))
+    and (not (e ? 'item_instance_id') or jsonb_typeof(e->'item_instance_id')='string');
+$$;
+
+-- =========================
+-- Items + Groups coherence check
+-- (parent existence, group/item repeatability & bounds, requireds, uniqueness)
+-- =========================
+create or replace function public.is_valid_items_with_groups(items jsonb, groups jsonb)
+returns boolean
+language sql
+stable
+as $$
+  with a_items  as (select coalesce(items,  '[]'::jsonb) j),
+  a_groups as (select coalesce(groups, '[]'::jsonb) j),
+
+  items_is_arr  as (select jsonb_typeof(j) = 'array' as ok from a_items),
+  groups_is_arr as (select jsonb_typeof(j) = 'array' as ok from a_groups),
+  groups_ok     as (select public.is_valid_field_groups((select j from a_groups)) as ok),
+
+  g_elems as (select jsonb_array_elements((select j from a_groups)) g),
+  i_elems as (select jsonb_array_elements((select j from a_items))  e),
+
+  all_items_valid as (
+    select not exists (select 1 from i_elems where not public.is_valid_field_item(e)) as ok
+  ),
+
+  g_table as (
+    select
+      g->>'name' as name,
+      case when (g ? 'parent') and jsonb_typeof(g->'parent')='string' then g->>'parent' else null end as parent,
+      (g ? 'repeatable') as is_repeatable,
+      case when (g ? 'repeatable') and (g->'repeatable' ? 'min') then (g->'repeatable'->>'min')::numeric else null end as rep_min,
+      case when (g ? 'repeatable') and (g->'repeatable' ? 'max') then (g->'repeatable'->>'max')::numeric else null end as rep_max,
+      case when (g ? 'required') and jsonb_typeof(g->'required')='boolean' then (g->>'required')::boolean else false end as required
+    from g_elems
+  ),
+
+  -- transitive closure root→desc for "required group" satisfaction
+  closure as (
+    select name as root, name as desc from g_table
+    union all
+    select c.root, g2.name
+    from closure c
+    join g_table g2 on g2.parent = c.desc
+  ),
+
+  i_table as (
+    select
+      e,
+      e->>'ref' as ref,
+      (e->'parent'->>'group_name') as gname,
+      case when (e->'parent' ? 'group_instance_id') then (e->'parent'->>'group_instance_id') else null end as ginst,
+      case when (e ? 'item_instance_id') then (e->>'item_instance_id') else null end as iinst,
+      (e ? 'repeatable') as field_repeatable,
+      case when (e ? 'required') and (e->>'required')::boolean = true then true else false end as required_item
+    from i_elems
+  ),
+
+  parent_exists_ok as (
+    select not exists (
+      select 1 from i_table i
+      left join g_table g on g.name = i.gname
+      where g.name is null
+    ) as ok
+  ),
+
+  group_instance_presence_ok as (
+    select not exists (
+      select 1
+      from i_table i
+      join g_table g on g.name = i.gname
+      where (g.is_repeatable and i.ginst is null)
+         or ((not g.is_repeatable) and i.ginst is not null)
+    ) as ok
+  ),
+
+  nonrepeat_uniqueness_ok as (
+    select not exists (
+      select 1
+      from i_table
+      where field_repeatable = false
+      group by gname, ginst, ref
+      having count(*) > 1
+    ) as ok
+  ),
+  nonrepeat_no_item_instance_ok as (
+    select not exists (
+      select 1 from i_table
+      where field_repeatable = false and iinst is not null
+    ) as ok
+  ),
+
+  repeatable_item_instance_present_ok as (
+    select not exists (
+      select 1 from i_table
+      where field_repeatable = true and iinst is null
+    ) as ok
+  ),
+  repeatable_item_instance_unique_ok as (
+    select not exists (
+      select 1
+      from i_table
+      where field_repeatable = true
+      group by gname, ginst, ref, iinst
+      having count(*) > 1
+    ) as ok
+  ),
+
+  required_groups_ok as (
+    select not exists (
+      select 1
+      from g_table rg
+      where rg.required
+        and not exists (
+          select 1
+          from closure c
+          join i_table i on i.gname = c.desc
+          where c.root = rg.name
+        )
+    ) as ok
+  ),
+
+  group_instance_counts as (
+    select gname as name, count(distinct ginst)::numeric as n
+    from i_table
+    group by gname
+  ),
+  group_repeatable_bounds_ok as (
+    select not exists (
+      select 1
+      from g_table g
+      left join group_instance_counts c on c.name = g.name
+      where g.is_repeatable
+        and (
+          (g.rep_min is not null and coalesce(c.n,0) < g.rep_min) or
+          (g.rep_max is not null and coalesce(c.n,0) > g.rep_max)
+        )
+    ) as ok
+  ),
+
+  field_groups as (
+    select
+      i.gname, i.ginst, i.ref,
+      array_agg( case when (i.e ? 'repeatable') and (i.e->'repeatable' ? 'min')
+                      then (i.e->'repeatable'->>'min')::numeric end ) filter (where i.field_repeatable) as mins,
+      array_agg( case when (i.e ? 'repeatable') and (i.e->'repeatable' ? 'max')
+                      then (i.e->'repeatable'->>'max')::numeric end ) filter (where i.field_repeatable) as maxs,
+      sum( case when i.field_repeatable then 1 else 0 end )::numeric as n_repeat_items
+    from i_table i
+    group by i.gname, i.ginst, i.ref
+  ),
+
+  field_repeatable_bounds_consistent_ok as (
+    select not exists (
+      select 1
+      from field_groups fg
+      where n_repeat_items > 0 and (
+        ( exists (select 1 from unnest(fg.mins) as u(x) where x is not null)
+          and (select min(x) from unnest(fg.mins) as u(x)) <> (select max(x) from unnest(fg.mins) as u(x))
+        )
+        or
+        ( exists (select 1 from unnest(fg.maxs) as v(y) where y is not null)
+          and (select min(y) from unnest(fg.maxs) as v(y)) <> (select max(y) from unnest(fg.maxs) as v(y))
+        )
+      )
+    ) as ok
+  ),
+
+  field_repeatable_bounds_ok as (
+    select not exists (
+      select 1
+      from field_groups fg
+      cross join lateral (
+        select
+          (select min(x) from unnest(fg.mins) as u(x)) as min_lo,
+          (select max(y) from unnest(fg.maxs) as v(y)) as max_hi
+      ) b
+      where n_repeat_items > 0 and (
+        (b.min_lo is not null and fg.n_repeat_items < b.min_lo) or
+        (b.max_hi is not null and fg.n_repeat_items > b.max_hi)
+      )
+    ) as ok
+  ),
+
+  required_items_have_value_ok as (
+    select not exists (
+      select 1 from i_table i
+      where i.required_item and not (i.e ? 'value')
+    ) as ok
+  )
+
+  select (select ok from items_is_arr)
+     and (select ok from groups_is_arr)
+     and (select ok from groups_ok)
+     and (select ok from all_items_valid)
+     and (select ok from parent_exists_ok)
+     and (select ok from group_instance_presence_ok)
+     and (select ok from nonrepeat_uniqueness_ok)
+     and (select ok from nonrepeat_no_item_instance_ok)
+     and (select ok from repeatable_item_instance_present_ok)
+     and (select ok from repeatable_item_instance_unique_ok)
+     and (select ok from required_groups_ok)
+     and (select ok from group_repeatable_bounds_ok)
+     and (select ok from field_repeatable_bounds_consistent_ok)
+     and (select ok from field_repeatable_bounds_ok)
+     and (select ok from required_items_have_value_ok);
+$$;
+
+-- =========================
+-- Top-level glue for a form
+-- =========================
+create or replace function public.is_valid_form_content(p jsonb)
+returns boolean
+language sql
+immutable
+as $$
+  with b as (select coalesce(p, '{}'::jsonb) j),
+  is_obj as (select jsonb_typeof(j) = 'object' as ok from b),
+  keys_ok as (select not exists (
+    select 1 from b, jsonb_object_keys(j) k where k not in ('groups','items')
+  ) as ok),
+  groups_ok as (select public.is_valid_field_groups(coalesce(j->'groups','[]'::jsonb)) from b),
+  items_ok  as (select public.is_valid_items_with_groups(
+                  coalesce(j->'items','[]'::jsonb),
+                  coalesce(j->'groups','[]'::jsonb)
+                ) from b)
+  select (select ok from is_obj)
+     and (select ok from keys_ok)
+     and (select * from groups_ok)
+     and (select * from items_ok);
+$$;
+```
+
+---
+
+# Section 3: Media Items (Planned)
+
+### Purpose
+
+`node_type="media"` content that lists assets (images, audio, video, files) with light metadata and optional per-item UI overrides. Lean now, extensible later.
+
+### Simplified Prose
+
+* **MediaItem** (array element)
+
+  * `asset_type` *(req)*: enum `asset_type` = `image|audio|video|file`.
+  * `url` *(req)*: string; must look like `http(s)://…`.
+  * `meta?` *(obj)*: optional hints; if present, keys (when present) must be typed:
+
+    * `width?` (number), `height?` (number), `duration_sec?` (number), `fps?` (number),
+      `codec?` (string), `size_bytes?` (number), `mime?` (string).
+    * Extra keys allowed (forward-compatible), but value types must be JSON primitives/objects/arrays.
+  * `editable?` *(bool, def true)*, `removable?` *(bool, def true)*.
+  * `ui_override?` *(obj)*: i18n like fields `{ label?, placeholder?, help? }`.
+  * `parent_group?` *(obj, optional)*: `{ group_name: string, group_instance_id?: string }` (for colocating media with form groups; not cross-validated yet).
+  * **Order**: array order.
+* **MediaContent** (node content)
+
+  * JSON array of `MediaItem`.
+  * Will be validated by `is_valid_media_items(arr)` and (later) routed from `is_valid_content_shape('media', content)`.
+
+### Top-Level Contract
+
+```json
+{
+  "MediaItem": {
+    "asset_type": "image|audio|video|file",
+    "url": "https://…",
+    "meta": {
+      "width": 1920,
+      "height": 1080,
+      "duration_sec": 12.5,
+      "fps": 24,
+      "codec": "h264",
+      "size_bytes": 12345678,
+      "mime": "video/mp4"
+    },
+    "editable": true,
+    "removable": true,
+    "ui_override": { "label": { "fallback": "…" }, "help": { "fallback": "…" } },
+    "parent_group": { "group_name": "characters", "group_instance_id": "ex1" }
+  },
+  "MediaContent": [
+    { "asset_type": "image", "url": "https://…/frame01.jpg" }
+  ]
+}
+```
+
+### SQL Definition
+
+```sql
+-- =========================================
+-- Enums (idempotent) — add once
+-- =========================================
+do $$ begin
+  if not exists (
+    select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
+    where t.typname='asset_type' and n.nspname='public'
+  ) then
+    create type public.asset_type as enum ('image','audio','video','file');
+  end if;
+end $$;
+
+-- =========================================
+-- Media item validator (single)
+-- =========================================
+create or replace function public.is_valid_media_item(m jsonb)
+returns boolean
+language sql
+stable
+as $$
+  select
+    jsonb_typeof(m) = 'object'
+
+    -- required: asset_type, url
+    and (m ? 'asset_type')
+    and jsonb_typeof(m->'asset_type') = 'string'
+    and public.in_enum(m->>'asset_type', null::public.asset_type)
+
+    and (m ? 'url')
+    and jsonb_typeof(m->'url') = 'string'
+    and (m->>'url') ~* '^https?://'
+
+    -- optional flags
+    and (not (m ? 'editable')  or jsonb_typeof(m->'editable')  = 'boolean')
+    and (not (m ? 'removable') or jsonb_typeof(m->'removable') = 'boolean')
+
+    -- optional ui override (same shape as field ui)
+    and (not (m ? 'ui_override') or public.is_valid_ui(m->'ui_override'))
+
+    -- optional parent_group shape
+    and (not (m ? 'parent_group') or (
+      jsonb_typeof(m->'parent_group') = 'object'
+      and ((m->'parent_group') ? 'group_name')
+      and jsonb_typeof((m->'parent_group')->'group_name') = 'string'
+      and (not ((m->'parent_group') ? 'group_instance_id')
+           or jsonb_typeof((m->'parent_group')->'group_instance_id') = 'string')
+    ))
+
+    -- optional meta with typed known keys; extra keys allowed
+    and (not (m ? 'meta') or (
+      jsonb_typeof(m->'meta') = 'object'
+      and not exists (
+        select 1
+        from jsonb_each(m->'meta') kv(k, v)
+        where (k in ('width','height','duration_sec','fps','size_bytes') and jsonb_typeof(v) <> 'number')
+           or (k in ('codec','mime') and jsonb_typeof(v) <> 'string')
+      )
+    ));
+$$;
+
+-- =========================================
+-- Media items validator (array)
+-- =========================================
+create or replace function public.is_valid_media_items(arr jsonb)
+returns boolean
+language sql
+stable
+as $$
+  with a as (select coalesce(arr, '[]'::jsonb) j),
+  is_arr as (select jsonb_typeof(j) = 'array' as ok from a),
+  elems as (select jsonb_array_elements((select j from a)) e),
+  all_ok as (select not exists (select 1 from elems where not public.is_valid_media_item(e)) as ok)
+  select (select ok from is_arr) and (select ok from all_ok);
+$$;
+
+-- =========================================
+-- (Planned) Route 'media' through the strict validator
+-- When you’re ready, update the content-shape router:
+-- =========================================
+-- create or replace function public.is_valid_content_shape(node_type text, content jsonb)
+-- returns boolean language sql stable as $$
+--   select case
+--     when node_type = 'form'  then public.is_valid_form_content(content)
+--     when node_type = 'group' then jsonb_typeof(coalesce(content,'[]'::jsonb))='array' -- tighten later
+--     when node_type = 'media' then public.is_valid_media_items(content)
+--     else false
+--   end;
+-- $$;
+```
+
+---
+
 ## Section 2: Storyboard Nodes
 
 ### Purpose
@@ -863,8 +1480,8 @@ $$;
 -- see strict schema with constraints, triggers for parent guard, has_editables, is_section
 ```
 
----
 
+---
 
 ## Section 3: Storyboard Jobs
 
