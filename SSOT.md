@@ -334,3 +334,28 @@ for each row execute function public.t_node_definitions_touch();
 ```
 
 ---
+
+
+-- ENUMS
+create type if not exists public.options_source as enum ('static','endpoint','table');
+create type if not exists public.http_method   as enum ('GET','POST','PUT','PATCH','DELETE');
+create type if not exists public.order_dir     as enum ('asc','desc');
+create type if not exists public.table_where_op as enum
+  ('eq','neq','gt','gte','lt','lte','like','ilike','in');
+
+-- Helper
+create or replace function public.in_enum(val text, etype anyenum)
+returns boolean language sql immutable as $$
+  select val = any (enum_range(null::anyenum)::text[]);
+$$;
+
+-- Validator
+create or replace function public.is_valid_field_options(p jsonb)
+returns boolean language sql immutable as $$
+  -- full select statement from validation
+$$;
+
+-- Optional table constraint
+-- alter table public.field_registry
+--   add constraint chk_field_options check (public.is_valid_field_options(options));
+
