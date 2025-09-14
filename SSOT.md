@@ -465,6 +465,115 @@ $$;
 
 ---
 
+## Section 1.C: Field UI Schema (Detailed)
+
+### Purpose
+- I18n-ready labels with optional translation keys.
+- Enforce a minimal, consistent shape for display strings.
+
+### Simplified Prose
+- `ui` is an object with optional keys: `label`, `placeholder`, `help`.
+- Each of those, if present, must be an object:
+  - Required: `fallback` → non-empty string.
+  - Optional: `key` → slug-safe string matching `^[a-z0-9_.:-]+$`.
+  - No extra keys allowed inside (`fallback`, `key` only).
+- No other top-level keys allowed in `ui`.
+
+### Top-Level Contract
+```json
+{
+  "ui": {
+    "label":        { "fallback": "Character Name", "key": "fields.character_name.label" },
+    "placeholder":  { "fallback": "Enter a name…" },
+    "help":         { "fallback": "Shown in trailer credits.", "key": "fields.character_name.help" }
+  }
+}
+```
+
+### SQL Definition
+```sql
+create or replace function public.is_valid_ui(p jsonb)
+returns boolean
+language sql immutable
+as $$
+  select
+    -- must be an object (NULL treated as {})
+    jsonb_typeof(coalesce(p, '{}'::jsonb)) = 'object'
+
+    -- top-level whitelist
+    and not exists (
+      select 1
+      from jsonb_object_keys(coalesce(p, '{}'::jsonb)) k
+      where k not in ('label','placeholder','help')
+    )
+
+    -- label
+    and (
+      not (p ? 'label') or (
+        jsonb_typeof(p->'label') = 'object'
+        and ((p->'label') ? 'fallback')
+        and jsonb_typeof((p->'label')->'fallback') = 'string'
+        and ((p->'label')->>'fallback') !~ '^\s*$'
+        and (
+          not ((p->'label') ? 'key')
+          or (
+            jsonb_typeof((p->'label')->'key') = 'string'
+            and ((p->'label')->>'key') ~ '^[a-z0-9_.:-]+$'
+          )
+        )
+        and not exists (
+          select 1 from jsonb_object_keys(p->'label') kk
+          where kk not in ('fallback','key')
+        )
+      )
+    )
+
+    -- placeholder
+    and (
+      not (p ? 'placeholder') or (
+        jsonb_typeof(p->'placeholder') = 'object'
+        and ((p->'placeholder') ? 'fallback')
+        and jsonb_typeof((p->'placeholder')->'fallback') = 'string'
+        and ((p->'placeholder')->>'fallback') !~ '^\s*$'
+        and (
+          not ((p->'placeholder') ? 'key')
+          or (
+            jsonb_typeof((p->'placeholder')->'key') = 'string'
+            and ((p->'placeholder')->>'key') ~ '^[a-z0-9_.:-]+$'
+          )
+        )
+        and not exists (
+          select 1 from jsonb_object_keys(p->'placeholder') kk
+          where kk not in ('fallback','key')
+        )
+      )
+    )
+
+    -- help
+    and (
+      not (p ? 'help') or (
+        jsonb_typeof(p->'help') = 'object'
+        and ((p->'help') ? 'fallback')
+        and jsonb_typeof((p->'help')->'fallback') = 'string'
+        and ((p->'help')->>'fallback') !~ '^\s*$'
+        and (
+          not ((p->'help') ? 'key')
+          or (
+            jsonb_typeof((p->'help')->'key') = 'string'
+            and ((p->'help')->>'key') ~ '^[a-z0-9_.:-]+$'
+          )
+        )
+        and not exists (
+          select 1 from jsonb_object_keys(p->'help') kk
+          where kk not in ('fallback','key')
+        )
+      )
+    );
+$$;
+```
+
+---
+
 ## Section 2: Storyboard Nodes
 
 ### Purpose
@@ -510,6 +619,7 @@ $$;
 ```
 
 ---
+
 
 ## Section 3: Storyboard Jobs
 
