@@ -1607,7 +1607,7 @@ for each row execute function public.t_storyboard_nodes_guard();
 
 ---
 
-## Section 3: Storyboard Jobs
+## Section 5: Storyboard Jobs
 
 ### Purpose
 
@@ -1646,7 +1646,7 @@ for each row execute function public.t_storyboard_nodes_guard();
 
 ---
 
-## Section 4: n8n Functions
+## Section 6: n8n Functions
 
 ### Purpose
 
@@ -1681,7 +1681,7 @@ for each row execute function public.t_storyboard_nodes_guard();
 
 ---
 
-## Section 5: Asset Types
+## Section 7: Asset Types
 
 ### Purpose
 
@@ -1712,7 +1712,7 @@ for each row execute function public.t_storyboard_nodes_guard();
 
 ---
 
-## Section 6: Staleness & Validation
+## Section 8: Staleness & Validation
 
 ### Purpose
 
@@ -1743,7 +1743,7 @@ for each row execute function public.t_storyboard_nodes_guard();
 
 ---
 
-## Section 7: Node Definitions
+## Section 9: Node Definitions
 
 ### Purpose
 
