@@ -14,6 +14,7 @@ import {
   Eye,
   AlertCircle 
 } from 'lucide-react';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface FileUploadFieldProps {
   value: any;
@@ -31,6 +32,7 @@ interface FileInfo {
 }
 
 export function FileUploadField({ value, onChange, placeholder = "Choose files or drag & drop", field }: FileUploadFieldProps) {
+  const { t } = useLanguage();
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState<FileInfo[]>(
     Array.isArray(value) ? value : (value ? [value] : [])
@@ -137,7 +139,7 @@ export function FileUploadField({ value, onChange, placeholder = "Choose files o
           </div>
           
           <h3 className="text-lg font-medium mb-2">
-            {isDragging ? 'Drop files here' : 'Upload Files'}
+            {isDragging ? (t('dropFilesHere') || 'Drop files here') : (t('uploadFiles') || 'Upload Files')}
           </h3>
           
           <p className="text-sm text-muted-foreground mb-4">
@@ -150,7 +152,7 @@ export function FileUploadField({ value, onChange, placeholder = "Choose files o
             size="sm"
             className="pointer-events-none"
           >
-            Choose Files
+            {t('chooseFiles') || 'Choose Files'}
           </Button>
           
           <input
@@ -168,7 +170,7 @@ export function FileUploadField({ value, onChange, placeholder = "Choose files o
       {files.length > 0 && (
         <div className="space-y-2">
           <h4 className="text-sm font-medium text-muted-foreground">
-            Uploaded Files ({files.length})
+            {t('uploadedFiles') || 'Uploaded Files'} ({files.length})
           </h4>
           
           <div className="grid gap-2">
@@ -269,18 +271,18 @@ export function FileUploadField({ value, onChange, placeholder = "Choose files o
           <div className="flex items-start gap-2">
             <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5" />
             <div className="text-xs text-muted-foreground space-y-1">
-              <div className="font-medium">Upload Rules:</div>
+              <div className="font-medium">{t('uploadRules') || 'Upload Rules'}:</div>
               {field.rules.accept && (
-                <div>Accepted types: {field.rules.accept}</div>
+                <div>{t('acceptedTypes') || 'Accepted types'}: {field.rules.accept}</div>
               )}
               {field.rules.maxSize && (
-                <div>Max size: {formatFileSize(field.rules.maxSize)}</div>
+                <div>{t('maxSize') || 'Max size'}: {formatFileSize(field.rules.maxSize)}</div>
               )}
               {field.rules.minFiles && (
-                <div>Min files: {field.rules.minFiles}</div>
+                <div>{t('minFiles') || 'Min files'}: {field.rules.minFiles}</div>
               )}
               {field.rules.maxFiles && (
-                <div>Max files: {field.rules.maxFiles}</div>
+                <div>{t('maxFiles') || 'Max files'}: {field.rules.maxFiles}</div>
               )}
             </div>
           </div>

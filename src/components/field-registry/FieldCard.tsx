@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { DynamicFieldRenderer } from './DynamicFieldRenderer';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface FieldRegistry {
   id: string;
@@ -28,6 +29,7 @@ interface FieldCardProps {
 }
 
 export function FieldCard({ field, formValues = {}, onFieldChange }: FieldCardProps) {
+  const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [testValue, setTestValue] = useState(field.default_value);
 
@@ -69,15 +71,18 @@ export function FieldCard({ field, formValues = {}, onFieldChange }: FieldCardPr
   };
 
   const getLabel = () => {
-    return field.ui?.label?.fallback || field.field_id;
+    const labelData = field.ui?.label;
+    return labelData?.key ? t(labelData.key) : (labelData?.fallback || field.field_id);
   };
 
   const getPlaceholder = () => {
-    return field.ui?.placeholder?.fallback || '';
+    const placeholderData = field.ui?.placeholder;
+    return placeholderData?.key ? t(placeholderData.key) : (placeholderData?.fallback || '');
   };
 
   const getHelpText = () => {
-    return field.ui?.help?.fallback || '';
+    const helpData = field.ui?.help;
+    return helpData?.key ? t(helpData.key) : (helpData?.fallback || '');
   };
 
   return (
@@ -91,7 +96,7 @@ export function FieldCard({ field, formValues = {}, onFieldChange }: FieldCardPr
                 <div>
                   <CardTitle className="text-lg">{getLabel()}</CardTitle>
                   <CardDescription>
-                    Field ID: <code className="text-xs bg-muted px-1 rounded">{field.field_id}</code>
+                    {t('fieldId') || 'Field ID'}: <code className="text-xs bg-muted px-1 rounded">{field.field_id}</code>
                   </CardDescription>
                 </div>
               </div>
@@ -117,7 +122,7 @@ export function FieldCard({ field, formValues = {}, onFieldChange }: FieldCardPr
             <div className="grid md:grid-cols-2 gap-6">
               {/* Field Renderer */}
               <div className="space-y-4">
-                <h4 className="font-semibold">Interactive Preview</h4>
+                <h4 className="font-semibold">{t('interactivePreview') || 'Interactive Preview'}</h4>
               <DynamicFieldRenderer
                 field={field}
                 value={testValue}
@@ -127,7 +132,7 @@ export function FieldCard({ field, formValues = {}, onFieldChange }: FieldCardPr
                 
                 {testValue !== undefined && testValue !== null && testValue !== '' && (
                   <div className="p-3 bg-muted rounded-lg">
-                    <p className="text-sm font-medium mb-1">Current Value:</p>
+                    <p className="text-sm font-medium mb-1">{t('currentValue') || 'Current Value'}:</p>
                     <code className="text-xs">{JSON.stringify(testValue, null, 2)}</code>
                   </div>
                 )}
@@ -136,20 +141,20 @@ export function FieldCard({ field, formValues = {}, onFieldChange }: FieldCardPr
               {/* Field Metadata */}
               <div className="space-y-4">
                 <div>
-                  <h4 className="font-semibold mb-2">Configuration</h4>
+                  <h4 className="font-semibold mb-2">{t('configuration') || 'Configuration'}</h4>
                   <div className="space-y-2 text-sm">
                     <div>
-                      <span className="font-medium">Datatype:</span> {field.datatype}
+                      <span className="font-medium">{t('datatype') || 'Datatype'}:</span> {field.datatype}
                     </div>
                     <div>
-                      <span className="font-medium">Widget:</span> {field.widget}
+                      <span className="font-medium">{t('widget') || 'Widget'}:</span> {field.widget}
                     </div>
                     <div>
-                      <span className="font-medium">Version:</span> {field.version}
+                      <span className="font-medium">{t('version') || 'Version'}:</span> {field.version}
                     </div>
                     {field.default_value !== null && field.default_value !== undefined && (
                       <div>
-                        <span className="font-medium">Default:</span>{' '}
+                        <span className="font-medium">{t('default') || 'Default'}:</span>{' '}
                         <code className="text-xs bg-muted px-1 rounded">
                           {JSON.stringify(field.default_value)}
                         </code>
@@ -160,14 +165,14 @@ export function FieldCard({ field, formValues = {}, onFieldChange }: FieldCardPr
 
                 {getHelpText() && (
                   <div>
-                    <h4 className="font-semibold mb-2">Help Text</h4>
+                    <h4 className="font-semibold mb-2">{t('helpText') || 'Help Text'}</h4>
                     <p className="text-sm text-muted-foreground">{getHelpText()}</p>
                   </div>
                 )}
 
                 {Object.keys(field.rules || {}).length > 0 && (
                   <div>
-                    <h4 className="font-semibold mb-2">Validation Rules</h4>
+                    <h4 className="font-semibold mb-2">{t('validationRules') || 'Validation Rules'}</h4>
                     <div className="text-xs">
                       <pre className="bg-muted p-2 rounded overflow-x-auto">
                         {JSON.stringify(field.rules, null, 2)}
@@ -178,11 +183,11 @@ export function FieldCard({ field, formValues = {}, onFieldChange }: FieldCardPr
 
                 {field.resolvedOptions && field.resolvedOptions.length > 0 && (
                   <div>
-                    <h4 className="font-semibold mb-2">Options ({field.resolvedOptions.length})</h4>
+                    <h4 className="font-semibold mb-2">{t('options') || 'Options'} ({field.resolvedOptions.length})</h4>
                     <div className="max-h-40 overflow-y-auto text-xs">
                       <pre className="bg-muted p-2 rounded">
                         {JSON.stringify(field.resolvedOptions.slice(0, 10), null, 2)}
-                        {field.resolvedOptions.length > 10 && '\n... and ' + (field.resolvedOptions.length - 10) + ' more'}
+                        {field.resolvedOptions.length > 10 && `\n... ${t('andMore') || 'and'} ${field.resolvedOptions.length - 10} ${t('more') || 'more'}`}
                       </pre>
                     </div>
                   </div>

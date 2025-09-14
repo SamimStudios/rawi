@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { X, Upload, File, Image, FileText, Music, Video } from 'lucide-react';
 import { FileUploadField } from './FileUploadField';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface FieldRegistry {
   id: string;
@@ -30,8 +31,17 @@ interface DynamicFieldRendererProps {
 }
 
 export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }: DynamicFieldRendererProps) {
-  const getLabel = () => field.ui?.label?.fallback || field.field_id;
-  const getPlaceholder = () => field.ui?.placeholder?.fallback || '';
+  const { t } = useLanguage();
+  
+  const getLabel = () => {
+    const labelData = field.ui?.label;
+    return labelData?.key ? t(labelData.key) : (labelData?.fallback || field.field_id);
+  };
+  
+  const getPlaceholder = () => {
+    const placeholderData = field.ui?.placeholder;
+    return placeholderData?.key ? t(placeholderData.key) : (placeholderData?.fallback || '');
+  };
 
   // Filter options based on dependsOn conditions
   const getFilteredOptions = () => {
@@ -64,7 +74,7 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
       case 'text':
         return (
           <Input
-            placeholder={getPlaceholder()}
+            placeholder={getPlaceholder() || t('enterUrl') || 'https://example.com'}
             value={value || ''}
             onChange={(e) => onChange(e.target.value)}
             type={field.datatype === 'number' ? 'number' : 'text'}
@@ -85,7 +95,7 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
         return (
           <Select value={value || ''} onValueChange={onChange}>
             <SelectTrigger>
-              <SelectValue placeholder={getPlaceholder() || 'Select an option'} />
+              <SelectValue placeholder={getPlaceholder() || t('selectOption') || 'Select an option'} />
             </SelectTrigger>
             <SelectContent>
               {filteredOptions.map((option, index) => (
@@ -104,7 +114,7 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
               <div key={index} className="flex items-center space-x-2">
                 <RadioGroupItem value={String(option.value)} id={`${field.field_id}-${index}`} />
                 <Label htmlFor={`${field.field_id}-${index}`}>
-                  {option.label.fallback}
+                  {option.label?.key ? t(option.label.key) : option.label?.fallback}
                 </Label>
               </div>
             ))}
@@ -130,7 +140,7 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
                     }}
                   />
                   <Label htmlFor={`${field.field_id}-${index}`}>
-                    {option.label.fallback}
+                    {option.label?.key ? t(option.label.key) : option.label?.fallback}
                   </Label>
                 </div>
               ))}
@@ -158,9 +168,10 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
               <div className="flex flex-wrap gap-2">
                 {tagValues.map((tagValue: any, index: number) => {
                   const option = filteredOptions.find(opt => opt.value === tagValue);
+                  const optionLabel = option?.label?.key ? t(option.label.key) : (option?.label?.fallback || tagValue);
                   return (
                     <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                      {option?.label.fallback || tagValue}
+                      {optionLabel}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -180,7 +191,7 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
             {/* Available options as clickable chips */}
             <div className="space-y-2">
               <div className="text-sm font-medium text-muted-foreground">
-                Available options:
+                {t('availableOptions') || 'Available options:'}
               </div>
               <div className="flex flex-wrap gap-2">
                 {filteredOptions
@@ -195,7 +206,7 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
                         onChange([...tagValues, option.value]);
                       }}
                     >
-                      {option.label.fallback}
+                      {option.label?.key ? t(option.label.key) : option.label?.fallback}
                     </Button>
                   ))}
               </div>
@@ -225,7 +236,7 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
         return (
           <Input
             type="url"
-            placeholder={getPlaceholder() || 'https://example.com'}
+            placeholder={getPlaceholder() || t('enterUrl') || 'https://example.com'}
             value={value || ''}
             onChange={(e) => onChange(e.target.value)}
           />
@@ -242,7 +253,7 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
             />
             <Input
               type="text"
-              placeholder="#000000"
+              placeholder={t('colorHex') || '#000000'}
               value={value || ''}
               onChange={(e) => onChange(e.target.value)}
               className="font-mono"
@@ -263,7 +274,7 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
       default:
         return (
           <div className="p-4 border border-dashed rounded-lg text-center text-muted-foreground">
-            Unsupported widget type: {field.widget}
+            {t('unsupportedWidget') || 'Unsupported widget type'}: {field.widget}
           </div>
         );
     }
