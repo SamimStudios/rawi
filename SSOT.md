@@ -1844,3 +1844,225 @@ for each row execute function public.t_node_definitions_touch();
 ```
 
 ---
+
+# Section X: Next Plans & Vision (Ltree Lookup, APIs, FE Adapters)
+
+### Purpose
+
+Define the **minimum clear targets** to finish the base and ship lookup/validation/edit flows across DB → Edge Functions → Frontend adapters, without getting lost in implementation details.
+
+---
+
+## 1) Ltree Lookup & Pull
+
+### Goals
+
+* Address any value/flag by a **stable path**.
+* Read/write single values or batch edits safely.
+* Keep **validation server-side** and **atomic**.
+
+### Requirements
+
+* **Path grammar** (no change):
+
+  ```
+  <node_path>.form.<group>[.g_<groupInst>]*.<ref>[.i_<itemInst>]
+  ```
+
+  * Examples:
+
+    * `root.user_input.form.basic.lead_name`
+    * `root.user_input.form.characters.g_ex1.char_name`
+    * `root.user_input.form.scenes.g_s1.actors.g_ex2.role.i_r1`
+
+### DB (RPC) — To finalize
+
+* `form_get_value_by_ltree(content jsonb, path text) → jsonb`
+* `form_set_value_by_ltree(content jsonb, path text, new_value jsonb) → jsonb`
+* `form_apply_edits_by_ltree(content jsonb, edits jsonb) → jsonb`
+* `node_validate_edits(node_id uuid, edits jsonb) → jsonb`
+
+  * Returns:
+
+    ```json
+    { "valid": true, "content": { /* merged content */ } }
+    ```
+
+    or
+
+    ```json
+    { "valid": false, "reason": "content failed validation" }
+    ```
+* **Indexes**: already have `gist(path)`; consider GIN on `content` later if needed for analytics.
+
+> Status: bodies drafted earlier; wire them as **stable** RPC functions (no schema changes required).
+
+---
+
+## 2) Edge Functions (HTTP API)
+
+### Goals
+
+* Thin, predictable endpoints FE/BE can call.
+* All persistence behind **validate → apply → save**.
+
+### Endpoints (minimal)
+
+* `POST /api/nodes/:id/validate`
+
+  * Body: `{ edits: { path: string, value: any }[] }`
+  * Calls `node_validate_edits`.
+  * Response:
+
+    ```json
+    { "valid": true, "content": { /* merged content */ } }
+    ```
+
+    or
+
+    ```json
+    { "valid": false, "errors": [{ "path": "...", "code": "RULE_FAIL", "message": "..." }] }
+    ```
+
+    > For now, return the simple `{valid, reason}` from RPC; enrich to `errors[]` later.
+* `POST /api/nodes/:id/apply`
+
+  * Body: `{ edits: { path: string, value: any }[] }`
+  * Flow: validate → if ok: `update storyboard_nodes set content = merged, updated_at = now()` → return updated node.
+* `POST /api/nodes/:id/generate`
+
+  * Reads `actions.generate.n8n_function_id`, forwards payload to orchestrator (n8n), returns `{ run_id, status }`.
+
+### Auth / Multi-tenant
+
+* Enforce **RLS** or function-level guards: node belongs to requesting user/job.
+
+---
+
+## 3) Frontend Adapters (TS)
+
+### Goals
+
+* Ergonomic **get/set/batch** by path.
+* No schema knowledge in components; rely on SSOT validators.
+
+### Minimal API (client)
+
+```ts
+type Edit = { path: string; value: unknown };
+
+interface NodeClient {
+  get(nodeId: string): Promise<{ content: any }>;
+  validate(nodeId: string, edits: Edit[]): Promise<{ valid: boolean; content?: any; reason?: string }>;
+  apply(nodeId: string, edits: Edit[]): Promise<{ content: any }>;
+  generate(nodeId: string, payload?: any): Promise<{ run_id: string; status: string }>;
+}
+
+// Optional in-memory helper for local UX
+interface FormVM {
+  getValue(path: string): unknown;
+  setValue(path: string, value: unknown): void; // only local; real save goes via validate/apply
+  toEdits(): Edit[]; // build batch
+}
+```
+
+### Usage Guideline
+
+* **Read** node → hydrate VM → UI bindings.
+* On change: `vm.setValue(path, v)` → buffer.
+* **Save**: `validate(edits)` → if `valid`, call `apply(edits)` → rehydrate.
+* **Generate**: call `generate(nodeId, payload)`; show orchestration status.
+
+---
+
+## 4) Enums — Plans
+
+### Already in DB (locked)
+
+* `field_datatype`, `field_widget`, `options_source`, `http_method`, `order_dir`,
+  `table_where_op`, `string_format`, `array_item_type`, `importance_level`, `group_layout`.
+
+### Planned Soon
+
+* `asset_type` (added in Media section plan: `image|audio|video|file`)
+  *→ after we wire `is_valid_media_items` and route in `is_valid_content_shape`.*
+* (Optional) `environment` for actions (`test|production`) if needed by orchestrator.
+* (Optional) `validation_severity` (`info|warn|error`) if we expand detailed errors.
+
+> FE should use **codegen** from DB schema (Supabase types) to avoid drift.
+
+---
+
+## 5) Triggers & Staleness
+
+### Triggers (now)
+
+* **Touch**: `t_storyboard_nodes_touch` (done).
+* **Guard**: `t_storyboard_nodes_guard` (parent/path & `is_section`).
+
+### Planned
+
+* **Staleness** (view or RPC):
+
+  * `node_is_stale(node_id uuid) → boolean`
+  * Logic: compare `updated_at` for each `dependencies[]` path vs this node’s `updated_at`.
+* (Optional) **Auto-stale** flag column (boolean) + trigger to recompute on dependency updates (defer; RPC is enough for MVP).
+
+---
+
+## 6) Validation UX (Now vs Later)
+
+### Now (simple)
+
+* RPC returns `{ valid: boolean, reason?: string }`.
+* FE: show a generic banner on failure; block save.
+
+### Later (granular)
+
+* RPC returns:
+
+  ```json
+  {
+    "valid": false,
+    "errors": [
+      { "path": "…lead_name", "code": "MIN_LENGTH", "message": "min 3", "suggestion": "Add more characters" }
+    ]
+  }
+  ```
+* Add `validation_severity` enum if needed.
+
+---
+
+## 7) Developer Guide (Quick)
+
+* **Add fields** → `field_registry` (SSOT-enforced).
+* **Design a form** → `node_definitions.content_template` with `groups[]` + `items[]`.
+* **Instantiate** → create `storyboard_nodes` row for a job (copy template → live content).
+* **Edit flow** → FE builds `edits[]` → `/validate` → `/apply`.
+* **Generate** → `/generate` (reads `actions.generate`).
+
+---
+
+## 8) Acceptance Criteria (MVP)
+
+* [ ] Can **read** any field value by path (DB RPC or FE VM).
+* [ ] Can **validate** batch edits server-side (RPC).
+* [ ] Can **apply** batch edits atomically (Edge Function).
+* [ ] Node **content** passes `is_valid_content_shape` for `form`; rejects invalid shapes.
+* [ ] **Paths** are consistent with ltree; parent/child guard enforced.
+* [ ] **Enums** present; FE gets types via codegen.
+* [ ] **Staleness** RPC returns correct boolean (optional for first ship).
+
+---
+
+## 9) What I Need From You (to pull from Supabase if desired)
+
+If you want me to align the doc with live DB:
+
+* Dump the current definitions of:
+
+  * `is_valid_node_edit_strict`, `is_valid_node_actions_strict`, `is_valid_node_dependencies`.
+  * Any existing Edge Functions you have (names + request/response shapes).
+  * Current `storyboard_nodes` DDL (if it differs from the spec above).
+* I’ll fold those verbatim into the SSOT and flag mismatches.
+
