@@ -14,163 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      cards: {
-        Row: {
-          after_shot: number | null
-          created_at: string
-          duration: number | null
-          id: string
-          job_id: string | null
-          text_1: string | null
-          text_2: string | null
-          text_3: string | null
-          type: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          after_shot?: number | null
-          created_at?: string
-          duration?: number | null
-          id?: string
-          job_id?: string | null
-          text_1?: string | null
-          text_2?: string | null
-          text_3?: string | null
-          type?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          after_shot?: number | null
-          created_at?: string
-          duration?: number | null
-          id?: string
-          job_id?: string | null
-          text_1?: string | null
-          text_2?: string | null
-          text_3?: string | null
-          type?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "cards_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "jobs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      character_gen: {
-        Row: {
-          age_range: string | null
-          cancel_url: string | null
-          clothes: string | null
-          created_at: string
-          description: string | null
-          distinct_trait: string | null
-          error: Json | null
-          ethnicity: string | null
-          face_features: string | null
-          face_ref: string | null
-          gender: string | null
-          head: string | null
-          id: string
-          job_id: string | null
-          logs: Json | null
-          metrics: Json | null
-          name: string | null
-          output: Json | null
-          path: string | null
-          personality: string | null
-          portrait_cues: string | null
-          prompt: string | null
-          public_url: string | null
-          queue_position: number | null
-          request_id: string | null
-          response_url: string | null
-          skin_tone: string | null
-          status: string | null
-          status_url: string | null
-          type: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          age_range?: string | null
-          cancel_url?: string | null
-          clothes?: string | null
-          created_at?: string
-          description?: string | null
-          distinct_trait?: string | null
-          error?: Json | null
-          ethnicity?: string | null
-          face_features?: string | null
-          face_ref?: string | null
-          gender?: string | null
-          head?: string | null
-          id?: string
-          job_id?: string | null
-          logs?: Json | null
-          metrics?: Json | null
-          name?: string | null
-          output?: Json | null
-          path?: string | null
-          personality?: string | null
-          portrait_cues?: string | null
-          prompt?: string | null
-          public_url?: string | null
-          queue_position?: number | null
-          request_id?: string | null
-          response_url?: string | null
-          skin_tone?: string | null
-          status?: string | null
-          status_url?: string | null
-          type?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          age_range?: string | null
-          cancel_url?: string | null
-          clothes?: string | null
-          created_at?: string
-          description?: string | null
-          distinct_trait?: string | null
-          error?: Json | null
-          ethnicity?: string | null
-          face_features?: string | null
-          face_ref?: string | null
-          gender?: string | null
-          head?: string | null
-          id?: string
-          job_id?: string | null
-          logs?: Json | null
-          metrics?: Json | null
-          name?: string | null
-          output?: Json | null
-          path?: string | null
-          personality?: string | null
-          portrait_cues?: string | null
-          prompt?: string | null
-          public_url?: string | null
-          queue_position?: number | null
-          request_id?: string | null
-          response_url?: string | null
-          skin_tone?: string | null
-          status?: string | null
-          status_url?: string | null
-          type?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "character_gen_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "jobs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       credit_packages: {
         Row: {
           active: boolean
@@ -210,6 +53,126 @@ export type Database = {
           stripe_price_id_aed?: string | null
           stripe_price_id_sar?: string | null
           stripe_price_id_usd?: string | null
+        }
+        Relationships: []
+      }
+      fal_requests: {
+        Row: {
+          attempts: number
+          cancel_url: string | null
+          completed_at: string | null
+          error: Json | null
+          final_output_url: string | null
+          id: string
+          job_type: string | null
+          last_http_status: number | null
+          logs: Json | null
+          metrics: Json | null
+          output: Json | null
+          poll_ms: number | null
+          provider: string
+          queue_position: number | null
+          response_url: string | null
+          source_note: string | null
+          source_row_id: string | null
+          source_table: string | null
+          started_at: string
+          status: string | null
+          status_url: string
+          terminal_statuses: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          cancel_url?: string | null
+          completed_at?: string | null
+          error?: Json | null
+          final_output_url?: string | null
+          id: string
+          job_type?: string | null
+          last_http_status?: number | null
+          logs?: Json | null
+          metrics?: Json | null
+          output?: Json | null
+          poll_ms?: number | null
+          provider?: string
+          queue_position?: number | null
+          response_url?: string | null
+          source_note?: string | null
+          source_row_id?: string | null
+          source_table?: string | null
+          started_at?: string
+          status?: string | null
+          status_url: string
+          terminal_statuses?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          cancel_url?: string | null
+          completed_at?: string | null
+          error?: Json | null
+          final_output_url?: string | null
+          id?: string
+          job_type?: string | null
+          last_http_status?: number | null
+          logs?: Json | null
+          metrics?: Json | null
+          output?: Json | null
+          poll_ms?: number | null
+          provider?: string
+          queue_position?: number | null
+          response_url?: string | null
+          source_note?: string | null
+          source_row_id?: string | null
+          source_table?: string | null
+          started_at?: string
+          status?: string | null
+          status_url?: string
+          terminal_statuses?: string[] | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      field_registry: {
+        Row: {
+          created_at: string
+          datatype: Database["public"]["Enums"]["field_datatype"]
+          default_value: Json | null
+          field_id: string
+          id: string
+          options: Json | null
+          rules: Json
+          ui: Json
+          updated_at: string
+          version: number
+          widget: Database["public"]["Enums"]["field_widget"]
+        }
+        Insert: {
+          created_at?: string
+          datatype: Database["public"]["Enums"]["field_datatype"]
+          default_value?: Json | null
+          field_id: string
+          id?: string
+          options?: Json | null
+          rules?: Json
+          ui?: Json
+          updated_at?: string
+          version?: number
+          widget: Database["public"]["Enums"]["field_widget"]
+        }
+        Update: {
+          created_at?: string
+          datatype?: Database["public"]["Enums"]["field_datatype"]
+          default_value?: Json | null
+          field_id?: string
+          id?: string
+          options?: Json | null
+          rules?: Json
+          ui?: Json
+          updated_at?: string
+          version?: number
+          widget?: Database["public"]["Enums"]["field_widget"]
         }
         Relationships: []
       }
@@ -372,6 +335,7 @@ export type Database = {
           active: boolean
           created_at: string
           description: string | null
+          expected_payload: Json | null
           expected_schema: Json | null
           id: string
           name: string
@@ -386,6 +350,7 @@ export type Database = {
           active?: boolean
           created_at?: string
           description?: string | null
+          expected_payload?: Json | null
           expected_schema?: Json | null
           id?: string
           name: string
@@ -400,6 +365,7 @@ export type Database = {
           active?: boolean
           created_at?: string
           description?: string | null
+          expected_payload?: Json | null
           expected_schema?: Json | null
           id?: string
           name?: string
@@ -409,6 +375,63 @@ export type Database = {
           test_webhook?: string | null
           type?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      node_definitions: {
+        Row: {
+          actions_template: Json
+          active: boolean
+          content_template: Json
+          created_at: string
+          def_key: string
+          dependencies_template: Json
+          description: string | null
+          edit_template: Json
+          id: string
+          is_section: boolean
+          node_type: string
+          parent_path_template: string | null
+          path_template: string
+          title: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          actions_template?: Json
+          active?: boolean
+          content_template?: Json
+          created_at?: string
+          def_key: string
+          dependencies_template?: Json
+          description?: string | null
+          edit_template?: Json
+          id?: string
+          is_section?: boolean
+          node_type: string
+          parent_path_template?: string | null
+          path_template: string
+          title: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          actions_template?: Json
+          active?: boolean
+          content_template?: Json
+          created_at?: string
+          def_key?: string
+          dependencies_template?: Json
+          description?: string | null
+          edit_template?: Json
+          id?: string
+          is_section?: boolean
+          node_type?: string
+          parent_path_template?: string | null
+          path_template?: string
+          title?: string
+          updated_at?: string
+          version?: number
         }
         Relationships: []
       }
@@ -448,217 +471,43 @@ export type Database = {
         }
         Relationships: []
       }
-      shot_gen: {
+      story_nodes: {
         Row: {
-          action: string | null
-          audio_cancel_url: string | null
-          audio_error: Json | null
-          audio_logs: Json | null
-          audio_metrics: Json | null
-          audio_output: Json | null
-          audio_path: string | null
-          audio_public_url: string | null
-          audio_queue_position: number | null
-          audio_request_id: string | null
-          audio_response_url: string | null
-          audio_status: string | null
-          audio_status_url: string | null
-          broll: boolean | null
-          camera_movement: string | null
-          camera_start: string | null
-          composition: string | null
+          content: Json
           created_at: string
-          dialogue_line: string | null
-          dialogue_planned: boolean | null
-          duration: number | null
-          environment: string | null
+          editable: boolean | null
           id: string
-          image_cancel_url: string | null
-          image_error: Json | null
-          image_logs: Json | null
-          image_metrics: Json | null
-          image_output: Json | null
-          image_path: string | null
-          image_prompt: string | null
-          image_public_url: string | null
-          image_queue_position: number | null
-          image_request_id: string | null
-          image_response_url: string | null
-          image_status: string | null
-          image_status_url: string | null
-          in_focus: string | null
-          job_id: string
-          layout: Json | null
-          location: string | null
-          mood: string | null
-          music_cue: string | null
-          notes: string | null
-          out_of_focus: string | null
-          props: Json | null
-          role: string | null
-          shot_idx: number
-          time: string | null
-          updated_at: string | null
-          video_cancel_url: string | null
-          video_error: Json | null
-          video_logs: Json | null
-          video_metrics: Json | null
-          video_output: Json | null
-          video_path: string | null
-          video_payload: Json | null
-          video_public_url: string | null
-          video_queue_position: number | null
-          video_request_id: string | null
-          video_response_url: string | null
-          video_status: string | null
-          video_status_url: string | null
-          vo_path: string | null
-          vo_public_url: string | null
-          voiceover_line: string | null
-          voiceover_planned: boolean | null
+          needs_validation: boolean | null
+          parent_id: string | null
+          path: string
+          updated_at: string
         }
         Insert: {
-          action?: string | null
-          audio_cancel_url?: string | null
-          audio_error?: Json | null
-          audio_logs?: Json | null
-          audio_metrics?: Json | null
-          audio_output?: Json | null
-          audio_path?: string | null
-          audio_public_url?: string | null
-          audio_queue_position?: number | null
-          audio_request_id?: string | null
-          audio_response_url?: string | null
-          audio_status?: string | null
-          audio_status_url?: string | null
-          broll?: boolean | null
-          camera_movement?: string | null
-          camera_start?: string | null
-          composition?: string | null
+          content?: Json
           created_at?: string
-          dialogue_line?: string | null
-          dialogue_planned?: boolean | null
-          duration?: number | null
-          environment?: string | null
+          editable?: boolean | null
           id?: string
-          image_cancel_url?: string | null
-          image_error?: Json | null
-          image_logs?: Json | null
-          image_metrics?: Json | null
-          image_output?: Json | null
-          image_path?: string | null
-          image_prompt?: string | null
-          image_public_url?: string | null
-          image_queue_position?: number | null
-          image_request_id?: string | null
-          image_response_url?: string | null
-          image_status?: string | null
-          image_status_url?: string | null
-          in_focus?: string | null
-          job_id: string
-          layout?: Json | null
-          location?: string | null
-          mood?: string | null
-          music_cue?: string | null
-          notes?: string | null
-          out_of_focus?: string | null
-          props?: Json | null
-          role?: string | null
-          shot_idx: number
-          time?: string | null
-          updated_at?: string | null
-          video_cancel_url?: string | null
-          video_error?: Json | null
-          video_logs?: Json | null
-          video_metrics?: Json | null
-          video_output?: Json | null
-          video_path?: string | null
-          video_payload?: Json | null
-          video_public_url?: string | null
-          video_queue_position?: number | null
-          video_request_id?: string | null
-          video_response_url?: string | null
-          video_status?: string | null
-          video_status_url?: string | null
-          vo_path?: string | null
-          vo_public_url?: string | null
-          voiceover_line?: string | null
-          voiceover_planned?: boolean | null
+          needs_validation?: boolean | null
+          parent_id?: string | null
+          path: string
+          updated_at?: string
         }
         Update: {
-          action?: string | null
-          audio_cancel_url?: string | null
-          audio_error?: Json | null
-          audio_logs?: Json | null
-          audio_metrics?: Json | null
-          audio_output?: Json | null
-          audio_path?: string | null
-          audio_public_url?: string | null
-          audio_queue_position?: number | null
-          audio_request_id?: string | null
-          audio_response_url?: string | null
-          audio_status?: string | null
-          audio_status_url?: string | null
-          broll?: boolean | null
-          camera_movement?: string | null
-          camera_start?: string | null
-          composition?: string | null
+          content?: Json
           created_at?: string
-          dialogue_line?: string | null
-          dialogue_planned?: boolean | null
-          duration?: number | null
-          environment?: string | null
+          editable?: boolean | null
           id?: string
-          image_cancel_url?: string | null
-          image_error?: Json | null
-          image_logs?: Json | null
-          image_metrics?: Json | null
-          image_output?: Json | null
-          image_path?: string | null
-          image_prompt?: string | null
-          image_public_url?: string | null
-          image_queue_position?: number | null
-          image_request_id?: string | null
-          image_response_url?: string | null
-          image_status?: string | null
-          image_status_url?: string | null
-          in_focus?: string | null
-          job_id?: string
-          layout?: Json | null
-          location?: string | null
-          mood?: string | null
-          music_cue?: string | null
-          notes?: string | null
-          out_of_focus?: string | null
-          props?: Json | null
-          role?: string | null
-          shot_idx?: number
-          time?: string | null
-          updated_at?: string | null
-          video_cancel_url?: string | null
-          video_error?: Json | null
-          video_logs?: Json | null
-          video_metrics?: Json | null
-          video_output?: Json | null
-          video_path?: string | null
-          video_payload?: Json | null
-          video_public_url?: string | null
-          video_queue_position?: number | null
-          video_request_id?: string | null
-          video_response_url?: string | null
-          video_status?: string | null
-          video_status_url?: string | null
-          vo_path?: string | null
-          vo_public_url?: string | null
-          voiceover_line?: string | null
-          voiceover_planned?: boolean | null
+          needs_validation?: boolean | null
+          parent_id?: string | null
+          path?: string
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "shot_gen_job_id_fkey"
-            columns: ["job_id"]
+            foreignKeyName: "story_nodes_parent_id_fkey"
+            columns: ["parent_id"]
             isOneToOne: false
-            referencedRelation: "jobs"
+            referencedRelation: "story_nodes"
             referencedColumns: ["id"]
           },
         ]
@@ -680,7 +529,7 @@ export type Database = {
           timeline_updated_at: string | null
           updated_at: string
           user_id: string | null
-          user_input: Json
+          user_input: Json | null
           user_input_updated_at: string
         }
         Insert: {
@@ -699,7 +548,7 @@ export type Database = {
           timeline_updated_at?: string | null
           updated_at?: string
           user_id?: string | null
-          user_input?: Json
+          user_input?: Json | null
           user_input_updated_at?: string
         }
         Update: {
@@ -718,10 +567,111 @@ export type Database = {
           timeline_updated_at?: string | null
           updated_at?: string
           user_id?: string | null
-          user_input?: Json
+          user_input?: Json | null
           user_input_updated_at?: string
         }
         Relationships: []
+      }
+      storyboard_nodes: {
+        Row: {
+          actions: Json
+          content: Json
+          created_at: string
+          dependencies: Json
+          edit: Json
+          id: string
+          is_section: boolean
+          job_id: string
+          node_type: string
+          parent_id: string | null
+          path: unknown
+          removable: boolean
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          actions?: Json
+          content?: Json
+          created_at?: string
+          dependencies?: Json
+          edit?: Json
+          id?: string
+          is_section?: boolean
+          job_id: string
+          node_type: string
+          parent_id?: string | null
+          path: unknown
+          removable?: boolean
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          actions?: Json
+          content?: Json
+          created_at?: string
+          dependencies?: Json
+          edit?: Json
+          id?: string
+          is_section?: boolean
+          job_id?: string
+          node_type?: string
+          parent_id?: string | null
+          path?: unknown
+          removable?: boolean
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_storyboard_nodes_parent"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "storyboard_nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_storyboard_nodes_parent"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "v_storyboard_forms_normalized"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_storyboard_nodes_parent"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "v_storyboard_sections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "storyboard_nodes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "storyboard_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "storyboard_nodes_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "storyboard_nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "storyboard_nodes_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "v_storyboard_forms_normalized"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "storyboard_nodes_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "v_storyboard_sections"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       subscription_plans: {
         Row: {
@@ -869,9 +819,143 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_storyboard_forms_normalized: {
+        Row: {
+          actions: Json | null
+          content: Json | null
+          dependencies: Json | null
+          edit: Json | null
+          id: string | null
+          job_id: string | null
+          parent_id: string | null
+          path: unknown | null
+          updated_at: string | null
+          version: number | null
+        }
+        Insert: {
+          actions?: Json | null
+          content?: never
+          dependencies?: Json | null
+          edit?: Json | null
+          id?: string | null
+          job_id?: string | null
+          parent_id?: string | null
+          path?: unknown | null
+          updated_at?: string | null
+          version?: number | null
+        }
+        Update: {
+          actions?: Json | null
+          content?: never
+          dependencies?: Json | null
+          edit?: Json | null
+          id?: string | null
+          job_id?: string | null
+          parent_id?: string | null
+          path?: unknown | null
+          updated_at?: string | null
+          version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_storyboard_nodes_parent"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "storyboard_nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_storyboard_nodes_parent"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "v_storyboard_forms_normalized"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_storyboard_nodes_parent"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "v_storyboard_sections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "storyboard_nodes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "storyboard_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "storyboard_nodes_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "storyboard_nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "storyboard_nodes_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "v_storyboard_forms_normalized"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "storyboard_nodes_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "v_storyboard_sections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_storyboard_sections: {
+        Row: {
+          id: string | null
+          job_id: string | null
+          n_forms: number | null
+          n_groups: number | null
+          n_media: number | null
+          path: unknown | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string | null
+          job_id?: string | null
+          n_forms?: never
+          n_groups?: never
+          n_media?: never
+          path?: unknown | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string | null
+          job_id?: string | null
+          n_forms?: never
+          n_groups?: never
+          n_media?: never
+          path?: unknown | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "storyboard_nodes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "storyboard_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      _ltree_compress: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      _ltree_gist_options: {
+        Args: { "": unknown }
+        Returns: undefined
+      }
       add_credits: {
         Args: {
           p_amount_paid?: number
@@ -888,6 +972,30 @@ export type Database = {
         Args: { p_schema: string; p_table: string }
         Returns: undefined
       }
+      citext: {
+        Args: { "": boolean } | { "": string } | { "": unknown }
+        Returns: string
+      }
+      citext_hash: {
+        Args: { "": string }
+        Returns: number
+      }
+      citextin: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      citextout: {
+        Args: { "": string }
+        Returns: unknown
+      }
+      citextrecv: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      citextsend: {
+        Args: { "": string }
+        Returns: string
+      }
       cleanup_old_guest_jobs: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -896,17 +1004,367 @@ export type Database = {
         Args: { p_credits: number; p_description?: string; p_user_id: string }
         Returns: boolean
       }
+      form_default_required_false: {
+        Args: { j: Json }
+        Returns: Json
+      }
       generate_guest_session_id: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      get_n8n_function_id: {
+        Args: { id_or_name: string }
+        Returns: string
+      }
+      hash_ltree: {
+        Args: { "": unknown }
+        Returns: number
+      }
+      in_enum: {
+        Args: { etype: unknown; val: string }
+        Returns: boolean
+      }
+      is_i18n_text: {
+        Args: { p: Json }
+        Returns: boolean
+      }
+      is_ltree_slug: {
+        Args: { p: string }
+        Returns: boolean
+      }
+      is_nonempty_text: {
+        Args: { p: string }
+        Returns: boolean
+      }
+      is_repeatable_config: {
+        Args: { p: Json }
+        Returns: boolean
+      }
+      is_selector_object: {
+        Args: { j: Json }
+        Returns: boolean
+      }
+      is_string_array_of_slugs: {
+        Args: { p: Json }
+        Returns: boolean
+      }
+      is_uuid: {
+        Args: { p: string }
+        Returns: boolean
+      }
+      is_valid_asset_item: {
+        Args: { j: Json }
+        Returns: boolean
+      }
+      is_valid_audio_item: {
+        Args: { j: Json }
+        Returns: boolean
+      }
+      is_valid_content_shape: {
+        Args: { content: Json; node_type: string }
+        Returns: boolean
+      }
+      is_valid_expected_payload_strict: {
+        Args: { j: Json }
+        Returns: boolean
+      }
+      is_valid_field_default_strict: {
+        Args:
+          | {
+              p_datatype: Database["public"]["Enums"]["field_datatype"]
+              p_default: Json
+              p_options: Json
+              p_widget: Database["public"]["Enums"]["field_widget"]
+            }
+          | {
+              p_datatype: Database["public"]["Enums"]["field_datatype"]
+              p_default: Json
+              p_options: Json
+              p_widget: string
+            }
+          | {
+              p_datatype: string
+              p_default: Json
+              p_options: Json
+              p_widget: string
+            }
+        Returns: boolean
+      }
+      is_valid_field_group: {
+        Args: { p: Json }
+        Returns: boolean
+      }
+      is_valid_field_groups: {
+        Args: { p: Json }
+        Returns: boolean
+      }
+      is_valid_field_item: {
+        Args: { j: Json }
+        Returns: boolean
+      }
+      is_valid_field_item_strict: {
+        Args: { j: Json }
+        Returns: boolean
+      }
+      is_valid_field_options: {
+        Args: { p: Json }
+        Returns: boolean
+      }
+      is_valid_field_options_strict: {
+        Args: { p: Json }
+        Returns: boolean
+      }
+      is_valid_field_rules_strict: {
+        Args:
+          | {
+              p: Json
+              p_datatype: Database["public"]["Enums"]["field_datatype"]
+            }
+          | { p: Json; p_datatype: string }
+        Returns: boolean
+      }
+      is_valid_field_ui_strict: {
+        Args: { p: Json }
+        Returns: boolean
+      }
+      is_valid_form_content: {
+        Args: { p: Json }
+        Returns: boolean
+      }
+      is_valid_image_item: {
+        Args: { j: Json }
+        Returns: boolean
+      }
+      is_valid_items_with_groups: {
+        Args: { groups: Json; items: Json }
+        Returns: boolean
+      }
+      is_valid_media_content: {
+        Args: { j: Json }
+        Returns: boolean
+      }
+      is_valid_node_actions_strict: {
+        Args: { p: Json }
+        Returns: boolean
+      }
+      is_valid_node_dependencies: {
+        Args: { p: Json }
+        Returns: boolean
+      }
+      is_valid_node_edit_strict: {
+        Args: { p: Json }
+        Returns: boolean
+      }
+      is_valid_node_link: {
+        Args: { j: Json }
+        Returns: boolean
+      }
+      is_valid_node_path_selector: {
+        Args: { j: Json }
+        Returns: boolean
+      }
+      is_valid_node_type: {
+        Args: { p: string }
+        Returns: boolean
+      }
+      is_valid_path_text: {
+        Args: { p: string }
+        Returns: boolean
+      }
+      is_valid_payload_node_recursive: {
+        Args: { j: Json }
+        Returns: boolean
+      }
+      is_valid_rules: {
+        Args:
+          | {
+              p: Json
+              p_datatype: Database["public"]["Enums"]["field_datatype"]
+            }
+          | { p: Json; p_datatype: string }
+        Returns: boolean
+      }
+      is_valid_selector_strict: {
+        Args: { j: Json }
+        Returns: boolean
+      }
+      is_valid_ui: {
+        Args: { p: Json }
+        Returns: boolean
+      }
+      is_valid_video_item: {
+        Args: { j: Json }
+        Returns: boolean
+      }
+      lca: {
+        Args: { "": unknown[] }
+        Returns: unknown
       }
       link_guest_jobs_to_user: {
         Args: { p_email: string } | { p_email: string; p_session_id: string }
         Returns: undefined
       }
+      lquery_in: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      lquery_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      lquery_recv: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      lquery_send: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      ltree_compress: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ltree_decompress: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ltree_gist_in: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ltree_gist_options: {
+        Args: { "": unknown }
+        Returns: undefined
+      }
+      ltree_gist_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ltree_in: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ltree_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ltree_recv: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ltree_send: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      ltree2text: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      ltxtq_in: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ltxtq_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ltxtq_recv: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ltxtq_send: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      make_media_path: {
+        Args: {
+          p_ext: string
+          p_item_id: string
+          p_job: string
+          p_kind: string
+          p_node: string
+          p_v: number
+        }
+        Returns: string
+      }
+      nlevel: {
+        Args: { "": unknown }
+        Returns: number
+      }
+      set_character_description: {
+        Args: { p_desc: Json; p_id: string; p_role: string }
+        Returns: undefined
+      }
+      set_character_portrait_url: {
+        Args: { p_id: string; p_role: string; p_url: string }
+        Returns: undefined
+      }
+      text2ltree: {
+        Args: { "": string }
+        Returns: unknown
+      }
+      validate_characters_payload: {
+        Args: { doc: Json }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      array_item_type:
+        | "string"
+        | "number"
+        | "boolean"
+        | "uuid"
+        | "url"
+        | "date"
+        | "datetime"
+        | "object"
+      field_datatype:
+        | "string"
+        | "number"
+        | "boolean"
+        | "array"
+        | "object"
+        | "uuid"
+        | "url"
+        | "date"
+        | "datetime"
+      field_widget:
+        | "text"
+        | "textarea"
+        | "select"
+        | "radio"
+        | "checkbox"
+        | "tags"
+        | "group"
+        | "date"
+        | "datetime"
+        | "url"
+        | "color"
+        | "file"
+      group_layout: "section" | "accordion" | "tab" | "inline"
+      http_method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
+      importance_level: "low" | "normal" | "high"
+      media_kind: "image" | "video" | "audio"
+      options_source: "static" | "endpoint" | "table"
+      order_dir: "asc" | "desc"
+      string_format:
+        | "none"
+        | "email"
+        | "phone"
+        | "color"
+        | "slug"
+        | "uri"
+        | "url"
+      table_where_op:
+        | "eq"
+        | "neq"
+        | "gt"
+        | "gte"
+        | "lt"
+        | "lte"
+        | "like"
+        | "ilike"
+        | "in"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1033,6 +1491,60 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      array_item_type: [
+        "string",
+        "number",
+        "boolean",
+        "uuid",
+        "url",
+        "date",
+        "datetime",
+        "object",
+      ],
+      field_datatype: [
+        "string",
+        "number",
+        "boolean",
+        "array",
+        "object",
+        "uuid",
+        "url",
+        "date",
+        "datetime",
+      ],
+      field_widget: [
+        "text",
+        "textarea",
+        "select",
+        "radio",
+        "checkbox",
+        "tags",
+        "group",
+        "date",
+        "datetime",
+        "url",
+        "color",
+        "file",
+      ],
+      group_layout: ["section", "accordion", "tab", "inline"],
+      http_method: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+      importance_level: ["low", "normal", "high"],
+      media_kind: ["image", "video", "audio"],
+      options_source: ["static", "endpoint", "table"],
+      order_dir: ["asc", "desc"],
+      string_format: ["none", "email", "phone", "color", "slug", "uri", "url"],
+      table_where_op: [
+        "eq",
+        "neq",
+        "gt",
+        "gte",
+        "lt",
+        "lte",
+        "like",
+        "ilike",
+        "in",
+      ],
+    },
   },
 } as const

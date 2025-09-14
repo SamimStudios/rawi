@@ -1,5 +1,8 @@
 project_id = "ubrxxvgfbwboucuxteec"
 
+[functions.field-registry-api]
+verify_jwt = false
+
 [functions.setup-stripe-products]
 verify_jwt = false
 
