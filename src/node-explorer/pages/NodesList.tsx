@@ -16,8 +16,8 @@ import { LanguageToggle } from '../components/LanguageToggle';
 export function NodesList() {
   const { language } = useLanguage();
   const [search, setSearch] = useState('');
-  const [nodeTypeFilter, setNodeTypeFilter] = useState<string>('');
-  const [jobIdFilter, setJobIdFilter] = useState<string>('');
+  const [nodeTypeFilter, setNodeTypeFilter] = useState<string>('all');
+  const [jobIdFilter, setJobIdFilter] = useState<string>('all');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const textDirection = getTextDirection(language);
@@ -32,8 +32,8 @@ export function NodesList() {
 
   const { data, loading, error, refetch } = useNodesList({
     search: debouncedSearch,
-    nodeType: nodeTypeFilter || undefined,
-    jobId: jobIdFilter || undefined,
+    nodeType: nodeTypeFilter === 'all' ? undefined : nodeTypeFilter,
+    jobId: jobIdFilter === 'all' ? undefined : jobIdFilter,
     limit: 100
   });
 

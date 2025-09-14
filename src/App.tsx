@@ -53,11 +53,11 @@ const MainApp = () => (
         <AnalyticsProvider>
           <FunctionDataProvider>
             <TooltipProvider>
-              <ErrorBoundary>
-                <Toaster />
-                <Sonner />
-              <BrowserRouter>
-                <AuthProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <AuthProvider>
+                <ErrorBoundary>
                   <div className="min-h-screen bg-background">
                     <Routes>
                    <Route path="/auth/sign-in" element={<SignIn />} />
@@ -223,9 +223,10 @@ const MainApp = () => (
                     </Routes>
                     <CookieConsent />
                   </div>
-                </AuthProvider>
-              </BrowserRouter>
-              </ErrorBoundary>
+                </ErrorBoundary>
+              </AuthProvider>
+            </BrowserRouter>
+
             </TooltipProvider>
           </FunctionDataProvider>
         </AnalyticsProvider>
