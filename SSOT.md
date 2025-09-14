@@ -24,7 +24,7 @@ This document is the **single reference** for schemas, constraints, contracts, a
 - **widget**: enum `field_widget` = `text|textarea|select|radio|checkbox|tags|group|date|datetime|url|color|file`.
 - **options**: JSON describing choices (see 1.A).
 - **rules**: datatype-aware constraints (see 1.B).
-- **ui**: `{label?, placeholder?, help?}` i18n-ready (no validator in this section).
+- **ui**: `{label?, placeholder?, help?}` i18n-ready.
 - **default_value**: must match `datatype` and (when relevant) be allowed by `options`.
 - **version**: integer ≥ 1.
 - **timestamps**: `created_at`, `updated_at`.
@@ -42,12 +42,74 @@ This document is the **single reference** for schemas, constraints, contracts, a
   "default_value": "valid instance",
   "version": 1
 }
+
 ```
 
 ### SQL Definition
 
 ```sql
--- see existing strict schema with constraints and triggers
+-- Core enums (idempotent)
+do $$ begin
+  if not exists (
+    select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
+    where t.typname='field_datatype' and n.nspname='public'
+  ) then
+    create type public.field_datatype as enum
+      ('string','number','boolean','array','object','uuid','url','date','datetime');
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (
+    select 1 from pg_type t join pg_namespace n on n.oid=t.typnamespace
+    where t.typname='field_widget' and n.nspname='public'
+  ) then
+    create type public.field_widget as enum
+      ('text','textarea','select','radio','checkbox','tags','group','date','datetime','url','color','file');
+  end if;
+end $$;
+
+-- Wrapper overloads so CHECKs work with enums or text
+create or replace function public.is_valid_rules(p jsonb, p_datatype public.field_datatype)
+returns boolean language sql immutable as $$
+  select public.is_valid_rules(p, p_datatype::text);
+$$;
+
+create or replace function public.is_valid_field_rules_strict(p jsonb, p_datatype public.field_datatype)
+returns boolean language sql immutable as $$
+  select public.is_valid_rules(p, p_datatype::text);
+$$;
+
+create or replace function public.is_valid_field_default_strict(
+  p_default  jsonb,
+  p_datatype public.field_datatype,
+  p_widget   text,
+  p_options  jsonb
+) returns boolean language sql immutable as $$
+  select public.is_valid_field_default_strict(p_default, p_datatype::text, p_widget, p_options);
+$$;
+
+create or replace function public.is_valid_field_default_strict(
+  p_default  jsonb,
+  p_datatype public.field_datatype,
+  p_widget   public.field_widget,
+  p_options  jsonb
+) returns boolean language sql immutable as $$
+  select public.is_valid_field_default_strict(p_default, p_datatype::text, p_widget::text, p_options);
+$$;
+
+-- Convenience aliases used by table CHECKs (pass-through to validators)
+create or replace function public.is_valid_field_ui_strict(p jsonb)
+returns boolean language sql immutable as $$
+  select public.is_valid_ui(p);
+$$;
+
+create or replace function public.is_valid_field_options_strict(p jsonb)
+returns boolean language sql immutable as $$
+  select public.is_valid_field_options(p);
+$$;
+
+-- Note: table DDL + CHECKs/triggers are defined in migrations.
 ```
 
 ---
