@@ -4,9 +4,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DynamicFieldRenderer } from '@/components/field-registry/DynamicFieldRenderer';
-import { AlertCircle, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
+import { EditButton } from '@/components/ui/edit-button';
+import { AlertCircle, RefreshCw, ChevronDown, ChevronRight, Save } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { toast } from 'sonner';
 
 // Node structure interfaces
 interface Node {
@@ -101,6 +103,57 @@ const defaultNodeJson = `{
   "is_section": true
 }`;
 
+// Component for displaying values in idle mode
+const ValueDisplay: React.FC<{
+  item: Item;
+  field: FieldRegistry;
+  value: any;
+}> = ({ item, field, value }) => {
+  const parseValueForDisplay = (val: any, datatype: string): string => {
+    if (val === null || val === undefined || val === '') return 'Not set';
+    
+    switch (datatype.toLowerCase()) {
+      case 'boolean':
+        return val ? 'Yes' : 'No';
+      case 'number':
+      case 'integer':
+        return val.toString();
+      case 'array':
+        return Array.isArray(val) ? val.join(', ') : val.toString();
+      case 'date':
+        return val instanceof Date ? val.toLocaleDateString() : val.toString();
+      case 'email':
+      case 'url':
+      case 'text':
+      case 'string':
+      default:
+        return Array.isArray(val) ? val.join(', ') : val.toString();
+    }
+  };
+
+  const getLabel = () => {
+    if (item.ui_override?.label) {
+      return item.ui_override.label.fallback;
+    }
+    return field.ui?.label?.fallback || field.field_id;
+  };
+
+  const displayValue = parseValueForDisplay(value || item.value, field.datatype);
+
+  return (
+    <div className="flex flex-col space-y-1">
+      <dt className="text-sm font-medium text-muted-foreground">{getLabel()}</dt>
+      <dd className="text-sm font-medium text-foreground">
+        {displayValue === 'Not set' ? (
+          <span className="text-muted-foreground italic">{displayValue}</span>
+        ) : (
+          displayValue
+        )}
+      </dd>
+    </div>
+  );
+};
+
 // Component for rendering individual items
 const ItemRenderer: React.FC<{
   item: Item;
@@ -108,7 +161,8 @@ const ItemRenderer: React.FC<{
   value: any;
   onChange: (value: any) => void;
   formValues: Record<string, any>;
-}> = ({ item, field, value, onChange, formValues }) => {
+  isEditing?: boolean;
+}> = ({ item, field, value, onChange, formValues, isEditing = false }) => {
   const genId = () => (typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID() : `id_${Math.random().toString(36).slice(2)}_${Date.now()}`);
 
   const getEffectiveArray = (): any[] => {
@@ -288,6 +342,19 @@ const ItemRenderer: React.FC<{
     </div>
   );
 
+  // If not editing, show display mode
+  if (!isEditing) {
+    return (
+      <div className={`space-y-2 p-3 rounded-md border ${getImportanceClasses()}`}>
+        <ValueDisplay 
+          item={item} 
+          field={field} 
+          value={value || item.value} 
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={`space-y-2 p-3 rounded-md border ${getImportanceClasses()}`}>
       {/* Render field instances */}
@@ -341,7 +408,8 @@ const SubsectionRenderer: React.FC<{
   fieldRegistry: Record<string, FieldRegistry>;
   formValues: Record<string, any>;
   onFieldChange: (fieldId: string, value: any) => void;
-}> = ({ subsection, fieldRegistry, formValues, onFieldChange }) => {
+  isEditing?: boolean;
+}> = ({ subsection, fieldRegistry, formValues, onFieldChange, isEditing = false }) => {
   const [isOpen, setIsOpen] = useState(true);
 
   return (
@@ -362,6 +430,7 @@ const SubsectionRenderer: React.FC<{
               value={formValues[item.ref] || ''}
               onChange={(value) => onFieldChange(item.ref, value)}
               formValues={formValues}
+              isEditing={isEditing}
             />
           ))}
         </CollapsibleContent>
@@ -376,18 +445,45 @@ const SectionRenderer: React.FC<{
   fieldRegistry: Record<string, FieldRegistry>;
   formValues: Record<string, any>;
   onFieldChange: (fieldId: string, value: any) => void;
-}> = ({ section, fieldRegistry, formValues, onFieldChange }) => {
+  isEditing?: boolean;
+  onToggleEdit?: () => void;
+  onSave?: () => void;
+}> = ({ section, fieldRegistry, formValues, onFieldChange, isEditing = false, onToggleEdit, onSave }) => {
   const [isOpen, setIsOpen] = useState(true);
 
   return (
-    <div className="border-b border-border last:border-b-0 pb-6 last:pb-0">
+    <div className={`border-b border-border last:border-b-0 pb-6 last:pb-0 rounded-lg ${isEditing ? 'border-yellow-400/60 bg-yellow-50/30 shadow-md' : ''}`}>
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" className="p-0 h-auto font-semibold text-lg flex items-center justify-between w-full hover:bg-transparent">
-            <span>{section.label.fallback}</span>
-            {isOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-          </Button>
-        </CollapsibleTrigger>
+        <div className="flex items-center justify-between">
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" className="p-0 h-auto font-semibold text-lg flex items-center justify-start flex-1 hover:bg-transparent">
+              {isOpen ? <ChevronDown className="h-5 w-5 mr-2" /> : <ChevronRight className="h-5 w-5 mr-2" />}
+              <span>{section.label.fallback}</span>
+            </Button>
+          </CollapsibleTrigger>
+          
+          <div className="flex items-center gap-2">
+            {isEditing && onSave && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={onSave}
+                className="h-8"
+              >
+                <Save className="h-4 w-4 mr-1" />
+                Save
+              </Button>
+            )}
+            {onToggleEdit && (
+              <EditButton
+                onClick={onToggleEdit}
+                isEditing={isEditing}
+                size="sm"
+                variant="ghost"
+              />
+            )}
+          </div>
+        </div>
         <CollapsibleContent className="mt-4">
           <div className="space-y-6">
             {/* Render main section items */}
@@ -401,6 +497,7 @@ const SectionRenderer: React.FC<{
                     value={formValues[item.ref] || ''}
                     onChange={(value) => onFieldChange(item.ref, value)}
                     formValues={formValues}
+                    isEditing={isEditing}
                   />
                 ))}
               </div>
@@ -416,6 +513,7 @@ const SectionRenderer: React.FC<{
                     fieldRegistry={fieldRegistry}
                     formValues={formValues}
                     onFieldChange={onFieldChange}
+                    isEditing={isEditing}
                   />
                 ))}
               </div>
@@ -434,6 +532,8 @@ export default function JsonNodeRenderer() {
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [formValues, setFormValues] = useState<Record<string, any>>({});
+  const [editingSections, setEditingSections] = useState<Set<string>>(new Set());
+  const [originalValues, setOriginalValues] = useState<Record<string, any>>({});
   
   const nodeId = '2041b303-a2ec-4f9b-bee2-cccd46fb8563';
 
@@ -526,6 +626,97 @@ export default function JsonNodeRenderer() {
 
   const handleFieldChange = (fieldId: string, value: any) => {
     setFormValues(prev => ({ ...prev, [fieldId]: value }));
+  };
+
+  // Parse values based on field datatype
+  const parseValueByDatatype = (value: any, datatype: string): any => {
+    if (value === null || value === undefined || value === '') return value;
+    
+    switch (datatype.toLowerCase()) {
+      case 'boolean':
+        return Boolean(value);
+      case 'number':
+      case 'integer':
+        return Number(value);
+      case 'array':
+        return Array.isArray(value) ? value : [value];
+      case 'date':
+        return value instanceof Date ? value : new Date(value);
+      case 'email':
+      case 'url':
+      case 'text':
+      case 'string':
+      default:
+        return value;
+    }
+  };
+
+  const toggleSectionEdit = (sectionId: string) => {
+    setEditingSections(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sectionId)) {
+        newSet.delete(sectionId);
+      } else {
+        newSet.add(sectionId);
+        // Store original values when entering edit mode
+        setOriginalValues(prevOriginal => ({
+          ...prevOriginal,
+          [sectionId]: { ...formValues }
+        }));
+      }
+      return newSet;
+    });
+  };
+
+  const saveSection = async (sectionId: string) => {
+    try {
+      // Parse values according to their datatypes
+      const parsedValues: Record<string, any> = {};
+      
+      // Get all items in this section to parse their values
+      const section = nodeContent?.sections.find(s => s.id === sectionId);
+      if (section) {
+        // Parse section items
+        section.items?.forEach(item => {
+          const field = fieldRegistry[item.ref];
+          if (field && formValues[item.ref] !== undefined) {
+            parsedValues[item.ref] = parseValueByDatatype(formValues[item.ref], field.datatype);
+          }
+        });
+        
+        // Parse subsection items
+        section.subsections?.forEach(subsection => {
+          subsection.items?.forEach(item => {
+            const field = fieldRegistry[item.ref];
+            if (field && formValues[item.ref] !== undefined) {
+              parsedValues[item.ref] = parseValueByDatatype(formValues[item.ref], field.datatype);
+            }
+          });
+        });
+      }
+
+      // TODO: Save to backend here
+      console.log('Saving section:', sectionId, 'with values:', parsedValues);
+      
+      // Exit edit mode
+      setEditingSections(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(sectionId);
+        return newSet;
+      });
+      
+      // Clear original values for this section
+      setOriginalValues(prev => {
+        const newOriginal = { ...prev };
+        delete newOriginal[sectionId];
+        return newOriginal;
+      });
+
+      toast.success('Section saved successfully!');
+    } catch (err) {
+      console.error('Failed to save section:', err);
+      toast.error('Failed to save section');
+    }
   };
 
   const handleRefresh = async () => {
@@ -674,6 +865,9 @@ export default function JsonNodeRenderer() {
                   fieldRegistry={fieldRegistry}
                   formValues={formValues}
                   onFieldChange={handleFieldChange}
+                  isEditing={editingSections.has(section.id)}
+                  onToggleEdit={() => toggleSectionEdit(section.id)}
+                  onSave={() => saveSection(section.id)}
                 />
               ))}
             </CardContent>
