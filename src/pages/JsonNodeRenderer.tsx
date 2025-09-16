@@ -161,7 +161,7 @@ const SubsectionRenderer: React.FC<{
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-4 mt-3">
-          {subsection.items.map((item) => (
+          {(subsection.items || []).map((item) => (
             <ItemRenderer
               key={item.ref}
               item={item}
@@ -198,9 +198,9 @@ const SectionRenderer: React.FC<{
         <CollapsibleContent className="mt-4">
           <div className="space-y-6">
             {/* Render main section items */}
-            {section.items.length > 0 && (
+            {(section.items?.length ?? 0) > 0 && (
               <div className="space-y-4">
-                {section.items.map((item) => (
+                {(section.items || []).map((item) => (
                   <ItemRenderer
                     key={item.ref}
                     item={item}
@@ -214,9 +214,9 @@ const SectionRenderer: React.FC<{
             )}
 
             {/* Render subsections */}
-            {section.subsections && section.subsections.length > 0 && (
+            {(section.subsections?.length ?? 0) > 0 && (
               <div className="space-y-4">
-                {section.subsections.map((subsection) => (
+                {(section.subsections || []).map((subsection) => (
                   <SubsectionRenderer
                     key={subsection.id}
                     subsection={subsection}
