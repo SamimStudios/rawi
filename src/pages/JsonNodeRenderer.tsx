@@ -235,13 +235,14 @@ const SectionRenderer: React.FC<{
 };
 
 export default function JsonNodeRenderer() {
-  const [jsonInput, setJsonInput] = useState(defaultNodeJson);
   const [parsedNode, setParsedNode] = useState<Node | null>(null);
   const [nodeContent, setNodeContent] = useState<NodeContent | null>(null);
   const [fieldRegistry, setFieldRegistry] = useState<Record<string, FieldRegistry>>({});
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [formValues, setFormValues] = useState<Record<string, any>>({});
+  
+  const nodeId = '2041b303-a2ec-4f9b-bee2-cccd46fb8563';
 
   // Fetch field registry
   const fetchFieldRegistry = async () => {
@@ -260,19 +261,42 @@ export default function JsonNodeRenderer() {
     }
   };
 
-  // Parse node JSON
-  const parseNodeJson = () => {
+  // Fetch node from database
+  const fetchNode = async () => {
     try {
-      const parsed = JSON.parse(jsonInput);
+      const { data, error } = await supabase
+        .from('storyboard_nodes')
+        .select('*')
+        .eq('id', nodeId)
+        .single();
       
-      if (parsed.node_type !== 'form') {
+      if (error) throw error;
+      if (!data) throw new Error('Node not found');
+      
+      if (data.node_type !== 'form') {
         throw new Error('Node type must be "form"');
       }
 
-      setParsedNode(parsed);
+      // Cast the database response to our expected types
+      const node: Node = {
+        ...data,
+        path: data.path as string,
+        content: typeof data.content === 'string' ? data.content : JSON.stringify(data.content),
+        edit: typeof data.edit === 'string' ? data.edit : JSON.stringify(data.edit),
+        actions: typeof data.actions === 'string' ? data.actions : JSON.stringify(data.actions),
+        dependencies: typeof data.dependencies === 'string' ? data.dependencies : JSON.stringify(data.dependencies),
+      };
+
+      setParsedNode(node);
       
-      // Parse content JSON
-      const content = JSON.parse(parsed.content);
+      // Parse content - handle both string and object types
+      let content: NodeContent;
+      if (typeof data.content === 'string') {
+        content = JSON.parse(data.content);
+      } else {
+        content = data.content as unknown as NodeContent;
+      }
+      
       if (content.version !== 'v1-sections') {
         throw new Error('Only v1-sections format is supported');
       }
@@ -301,7 +325,7 @@ export default function JsonNodeRenderer() {
       setFormValues(initialValues);
       
     } catch (err) {
-      setError(`Invalid JSON: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setError(`Failed to fetch node: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setParsedNode(null);
       setNodeContent(null);
     }
@@ -311,75 +335,105 @@ export default function JsonNodeRenderer() {
     setFormValues(prev => ({ ...prev, [fieldId]: value }));
   };
 
-  const handleReset = () => {
-    setJsonInput(defaultNodeJson);
-    setParsedNode(null);
-    setNodeContent(null);
-    setFormValues({});
-    setError('');
-  };
-
-  const handleParseAndRender = async () => {
+  const handleRefresh = async () => {
     setLoading(true);
     await fetchFieldRegistry();
-    parseNodeJson();
+    await fetchNode();
     setLoading(false);
   };
 
-  // Parse on mount
+  // Set up realtime subscription
   useEffect(() => {
-    handleParseAndRender();
+    const channel = supabase
+      .channel('node-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'storyboard_nodes',
+          filter: `id=eq.${nodeId}`
+        },
+        (payload) => {
+          console.log('Node updated:', payload);
+          if (payload.new) {
+            const updatedData = payload.new;
+            
+            // Cast the realtime update to our expected types
+            const node: Node = {
+              id: updatedData.id,
+              job_id: updatedData.job_id,
+              node_type: updatedData.node_type,
+              parent_id: updatedData.parent_id,
+              removable: updatedData.removable,
+              created_at: updatedData.created_at,
+              updated_at: updatedData.updated_at,
+              version: updatedData.version,
+              is_section: updatedData.is_section,
+              path: updatedData.path as string,
+              content: typeof updatedData.content === 'string' ? updatedData.content : JSON.stringify(updatedData.content),
+              edit: typeof updatedData.edit === 'string' ? updatedData.edit : JSON.stringify(updatedData.edit),
+              actions: typeof updatedData.actions === 'string' ? updatedData.actions : JSON.stringify(updatedData.actions),
+              dependencies: typeof updatedData.dependencies === 'string' ? updatedData.dependencies : JSON.stringify(updatedData.dependencies),
+            };
+            
+            setParsedNode(node);
+            
+            // Parse content for display
+            let content: NodeContent;
+            if (typeof updatedData.content === 'string') {
+              content = JSON.parse(updatedData.content);
+            } else {
+              content = updatedData.content as unknown as NodeContent;
+            }
+            
+            setNodeContent(content);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [nodeId]);
+
+  // Fetch on mount
+  useEffect(() => {
+    handleRefresh();
   }, []);
 
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="text-center">
-        <h1 className="text-3xl font-bold">JSON Node Renderer</h1>
+        <h1 className="text-3xl font-bold">Live Node Renderer</h1>
         <p className="text-muted-foreground mt-2">
-          Test complete node definitions with sections and field registry integration
+          Realtime view of node {nodeId} with sections and field registry integration
         </p>
       </div>
 
+      <div className="flex justify-center mb-6">
+        <Button onClick={handleRefresh} disabled={loading} className="flex items-center gap-2">
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          {loading ? 'Refreshing...' : 'Refresh Data'}
+        </Button>
+      </div>
+
+      {error && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* JSON Input */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Node Definition (JSON)</CardTitle>
-            <CardDescription>
-              Enter a complete node JSON with form content structure
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Textarea
-              value={jsonInput}
-              onChange={(e) => setJsonInput(e.target.value)}
-              placeholder="Enter node JSON..."
-              className="min-h-[400px] font-mono text-sm"
-            />
-            <div className="flex gap-2">
-              <Button onClick={handleParseAndRender} className="flex-1" disabled={loading}>
-                {loading ? 'Loading...' : 'Parse & Render'}
-              </Button>
-              <Button onClick={handleReset} variant="outline">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Reset
-              </Button>
-            </div>
-            {error && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-          </CardContent>
-        </Card>
 
         {/* Node Info */}
         <Card>
           <CardHeader>
             <CardTitle>Node Information</CardTitle>
             <CardDescription>
-              Basic node properties and structure
+              Database node properties and structure
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -388,7 +442,9 @@ export default function JsonNodeRenderer() {
                 <div><strong>Node ID:</strong> {parsedNode.id}</div>
                 <div><strong>Type:</strong> {parsedNode.node_type}</div>
                 <div><strong>Path:</strong> {parsedNode.path}</div>
+                <div><strong>Job ID:</strong> {parsedNode.job_id}</div>
                 <div><strong>Version:</strong> {parsedNode.version}</div>
+                <div><strong>Updated:</strong> {new Date(parsedNode.updated_at).toLocaleString()}</div>
                 <div><strong>Sections:</strong> {nodeContent?.sections?.length || 0}</div>
                 <div><strong>Total Fields:</strong> {
                   nodeContent?.sections?.reduce((total, section) => {
@@ -402,7 +458,7 @@ export default function JsonNodeRenderer() {
               </div>
             ) : (
               <div className="text-center text-muted-foreground py-8">
-                {error ? 'Fix the JSON error to see node info' : 'Enter valid node JSON to see information'}
+                {error ? 'Error loading node data' : loading ? 'Loading node data...' : 'No node data'}
               </div>
             )}
           </CardContent>
@@ -445,53 +501,20 @@ export default function JsonNodeRenderer() {
         </div>
       )}
 
-      {/* Sample Node Examples */}
+      {/* Realtime Status */}
       <Card>
         <CardHeader>
-          <CardTitle>Sample Node Examples</CardTitle>
-          <CardDescription>Click any example to load it</CardDescription>
+          <CardTitle>Realtime Status</CardTitle>
+          <CardDescription>Live updates from the database</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[
-              {
-                name: 'Simple Form Node',
-                description: 'Basic form with one section',
-                json: `{
-  "id": "simple-form",
-  "job_id": "job-123",
-  "node_type": "form",
-  "path": "root.simple",
-  "content": "{\\"version\\": \\"v1-sections\\", \\"sections\\": [{\\"id\\": \\"basic\\", \\"label\\": {\\"fallback\\": \\"Basic Info\\"}, \\"items\\": [{\\"ref\\": \\"title\\", \\"required\\": true}, {\\"ref\\": \\"logline\\"}]}]}",
-  "edit": "{}",
-  "actions": "{}",
-  "dependencies": "[]",
-  "removable": true,
-  "version": 1,
-  "is_section": false
-}`
-              },
-              {
-                name: 'Complex Nested Form',
-                description: 'Form with sections and subsections',
-                json: defaultNodeJson
-              }
-            ].map((example) => (
-              <Button
-                key={example.name}
-                variant="outline"
-                className="h-auto p-4 text-left justify-start"
-                onClick={() => setJsonInput(example.json)}
-              >
-                <div>
-                  <div className="font-medium">{example.name}</div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    {example.description}
-                  </div>
-                </div>
-              </Button>
-            ))}
+          <div className="flex items-center gap-2 text-sm">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span>Connected to realtime updates</span>
           </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Changes to node {nodeId} will appear automatically
+          </p>
         </CardContent>
       </Card>
     </div>
