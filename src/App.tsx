@@ -41,6 +41,7 @@ import N8NTest from "./pages/N8NTest";
 import ButtonShowcase from "./pages/ButtonShowcase";
 import FieldRegistry from "./pages/FieldRegistry";
 import Nodes from "./pages/Nodes";
+import JsonNodeRenderer from "./pages/JsonNodeRenderer";
 import WidgetShowcase from "./pages/WidgetShowcase";
 
 
@@ -222,6 +223,13 @@ const MainApp = () => (
                      <div>
                        <Header />
                        <Nodes />
+                       <Footer />
+                     </div>
+                   } />
+                   <Route path="/json-renderer" element={
+                     <div>
+                       <Header />
+                       <JsonNodeRenderer />
                        <Footer />
                      </div>
                    } />

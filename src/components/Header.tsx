@@ -32,6 +32,8 @@ const Header = () => {
     { key: 'templates', href: '/templates' },
     { key: 'tryFree', href: '/try/cinematic-teaser' },
     { key: 'help', href: '/help' },
+    { key: 'nodes', href: '/nodes', label: 'Nodes' },
+    { key: 'jsonRenderer', href: '/json-renderer', label: 'JSON Renderer' },
     { key: 'widgets', href: '/widget-showcase', label: 'Widget Showcase' },
   ];
 
