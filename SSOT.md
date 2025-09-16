@@ -1901,43 +1901,121 @@ create index if not exists ix_storyboard_nodes_job_section on public.storyboard_
 ```
 
 ---
+# Section 4: Video_Jobs
 
-## Section 5: Storyboard Jobs
+## Purpose
 
-### Purpose
+`video_jobs` is the **top-level container** for a user’s video/storyboard session. It owns the lifecycle, billing/consent flags, and a lightweight `node_index` cache for fast lookup. **All actual content lives in `storyboard_nodes`** (nodes are authoritative). Nodes are created **on user request**.
 
-* Top-level container for storyboard sessions.
-* Owns nodes and progressive sections.
+## Simplified prose
 
-### Simplified Prose
+* Jobs belong to either an authenticated **user** (`user_id`) or a **guest session** (`session_id`).
+* Store only **metadata** on the job: `status`, `credits_used`, `watermark`, **consents**.
+* Keep an optional **`node_index` cache**: `[{slot, path, node_id}]` for FE speed; never source of truth.
+* **Stable addressing** is via `(job_id, path::ltree)` on `storyboard_nodes` (e.g., `root.user_input`, `root.movie_info`, `root.characters`).
+* **RLS** should ensure callers can only read/write jobs they own (by `user_id` or `session_id`).
 
-* **id**: UUID PK.
-* **user\_id**: FK auth.users.
-* **session\_id**: optional string.
-* **user\_input**, **movie\_info**, **characters**, **props**, **timeline**, **music** as JSON sections.
-* Each section has updated\_at for staleness checks.
+## Top-level contract
 
-### Top-Level Contract
+* **Authoritative data**: `storyboard_nodes` (one node per canonical slot; unique `(job_id, path)`).
+* **Job states**: `status ∈ {draft, active, archived, error}`.
+* **Consent**: `accepted_terms_at`, `accepted_ip_at` are set when the user explicitly accepts.
+* **Rendering**: `watermark=true` for free outputs; flipped off after successful purchase.
+* **Credits**: `credits_used` is cumulative for the job (update per generation step).
+* **Indexing**: FE can list nodes via `node_index`, but must read/write fields via path APIs/RPCs to `storyboard_nodes`.
+* **Timestamps**: `updated_at` auto-touches on any job update.
+* **Creation**: Creating a job does **not** create nodes; FE/back-end creates nodes on demand.
 
-```json
-{
-  "id": "uuid",
-  "user_id": "uuid|null",
-  "session_id": "string|null",
-  "user_input": { },
-  "movie_info": { },
-  "characters": { },
-  "props": { },
-  "timeline": { },
-  "music": { }
-}
-```
-
-### SQL Definition
+## SQL definition
 
 ```sql
--- see storyboard_jobs schema with section columns and updated_at fields
+-- Table
+create table if not exists public.video_jobs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid null references auth.users(id) on delete set null,
+  session_id text null,                  -- for guest ownership via RLS
+  template_key text not null,            -- e.g. 'fight_scene' | 'trailer_v1'
+  status text not null
+    check (status in ('draft','active','archived','error'))
+    default 'draft',
+  credits_used integer not null default 0,
+  watermark boolean not null default true,
+  accepted_terms_at timestamptz null,
+  accepted_ip_at timestamptz null,
+  node_index jsonb not null default '[]'::jsonb,  -- [{slot,path,node_id}]
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Indexes
+create index if not exists idx_video_jobs_user_created
+  on public.video_jobs(user_id, created_at desc);
+
+create index if not exists idx_video_jobs_status_created
+  on public.video_jobs(status, created_at desc);
+
+-- Touch trigger
+create or replace function public.tg_touch_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at := now();
+  return new;
+end; $$;
+
+drop trigger if exists trg_video_jobs_touch on public.video_jobs;
+create trigger trg_video_jobs_touch
+before update on public.video_jobs
+for each row execute function public.tg_touch_updated_at();
+
+-- Invariant on nodes (enforce one node per path per job)
+create unique index if not exists ux_storyboard_nodes_job_path
+  on public.storyboard_nodes(job_id, path);
+
+-- (Optional) keep node_index cache in sync when nodes change
+create or replace function public.refresh_job_node_index(p_job_id uuid)
+returns void language sql as $$
+  update public.video_jobs j
+  set node_index = coalesce((
+    select jsonb_agg(
+      jsonb_build_object(
+        'slot', split_part(n.path::text, '.', 2), -- e.g. 'user_input'
+        'path', n.path::text,
+        'node_id', n.id
+      ) order by n.path
+    )
+    from public.storyboard_nodes n
+    where n.job_id = j.id
+  ), '[]'::jsonb)
+  where j.id = p_job_id;
+$$;
+
+create or replace function public.tg_nodes_refresh_index()
+returns trigger language plpgsql as $$
+begin
+  perform public.refresh_job_node_index(coalesce(new.job_id, old.job_id));
+  return coalesce(new, old);
+end; $$;
+
+drop trigger if exists trg_nodes_refresh_index_ins on public.storyboard_nodes;
+create trigger trg_nodes_refresh_index_ins
+after insert on public.storyboard_nodes
+for each row execute function public.tg_nodes_refresh_index();
+
+drop trigger if exists trg_nodes_refresh_index_upd on public.storyboard_nodes;
+create trigger trg_nodes_refresh_index_upd
+after update on public.storyboard_nodes
+for each row execute function public.tg_nodes_refresh_index();
+
+drop trigger if exists trg_nodes_refresh_index_del on public.storyboard_nodes;
+create trigger trg_nodes_refresh_index_del
+after delete on public.storyboard_nodes
+for each row execute function public.tg_nodes_refresh_index();
 ```
+
+> **RLS (outline):**
+>
+> * On `video_jobs`: allow `select/update` when `auth.uid() = user_id` **or** when request carries a trusted `session_id` matching the row (for guests).
+> * On `storyboard_nodes`: allow access only when the parent job row is visible to the caller (`exists` join on `video_jobs`).
 
 ---
 
