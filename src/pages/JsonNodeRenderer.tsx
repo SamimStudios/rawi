@@ -35,12 +35,19 @@ interface Item {
   ref: string;
   required?: boolean;
   rules?: Record<string, any>;
+  editable?: boolean;
+  ui_override?: {
+    label?: { key: string; fallback: string };
+    placeholder?: { key: string; fallback: string };
+    help?: { key: string; fallback: string };
+  };
+  value?: any;
   repeatable?: {
     min?: number;
     max?: number;
-    labelSingular?: string;
-    labelPlural?: string;
   };
+  item_instance_id?: string;
+  importance?: "low" | "normal" | "high";
 }
 
 interface Subsection {
@@ -102,6 +109,14 @@ const ItemRenderer: React.FC<{
   onChange: (value: any) => void;
   formValues: Record<string, any>;
 }> = ({ item, field, value, onChange, formValues }) => {
+  const [instances, setInstances] = useState<string[]>(() => {
+    if (item.repeatable) {
+      const initialId = item.item_instance_id || crypto.randomUUID();
+      return [initialId];
+    }
+    return [];
+  });
+
   if (!field) {
     return (
       <Alert variant="destructive">
@@ -110,6 +125,33 @@ const ItemRenderer: React.FC<{
       </Alert>
     );
   }
+
+  // Helper function for i18n text resolution (placeholder for now)
+  const t = (key: string) => key; // TODO: Replace with actual i18n hook
+
+  // Get label with ui_override support
+  const getLabel = () => {
+    if (item.ui_override?.label) {
+      return t(item.ui_override.label.key) || item.ui_override.label.fallback;
+    }
+    return field.ui?.label?.fallback || field.field_id;
+  };
+
+  // Get placeholder with ui_override support
+  const getPlaceholder = () => {
+    if (item.ui_override?.placeholder) {
+      return t(item.ui_override.placeholder.key) || item.ui_override.placeholder.fallback;
+    }
+    return field.ui?.placeholder?.fallback || '';
+  };
+
+  // Get help text with ui_override support
+  const getHelpText = () => {
+    if (item.ui_override?.help) {
+      return t(item.ui_override.help.key) || item.ui_override.help.fallback;
+    }
+    return field.ui?.help?.fallback || '';
+  };
 
   // Merge item rules with field rules
   const mergedRules = { ...field.rules };
@@ -120,22 +162,139 @@ const ItemRenderer: React.FC<{
     Object.assign(mergedRules, item.rules);
   }
 
+  // Create enhanced field with overrides
   const mergedField = {
     ...field,
-    rules: mergedRules
+    rules: mergedRules,
+    ui: {
+      ...field.ui,
+      label: { fallback: getLabel() },
+      placeholder: { fallback: getPlaceholder() },
+      help: { fallback: getHelpText() }
+    }
   };
 
-  return (
-    <div className="space-y-2">
+  // Handle repeatable instances
+  const addInstance = () => {
+    if (item.repeatable && instances.length < (item.repeatable.max || Infinity)) {
+      const newId = crypto.randomUUID();
+      setInstances(prev => [...prev, newId]);
+    }
+  };
+
+  const removeInstance = (instanceId: string) => {
+    if (item.repeatable && instances.length > (item.repeatable.min || 0)) {
+      setInstances(prev => prev.filter(id => id !== instanceId));
+      // Also remove the value for this instance
+      const currentValue = Array.isArray(value) ? value : [];
+      const instanceIndex = instances.indexOf(instanceId);
+      if (instanceIndex !== -1) {
+        const newValue = currentValue.filter((_, index) => index !== instanceIndex);
+        onChange(newValue);
+      }
+    }
+  };
+
+  // Handle value changes for repeatable fields
+  const handleInstanceChange = (instanceId: string, newValue: any) => {
+    if (item.repeatable) {
+      const instanceIndex = instances.indexOf(instanceId);
+      const currentValue = Array.isArray(value) ? value : [];
+      const updatedValue = [...currentValue];
+      updatedValue[instanceIndex] = newValue;
+      onChange(updatedValue);
+    } else {
+      onChange(newValue);
+    }
+  };
+
+  // Get controlled value (use item.value if provided, otherwise use form value)
+  const getControlledValue = (instanceIndex?: number) => {
+    if (item.value !== undefined) {
+      return item.repeatable && Array.isArray(item.value) ? item.value[instanceIndex || 0] : item.value;
+    }
+    if (item.repeatable && Array.isArray(value)) {
+      return value[instanceIndex || 0] || '';
+    }
+    return value || '';
+  };
+
+  // Get importance styling classes
+  const getImportanceClasses = () => {
+    switch (item.importance) {
+      case 'low':
+        return 'border-muted/50 bg-muted/5';
+      case 'high':
+        return 'border-primary/30 bg-primary/5 shadow-sm';
+      default:
+        return 'border-border';
+    }
+  };
+
+  // Render single field instance
+  const renderFieldInstance = (instanceId: string, instanceIndex: number) => (
+    <div key={instanceId} className="relative">
       <DynamicFieldRenderer
         field={mergedField}
-        value={value}
-        onChange={onChange}
+        value={getControlledValue(instanceIndex)}
+        onChange={(newValue) => handleInstanceChange(instanceId, newValue)}
         formValues={formValues}
+        disabled={item.editable === false}
       />
-      {item.repeatable && (
-        <div className="text-xs text-muted-foreground">
-          Repeatable: {item.repeatable.min || 0} - {item.repeatable.max || '∞'}
+      {item.repeatable && instances.length > 1 && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="absolute top-0 right-0 h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+          onClick={() => removeInstance(instanceId)}
+          disabled={instances.length <= (item.repeatable?.min || 0)}
+        >
+          ×
+        </Button>
+      )}
+    </div>
+  );
+
+  return (
+    <div className={`space-y-2 p-3 rounded-md border ${getImportanceClasses()}`}>
+      {/* Render field instances */}
+      {item.repeatable ? (
+        <div className="space-y-3">
+          {instances.map((instanceId, index) => renderFieldInstance(instanceId, index))}
+          
+          {/* Add/Remove controls for repeatable fields */}
+          <div className="flex items-center gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addInstance}
+              disabled={instances.length >= (item.repeatable.max || Infinity)}
+              className="h-7 text-xs"
+            >
+              + Add
+            </Button>
+            <div className="text-xs text-muted-foreground">
+              {instances.length} of {item.repeatable.min || 0}-{item.repeatable.max || '∞'}
+            </div>
+          </div>
+        </div>
+      ) : (
+        renderFieldInstance(item.item_instance_id || 'single', 0)
+      )}
+
+      {/* Help text */}
+      {getHelpText() && (
+        <div className="text-xs text-muted-foreground mt-1">
+          {getHelpText()}
+        </div>
+      )}
+
+      {/* Read-only indicator */}
+      {item.editable === false && (
+        <div className="text-xs text-muted-foreground italic">
+          Read-only
         </div>
       )}
     </div>

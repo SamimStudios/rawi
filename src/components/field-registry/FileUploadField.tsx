@@ -21,6 +21,7 @@ interface FileUploadFieldProps {
   onChange: (value: any) => void;
   placeholder?: string;
   field?: any;
+  disabled?: boolean;
 }
 
 interface FileInfo {
@@ -31,7 +32,7 @@ interface FileInfo {
   lastModified: number;
 }
 
-export function FileUploadField({ value, onChange, placeholder = "Choose files or drag & drop", field }: FileUploadFieldProps) {
+export function FileUploadField({ value, onChange, placeholder = "Choose files or drag & drop", field, disabled = false }: FileUploadFieldProps) {
   const { t } = useLanguage();
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState<FileInfo[]>(
@@ -88,31 +89,39 @@ export function FileUploadField({ value, onChange, placeholder = "Choose files o
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(true);
+    if (!disabled) {
+      setIsDragging(true);
+    }
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(false);
+    if (!disabled) {
+      setIsDragging(false);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(false);
-    const droppedFiles = e.dataTransfer.files;
-    if (droppedFiles.length > 0) {
-      handleFiles(droppedFiles);
+    if (!disabled) {
+      setIsDragging(false);
+      const droppedFiles = e.dataTransfer.files;
+      if (droppedFiles.length > 0) {
+        handleFiles(droppedFiles);
+      }
     }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
+    if (!disabled && e.target.files && e.target.files.length > 0) {
       handleFiles(e.target.files);
     }
   };
 
   const openFilePicker = () => {
-    fileInputRef.current?.click();
+    if (!disabled) {
+      fileInputRef.current?.click();
+    }
   };
 
   return (
@@ -120,10 +129,12 @@ export function FileUploadField({ value, onChange, placeholder = "Choose files o
       {/* Upload Area */}
       <Card
         className={`
-          relative border-2 border-dashed transition-all duration-200 cursor-pointer
-          ${isDragging 
-            ? 'border-primary bg-primary/5 scale-[1.02]' 
-            : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50'
+          relative border-2 border-dashed transition-all duration-200 
+          ${disabled 
+            ? 'border-muted-foreground/10 bg-muted/20 cursor-not-allowed opacity-60' 
+            : isDragging 
+              ? 'border-primary bg-primary/5 scale-[1.02] cursor-pointer' 
+              : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50 cursor-pointer'
           }
         `}
         onDragOver={handleDragOver}
@@ -238,9 +249,12 @@ export function FileUploadField({ value, onChange, placeholder = "Choose files o
                       variant="ghost"
                       size="sm"
                       className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                      disabled={disabled}
                       onClick={(e) => {
                         e.stopPropagation();
-                        removeFile(index);
+                        if (!disabled) {
+                          removeFile(index);
+                        }
                       }}
                     >
                       <X className="h-4 w-4" />

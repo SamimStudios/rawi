@@ -28,6 +28,7 @@ interface DynamicFieldRendererProps {
   value: any;
   onChange: (value: any) => void;
   formValues?: Record<string, any>;
+  disabled?: boolean;
 }
 
 interface ValidationError {
@@ -35,7 +36,7 @@ interface ValidationError {
   type: string;
 }
 
-export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }: DynamicFieldRendererProps) {
+export function DynamicFieldRenderer({ field, value, onChange, formValues = {}, disabled = false }: DynamicFieldRendererProps) {
   const { t } = useLanguage();
   
   // Validation logic
@@ -243,6 +244,7 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
             value={value || ''}
             onChange={(e) => onChange(e.target.value)}
             type={field.datatype === 'number' ? 'number' : 'text'}
+            disabled={disabled}
           />
         );
 
@@ -253,12 +255,13 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
             value={value || ''}
             onChange={(e) => onChange(e.target.value)}
             rows={4}
+            disabled={disabled}
           />
         );
 
       case 'select':
         return (
-          <Select value={value || ''} onValueChange={onChange}>
+          <Select value={value || ''} onValueChange={onChange} disabled={disabled}>
             <SelectTrigger>
               <SelectValue placeholder={getPlaceholder() || t('selectOption') || 'Select an option'} />
             </SelectTrigger>
@@ -274,10 +277,10 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
 
       case 'radio':
         return (
-          <RadioGroup value={value || ''} onValueChange={onChange}>
+          <RadioGroup value={value || ''} onValueChange={onChange} disabled={disabled}>
             {filteredOptions.map((option, index) => (
               <div key={index} className="flex items-center space-x-2">
-                <RadioGroupItem value={String(option.value)} id={`${field.field_id}-${index}`} />
+                <RadioGroupItem value={String(option.value)} id={`${field.field_id}-${index}`} disabled={disabled} />
                 <Label htmlFor={`${field.field_id}-${index}`}>
                   {option.label?.key ? t(option.label.key) : option.label?.fallback}
                 </Label>
@@ -296,7 +299,9 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
                   <Checkbox
                     id={`${field.field_id}-${index}`}
                     checked={selectedValues.includes(option.value)}
+                    disabled={disabled}
                     onCheckedChange={(checked) => {
+                      if (disabled) return;
                       if (checked) {
                         onChange([...selectedValues, option.value]);
                       } else {
@@ -318,7 +323,8 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
             <Checkbox
               id={field.field_id}
               checked={!!value}
-              onCheckedChange={onChange}
+              disabled={disabled}
+              onCheckedChange={disabled ? undefined : onChange}
             />
             <Label htmlFor={field.field_id}>{getLabel()}</Label>
           </div>
@@ -337,16 +343,18 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
                   return (
                     <Badge key={index} variant="secondary" className="flex items-center gap-1">
                       {optionLabel}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-4 w-4 p-0 hover:bg-transparent"
-                        onClick={() => {
-                          onChange(tagValues.filter((_: any, i: number) => i !== index));
-                        }}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
+                      {!disabled && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-4 w-4 p-0 hover:bg-transparent"
+                          onClick={() => {
+                            onChange(tagValues.filter((_: any, i: number) => i !== index));
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      )}
                     </Badge>
                   );
                 })}
@@ -354,28 +362,30 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
             )}
             
             {/* Available options as clickable chips */}
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-muted-foreground">
-                {t('availableOptions') || 'Available options:'}
+            {!disabled && (
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">
+                  {t('availableOptions') || 'Available options:'}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {filteredOptions
+                    .filter(option => !tagValues.includes(option.value))
+                    .map((option, index) => (
+                      <Button
+                        key={index}
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs"
+                        onClick={() => {
+                          onChange([...tagValues, option.value]);
+                        }}
+                      >
+                        {option.label?.key ? t(option.label.key) : option.label?.fallback}
+                      </Button>
+                    ))}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {filteredOptions
-                  .filter(option => !tagValues.includes(option.value))
-                  .map((option, index) => (
-                    <Button
-                      key={index}
-                      variant="outline"
-                      size="sm"
-                      className="h-8 text-xs"
-                      onClick={() => {
-                        onChange([...tagValues, option.value]);
-                      }}
-                    >
-                      {option.label?.key ? t(option.label.key) : option.label?.fallback}
-                    </Button>
-                  ))}
-              </div>
-            </div>
+            )}
           </div>
         );
 
@@ -385,6 +395,7 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
             type="date"
             value={value || ''}
             onChange={(e) => onChange(e.target.value)}
+            disabled={disabled}
           />
         );
 
@@ -394,6 +405,7 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
             type="datetime-local"
             value={value || ''}
             onChange={(e) => onChange(e.target.value)}
+            disabled={disabled}
           />
         );
 
@@ -404,6 +416,7 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
             placeholder={getPlaceholder() || t('enterUrl') || 'https://example.com'}
             value={value || ''}
             onChange={(e) => onChange(e.target.value)}
+            disabled={disabled}
           />
         );
 
@@ -415,6 +428,7 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
               value={value || '#000000'}
               onChange={(e) => onChange(e.target.value)}
               className="w-16"
+              disabled={disabled}
             />
             <Input
               type="text"
@@ -422,6 +436,7 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
               value={value || ''}
               onChange={(e) => onChange(e.target.value)}
               className="font-mono"
+              disabled={disabled}
             />
           </div>
         );
@@ -433,6 +448,7 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
             onChange={onChange}
             placeholder={getPlaceholder()}
             field={field}
+            disabled={disabled}
           />
         );
 
