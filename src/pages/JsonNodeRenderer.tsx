@@ -151,15 +151,33 @@ const ValueDisplay: React.FC<{
 
   const displayValue = parseValueForDisplay(value || item.value, field.datatype);
 
+  const getImportanceLabelClasses = () => {
+    switch (item.importance) {
+      case 'low':
+        return 'text-xs font-normal text-muted-foreground';
+      case 'high':
+        return 'text-base font-bold text-foreground';
+      default:
+        return 'text-sm font-medium text-muted-foreground';
+    }
+  };
+
+  const getImportanceValueClasses = () => {
+    switch (item.importance) {
+      case 'low':
+        return 'text-xs font-light';
+      case 'high':
+        return 'text-base font-semibold';
+      default:
+        return 'text-sm font-normal';
+    }
+  };
+
   return (
     <div className="flex flex-col space-y-1">
-      <dt className="text-sm font-medium text-muted-foreground">{getLabel()}</dt>
-      <dd className="text-sm font-medium text-foreground">
-        {displayValue === 'Not set' ? (
-          <span className="text-muted-foreground italic">{displayValue}</span>
-        ) : (
-          displayValue
-        )}
+      <dt className={getImportanceLabelClasses()}>{getLabel()}</dt>
+      <dd className={`${getImportanceValueClasses()} ${displayValue === 'Not set' ? 'text-muted-foreground italic' : 'text-foreground'}`}>
+        {displayValue}
       </dd>
     </div>
   );
@@ -325,28 +343,45 @@ const ItemRenderer: React.FC<{
     return value || '';
   };
 
-  // Get importance styling classes
-  const getImportanceClasses = () => {
+  // Get importance styling classes for typography
+  const getImportanceLabelClasses = () => {
     switch (item.importance) {
       case 'low':
-        return 'border-muted/50 bg-muted/5';
+        return 'text-xs font-normal text-muted-foreground';
       case 'high':
-        return 'border-primary/30 bg-primary/5 shadow-sm';
+        return 'text-base font-bold text-foreground';
       default:
-        return 'border-border';
+        return 'text-sm font-medium text-foreground';
+    }
+  };
+
+  const getImportanceValueClasses = () => {
+    switch (item.importance) {
+      case 'low':
+        return 'text-xs font-light text-muted-foreground';
+      case 'high':
+        return 'text-base font-semibold text-foreground';
+      default:
+        return 'text-sm font-normal text-foreground';
     }
   };
 
   // Render single field instance
   const renderFieldInstance = (instanceId: string, instanceIndex: number) => (
     <div key={instanceId} className="relative">
-      <DynamicFieldRenderer
-        field={mergedField}
-        value={getControlledValue(instanceIndex)}
-        onChange={(newValue) => handleInstanceChange(instanceId, newValue)}
-        formValues={formValues}
-        disabled={item.editable === false}
-      />
+      <div>
+        <label className={getImportanceLabelClasses()}>
+          {getLabel()}
+          {mergedRules.required && <span className="text-destructive ml-1">*</span>}
+        </label>
+        <DynamicFieldRenderer
+          field={mergedField}
+          value={getControlledValue(instanceIndex)}
+          onChange={(newValue) => handleInstanceChange(instanceId, newValue)}
+          formValues={formValues}
+          disabled={item.editable === false}
+        />
+      </div>
       {item.repeatable && instances.length > 1 && (
         <Button
           type="button"
@@ -365,7 +400,7 @@ const ItemRenderer: React.FC<{
   // If not editing, show display mode
   if (!isEditing) {
     return (
-      <div className={`space-y-2 p-3 rounded-md border ${getImportanceClasses()}`}>
+      <div className="space-y-2 py-2">
         <ValueDisplay 
           item={item} 
           field={field} 
@@ -376,7 +411,7 @@ const ItemRenderer: React.FC<{
   }
 
   return (
-    <div className={`space-y-2 p-3 rounded-md border ${getImportanceClasses()}`}>
+    <div className="space-y-2 py-2">
       {/* Render field instances */}
       {item.repeatable ? (
         <div className="space-y-3">
