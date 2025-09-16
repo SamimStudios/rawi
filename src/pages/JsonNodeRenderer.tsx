@@ -110,9 +110,11 @@ const ItemRenderer: React.FC<{
   formValues: Record<string, any>;
 }> = ({ item, field, value, onChange, formValues }) => {
   const [instances, setInstances] = useState<string[]>(() => {
+    const genId = () => (typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID() : `id_${Math.random().toString(36).slice(2)}_${Date.now()}`);
     if (item.repeatable) {
-      const initialId = item.item_instance_id || crypto.randomUUID();
-      return [initialId];
+      const count = Math.max(1, item.repeatable.min ?? 1);
+      const initialIds = Array.from({ length: count }, (_, i) => (i === 0 && item.item_instance_id) ? item.item_instance_id! : genId());
+      return initialIds;
     }
     return [];
   });
