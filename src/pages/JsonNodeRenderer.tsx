@@ -435,29 +435,33 @@ const SubsectionRenderer: React.FC<{
   const [isOpen, setIsOpen] = useState(true);
 
   return (
-    <div className="border-l-2 border-muted pl-4 ml-2">
+    <div className="border border-border/40 rounded-lg bg-card/30 p-4">
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CollapsibleTrigger asChild>
-          <Button variant="ghost" className="p-0 h-auto font-medium text-sm flex items-center justify-start w-full">
-            {isOpen ? <ChevronDown className="h-4 w-4 mr-1" /> : <ChevronRight className="h-4 w-4 mr-1" />}
-            {subsection.label.fallback}
+          <Button variant="ghost" className="w-full justify-between p-0 h-8 font-medium text-sm hover:bg-transparent">
+            <span className="flex items-center">
+              {isOpen ? <ChevronDown className="h-4 w-4 mr-2" /> : <ChevronRight className="h-4 w-4 mr-2" />}
+              {subsection.label.fallback}
+            </span>
           </Button>
         </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-4 mt-3">
-          {(subsection.items || []).map((item) => {
-            const fieldKey = createFieldKey(sectionId, item.ref, subsection.id);
-            return (
-              <ItemRenderer
-                key={item.ref}
-                item={item}
-                field={fieldRegistry[item.ref]}
-                value={formValues[fieldKey] || ''}
-                onChange={(value) => onFieldChange(fieldKey, value)}
-                formValues={formValues}
-                isEditing={isEditing}
-              />
-            );
-          })}
+        <CollapsibleContent className="mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {(subsection.items || []).map((item) => {
+              const fieldKey = createFieldKey(sectionId, item.ref, subsection.id);
+              return (
+                <ItemRenderer
+                  key={item.ref}
+                  item={item}
+                  field={fieldRegistry[item.ref]}
+                  value={formValues[fieldKey] || ''}
+                  onChange={(value) => onFieldChange(fieldKey, value)}
+                  formValues={formValues}
+                  isEditing={isEditing}
+                />
+              );
+            })}
+          </div>
         </CollapsibleContent>
       </Collapsible>
     </div>
@@ -476,21 +480,23 @@ const SectionRenderer: React.FC<{
   const [isOpen, setIsOpen] = useState(true);
 
   return (
-    <div className="border-b border-border last:border-b-0 pb-6 last:pb-0">
+    <div className="border border-border rounded-lg bg-card shadow-sm">
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <div className="flex items-center justify-between">
+        <div className="p-4 border-b border-border">
           <CollapsibleTrigger asChild>
-            <Button variant="ghost" className="p-0 h-auto font-semibold text-lg flex items-center justify-start flex-1 hover:bg-transparent">
-              {isOpen ? <ChevronDown className="h-5 w-5 mr-2" /> : <ChevronRight className="h-5 w-5 mr-2" />}
-              <span>{section.label.fallback}</span>
+            <Button variant="ghost" className="w-full justify-between p-0 h-auto font-semibold text-base hover:bg-transparent">
+              <span className="flex items-center">
+                {isOpen ? <ChevronDown className="h-5 w-5 mr-2" /> : <ChevronRight className="h-5 w-5 mr-2" />}
+                {section.label.fallback}
+              </span>
             </Button>
           </CollapsibleTrigger>
         </div>
-        <CollapsibleContent className="mt-4">
-          <div className="space-y-6">
+        <CollapsibleContent>
+          <div className="p-4 space-y-4">
             {/* Render main section items */}
             {(section.items?.length ?? 0) > 0 && (
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {(section.items || []).map((item) => {
                   const fieldKey = createFieldKey(section.id, item.ref);
                   return (
@@ -849,155 +855,141 @@ export default function JsonNodeRenderer() {
   }, []);
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="text-center">
-        <h1 className="text-3xl font-bold">Live Node Renderer</h1>
-        <p className="text-muted-foreground mt-2">
-          Realtime view of node {nodeId} with sections and field registry integration
-        </p>
-      </div>
-
-      <div className="flex justify-center mb-6">
-        <Button onClick={handleRefresh} disabled={loading} className="flex items-center gap-2">
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? 'Refreshing...' : 'Refresh Data'}
-        </Button>
+    <div className="container mx-auto p-4 max-w-7xl">
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Live Node Renderer</h1>
+            <p className="text-sm text-muted-foreground">
+              Node {nodeId.split('-')[0]}... • {nodeContent?.sections?.length || 0} sections
+            </p>
+          </div>
+          <Button onClick={handleRefresh} disabled={loading} size="sm" variant="outline">
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </Button>
+        </div>
       </div>
 
       {error && (
-        <Alert variant="destructive" className="mb-6">
+        <Alert variant="destructive" className="mb-4">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-        {/* Node Info */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Node Information</CardTitle>
-            <CardDescription>
-              Database node properties and structure
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {parsedNode ? (
-              <div className="space-y-3 text-sm">
-                <div><strong>Node ID:</strong> {parsedNode.id}</div>
-                <div><strong>Type:</strong> {parsedNode.node_type}</div>
-                <div><strong>Path:</strong> {parsedNode.path}</div>
-                <div><strong>Job ID:</strong> {parsedNode.job_id}</div>
-                <div><strong>Version:</strong> {parsedNode.version}</div>
-                <div><strong>Updated:</strong> {new Date(parsedNode.updated_at).toLocaleString()}</div>
-                <div><strong>Sections:</strong> {nodeContent?.sections?.length || 0}</div>
-                <div><strong>Total Fields:</strong> {
-                  nodeContent?.sections?.reduce((total, section) => {
-                    const sectionItems = section.items?.length || 0;
-                    const subsectionItems = section.subsections?.reduce((subTotal, sub) => 
-                      subTotal + (sub.items?.length || 0), 0) || 0;
-                    return total + sectionItems + subsectionItems;
-                  }, 0) || 0
-                }</div>
-                <div><strong>Registry Fields Loaded:</strong> {Object.keys(fieldRegistry).length}</div>
-              </div>
-            ) : (
-              <div className="text-center text-muted-foreground py-8">
-                {error ? 'Error loading node data' : loading ? 'Loading node data...' : 'No node data'}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Rendered Node Form */}
-      {nodeContent && (
-        <div className="space-y-6">
-          <Card className={`${isEditingNode ? 'ring-2 ring-yellow-400/60 border-yellow-400/30 bg-yellow-50/10 shadow-lg' : ''}`}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Node: {parsedNode?.path}</CardTitle>
-                  <CardDescription>Form with {nodeContent.sections.length} sections</CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  {isEditingNode && (
-                    <>
-                      <Button
-                        variant="outline"
-                        size="sm"
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+        {/* Main Content */}
+        <div className="xl:col-span-3">
+          {nodeContent && (
+            <div className={`rounded-lg border-2 transition-all duration-200 ${
+              isEditingNode 
+                ? 'border-yellow-400/60 bg-yellow-50/5 shadow-lg shadow-yellow-400/10' 
+                : 'border-border bg-card'
+            }`}>
+              <div className="p-4 border-b border-border bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold">Node: {parsedNode?.path}</h2>
+                    <p className="text-sm text-muted-foreground">
+                      {nodeContent.sections.length} sections • 
+                      {nodeContent.sections.reduce((total, section) => {
+                        const sectionItems = section.items?.length || 0;
+                        const subsectionItems = section.subsections?.reduce((subTotal, sub) => 
+                          subTotal + (sub.items?.length || 0), 0) || 0;
+                        return total + sectionItems + subsectionItems;
+                      }, 0)} fields
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isEditingNode ? (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={toggleNodeEdit}
+                          className="h-8 text-muted-foreground"
+                        >
+                          <X className="h-4 w-4 mr-1" />
+                          Cancel
+                        </Button>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={saveNode}
+                          className="h-8"
+                        >
+                          <Save className="h-4 w-4 mr-1" />
+                          Save
+                        </Button>
+                      </>
+                    ) : (
+                      <EditButton
                         onClick={toggleNodeEdit}
-                        className="h-8"
-                      >
-                        <X className="h-4 w-4 mr-1" />
-                        Cancel
-                      </Button>
-                      <Button
-                        variant="default"
+                        isEditing={isEditingNode}
                         size="sm"
-                        onClick={saveNode}
-                        className="h-8"
-                      >
-                        <Save className="h-4 w-4 mr-1" />
-                        Save
-                      </Button>
-                    </>
-                  )}
-                  <EditButton
-                    onClick={toggleNodeEdit}
-                    isEditing={isEditingNode}
-                    size="sm"
-                    variant={isEditingNode ? "ghost" : "outline"}
-                  />
+                        variant="outline"
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {nodeContent.sections.map((section) => (
-                <SectionRenderer
-                  key={section.id}
-                  section={section}
-                  fieldRegistry={fieldRegistry}
-                  formValues={formValues}
-                  onFieldChange={handleFieldChange}
-                  isEditing={isEditingNode}
-                  createFieldKey={createFieldKey}
-                />
-              ))}
-            </CardContent>
+              <div className="p-4 space-y-4">
+                {nodeContent.sections.map((section) => (
+                  <SectionRenderer
+                    key={section.id}
+                    section={section}
+                    fieldRegistry={fieldRegistry}
+                    formValues={formValues}
+                    onFieldChange={handleFieldChange}
+                    isEditing={isEditingNode}
+                    createFieldKey={createFieldKey}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Sidebar */}
+        <div className="xl:col-span-1 space-y-4">
+          {/* Node Info */}
+          <Card className="p-4">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium">Connected</span>
+              </div>
+              {parsedNode && (
+                <div className="space-y-2 text-xs">
+                  <div><span className="font-medium">Type:</span> {parsedNode.node_type}</div>
+                  <div><span className="font-medium">Version:</span> {parsedNode.version}</div>
+                  <div><span className="font-medium">Updated:</span> {new Date(parsedNode.updated_at).toLocaleString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric', 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })}</div>
+                  <div><span className="font-medium">Registry:</span> {Object.keys(fieldRegistry).length} fields</div>
+                </div>
+              )}
+            </div>
           </Card>
 
           {/* Form Values Debug */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Form Values (Debug)</CardTitle>
-              <CardDescription>Current form state</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <pre className="text-xs bg-muted p-4 rounded overflow-auto max-h-40">
-                {JSON.stringify(formValues, null, 2)}
+          <Card className="p-4">
+            <div className="mb-2">
+              <h3 className="text-sm font-medium">Form Values</h3>
+              <p className="text-xs text-muted-foreground">Current state</p>
+            </div>
+            <div className="max-h-48 overflow-auto">
+              <pre className="text-xs bg-muted p-2 rounded text-wrap">
+                {JSON.stringify(formValues, null, 1)}
               </pre>
-            </CardContent>
+            </div>
           </Card>
         </div>
-      )}
-
-      {/* Realtime Status */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Realtime Status</CardTitle>
-          <CardDescription>Live updates from the database</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-2 text-sm">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span>Connected to realtime updates</span>
-          </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            Changes to node {nodeId} will appear automatically
-          </p>
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }
