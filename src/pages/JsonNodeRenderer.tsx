@@ -670,11 +670,15 @@ export default function JsonNodeRenderer() {
 
   const saveNode = async () => {
     try {
+      if (!nodeContent || !parsedNode) {
+        throw new Error('No node content to save');
+      }
+
       // Parse values according to their datatypes
       const parsedValues: Record<string, any> = {};
       
       // Get all items across all sections to parse their values
-      nodeContent?.sections.forEach((section: Section) => {
+      nodeContent.sections.forEach((section: Section) => {
         // Parse section items
         section.items?.forEach(item => {
           const field = fieldRegistry[item.ref];
@@ -694,8 +698,42 @@ export default function JsonNodeRenderer() {
         });
       });
 
-      // TODO: Save to backend here - update the node's content with new values
-      console.log('Saving node:', nodeId, 'with values:', parsedValues);
+      // Create updated content with new values
+      const updatedContent = JSON.parse(JSON.stringify(nodeContent)); // Deep clone
+      
+      // Update item values in the content
+      updatedContent.sections.forEach((section: Section) => {
+        // Update section items
+        section.items?.forEach(item => {
+          if (parsedValues[item.ref] !== undefined) {
+            item.value = parsedValues[item.ref];
+          }
+        });
+        
+        // Update subsection items
+        section.subsections?.forEach(subsection => {
+          subsection.items?.forEach(item => {
+            if (parsedValues[item.ref] !== undefined) {
+              item.value = parsedValues[item.ref];
+            }
+          });
+        });
+      });
+
+      // Save to database
+      const { error } = await supabase
+        .from('storyboard_nodes')
+        .update({
+          content: updatedContent,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', nodeId);
+
+      if (error) throw error;
+
+      // Update local state
+      setParsedNode(prev => prev ? { ...prev, updated_at: new Date().toISOString() } : null);
+      setNodeContent(updatedContent);
       
       // Exit edit mode
       setIsEditingNode(false);
@@ -704,7 +742,7 @@ export default function JsonNodeRenderer() {
       toast.success('Node saved successfully!');
     } catch (err) {
       console.error('Failed to save node:', err);
-      toast.error('Failed to save node');
+      toast.error(`Failed to save node: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
