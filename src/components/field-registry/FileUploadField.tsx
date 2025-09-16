@@ -34,19 +34,47 @@ interface FileInfo {
 
 export function FileUploadField({ value, onChange, placeholder = "Choose files or drag & drop", field, disabled = false }: FileUploadFieldProps) {
   const { t } = useLanguage();
-  const [isDragging, setIsDragging] = useState(false);
-  const [files, setFiles] = useState<FileInfo[]>(
-    Array.isArray(value) ? value : (value ? [value] : [])
-  );
-  const fileInputRef = useRef<HTMLInputElement>(null);
+const [isDragging, setIsDragging] = useState(false);
 
-  const getFileIcon = (type: string) => {
-    if (type.startsWith('image/')) return <Image className="h-4 w-4" />;
-    if (type.startsWith('video/')) return <Video className="h-4 w-4" />;
-    if (type.startsWith('audio/')) return <Music className="h-4 w-4" />;
-    if (type.includes('pdf') || type.includes('document') || type.includes('text')) return <FileText className="h-4 w-4" />;
-    return <File className="h-4 w-4" />;
-  };
+const toFileInfo = (v: any): FileInfo | null => {
+  try {
+    if (!v) return null;
+    if (typeof v === 'string') {
+      return {
+        name: v.split('/').pop() || 'file',
+        size: 0,
+        type: '',
+        url: v,
+        lastModified: Date.now(),
+      };
+    }
+    if (typeof v === 'object') {
+      return {
+        name: v.name || v.url?.split('/').pop() || 'file',
+        size: Number(v.size) || 0,
+        type: typeof v.type === 'string' ? v.type : '',
+        url: v.url || v.href || undefined,
+        lastModified: Number(v.lastModified) || Date.now(),
+      };
+    }
+  } catch {}
+  return null;
+};
+
+const [files, setFiles] = useState<FileInfo[]>(() => {
+  const arr = Array.isArray(value) ? value : (value ? [value] : []);
+  return arr.map(toFileInfo).filter(Boolean) as FileInfo[];
+});
+const fileInputRef = useRef<HTMLInputElement>(null);
+
+const getFileIcon = (type?: string) => {
+  const tstr = type || '';
+  if (tstr.startsWith('image/')) return <Image className="h-4 w-4" />;
+  if (tstr.startsWith('video/')) return <Video className="h-4 w-4" />;
+  if (tstr.startsWith('audio/')) return <Music className="h-4 w-4" />;
+  if (tstr.includes('pdf') || tstr.includes('document') || tstr.includes('text')) return <FileText className="h-4 w-4" />;
+  return <File className="h-4 w-4" />;
+};
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
@@ -56,14 +84,15 @@ export function FileUploadField({ value, onChange, placeholder = "Choose files o
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const getFileTypeColor = (type: string) => {
-    if (type.startsWith('image/')) return 'bg-green-100 text-green-800';
-    if (type.startsWith('video/')) return 'bg-purple-100 text-purple-800';
-    if (type.startsWith('audio/')) return 'bg-blue-100 text-blue-800';
-    if (type.includes('pdf')) return 'bg-red-100 text-red-800';
-    if (type.includes('document')) return 'bg-indigo-100 text-indigo-800';
-    return 'bg-gray-100 text-gray-800';
-  };
+const getFileTypeColor = (type?: string) => {
+  const tstr = type || '';
+  if (tstr.startsWith('image/')) return 'bg-green-100 text-green-800';
+  if (tstr.startsWith('video/')) return 'bg-purple-100 text-purple-800';
+  if (tstr.startsWith('audio/')) return 'bg-blue-100 text-blue-800';
+  if (tstr.includes('pdf')) return 'bg-red-100 text-red-800';
+  if (tstr.includes('document')) return 'bg-indigo-100 text-indigo-800';
+  return 'bg-gray-100 text-gray-800';
+};
 
   const handleFiles = (fileList: FileList) => {
     const newFiles: FileInfo[] = Array.from(fileList).map(file => ({
@@ -192,87 +221,86 @@ export function FileUploadField({ value, onChange, placeholder = "Choose files o
                   <div className="flex-shrink-0">
                     {getFileIcon(file.type)}
                   </div>
-                  
-                  {/* File Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="text-sm font-medium truncate">
-                        {file.name}
-                      </p>
-                      <Badge 
-                        variant="secondary" 
-                        className={`text-xs ${getFileTypeColor(file.type)}`}
-                      >
-                        {file.type.split('/')[1]?.toUpperCase() || 'FILE'}
-                      </Badge>
-                    </div>
-                    
-                    <p className="text-xs text-muted-foreground">
-                      {formatFileSize(file.size)}
-                    </p>
-                  </div>
-                  
-                  {/* Actions */}
-                  <div className="flex items-center gap-1">
-                    {file.url && file.type.startsWith('image/') && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          window.open(file.url, '_blank');
-                        }}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    )}
-                    
-                    {file.url && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const a = document.createElement('a');
-                          a.href = file.url!;
-                          a.download = file.name;
-                          a.click();
-                        }}
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    )}
-                    
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                      disabled={disabled}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (!disabled) {
-                          removeFile(index);
-                        }
-                      }}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                
-                {/* Image Preview */}
-                {file.url && file.type.startsWith('image/') && (
-                  <div className="mt-3">
-                    <img 
-                      src={file.url} 
-                      alt={file.name}
-                      className="max-h-32 rounded border"
-                      style={{ maxWidth: '100%', height: 'auto' }}
-                    />
-                  </div>
-                )}
+                   {/* File Info */}
+                   <div className="flex-1 min-w-0">
+                     <div className="flex items-center gap-2 mb-1">
+                       <p className="text-sm font-medium truncate">
+                         {file.name}
+                       </p>
+                       <Badge 
+                         variant="secondary" 
+                         className={`text-xs ${getFileTypeColor(file.type)}`}
+                       >
+                         {file.type && file.type.split('/')[1]?.toUpperCase() || 'FILE'}
+                       </Badge>
+                     </div>
+                     
+                     <p className="text-xs text-muted-foreground">
+                       {formatFileSize(file.size)}
+                     </p>
+                   </div>
+                   
+                   {/* Actions */}
+                   <div className="flex items-center gap-1">
+                     {file.url && file.type && file.type.startsWith('image/') && (
+                       <Button
+                         variant="ghost"
+                         size="sm"
+                         className="h-8 w-8 p-0"
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           window.open(file.url, '_blank');
+                         }}
+                       >
+                         <Eye className="h-4 w-4" />
+                       </Button>
+                     )}
+                     
+                     {file.url && (
+                       <Button
+                         variant="ghost"
+                         size="sm"
+                         className="h-8 w-8 p-0"
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           const a = document.createElement('a');
+                           a.href = file.url!;
+                           a.download = file.name;
+                           a.click();
+                         }}
+                       >
+                         <Download className="h-4 w-4" />
+                       </Button>
+                     )}
+                     
+                     <Button
+                       variant="ghost"
+                       size="sm"
+                       className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                       disabled={disabled}
+                       onClick={(e) => {
+                         e.stopPropagation();
+                         if (!disabled) {
+                           removeFile(index);
+                         }
+                       }}
+                     >
+                       <X className="h-4 w-4" />
+                     </Button>
+                   </div>
+                 </div>
+                 
+                 {/* Image Preview */}
+                 {file.url && file.type && file.type.startsWith('image/') && (
+                   <div className="mt-3">
+                     <img 
+                       src={file.url} 
+                       alt={file.name}
+                       className="max-h-32 rounded border"
+                       style={{ maxWidth: '100%', height: 'auto' }}
+                     />
+                   </div>
+                 )}
               </Card>
             ))}
           </div>
