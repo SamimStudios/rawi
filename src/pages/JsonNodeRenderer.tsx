@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DynamicFieldRenderer } from '@/components/field-registry/DynamicFieldRenderer';
 import { EditButton } from '@/components/ui/edit-button';
-import { AlertCircle, RefreshCw, ChevronDown, ChevronRight, Save } from 'lucide-react';
+import { AlertCircle, RefreshCw, ChevronDown, ChevronRight, Save, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
@@ -112,22 +112,33 @@ const ValueDisplay: React.FC<{
   const parseValueForDisplay = (val: any, datatype: string): string => {
     if (val === null || val === undefined || val === '') return 'Not set';
     
+    // Handle objects by attempting to extract meaningful display value
+    if (typeof val === 'object' && val !== null) {
+      if (Array.isArray(val)) {
+        return val.length > 0 ? val.map(item => 
+          typeof item === 'object' ? JSON.stringify(item) : String(item)
+        ).join(', ') : 'Not set';
+      }
+      // For non-array objects, try to stringify in a readable way
+      return JSON.stringify(val);
+    }
+    
     switch (datatype.toLowerCase()) {
       case 'boolean':
         return val ? 'Yes' : 'No';
       case 'number':
       case 'integer':
-        return val.toString();
+        return String(val);
       case 'array':
-        return Array.isArray(val) ? val.join(', ') : val.toString();
+        return Array.isArray(val) ? val.join(', ') : String(val);
       case 'date':
-        return val instanceof Date ? val.toLocaleDateString() : val.toString();
+        return val instanceof Date ? val.toLocaleDateString() : String(val);
       case 'email':
       case 'url':
       case 'text':
       case 'string':
       default:
-        return Array.isArray(val) ? val.join(', ') : val.toString();
+        return String(val);
     }
   };
 
@@ -294,8 +305,17 @@ const ItemRenderer: React.FC<{
     }
   };
 
-  // Get controlled value (use item.value if provided, otherwise use form value)
+  // Get controlled value - prioritize form state during editing, fallback to item.value
   const getControlledValue = (instanceIndex?: number) => {
+    // During editing, prioritize form state over item.value
+    if (isEditing) {
+      if (item.repeatable && Array.isArray(value)) {
+        return value[instanceIndex || 0] || '';
+      }
+      return value !== undefined ? value : '';
+    }
+    
+    // In display mode, use item.value if available, otherwise form value
     if (item.value !== undefined) {
       return item.repeatable && Array.isArray(item.value) ? item.value[instanceIndex || 0] : item.value;
     }
@@ -446,13 +466,11 @@ const SectionRenderer: React.FC<{
   formValues: Record<string, any>;
   onFieldChange: (fieldId: string, value: any) => void;
   isEditing?: boolean;
-  onToggleEdit?: () => void;
-  onSave?: () => void;
-}> = ({ section, fieldRegistry, formValues, onFieldChange, isEditing = false, onToggleEdit, onSave }) => {
+}> = ({ section, fieldRegistry, formValues, onFieldChange, isEditing = false }) => {
   const [isOpen, setIsOpen] = useState(true);
 
   return (
-    <div className={`border-b border-border last:border-b-0 pb-6 last:pb-0 rounded-lg ${isEditing ? 'border-yellow-400/60 bg-yellow-50/30 shadow-md' : ''}`}>
+    <div className="border-b border-border last:border-b-0 pb-6 last:pb-0">
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <div className="flex items-center justify-between">
           <CollapsibleTrigger asChild>
@@ -461,28 +479,6 @@ const SectionRenderer: React.FC<{
               <span>{section.label.fallback}</span>
             </Button>
           </CollapsibleTrigger>
-          
-          <div className="flex items-center gap-2">
-            {isEditing && onSave && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={onSave}
-                className="h-8"
-              >
-                <Save className="h-4 w-4 mr-1" />
-                Save
-              </Button>
-            )}
-            {onToggleEdit && (
-              <EditButton
-                onClick={onToggleEdit}
-                isEditing={isEditing}
-                size="sm"
-                variant="ghost"
-              />
-            )}
-          </div>
         </div>
         <CollapsibleContent className="mt-4">
           <div className="space-y-6">
@@ -532,7 +528,7 @@ export default function JsonNodeRenderer() {
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [formValues, setFormValues] = useState<Record<string, any>>({});
-  const [editingSections, setEditingSections] = useState<Set<string>>(new Set());
+  const [isEditingNode, setIsEditingNode] = useState(false);
   const [originalValues, setOriginalValues] = useState<Record<string, any>>({});
   
   const nodeId = '2041b303-a2ec-4f9b-bee2-cccd46fb8563';
@@ -597,20 +593,28 @@ export default function JsonNodeRenderer() {
       setNodeContent(content);
       setError('');
       
-      // Initialize form values with default values
+      // Initialize form values with item values or default values
       const initialValues: Record<string, any> = {};
       content.sections?.forEach((section: Section) => {
         section.items?.forEach((item: Item) => {
-          const field = fieldRegistry[item.ref];
-          if (field?.default_value !== undefined) {
-            initialValues[item.ref] = field.default_value;
+          if (item.value !== undefined) {
+            initialValues[item.ref] = item.value;
+          } else {
+            const field = fieldRegistry[item.ref];
+            if (field?.default_value !== undefined) {
+              initialValues[item.ref] = field.default_value;
+            }
           }
         });
         section.subsections?.forEach((subsection: Subsection) => {
           subsection.items?.forEach((item: Item) => {
-            const field = fieldRegistry[item.ref];
-            if (field?.default_value !== undefined) {
-              initialValues[item.ref] = field.default_value;
+            if (item.value !== undefined) {
+              initialValues[item.ref] = item.value;
+            } else {
+              const field = fieldRegistry[item.ref];
+              if (field?.default_value !== undefined) {
+                initialValues[item.ref] = field.default_value;
+              }
             }
           });
         });
@@ -651,31 +655,26 @@ export default function JsonNodeRenderer() {
     }
   };
 
-  const toggleSectionEdit = (sectionId: string) => {
-    setEditingSections(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(sectionId)) {
-        newSet.delete(sectionId);
-      } else {
-        newSet.add(sectionId);
-        // Store original values when entering edit mode
-        setOriginalValues(prevOriginal => ({
-          ...prevOriginal,
-          [sectionId]: { ...formValues }
-        }));
-      }
-      return newSet;
-    });
+  const toggleNodeEdit = () => {
+    if (isEditingNode) {
+      // Cancel editing - restore original values
+      setFormValues(originalValues);
+      setIsEditingNode(false);
+      setOriginalValues({});
+    } else {
+      // Enter edit mode - store original values
+      setOriginalValues({ ...formValues });
+      setIsEditingNode(true);
+    }
   };
 
-  const saveSection = async (sectionId: string) => {
+  const saveNode = async () => {
     try {
       // Parse values according to their datatypes
       const parsedValues: Record<string, any> = {};
       
-      // Get all items in this section to parse their values
-      const section = nodeContent?.sections.find(s => s.id === sectionId);
-      if (section) {
+      // Get all items across all sections to parse their values
+      nodeContent?.sections.forEach((section: Section) => {
         // Parse section items
         section.items?.forEach(item => {
           const field = fieldRegistry[item.ref];
@@ -693,29 +692,19 @@ export default function JsonNodeRenderer() {
             }
           });
         });
-      }
+      });
 
-      // TODO: Save to backend here
-      console.log('Saving section:', sectionId, 'with values:', parsedValues);
+      // TODO: Save to backend here - update the node's content with new values
+      console.log('Saving node:', nodeId, 'with values:', parsedValues);
       
       // Exit edit mode
-      setEditingSections(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(sectionId);
-        return newSet;
-      });
-      
-      // Clear original values for this section
-      setOriginalValues(prev => {
-        const newOriginal = { ...prev };
-        delete newOriginal[sectionId];
-        return newOriginal;
-      });
+      setIsEditingNode(false);
+      setOriginalValues({});
 
-      toast.success('Section saved successfully!');
+      toast.success('Node saved successfully!');
     } catch (err) {
-      console.error('Failed to save section:', err);
-      toast.error('Failed to save section');
+      console.error('Failed to save node:', err);
+      toast.error('Failed to save node');
     }
   };
 
@@ -852,10 +841,44 @@ export default function JsonNodeRenderer() {
       {/* Rendered Node Form */}
       {nodeContent && (
         <div className="space-y-6">
-          <Card>
+          <Card className={`${isEditingNode ? 'ring-2 ring-yellow-400/60 border-yellow-400/30 bg-yellow-50/10 shadow-lg' : ''}`}>
             <CardHeader>
-              <CardTitle>Node: {parsedNode?.path}</CardTitle>
-              <CardDescription>Form with {nodeContent.sections.length} sections</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Node: {parsedNode?.path}</CardTitle>
+                  <CardDescription>Form with {nodeContent.sections.length} sections</CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  {isEditingNode && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={toggleNodeEdit}
+                        className="h-8"
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={saveNode}
+                        className="h-8"
+                      >
+                        <Save className="h-4 w-4 mr-1" />
+                        Save
+                      </Button>
+                    </>
+                  )}
+                  <EditButton
+                    onClick={toggleNodeEdit}
+                    isEditing={isEditingNode}
+                    size="sm"
+                    variant={isEditingNode ? "ghost" : "outline"}
+                  />
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-6">
               {nodeContent.sections.map((section) => (
@@ -865,9 +888,7 @@ export default function JsonNodeRenderer() {
                   fieldRegistry={fieldRegistry}
                   formValues={formValues}
                   onFieldChange={handleFieldChange}
-                  isEditing={editingSections.has(section.id)}
-                  onToggleEdit={() => toggleSectionEdit(section.id)}
-                  onSave={() => saveSection(section.id)}
+                  isEditing={isEditingNode}
                 />
               ))}
             </CardContent>
