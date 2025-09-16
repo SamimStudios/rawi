@@ -42,16 +42,6 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
   const validateField = (fieldValue: any): ValidationError | null => {
     const rules = field.rules || {};
     
-    // Required validation (universal)
-    if (rules.required) {
-      if (!fieldValue || (Array.isArray(fieldValue) && fieldValue.length === 0) || (typeof fieldValue === 'string' && fieldValue.trim() === '')) {
-        return {
-          message: t('fieldRequired') || `${getLabel()} is required`,
-          type: 'required'
-        };
-      }
-    }
-    
     // String-based validations (string, uuid, url, date, datetime)
     if (['string', 'uuid', 'url', 'date', 'datetime'].includes(field.datatype) && typeof fieldValue === 'string') {
       // minLength validation
