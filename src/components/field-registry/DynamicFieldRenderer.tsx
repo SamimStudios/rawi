@@ -30,8 +30,83 @@ interface DynamicFieldRendererProps {
   formValues?: Record<string, any>;
 }
 
+interface ValidationError {
+  message: string;
+  type: string;
+}
+
 export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }: DynamicFieldRendererProps) {
   const { t } = useLanguage();
+  
+  // Validation logic
+  const validateField = (fieldValue: any): ValidationError | null => {
+    const rules = field.rules || {};
+    
+    // Required validation
+    if (rules.required) {
+      if (!fieldValue || (Array.isArray(fieldValue) && fieldValue.length === 0) || (typeof fieldValue === 'string' && fieldValue.trim() === '')) {
+        return {
+          message: t('fieldRequired') || `${getLabel()} is required`,
+          type: 'required'
+        };
+      }
+    }
+    
+    // Length validation
+    if (typeof fieldValue === 'string') {
+      if (rules.minLength && fieldValue.length < rules.minLength) {
+        return {
+          message: t('fieldTooShort') || `Minimum ${rules.minLength} characters required`,
+          type: 'minLength'
+        };
+      }
+      if (rules.maxLength && fieldValue.length > rules.maxLength) {
+        return {
+          message: t('fieldTooLong') || `Maximum ${rules.maxLength} characters allowed`,
+          type: 'maxLength'
+        };
+      }
+    }
+    
+    // Number validation
+    if (field.datatype === 'number' && fieldValue !== '' && fieldValue != null) {
+      const numValue = Number(fieldValue);
+      if (isNaN(numValue)) {
+        return {
+          message: t('invalidNumber') || 'Please enter a valid number',
+          type: 'invalidNumber'
+        };
+      }
+      if (rules.min !== undefined && numValue < rules.min) {
+        return {
+          message: t('numberTooSmall') || `Minimum value is ${rules.min}`,
+          type: 'min'
+        };
+      }
+      if (rules.max !== undefined && numValue > rules.max) {
+        return {
+          message: t('numberTooLarge') || `Maximum value is ${rules.max}`,
+          type: 'max'
+        };
+      }
+    }
+    
+    // URL validation
+    if (field.widget === 'url' && fieldValue && typeof fieldValue === 'string') {
+      try {
+        new URL(fieldValue);
+      } catch {
+        return {
+          message: t('invalidUrl') || 'Please enter a valid URL',
+          type: 'invalidUrl'
+        };
+      }
+    }
+    
+    return null;
+  };
+
+  const validationError = validateField(value);
   
   const getLabel = () => {
     const labelData = field.ui?.label;
@@ -296,6 +371,11 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
         )}
       </Label>
       {renderByWidget()}
+      {validationError && (
+        <p className="text-sm text-red-500 font-medium">
+          {validationError.message}
+        </p>
+      )}
     </div>
   );
 }
