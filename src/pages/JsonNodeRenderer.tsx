@@ -425,11 +425,13 @@ const ItemRenderer: React.FC<{
 // Component for rendering subsections
 const SubsectionRenderer: React.FC<{
   subsection: Subsection;
+  sectionId: string;
   fieldRegistry: Record<string, FieldRegistry>;
   formValues: Record<string, any>;
   onFieldChange: (fieldId: string, value: any) => void;
   isEditing?: boolean;
-}> = ({ subsection, fieldRegistry, formValues, onFieldChange, isEditing = false }) => {
+  createFieldKey: (sectionId: string, itemRef: string, subsectionId?: string) => string;
+}> = ({ subsection, sectionId, fieldRegistry, formValues, onFieldChange, isEditing = false, createFieldKey }) => {
   const [isOpen, setIsOpen] = useState(true);
 
   return (
@@ -442,17 +444,20 @@ const SubsectionRenderer: React.FC<{
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-4 mt-3">
-          {(subsection.items || []).map((item) => (
-            <ItemRenderer
-              key={item.ref}
-              item={item}
-              field={fieldRegistry[item.ref]}
-              value={formValues[item.ref] || ''}
-              onChange={(value) => onFieldChange(item.ref, value)}
-              formValues={formValues}
-              isEditing={isEditing}
-            />
-          ))}
+          {(subsection.items || []).map((item) => {
+            const fieldKey = createFieldKey(sectionId, item.ref, subsection.id);
+            return (
+              <ItemRenderer
+                key={item.ref}
+                item={item}
+                field={fieldRegistry[item.ref]}
+                value={formValues[fieldKey] || ''}
+                onChange={(value) => onFieldChange(fieldKey, value)}
+                formValues={formValues}
+                isEditing={isEditing}
+              />
+            );
+          })}
         </CollapsibleContent>
       </Collapsible>
     </div>
@@ -466,7 +471,8 @@ const SectionRenderer: React.FC<{
   formValues: Record<string, any>;
   onFieldChange: (fieldId: string, value: any) => void;
   isEditing?: boolean;
-}> = ({ section, fieldRegistry, formValues, onFieldChange, isEditing = false }) => {
+  createFieldKey: (sectionId: string, itemRef: string, subsectionId?: string) => string;
+}> = ({ section, fieldRegistry, formValues, onFieldChange, isEditing = false, createFieldKey }) => {
   const [isOpen, setIsOpen] = useState(true);
 
   return (
@@ -485,17 +491,20 @@ const SectionRenderer: React.FC<{
             {/* Render main section items */}
             {(section.items?.length ?? 0) > 0 && (
               <div className="space-y-4">
-                {(section.items || []).map((item) => (
-                  <ItemRenderer
-                    key={item.ref}
-                    item={item}
-                    field={fieldRegistry[item.ref]}
-                    value={formValues[item.ref] || ''}
-                    onChange={(value) => onFieldChange(item.ref, value)}
-                    formValues={formValues}
-                    isEditing={isEditing}
-                  />
-                ))}
+                {(section.items || []).map((item) => {
+                  const fieldKey = createFieldKey(section.id, item.ref);
+                  return (
+                    <ItemRenderer
+                      key={item.ref}
+                      item={item}
+                      field={fieldRegistry[item.ref]}
+                      value={formValues[fieldKey] || ''}
+                      onChange={(value) => onFieldChange(fieldKey, value)}
+                      formValues={formValues}
+                      isEditing={isEditing}
+                    />
+                  );
+                })}
               </div>
             )}
 
@@ -506,10 +515,12 @@ const SectionRenderer: React.FC<{
                   <SubsectionRenderer
                     key={subsection.id}
                     subsection={subsection}
+                    sectionId={section.id}
                     fieldRegistry={fieldRegistry}
                     formValues={formValues}
                     onFieldChange={onFieldChange}
                     isEditing={isEditing}
+                    createFieldKey={createFieldKey}
                   />
                 ))}
               </div>
@@ -597,23 +608,25 @@ export default function JsonNodeRenderer() {
       const initialValues: Record<string, any> = {};
       content.sections?.forEach((section: Section) => {
         section.items?.forEach((item: Item) => {
+          const fieldKey = createFieldKey(section.id, item.ref);
           if (item.value !== undefined) {
-            initialValues[item.ref] = item.value;
+            initialValues[fieldKey] = item.value;
           } else {
             const field = fieldRegistry[item.ref];
             if (field?.default_value !== undefined) {
-              initialValues[item.ref] = field.default_value;
+              initialValues[fieldKey] = field.default_value;
             }
           }
         });
         section.subsections?.forEach((subsection: Subsection) => {
           subsection.items?.forEach((item: Item) => {
+            const fieldKey = createFieldKey(section.id, item.ref, subsection.id);
             if (item.value !== undefined) {
-              initialValues[item.ref] = item.value;
+              initialValues[fieldKey] = item.value;
             } else {
               const field = fieldRegistry[item.ref];
               if (field?.default_value !== undefined) {
-                initialValues[item.ref] = field.default_value;
+                initialValues[fieldKey] = field.default_value;
               }
             }
           });
@@ -626,6 +639,23 @@ export default function JsonNodeRenderer() {
       setParsedNode(null);
       setNodeContent(null);
     }
+  };
+
+  // Helper function to create unique field keys
+  const createFieldKey = (sectionId: string, itemRef: string, subsectionId?: string): string => {
+    if (subsectionId) {
+      return `${sectionId}.${subsectionId}.${itemRef}`;
+    }
+    return `${sectionId}.${itemRef}`;
+  };
+
+  // Helper function to parse field key back to components
+  const parseFieldKey = (fieldKey: string): { sectionId: string; subsectionId?: string; itemRef: string } => {
+    const parts = fieldKey.split('.');
+    if (parts.length === 3) {
+      return { sectionId: parts[0], subsectionId: parts[1], itemRef: parts[2] };
+    }
+    return { sectionId: parts[0], itemRef: parts[1] };
   };
 
   const handleFieldChange = (fieldId: string, value: any) => {
@@ -674,25 +704,27 @@ export default function JsonNodeRenderer() {
         throw new Error('No node content to save');
       }
 
-      // Parse values according to their datatypes
+      // Parse values according to their datatypes and match them to their original items
       const parsedValues: Record<string, any> = {};
       
       // Get all items across all sections to parse their values
       nodeContent.sections.forEach((section: Section) => {
         // Parse section items
         section.items?.forEach(item => {
+          const fieldKey = createFieldKey(section.id, item.ref);
           const field = fieldRegistry[item.ref];
-          if (field && formValues[item.ref] !== undefined) {
-            parsedValues[item.ref] = parseValueByDatatype(formValues[item.ref], field.datatype);
+          if (field && formValues[fieldKey] !== undefined) {
+            parsedValues[fieldKey] = parseValueByDatatype(formValues[fieldKey], field.datatype);
           }
         });
         
         // Parse subsection items
         section.subsections?.forEach(subsection => {
           subsection.items?.forEach(item => {
+            const fieldKey = createFieldKey(section.id, item.ref, subsection.id);
             const field = fieldRegistry[item.ref];
-            if (field && formValues[item.ref] !== undefined) {
-              parsedValues[item.ref] = parseValueByDatatype(formValues[item.ref], field.datatype);
+            if (field && formValues[fieldKey] !== undefined) {
+              parsedValues[fieldKey] = parseValueByDatatype(formValues[fieldKey], field.datatype);
             }
           });
         });
@@ -701,20 +733,22 @@ export default function JsonNodeRenderer() {
       // Create updated content with new values
       const updatedContent = JSON.parse(JSON.stringify(nodeContent)); // Deep clone
       
-      // Update item values in the content
+      // Update item values in the content using the parsed field keys
       updatedContent.sections.forEach((section: Section) => {
         // Update section items
         section.items?.forEach(item => {
-          if (parsedValues[item.ref] !== undefined) {
-            item.value = parsedValues[item.ref];
+          const fieldKey = createFieldKey(section.id, item.ref);
+          if (parsedValues[fieldKey] !== undefined) {
+            item.value = parsedValues[fieldKey];
           }
         });
         
         // Update subsection items
         section.subsections?.forEach(subsection => {
           subsection.items?.forEach(item => {
-            if (parsedValues[item.ref] !== undefined) {
-              item.value = parsedValues[item.ref];
+            const fieldKey = createFieldKey(section.id, item.ref, subsection.id);
+            if (parsedValues[fieldKey] !== undefined) {
+              item.value = parsedValues[fieldKey];
             }
           });
         });
@@ -927,6 +961,7 @@ export default function JsonNodeRenderer() {
                   formValues={formValues}
                   onFieldChange={handleFieldChange}
                   isEditing={isEditingNode}
+                  createFieldKey={createFieldKey}
                 />
               ))}
             </CardContent>
