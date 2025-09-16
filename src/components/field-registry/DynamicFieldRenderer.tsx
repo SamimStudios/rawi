@@ -289,7 +289,12 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
 
   return (
     <div className="space-y-2">
-      <Label className="text-sm font-medium">{getLabel()}</Label>
+      <Label className="text-sm font-medium flex items-center gap-1">
+        {getLabel()}
+        {field.rules?.required && (
+          <span className="text-red-500">*</span>
+        )}
+      </Label>
       {renderByWidget()}
     </div>
   );
