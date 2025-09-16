@@ -191,7 +191,8 @@ const ItemRenderer: React.FC<{
   onChange: (value: any) => void;
   formValues: Record<string, any>;
   isEditing?: boolean;
-}> = ({ item, field, value, onChange, formValues, isEditing = false }) => {
+  validationErrors?: string[];
+}> = ({ item, field, value, onChange, formValues, isEditing = false, validationErrors = [] }) => {
   const genId = () => (typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID() : `id_${Math.random().toString(36).slice(2)}_${Date.now()}`);
 
   const getEffectiveArray = (): any[] => {
@@ -355,17 +356,6 @@ const ItemRenderer: React.FC<{
     }
   };
 
-  const getImportanceValueClasses = () => {
-    switch (item.importance) {
-      case 'low':
-        return 'text-xs font-light text-muted-foreground';
-      case 'high':
-        return 'text-base font-semibold text-foreground';
-      default:
-        return 'text-sm font-normal text-foreground';
-    }
-  };
-
   // Render single field instance
   const renderFieldInstance = (instanceId: string, instanceIndex: number) => (
     <div key={instanceId} className="relative">
@@ -440,6 +430,18 @@ const ItemRenderer: React.FC<{
         renderFieldInstance(item.item_instance_id || 'single', 0)
       )}
 
+      {/* Validation errors */}
+      {validationErrors.length > 0 && (
+        <div className="space-y-1">
+          {validationErrors.map((error, index) => (
+            <div key={index} className="text-xs text-destructive flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" />
+              {error}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Help text */}
       {getHelpText() && (
         <div className="text-xs text-muted-foreground mt-1">
@@ -466,7 +468,8 @@ const SubsectionRenderer: React.FC<{
   onFieldChange: (fieldId: string, value: any) => void;
   isEditing?: boolean;
   createFieldKey: (sectionId: string, itemRef: string, subsectionId?: string) => string;
-}> = ({ subsection, sectionId, fieldRegistry, formValues, onFieldChange, isEditing = false, createFieldKey }) => {
+  validationErrors: Record<string, string[]>;
+}> = ({ subsection, sectionId, fieldRegistry, formValues, onFieldChange, isEditing = false, createFieldKey, validationErrors }) => {
   const [isOpen, setIsOpen] = useState(true);
 
   return (
@@ -493,6 +496,7 @@ const SubsectionRenderer: React.FC<{
                   onChange={(value) => onFieldChange(fieldKey, value)}
                   formValues={formValues}
                   isEditing={isEditing}
+                  validationErrors={validationErrors[fieldKey] || []}
                 />
               );
             })}
@@ -511,7 +515,8 @@ const SectionRenderer: React.FC<{
   onFieldChange: (fieldId: string, value: any) => void;
   isEditing?: boolean;
   createFieldKey: (sectionId: string, itemRef: string, subsectionId?: string) => string;
-}> = ({ section, fieldRegistry, formValues, onFieldChange, isEditing = false, createFieldKey }) => {
+  validationErrors: Record<string, string[]>;
+}> = ({ section, fieldRegistry, formValues, onFieldChange, isEditing = false, createFieldKey, validationErrors }) => {
   const [isOpen, setIsOpen] = useState(true);
 
   return (
@@ -529,10 +534,10 @@ const SectionRenderer: React.FC<{
         </div>
         <CollapsibleContent>
           <div className="p-4 space-y-4">
-            {/* Render main section items */}
-            {(section.items?.length ?? 0) > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {(section.items || []).map((item) => {
+            {/* Direct section items */}
+            {section.items && section.items.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {section.items.map((item) => {
                   const fieldKey = createFieldKey(section.id, item.ref);
                   return (
                     <ItemRenderer
@@ -543,16 +548,17 @@ const SectionRenderer: React.FC<{
                       onChange={(value) => onFieldChange(fieldKey, value)}
                       formValues={formValues}
                       isEditing={isEditing}
+                      validationErrors={validationErrors[fieldKey] || []}
                     />
                   );
                 })}
               </div>
             )}
 
-            {/* Render subsections */}
-            {(section.subsections?.length ?? 0) > 0 && (
+            {/* Subsections */}
+            {section.subsections && section.subsections.length > 0 && (
               <div className="space-y-4">
-                {(section.subsections || []).map((subsection) => (
+                {section.subsections.map((subsection) => (
                   <SubsectionRenderer
                     key={subsection.id}
                     subsection={subsection}
@@ -562,6 +568,7 @@ const SectionRenderer: React.FC<{
                     onFieldChange={onFieldChange}
                     isEditing={isEditing}
                     createFieldKey={createFieldKey}
+                    validationErrors={validationErrors}
                   />
                 ))}
               </div>
@@ -574,27 +581,41 @@ const SectionRenderer: React.FC<{
 };
 
 export default function JsonNodeRenderer() {
+  const nodeId = '2041b303-a2ec-4f9b-bee2-cccd46fb8563';
+  
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [parsedNode, setParsedNode] = useState<Node | null>(null);
   const [nodeContent, setNodeContent] = useState<NodeContent | null>(null);
   const [fieldRegistry, setFieldRegistry] = useState<Record<string, FieldRegistry>>({});
-  const [error, setError] = useState<string>('');
-  const [loading, setLoading] = useState(false);
   const [formValues, setFormValues] = useState<Record<string, any>>({});
   const [isEditingNode, setIsEditingNode] = useState(false);
   const [originalValues, setOriginalValues] = useState<Record<string, any>>({});
-  
-  const nodeId = '2041b303-a2ec-4f9b-bee2-cccd46fb8563';
 
   // Fetch field registry
   const fetchFieldRegistry = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('field-registry-api');
+      const { data, error } = await supabase
+        .from('field_registry')
+        .select('*');
+      
       if (error) throw error;
       
       const registry: Record<string, FieldRegistry> = {};
-      data.fields?.forEach((field: FieldRegistry) => {
-        registry[field.field_id] = field;
+      data.forEach(field => {
+        registry[field.field_id] = {
+          id: field.id,
+          field_id: field.field_id,
+          datatype: field.datatype,
+          widget: field.widget,
+          options: field.options,
+          rules: field.rules,
+          ui: field.ui,
+          default_value: field.default_value,
+          resolvedOptions: []
+        };
       });
+      
       setFieldRegistry(registry);
     } catch (err) {
       console.error('Failed to fetch field registry:', err);
@@ -703,6 +724,180 @@ export default function JsonNodeRenderer() {
     setFormValues(prev => ({ ...prev, [fieldId]: value }));
   };
 
+  // Validation logic
+  const validateFormValues = (): { isValid: boolean; errors: Record<string, string[]> } => {
+    const errors: Record<string, string[]> = {};
+    
+    if (!nodeContent) return { isValid: true, errors };
+    
+    // Validate all sections
+    nodeContent.sections.forEach((section: Section) => {
+      // Validate section items
+      section.items?.forEach(item => {
+        const fieldKey = createFieldKey(section.id, item.ref);
+        const field = fieldRegistry[item.ref];
+        const value = formValues[fieldKey];
+        const fieldErrors: string[] = [];
+        
+        if (field) {
+          // Merge item rules with field rules
+          const mergedRules = { ...field.rules };
+          if (item.required !== undefined) {
+            mergedRules.required = item.required;
+          }
+          if (item.rules) {
+            Object.assign(mergedRules, item.rules);
+          }
+          
+          // Check required rule
+          if (mergedRules.required && (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0))) {
+            fieldErrors.push('This field is required');
+          }
+          
+          // Check other rules if value exists
+          if (value !== undefined && value !== null && value !== '') {
+            // Min length
+            if (mergedRules.minLength && typeof value === 'string' && value.length < mergedRules.minLength) {
+              fieldErrors.push(`Minimum length is ${mergedRules.minLength}`);
+            }
+            
+            // Max length
+            if (mergedRules.maxLength && typeof value === 'string' && value.length > mergedRules.maxLength) {
+              fieldErrors.push(`Maximum length is ${mergedRules.maxLength}`);
+            }
+            
+            // Min value
+            if (mergedRules.min && typeof value === 'number' && value < mergedRules.min) {
+              fieldErrors.push(`Minimum value is ${mergedRules.min}`);
+            }
+            
+            // Max value
+            if (mergedRules.max && typeof value === 'number' && value > mergedRules.max) {
+              fieldErrors.push(`Maximum value is ${mergedRules.max}`);
+            }
+            
+            // Array length constraints
+            if (Array.isArray(value)) {
+              if (mergedRules.min && value.length < mergedRules.min) {
+                fieldErrors.push(`Minimum ${mergedRules.min} items required`);
+              }
+              if (mergedRules.max && value.length > mergedRules.max) {
+                fieldErrors.push(`Maximum ${mergedRules.max} items allowed`);
+              }
+            }
+            
+            // Email validation
+            if (field.datatype === 'email' && typeof value === 'string') {
+              const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+              if (!emailRegex.test(value)) {
+                fieldErrors.push('Invalid email format');
+              }
+            }
+            
+            // URL validation
+            if (field.datatype === 'url' && typeof value === 'string') {
+              try {
+                new URL(value);
+              } catch {
+                fieldErrors.push('Invalid URL format');
+              }
+            }
+          }
+        }
+        
+        if (fieldErrors.length > 0) {
+          errors[fieldKey] = fieldErrors;
+        }
+      });
+      
+      // Validate subsection items
+      section.subsections?.forEach(subsection => {
+        subsection.items?.forEach(item => {
+          const fieldKey = createFieldKey(section.id, item.ref, subsection.id);
+          const field = fieldRegistry[item.ref];
+          const value = formValues[fieldKey];
+          const fieldErrors: string[] = [];
+          
+          if (field) {
+            // Merge item rules with field rules
+            const mergedRules = { ...field.rules };
+            if (item.required !== undefined) {
+              mergedRules.required = item.required;
+            }
+            if (item.rules) {
+              Object.assign(mergedRules, item.rules);
+            }
+            
+            // Check required rule
+            if (mergedRules.required && (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0))) {
+              fieldErrors.push('This field is required');
+            }
+            
+            // Check other rules if value exists
+            if (value !== undefined && value !== null && value !== '') {
+              // Min length
+              if (mergedRules.minLength && typeof value === 'string' && value.length < mergedRules.minLength) {
+                fieldErrors.push(`Minimum length is ${mergedRules.minLength}`);
+              }
+              
+              // Max length
+              if (mergedRules.maxLength && typeof value === 'string' && value.length > mergedRules.maxLength) {
+                fieldErrors.push(`Maximum length is ${mergedRules.maxLength}`);
+              }
+              
+              // Min value
+              if (mergedRules.min && typeof value === 'number' && value < mergedRules.min) {
+                fieldErrors.push(`Minimum value is ${mergedRules.min}`);
+              }
+              
+              // Max value
+              if (mergedRules.max && typeof value === 'number' && value > mergedRules.max) {
+                fieldErrors.push(`Maximum value is ${mergedRules.max}`);
+              }
+              
+              // Array length constraints
+              if (Array.isArray(value)) {
+                if (mergedRules.min && value.length < mergedRules.min) {
+                  fieldErrors.push(`Minimum ${mergedRules.min} items required`);
+                }
+                if (mergedRules.max && value.length > mergedRules.max) {
+                  fieldErrors.push(`Maximum ${mergedRules.max} items allowed`);
+                }
+              }
+              
+              // Email validation
+              if (field.datatype === 'email' && typeof value === 'string') {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(value)) {
+                  fieldErrors.push('Invalid email format');
+                }
+              }
+              
+              // URL validation
+              if (field.datatype === 'url' && typeof value === 'string') {
+                try {
+                  new URL(value);
+                } catch {
+                  fieldErrors.push('Invalid URL format');
+                }
+              }
+            }
+          }
+          
+          if (fieldErrors.length > 0) {
+            errors[fieldKey] = fieldErrors;
+          }
+        });
+      });
+    });
+    
+    return { isValid: Object.keys(errors).length === 0, errors };
+  };
+
+  // Get validation state
+  const validationState = validateFormValues();
+  const hasValidationErrors = !validationState.isValid;
+
   // Parse values based on field datatype
   const parseValueByDatatype = (value: any, datatype: string): any => {
     if (value === null || value === undefined || value === '') return value;
@@ -740,6 +935,14 @@ export default function JsonNodeRenderer() {
   };
 
   const saveNode = async () => {
+    // Validate before saving
+    const validation = validateFormValues();
+    if (!validation.isValid) {
+      const errorCount = Object.keys(validation.errors).length;
+      toast.error(`Cannot save: ${errorCount} field${errorCount > 1 ? 's have' : ' has'} validation errors`);
+      return;
+    }
+
     try {
       if (!nodeContent || !parsedNode) {
         throw new Error('No node content to save');
@@ -934,6 +1137,11 @@ export default function JsonNodeRenderer() {
                           subTotal + (sub.items?.length || 0), 0) || 0;
                         return total + sectionItems + subsectionItems;
                       }, 0)} fields
+                      {isEditingNode && hasValidationErrors && (
+                        <span className="text-destructive ml-2">
+                          • {Object.keys(validationState.errors).length} validation error{Object.keys(validationState.errors).length > 1 ? 's' : ''}
+                        </span>
+                      )}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -952,6 +1160,7 @@ export default function JsonNodeRenderer() {
                           variant="default"
                           size="sm"
                           onClick={saveNode}
+                          disabled={hasValidationErrors}
                           className="h-8"
                         >
                           <Save className="h-4 w-4 mr-1" />
@@ -979,6 +1188,7 @@ export default function JsonNodeRenderer() {
                     onFieldChange={handleFieldChange}
                     isEditing={isEditingNode}
                     createFieldKey={createFieldKey}
+                    validationErrors={validationState.errors}
                   />
                 ))}
               </div>
@@ -998,31 +1208,27 @@ export default function JsonNodeRenderer() {
               {parsedNode && (
                 <div className="space-y-2 text-xs">
                   <div><span className="font-medium">Type:</span> {parsedNode.node_type}</div>
+                  <div><span className="font-medium">Job:</span> {parsedNode.job_id.split('-')[0]}...</div>
                   <div><span className="font-medium">Version:</span> {parsedNode.version}</div>
-                  <div><span className="font-medium">Updated:</span> {new Date(parsedNode.updated_at).toLocaleString('en-US', { 
-                    month: 'short', 
-                    day: 'numeric', 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  })}</div>
-                  <div><span className="font-medium">Registry:</span> {Object.keys(fieldRegistry).length} fields</div>
+                  <div><span className="font-medium">Updated:</span> {new Date(parsedNode.updated_at).toLocaleString()}</div>
                 </div>
               )}
             </div>
           </Card>
 
-          {/* Form Values Debug */}
-          <Card className="p-4">
-            <div className="mb-2">
-              <h3 className="text-sm font-medium">Form Values</h3>
-              <p className="text-xs text-muted-foreground">Current state</p>
-            </div>
-            <div className="max-h-48 overflow-auto">
-              <pre className="text-xs bg-muted p-2 rounded text-wrap">
-                {JSON.stringify(formValues, null, 1)}
-              </pre>
-            </div>
-          </Card>
+          {/* Form State Debug */}
+          {isEditingNode && (
+            <Card className="p-4">
+              <h3 className="text-sm font-medium mb-2">Debug Info</h3>
+              <div className="text-xs space-y-1">
+                <div>Fields: {Object.keys(formValues).length}</div>
+                <div>Registry: {Object.keys(fieldRegistry).length}</div>
+                <div className="text-destructive">
+                  Errors: {Object.keys(validationState.errors).length}
+                </div>
+              </div>
+            </Card>
+          )}
         </div>
       </div>
     </div>
