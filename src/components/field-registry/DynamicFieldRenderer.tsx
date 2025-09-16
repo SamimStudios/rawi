@@ -42,7 +42,7 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
   const validateField = (fieldValue: any): ValidationError | null => {
     const rules = field.rules || {};
     
-    // Required validation
+    // Required validation (universal)
     if (rules.required) {
       if (!fieldValue || (Array.isArray(fieldValue) && fieldValue.length === 0) || (typeof fieldValue === 'string' && fieldValue.trim() === '')) {
         return {
@@ -52,19 +52,81 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
       }
     }
     
-    // Length validation
-    if (typeof fieldValue === 'string') {
-      if (rules.minLength && fieldValue.length < rules.minLength) {
+    // String-based validations (string, uuid, url, date, datetime)
+    if (['string', 'uuid', 'url', 'date', 'datetime'].includes(field.datatype) && typeof fieldValue === 'string') {
+      // minLength validation
+      if (rules.minLength !== undefined && fieldValue.length < rules.minLength) {
         return {
           message: t('fieldTooShort') || `Minimum ${rules.minLength} characters required`,
           type: 'minLength'
         };
       }
-      if (rules.maxLength && fieldValue.length > rules.maxLength) {
+      
+      // maxLength validation
+      if (rules.maxLength !== undefined && fieldValue.length > rules.maxLength) {
         return {
           message: t('fieldTooLong') || `Maximum ${rules.maxLength} characters allowed`,
           type: 'maxLength'
         };
+      }
+      
+      // Pattern validation
+      if (rules.pattern && fieldValue) {
+        try {
+          const regex = new RegExp(rules.pattern);
+          if (!regex.test(fieldValue)) {
+            return {
+              message: t('invalidFormat') || 'Invalid format',
+              type: 'pattern'
+            };
+          }
+        } catch (e) {
+          // Invalid regex pattern - skip validation
+        }
+      }
+      
+      // Format validation
+      if (rules.format && fieldValue) {
+        switch (rules.format) {
+          case 'email':
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(fieldValue)) {
+              return {
+                message: t('invalidEmail') || 'Please enter a valid email address',
+                type: 'format'
+              };
+            }
+            break;
+          case 'phone':
+            const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
+            if (!phoneRegex.test(fieldValue.replace(/[\s\-\(\)]/g, ''))) {
+              return {
+                message: t('invalidPhone') || 'Please enter a valid phone number',
+                type: 'format'
+              };
+            }
+            break;
+          case 'url':
+          case 'uri':
+            try {
+              new URL(fieldValue);
+            } catch {
+              return {
+                message: t('invalidUrl') || 'Please enter a valid URL',
+                type: 'format'
+              };
+            }
+            break;
+          case 'color':
+            const colorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+            if (!colorRegex.test(fieldValue)) {
+              return {
+                message: t('invalidColor') || 'Please enter a valid color code',
+                type: 'format'
+              };
+            }
+            break;
+        }
       }
     }
     
@@ -77,21 +139,52 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {} }
           type: 'invalidNumber'
         };
       }
-      if (rules.min !== undefined && numValue < rules.min) {
+      
+      // minimum validation
+      if (rules.minimum !== undefined && numValue < rules.minimum) {
         return {
-          message: t('numberTooSmall') || `Minimum value is ${rules.min}`,
-          type: 'min'
+          message: t('numberTooSmall') || `Minimum value is ${rules.minimum}`,
+          type: 'minimum'
         };
       }
-      if (rules.max !== undefined && numValue > rules.max) {
+      
+      // maximum validation
+      if (rules.maximum !== undefined && numValue > rules.maximum) {
         return {
-          message: t('numberTooLarge') || `Maximum value is ${rules.max}`,
-          type: 'max'
+          message: t('numberTooLarge') || `Maximum value is ${rules.maximum}`,
+          type: 'maximum'
         };
       }
     }
     
-    // URL validation
+    // Array validation
+    if (field.datatype === 'array' && Array.isArray(fieldValue)) {
+      // minItems validation
+      if (rules.minItems !== undefined && fieldValue.length < rules.minItems) {
+        return {
+          message: t('tooFewItems') || `Please select at least ${rules.minItems} items`,
+          type: 'minItems'
+        };
+      }
+      
+      // maxItems validation
+      if (rules.maxItems !== undefined && fieldValue.length > rules.maxItems) {
+        return {
+          message: t('tooManyItems') || `Please select no more than ${rules.maxItems} items`,
+          type: 'maxItems'
+        };
+      }
+      
+      // uniqueItems validation
+      if (rules.uniqueItems && fieldValue.length !== new Set(fieldValue).size) {
+        return {
+          message: t('duplicateItems') || 'All items must be unique',
+          type: 'uniqueItems'
+        };
+      }
+    }
+    
+    // URL widget specific validation (fallback for non-url datatype)
     if (field.widget === 'url' && fieldValue && typeof fieldValue === 'string') {
       try {
         new URL(fieldValue);
