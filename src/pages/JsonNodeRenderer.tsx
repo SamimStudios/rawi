@@ -187,18 +187,16 @@ const SectionRenderer: React.FC<{
   const [isOpen, setIsOpen] = useState(true);
 
   return (
-    <Card>
+    <div className="border-b border-border last:border-b-0 pb-6 last:pb-0">
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CollapsibleTrigger asChild>
-          <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardTitle className="flex items-center justify-between">
-              <span>{section.label.fallback}</span>
-              {isOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-            </CardTitle>
-          </CardHeader>
+          <Button variant="ghost" className="p-0 h-auto font-semibold text-lg flex items-center justify-between w-full hover:bg-transparent">
+            <span>{section.label.fallback}</span>
+            {isOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+          </Button>
         </CollapsibleTrigger>
-        <CollapsibleContent>
-          <CardContent className="space-y-6">
+        <CollapsibleContent className="mt-4">
+          <div className="space-y-6">
             {/* Render main section items */}
             {section.items.length > 0 && (
               <div className="space-y-4">
@@ -229,10 +227,10 @@ const SectionRenderer: React.FC<{
                 ))}
               </div>
             )}
-          </CardContent>
+          </div>
         </CollapsibleContent>
       </Collapsible>
-    </Card>
+    </div>
   );
 };
 
@@ -414,22 +412,23 @@ export default function JsonNodeRenderer() {
       {/* Rendered Node Form */}
       {nodeContent && (
         <div className="space-y-6">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold">Rendered Form</h2>
-            <p className="text-muted-foreground">Live preview of the node sections and fields</p>
-          </div>
-          
-          <div className="space-y-4">
-            {nodeContent.sections.map((section) => (
-              <SectionRenderer
-                key={section.id}
-                section={section}
-                fieldRegistry={fieldRegistry}
-                formValues={formValues}
-                onFieldChange={handleFieldChange}
-              />
-            ))}
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Node: {parsedNode?.path}</CardTitle>
+              <CardDescription>Form with {nodeContent.sections.length} sections</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {nodeContent.sections.map((section) => (
+                <SectionRenderer
+                  key={section.id}
+                  section={section}
+                  fieldRegistry={fieldRegistry}
+                  formValues={formValues}
+                  onFieldChange={handleFieldChange}
+                />
+              ))}
+            </CardContent>
+          </Card>
 
           {/* Form Values Debug */}
           <Card>
