@@ -109,12 +109,22 @@ const ItemRenderer: React.FC<{
   onChange: (value: any) => void;
   formValues: Record<string, any>;
 }> = ({ item, field, value, onChange, formValues }) => {
+  const genId = () => (typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID() : `id_${Math.random().toString(36).slice(2)}_${Date.now()}`);
+
+  const getEffectiveArray = (): any[] => {
+    const vArr = Array.isArray(value) ? value : (value == null || value === '' ? [] : [value]);
+    const iArr = Array.isArray(item.value) ? item.value : (item.value == null || item.value === '' ? [] : [item.value]);
+    return vArr.length ? vArr : iArr;
+  };
+
+  const initialCount = item.repeatable ? Math.max(item.repeatable.min ?? 1, getEffectiveArray().length || 1) : 0;
   const [instances, setInstances] = useState<string[]>(() => {
-    const genId = () => (typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID() : `id_${Math.random().toString(36).slice(2)}_${Date.now()}`);
     if (item.repeatable) {
-      const count = Math.max(1, item.repeatable.min ?? 1);
-      const initialIds = Array.from({ length: count }, (_, i) => (i === 0 && item.item_instance_id) ? item.item_instance_id! : genId());
-      return initialIds;
+      const ids: string[] = [];
+      for (let i = 0; i < initialCount; i++) {
+        ids.push(i === 0 && item.item_instance_id ? item.item_instance_id! : genId());
+      }
+      return ids;
     }
     return [];
   });
@@ -176,11 +186,31 @@ const ItemRenderer: React.FC<{
     }
   };
 
+  // Sync instances with array length and min bound
+  useEffect(() => {
+    if (!item.repeatable) return;
+    const arr = getEffectiveArray();
+    const targetLen = Math.max(item.repeatable.min ?? 1, arr.length || 1);
+    if (targetLen !== instances.length) {
+      setInstances((prev) => {
+        const next = [...prev];
+        if (targetLen > prev.length) {
+          for (let i = prev.length; i < targetLen; i++) next.push(genId());
+        } else {
+          next.length = targetLen;
+        }
+        return next;
+      });
+    }
+  }, [value, item.value, item.repeatable?.min]);
+
   // Handle repeatable instances
   const addInstance = () => {
     if (item.repeatable && instances.length < (item.repeatable.max || Infinity)) {
-      const newId = crypto.randomUUID();
+      const newId = genId();
       setInstances(prev => [...prev, newId]);
+      const current = getEffectiveArray();
+      onChange([...current, '']);
     }
   };
 
@@ -188,7 +218,7 @@ const ItemRenderer: React.FC<{
     if (item.repeatable && instances.length > (item.repeatable.min || 0)) {
       setInstances(prev => prev.filter(id => id !== instanceId));
       // Also remove the value for this instance
-      const currentValue = Array.isArray(value) ? value : [];
+      const currentValue = getEffectiveArray();
       const instanceIndex = instances.indexOf(instanceId);
       if (instanceIndex !== -1) {
         const newValue = currentValue.filter((_, index) => index !== instanceIndex);
@@ -265,22 +295,24 @@ const ItemRenderer: React.FC<{
         <div className="space-y-3">
           {instances.map((instanceId, index) => renderFieldInstance(instanceId, index))}
           
-          {/* Add/Remove controls for repeatable fields */}
-          <div className="flex items-center gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addInstance}
-              disabled={instances.length >= (item.repeatable.max || Infinity)}
-              className="h-7 text-xs"
-            >
-              + Add
-            </Button>
-            <div className="text-xs text-muted-foreground">
-              {instances.length} of {item.repeatable.min || 0}-{item.repeatable.max || '∞'}
+          {/* Add control only if config allows more than one instance */}
+          {item.repeatable && ((item.repeatable.max ?? Infinity) > 1) && (
+            <div className="flex items-center gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addInstance}
+                disabled={instances.length >= (item.repeatable.max || Infinity)}
+                className="h-7 text-xs"
+              >
+                + Add
+              </Button>
+              <div className="text-xs text-muted-foreground">
+                {instances.length} of {item.repeatable.min || 0}-{item.repeatable.max || '∞'}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       ) : (
         renderFieldInstance(item.item_instance_id || 'single', 0)
