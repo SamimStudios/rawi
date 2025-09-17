@@ -473,25 +473,26 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
                       />
                     </div>
                     {canRemove && (
-                    <Button 
-                      size="sm" 
-                      variant="ghost" 
-                      onClick={() => handleRepeatableRemove(index + 1)}
-                      className={`h-6 w-6 p-0 ${getAccentClasses().color} hover:${getAccentClasses().color}`}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-          
-          {fieldError && (
-            <div className={`text-sm ${getAccentClasses().color}`}>{fieldError}</div>
-          )}
-        </div>
-      );
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        onClick={() => handleRepeatableRemove(index + 1)}
+                        className={`h-6 w-6 p-0 ${getAccentClasses().color} hover:${getAccentClasses().color}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    )}
+                 </div>
+               );
+             })}
+             </div>
+           )}
+           
+           {fieldError && (
+             <div className={`text-sm ${getAccentClasses().color}`}>{fieldError}</div>
+           )}
+         </div>
+       );
     }
 
     // Single field editing
