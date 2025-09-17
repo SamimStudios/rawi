@@ -495,7 +495,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
     );
   };
 
-  // Section Renderer
+  // Section Renderer with proper individual collapse state
   const SectionRenderer: React.FC<{
     section: Section;
     fieldRegistry: FieldRegistry[];
@@ -508,126 +508,144 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
     if (section.hidden) return null;
 
     const sectionPath = `section_${section.id}_${section.section_instance_id || 1}`;
-    const isCollapsed = section.collapsed ? collapsedSections[sectionPath] !== false : collapsedSections[sectionPath] === true;
+    // Each section has independent collapse state - default to expanded unless explicitly collapsed
+    const isCollapsed = collapsedSections[sectionPath] ?? section.collapsed ?? false;
     
     const isRepeatable = section.repeatable && section.repeatable.max && section.repeatable.max > 1;
-    const canAddSection = !isRepeatable || !section.repeatable?.max || true; // Would need proper instance counting
-    const canRemoveSection = !isRepeatable || !section.repeatable?.min || (section.section_instance_id || 1) > (section.repeatable.min || 1);
 
     // Sort items by idx
     const sortedItems = [...(section.items || [])].sort((a, b) => (a.idx || 0) - (b.idx || 0));
     const sortedSubsections = [...(section.subsections || [])].sort((a, b) => (a.idx || 0) - (b.idx || 0));
 
-    const renderSectionHeader = () => (
-      <div className="flex items-center justify-between w-full">
-        <div className="flex items-center gap-2">
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="p-0 h-auto">
-              <ChevronDown className={cn(
-                "h-4 w-4 transition-transform duration-200",
-                isCollapsed && "-rotate-90"
-              )} />
-            </Button>
-          </CollapsibleTrigger>
-          <div>
-            <h3 className={cn(
-              "font-semibold",
-              depth === 0 ? "text-xl" : "text-lg"
-            )}>
-              {section.label.fallback}
-              {section.required && <span className="text-accent ml-1">*</span>}
-            </h3>
-            {section.description && (
-              <p className="text-sm text-muted-foreground mt-1">
-                {section.description.fallback}
-              </p>
-            )}
-          </div>
-        </div>
-        
-        {isEditing && isRepeatable && (
-          <div className="flex items-center gap-2">
-            {canAddSection && (
-              <Button 
-                size="sm" 
-                variant="outline" 
-                onClick={() => addSectionInstance(section.id, [])}
-                className="h-8"
-              >
-                <Plus className="h-3 w-3 mr-1" />
-                Add {section.label.fallback}
-              </Button>
-            )}
-            {canRemoveSection && (section.section_instance_id || 1) > 1 && (
-              <Button 
-                size="sm" 
-                variant="outline" 
-                onClick={() => removeSectionInstance(section.id, section.section_instance_id || 1)}
-                className="h-8 text-accent border-accent hover:bg-accent hover:text-accent-foreground"
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            )}
-          </div>
-        )}
-      </div>
-    );
+    const sectionBorderColor = depth === 0 ? "border-primary/20" : "border-muted-foreground/20";
+    const sectionBgColor = depth === 0 ? "bg-card" : "bg-muted/30";
 
     return (
-      <Collapsible 
-        open={!isCollapsed} 
-        onOpenChange={() => toggleSectionCollapse(sectionPath)}
-        className="space-y-4"
-      >
-        {renderSectionHeader()}
-        
-        <CollapsibleContent className="space-y-6">
-          {/* Direct items */}
-          {sortedItems.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sortedItems.map((item) => {
-                const registry = fieldRegistry.find(r => r.field_id === item.ref);
-                if (!registry) {
-                  return (
-                    <div key={`${item.ref}_${item.item_instance_id || 1}`} className="text-muted-foreground">
-                      Field registry not found for: {item.ref}
-                    </div>
-                  );
-                }
-
-                return (
-                  <FieldItemRenderer
-                    key={`${item.ref}_${item.item_instance_id || 1}`}
-                    item={item}
-                    sectionId={section.id}
-                    registry={registry}
-                    isEditing={isEditing}
-                    formValues={formValues}
-                    onValueChange={onValueChange}
-                    validationErrors={validationErrors}
-                    sectionInstanceId={section.section_instance_id}
-                  />
-                );
-              })}
+      <div className={cn(
+        "rounded-lg border transition-all duration-200",
+        sectionBorderColor,
+        sectionBgColor,
+        depth > 0 && "ml-4"
+      )}>
+        {/* Section Header */}
+        <Collapsible 
+          open={!isCollapsed} 
+          onOpenChange={() => toggleSectionCollapse(sectionPath)}
+        >
+          <CollapsibleTrigger className="w-full">
+            <div className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors rounded-t-lg">
+              <div className="flex items-center gap-3">
+                <ChevronRight className={cn(
+                  "h-5 w-5 transition-transform duration-200 text-muted-foreground",
+                  !isCollapsed && "rotate-90"
+                )} />
+                <div className="text-left">
+                  <h3 className={cn(
+                    "font-semibold flex items-center gap-2",
+                    depth === 0 ? "text-lg" : "text-base"
+                  )}>
+                    {section.label.fallback}
+                    {section.required && <span className="text-destructive">*</span>}
+                    {isRepeatable && (
+                      <Badge variant="outline" className="text-xs">
+                        Instance {section.section_instance_id || 1}
+                      </Badge>
+                    )}
+                  </h3>
+                  {section.description && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {section.description.fallback}
+                    </p>
+                  )}
+                </div>
+              </div>
+              
+              {isEditing && isRepeatable && (
+                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => addSectionInstance(section.id, [])}
+                    className="h-7"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                  {(section.section_instance_id || 1) > 1 && (
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => removeSectionInstance(section.id, section.section_instance_id || 1)}
+                      className="h-7 text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
-          )}
+          </CollapsibleTrigger>
+          
+          <CollapsibleContent>
+            <div className="p-4 pt-0 space-y-6">
+              {/* Direct items in a clean grid */}
+              {sortedItems.length > 0 && (
+                <div className="space-y-4">
+                  {sortedItems.map((item) => {
+                    const registry = fieldRegistry.find(r => r.field_id === item.ref);
+                    if (!registry) {
+                      return (
+                        <div key={`${item.ref}_${item.item_instance_id || 1}`} 
+                             className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                          <p className="text-destructive text-sm">
+                            Field registry not found for: {item.ref}
+                          </p>
+                        </div>
+                      );
+                    }
 
-          {/* Subsections */}
-          {sortedSubsections.map((subsection) => (
-            <div key={`${subsection.id}_${subsection.section_instance_id || 1}`} className="ml-4 border-l-2 border-border pl-4">
-              <SectionRenderer
-                section={subsection}
-                fieldRegistry={fieldRegistry}
-                isEditing={isEditing}
-                formValues={formValues}
-                onValueChange={onValueChange}
-                validationErrors={validationErrors}
-                depth={depth + 1}
-              />
+                    return (
+                      <div key={`${item.ref}_${item.item_instance_id || 1}`}
+                           className={cn(
+                             "p-4 rounded-md border transition-all duration-200",
+                             isEditing ? "bg-background border-border" : "bg-muted/30 border-transparent"
+                           )}>
+                        <FieldItemRenderer
+                          item={item}
+                          sectionId={section.id}
+                          registry={registry}
+                          isEditing={isEditing}
+                          formValues={formValues}
+                          onValueChange={onValueChange}
+                          validationErrors={validationErrors}
+                          sectionInstanceId={section.section_instance_id}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Subsections */}
+              {sortedSubsections.length > 0 && (
+                <div className="space-y-4">
+                  {sortedSubsections.map((subsection) => (
+                    <SectionRenderer
+                      key={`${subsection.id}_${subsection.section_instance_id || 1}`}
+                      section={subsection}
+                      fieldRegistry={fieldRegistry}
+                      isEditing={isEditing}
+                      formValues={formValues}
+                      onValueChange={onValueChange}
+                      validationErrors={validationErrors}
+                      depth={depth + 1}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
-          ))}
-        </CollapsibleContent>
-      </Collapsible>
+          </CollapsibleContent>
+        </Collapsible>
+      </div>
     );
   };
 
