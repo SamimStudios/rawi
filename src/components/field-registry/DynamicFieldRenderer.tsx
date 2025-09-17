@@ -46,6 +46,7 @@ export function DynamicFieldRenderer({
   inputId 
 }: DynamicFieldRendererProps) {
   const { t } = useLanguage();
+  const baseId = inputId || `field-${field.field_id}`;
   
   // Validation logic
   const validateField = (fieldValue: any): ValidationError | null => {
@@ -264,7 +265,7 @@ export function DynamicFieldRenderer({
       case 'text':
         return (
           <Input
-            id={inputId || `field-${field.field_id}`}
+            id={baseId}
             placeholder={getPlaceholder() || t('enterUrl') || 'https://example.com'}
             value={value || ''}
             onChange={(e) => onChange(e.target.value)}
@@ -276,7 +277,7 @@ export function DynamicFieldRenderer({
       case 'textarea':
         return (
           <Textarea
-            id={inputId || `field-${field.field_id}`}
+            id={baseId}
             placeholder={getPlaceholder()}
             value={value || ''}
             onChange={(e) => onChange(e.target.value)}
@@ -306,8 +307,8 @@ export function DynamicFieldRenderer({
           <RadioGroup value={value || ''} onValueChange={onChange} disabled={disabled}>
             {filteredOptions.map((option, index) => (
               <div key={index} className="flex items-center space-x-2">
-                <RadioGroupItem value={String(option.value)} id={`${field.field_id}-${index}`} disabled={disabled} />
-                <Label htmlFor={`${field.field_id}-${index}`}>
+                <RadioGroupItem value={String(option.value)} id={`${baseId}-opt-${index}`} disabled={disabled} />
+                <Label htmlFor={`${baseId}-opt-${index}`}>
                   {option.label?.key ? t(option.label.key) : option.label?.fallback}
                 </Label>
               </div>
@@ -323,7 +324,7 @@ export function DynamicFieldRenderer({
               {filteredOptions.map((option, index) => (
                 <div key={index} className="flex items-center space-x-2">
                   <Checkbox
-                    id={`${field.field_id}-${index}`}
+                    id={`${baseId}-opt-${index}`}
                     checked={selectedValues.includes(option.value)}
                     disabled={disabled}
                     onCheckedChange={(checked) => {
@@ -335,7 +336,7 @@ export function DynamicFieldRenderer({
                       }
                     }}
                   />
-                  <Label htmlFor={`${field.field_id}-${index}`}>
+                  <Label htmlFor={`${baseId}-opt-${index}`}>
                     {option.label?.key ? t(option.label.key) : option.label?.fallback}
                   </Label>
                 </div>
@@ -347,12 +348,12 @@ export function DynamicFieldRenderer({
         return (
           <div className="flex items-center space-x-2">
             <Checkbox
-              id={field.field_id}
+              id={baseId}
               checked={!!value}
               disabled={disabled}
               onCheckedChange={disabled ? undefined : onChange}
             />
-            <Label htmlFor={field.field_id}>{getLabel()}</Label>
+            <Label htmlFor={baseId}>{getLabel()}</Label>
           </div>
         );
 
@@ -438,7 +439,7 @@ export function DynamicFieldRenderer({
       case 'url':
         return (
           <Input
-            id={inputId || `field-${field.field_id}`}
+            id={baseId}
             type="url"
             placeholder={getPlaceholder() || t('enterUrl') || 'https://example.com'}
             value={value || ''}
@@ -490,7 +491,7 @@ export function DynamicFieldRenderer({
 
   return (
     <div className="space-y-2">
-      <Label className="text-sm font-medium flex items-center gap-1">
+      <Label htmlFor={baseId} className="text-sm font-medium flex items-center gap-1">
         {getLabel()}
         {field.rules?.required && (
           <span className="text-destructive">*</span>

@@ -175,11 +175,13 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
   };
 
   // Helper to get field key for form state
-  const getFieldKey = (sectionId: string, itemRef: string, sectionInstanceId?: number, itemInstanceId?: number, arrayIndex?: number): string => {
-    let key = `${sectionId}.${itemRef}`;
-    if (sectionInstanceId !== undefined && sectionInstanceId > 1) {
-      key = `${sectionId}_${sectionInstanceId}.${itemRef}`;
-    }
+  const getFieldKey = (
+    sectionPath: string,
+    itemRef: string,
+    itemInstanceId?: number,
+    arrayIndex?: number
+  ): string => {
+    let key = `${sectionPath}.${itemRef}`;
     if (itemInstanceId !== undefined && itemInstanceId > 1) {
       key += `_${itemInstanceId}`;
     }
@@ -245,12 +247,13 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
   const validateAllFields = (sections: Section[], values: Record<string, any>): Record<string, string> => {
     const errors: Record<string, string> = {};
     
-    const validateSection = (section: Section) => {
+    const validateSection = (section: Section, parentPath: string) => {
+      const sectionPath = `${parentPath}/${section.id}_${section.section_instance_id || 1}`;
       // Check direct items
       section.items?.forEach(item => {
         const registry = fieldRegistry.find(r => r.field_id === item.ref);
         if (registry) {
-          const fieldKey = getFieldKey(section.id, item.ref, section.section_instance_id, item.item_instance_id);
+          const fieldKey = getFieldKey(sectionPath, item.ref, item.item_instance_id);
           const fieldValue = values[fieldKey] ?? item.value ?? registry.default_value;
           
           // Apply field-level required rule
@@ -264,12 +267,12 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
           }
         }
       });
-
+  
       // Check subsections
-      section.subsections?.forEach(validateSection);
+      section.subsections?.forEach(sub => validateSection(sub, sectionPath));
     };
-
-    sections.forEach(validateSection);
+  
+    sections.forEach((section, idx) => validateSection(section, `root/${idx}`));
     return errors;
   };
 
@@ -304,17 +307,18 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
       const updatedContent = JSON.parse(node.content);
       
       // Update section values with form values
-      const updateSectionValues = (section: Section) => {
+      const updateSectionValues = (section: Section, parentPath: string) => {
+        const sectionPath = `${parentPath}/${section.id}_${section.section_instance_id || 1}`;
         section.items?.forEach(item => {
-          const fieldKey = getFieldKey(section.id, item.ref, section.section_instance_id, item.item_instance_id);
-          if (formValues.hasOwnProperty(fieldKey)) {
+          const fieldKey = getFieldKey(sectionPath, item.ref, item.item_instance_id);
+          if (Object.prototype.hasOwnProperty.call(formValues, fieldKey)) {
             item.value = formValues[fieldKey];
           }
         });
-        section.subsections?.forEach(updateSectionValues);
+        section.subsections?.forEach(sub => updateSectionValues(sub, sectionPath));
       };
       
-      updatedContent.sections.forEach(updateSectionValues);
+      updatedContent.sections.forEach((section: Section, idx: number) => updateSectionValues(section, `root/${idx}`));
 
       const { error } = await supabase
         .from('storyboard_nodes')
@@ -345,14 +349,15 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
   const FieldItemRenderer: React.FC<{ 
     item: FieldItem; 
     sectionId: string; 
+    sectionPath: string;
     registry: FieldRegistry; 
     isEditing: boolean;
     formValues: Record<string, any>;
     onValueChange: (key: string, value: any) => void;
     validationErrors: Record<string, string>;
     sectionInstanceId?: number;
-  }> = ({ item, sectionId, registry, isEditing, formValues, onValueChange, validationErrors, sectionInstanceId }) => {
-    const fieldKey = getFieldKey(sectionId, item.ref, sectionInstanceId, item.item_instance_id);
+  }> = ({ item, sectionId, sectionPath, registry, isEditing, formValues, onValueChange, validationErrors, sectionInstanceId }) => {
+    const fieldKey = getFieldKey(sectionPath, item.ref, item.item_instance_id);
     const fieldValue = formValues[fieldKey] ?? item.value ?? registry.default_value;
     const fieldError = validationErrors[fieldKey];
 
@@ -459,7 +464,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
           ) : (
             <div className="space-y-2">
               {repeatableValues.map((value: any, index: number) => {
-                const uniqueFieldKey = getFieldKey(sectionId, item.ref, sectionInstanceId, item.item_instance_id, index);
+                const uniqueFieldKey = getFieldKey(sectionPath, item.ref, item.item_instance_id, index);
                 return (
                   <div key={`${fieldKey}-${index}`} className="flex items-center gap-2">
                     <div className="flex-1">
@@ -621,7 +626,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
                     }
 
                     return (
-                      <div key={`${item.ref}_${item.item_instance_id || 1}`}
+                      <div key={`${sectionKey}.${item.ref}_${item.item_instance_id || 1}`}
                            className={cn(
                              "p-2 rounded-md border transition-all duration-200",
                              isEditing ? "bg-background border-border" : "bg-muted/30 border-transparent"
@@ -629,6 +634,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
                         <FieldItemRenderer
                           item={item}
                           sectionId={section.id}
+                          sectionPath={sectionKey}
                           registry={registry}
                           isEditing={isEditing}
                           formValues={formValues}
@@ -708,17 +714,18 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
             : nodeData.content;
           const initialValues: Record<string, any> = {};
           
-          const extractValues = (section: Section) => {
+          const extractValues = (section: Section, parentPath: string) => {
+            const sectionPath = `${parentPath}/${section.id}_${section.section_instance_id || 1}`;
             section.items?.forEach(item => {
-              const fieldKey = getFieldKey(section.id, item.ref, section.section_instance_id, item.item_instance_id);
+              const fieldKey = getFieldKey(sectionPath, item.ref, item.item_instance_id);
               if (item.value !== undefined) {
                 initialValues[fieldKey] = item.value;
               }
             });
-            section.subsections?.forEach(extractValues);
+            section.subsections?.forEach(sub => extractValues(sub, sectionPath));
           };
 
-          content.sections.forEach(extractValues);
+          content.sections.forEach((section, idx) => extractValues(section, `root/${idx}`));
           setFormValues(initialValues);
 
           // Set initial collapsed state based on section properties
