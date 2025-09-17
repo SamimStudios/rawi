@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -7,7 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { X, Upload, File, Image, FileText, Music, Video } from 'lucide-react';
+import { X } from 'lucide-react';
 import { FileUploadField } from './FileUploadField';
 import { useLanguage } from '@/contexts/LanguageContext';
 
@@ -46,10 +46,15 @@ export function DynamicFieldRenderer({
   inputId 
 }: DynamicFieldRendererProps) {
   const { t } = useLanguage();
-  const baseId = inputId || `field-${field.field_id}`;
+  
+  // Generate unique base ID for this field instance
+  const baseId = useMemo(() => 
+    inputId || `field-${field.field_id}`,
+    [inputId, field.field_id]
+  );
   
   // Validation logic
-  const validateField = (fieldValue: any): ValidationError | null => {
+  const validateField = useCallback((fieldValue: any): ValidationError | null => {
     const rules = field.rules || {};
     
     // String-based validations (string, uuid, url, date, datetime)
@@ -197,22 +202,22 @@ export function DynamicFieldRenderer({
     }
     
     return null;
-  };
+  }, [field.datatype, field.rules, field.widget, t]);
 
-  const validationError = validateField(value);
+  const validationError = useMemo(() => validateField(value), [validateField, value]);
   
-  const getLabel = () => {
+  const getLabel = useCallback(() => {
     const labelData = field.ui?.label;
     return labelData?.key ? t(labelData.key) : (labelData?.fallback || field.field_id);
-  };
+  }, [field.ui?.label, field.field_id, t]);
   
-  const getPlaceholder = () => {
+  const getPlaceholder = useCallback(() => {
     const placeholderData = field.ui?.placeholder;
     return placeholderData?.key ? t(placeholderData.key) : (placeholderData?.fallback || '');
-  };
+  }, [field.ui?.placeholder, t]);
 
   // Filter options based on dependsOn conditions
-  const getFilteredOptions = () => {
+  const getFilteredOptions = useCallback(() => {
     // Prefer resolvedOptions; fallback to static values
     let options = field.resolvedOptions;
     if (!options && field.options?.source === 'static' && field.options?.values) {
@@ -256,17 +261,17 @@ export function DynamicFieldRenderer({
         return dep.allow.includes(parentFieldValue);
       });
     });
-  };
+  }, [field.resolvedOptions, field.options, formValues]);
 
-  const filteredOptions = getFilteredOptions();
+  const filteredOptions = useMemo(() => getFilteredOptions(), [getFilteredOptions]);
 
-  const renderByWidget = () => {
+  const renderByWidget = useCallback(() => {
     switch (field.widget) {
       case 'text':
         return (
           <Input
             id={baseId}
-            placeholder={getPlaceholder() || t('enterUrl') || 'https://example.com'}
+            placeholder={getPlaceholder()}
             value={value || ''}
             onChange={(e) => onChange(e.target.value)}
             type={field.datatype === 'number' ? 'number' : 'text'}
@@ -289,7 +294,7 @@ export function DynamicFieldRenderer({
       case 'select':
         return (
           <Select value={value || ''} onValueChange={onChange} disabled={disabled}>
-            <SelectTrigger>
+            <SelectTrigger id={baseId}>
               <SelectValue placeholder={getPlaceholder() || t('selectOption') || 'Select an option'} />
             </SelectTrigger>
             <SelectContent>
@@ -305,14 +310,17 @@ export function DynamicFieldRenderer({
       case 'radio':
         return (
           <RadioGroup value={value || ''} onValueChange={onChange} disabled={disabled}>
-            {filteredOptions.map((option, index) => (
-              <div key={index} className="flex items-center space-x-2">
-                <RadioGroupItem value={String(option.value)} id={`${baseId}-opt-${index}`} disabled={disabled} />
-                <Label htmlFor={`${baseId}-opt-${index}`}>
-                  {option.label?.key ? t(option.label.key) : option.label?.fallback}
-                </Label>
-              </div>
-            ))}
+            {filteredOptions.map((option, index) => {
+              const optionId = `${baseId}-opt-${index}`;
+              return (
+                <div key={index} className="flex items-center space-x-2">
+                  <RadioGroupItem value={String(option.value)} id={optionId} disabled={disabled} />
+                  <Label htmlFor={optionId}>
+                    {option.label?.key ? t(option.label.key) : option.label?.fallback}
+                  </Label>
+                </div>
+              );
+            })}
           </RadioGroup>
         );
 
@@ -321,26 +329,29 @@ export function DynamicFieldRenderer({
           const selectedValues = Array.isArray(value) ? value : [];
           return (
             <div className="space-y-2">
-              {filteredOptions.map((option, index) => (
-                <div key={index} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`${baseId}-opt-${index}`}
-                    checked={selectedValues.includes(option.value)}
-                    disabled={disabled}
-                    onCheckedChange={(checked) => {
-                      if (disabled) return;
-                      if (checked) {
-                        onChange([...selectedValues, option.value]);
-                      } else {
-                        onChange(selectedValues.filter((v: any) => v !== option.value));
-                      }
-                    }}
-                  />
-                  <Label htmlFor={`${baseId}-opt-${index}`}>
-                    {option.label?.key ? t(option.label.key) : option.label?.fallback}
-                  </Label>
-                </div>
-              ))}
+              {filteredOptions.map((option, index) => {
+                const optionId = `${baseId}-opt-${index}`;
+                return (
+                  <div key={index} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={optionId}
+                      checked={selectedValues.includes(option.value)}
+                      disabled={disabled}
+                      onCheckedChange={(checked) => {
+                        if (disabled) return;
+                        if (checked) {
+                          onChange([...selectedValues, option.value]);
+                        } else {
+                          onChange(selectedValues.filter((v: any) => v !== option.value));
+                        }
+                      }}
+                    />
+                    <Label htmlFor={optionId}>
+                      {option.label?.key ? t(option.label.key) : option.label?.fallback}
+                    </Label>
+                  </div>
+                );
+              })}
             </div>
           );
         }
@@ -419,6 +430,7 @@ export function DynamicFieldRenderer({
       case 'date':
         return (
           <Input
+            id={baseId}
             type="date"
             value={value || ''}
             onChange={(e) => onChange(e.target.value)}
@@ -429,6 +441,7 @@ export function DynamicFieldRenderer({
       case 'datetime':
         return (
           <Input
+            id={baseId}
             type="datetime-local"
             value={value || ''}
             onChange={(e) => onChange(e.target.value)}
@@ -452,6 +465,7 @@ export function DynamicFieldRenderer({
         return (
           <div className="flex items-center gap-2">
             <Input
+              id={baseId}
               type="color"
               value={value || '#000000'}
               onChange={(e) => onChange(e.target.value)}
@@ -459,6 +473,7 @@ export function DynamicFieldRenderer({
               disabled={disabled}
             />
             <Input
+              id={`${baseId}-text`}
               type="text"
               placeholder={t('colorHex') || '#000000'}
               value={value || ''}
@@ -487,7 +502,7 @@ export function DynamicFieldRenderer({
           </div>
         );
     }
-  };
+  }, [field, baseId, value, onChange, disabled, getPlaceholder, getLabel, filteredOptions, t]);
 
   return (
     <div className="space-y-2">

@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { DynamicFieldRenderer } from '@/components/field-registry/DynamicFieldRenderer';
 import { EditButton } from '@/components/ui/edit-button';
 import { AlertCircle, RefreshCw, Edit2, X, Save, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,15 +10,16 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { ContentRenderer } from '@/components/content-renderer/ContentRenderer';
 
-// Node structure interfaces
+// Type definitions
 interface Node {
   id: string;
   job_id: string;
   node_type: string;
   path: string;
   parent_id?: string;
-  content: string; // JSON string
+  content: string;
   edit: string;
   actions: string;
   dependencies: string;
@@ -94,6 +94,10 @@ interface FieldRegistry {
   }>;
 }
 
+interface JsonNodeRendererProps {
+  nodeId?: string;
+}
+
 const defaultNodeJson = `{
   "id": "2041b303-a2ec-4f9b-bee2-cccd46fb8563",
   "job_id": "78bfbff5-3f75-446a-9cb2-814f27ebb80b",
@@ -111,45 +115,10 @@ const defaultNodeJson = `{
   "is_section": false
 }`;
 
-interface JsonNodeRendererProps {
-  nodeId?: string;
-}
-
-// Value display component for non-editing mode
-const ValueDisplay: React.FC<{ 
-  value: any; 
-  registry: FieldRegistry; 
-  importance?: string; 
-}> = ({ value, registry, importance }) => {
-  const formatValue = (val: any): string => {
-    if (val === null || val === undefined || val === '') {
-      return '—';
-    }
-    
-    if (typeof val === 'boolean') {
-      return val ? 'Yes' : 'No';
-    }
-    
-    if (Array.isArray(val)) {
-      return val.length > 0 ? val.join(', ') : '—';
-    }
-    
-    if (typeof val === 'object') {
-      return JSON.stringify(val);
-    }
-    
-    return String(val);
-  };
-
-  return (
-    <div className="text-foreground">
-      {formatValue(value)}
-    </div>
-  );
-};
-
 export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) => {
   const { getAccentClasses } = useLanguage();
+  
+  // State
   const [node, setNode] = useState<Node | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -157,13 +126,25 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
   const [fieldRegistry, setFieldRegistry] = useState<FieldRegistry[]>([]);
   const [formValues, setFormValues] = useState<Record<string, any>>({});
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
-  // Calculate error count
-  const errorCount = Object.keys(validationErrors).length;
+  // Memoized computed values
+  const errorCount = useMemo(() => Object.keys(validationErrors).length, [validationErrors]);
+  
+  const nodeContent = useMemo(() => {
+    if (!node) return null;
+    try {
+      return typeof node.content === 'string' 
+        ? JSON.parse(node.content) as NodeContent
+        : node.content as NodeContent;
+    } catch (e) {
+      console.error('Error parsing node content:', e);
+      return null;
+    }
+  }, [node]);
 
-  // Check if any field is editable to show edit button
-  const hasEditableFields = (sections: Section[]): boolean => {
+  const hasEditableFields = useMemo(() => {
+    if (!nodeContent?.sections) return false;
+    
     const checkItems = (items: FieldItem[]): boolean => 
       items.some(item => item.editable !== false);
     
@@ -171,131 +152,93 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
       checkItems(section.items || []) || 
       (section.subsections || []).some(checkSection);
     
-    return sections.some(checkSection);
-  };
+    return nodeContent.sections.some(checkSection);
+  }, [nodeContent]);
 
-  // Helper to get field key for form state
-  const getFieldKey = (
-    sectionPath: string,
+  // Field key generation using ltree-like paths
+  const generateFieldPath = useCallback((
+    ancestorPath: string,
     itemRef: string,
     itemInstanceId?: number,
     arrayIndex?: number
   ): string => {
-    let key = `${sectionPath}.${itemRef}`;
-    if (itemInstanceId !== undefined && itemInstanceId > 1) {
-      key += `_${itemInstanceId}`;
+    let path = `${ancestorPath}.${itemRef}`;
+    if (itemInstanceId && itemInstanceId > 1) {
+      path += `_${itemInstanceId}`;
     }
     if (arrayIndex !== undefined) {
-      key += `[${arrayIndex}]`;
+      path += `[${arrayIndex}]`;
     }
-    return key;
-  };
+    return path;
+  }, []);
 
-  // Helper to set section open state (collapsed map stores "isCollapsed")
-  const setSectionOpen = (sectionKey: string, open: boolean) => {
-    setCollapsedSections(prev => ({
-      ...prev,
-      [sectionKey]: !open,
-    }));
-  };
+  // Form value operations
+  const handleFieldChange = useCallback((fieldPath: string, value: any) => {
+    setFormValues(prev => ({ ...prev, [fieldPath]: value }));
+    
+    // Clear validation error for this field
+    setValidationErrors(prev => {
+      if (!prev[fieldPath]) return prev;
+      const newErrors = { ...prev };
+      delete newErrors[fieldPath];
+      return newErrors;
+    });
+  }, []);
 
-  // Helper to toggle section collapse state
-  const toggleSectionCollapse = (sectionKey: string) => {
-    setCollapsedSections(prev => ({
-      ...prev,
-      [sectionKey]: !prev[sectionKey],
-    }));
-  };
-
-  // Helper to add section instance
-  const addSectionInstance = (sectionId: string, sections: Section[]) => {
-    // This would need to be implemented based on the backend structure
-    // For now, just show a toast
-    toast.info('Add section instance functionality would be implemented here');
-  };
-
-  // Helper to remove section instance
-  const removeSectionInstance = (sectionId: string, instanceId: number) => {
-    toast.info('Remove section instance functionality would be implemented here');
-  };
-
-  // Helper to add item instance
-  const addItemInstance = (sectionId: string, itemRef: string) => {
-    toast.info('Add item instance functionality would be implemented here');
-  };
-
-  // Helper to remove item instance
-  const removeItemInstance = (sectionId: string, itemRef: string, instanceId: number) => {
-    toast.info('Remove item instance functionality would be implemented here');
-  };
-
-  // Validation function
-  const validateField = (field: FieldRegistry, value: any): string | null => {
+  // Validation
+  const validateField = useCallback((field: FieldRegistry, value: any): string | null => {
     const rules = field.rules || {};
     
-    // Required validation
     if (rules.required && (value === null || value === undefined || value === '')) {
       return 'This field is required';
     }
 
-    // Type-specific validations would go here
-    // For now, return null (no error)
+    // Add more validation logic as needed
     return null;
-  };
+  }, []);
 
-  // Validate all form values
-  const validateAllFields = (sections: Section[], values: Record<string, any>): Record<string, string> => {
+  const validateAllFields = useCallback((sections: Section[], values: Record<string, any>): Record<string, string> => {
     const errors: Record<string, string> = {};
     
-    const validateSection = (section: Section, parentPath: string) => {
-      const sectionPath = `${parentPath}/${section.id}_${section.section_instance_id || 1}`;
-      // Check direct items
+    const validateSection = (section: Section, ancestorPath: string) => {
+      const sectionPath = `${ancestorPath}.${section.id}${section.section_instance_id ? `_${section.section_instance_id}` : ''}`;
+      
+      // Validate items
       section.items?.forEach(item => {
         const registry = fieldRegistry.find(r => r.field_id === item.ref);
         if (registry) {
-          const fieldKey = getFieldKey(sectionPath, item.ref, item.item_instance_id);
-          const fieldValue = values[fieldKey] ?? item.value ?? registry.default_value;
+          const fieldPath = generateFieldPath(sectionPath, item.ref, item.item_instance_id);
+          const fieldValue = values[fieldPath] ?? item.value ?? registry.default_value;
           
-          // Apply field-level required rule
           if (item.required && (fieldValue === null || fieldValue === undefined || fieldValue === '')) {
-            errors[fieldKey] = 'This field is required';
+            errors[fieldPath] = 'This field is required';
           } else {
             const validationError = validateField(registry, fieldValue);
             if (validationError) {
-              errors[fieldKey] = validationError;
+              errors[fieldPath] = validationError;
             }
           }
         }
       });
-  
-      // Check subsections
-      section.subsections?.forEach(sub => validateSection(sub, sectionPath));
+
+      // Validate subsections
+      section.subsections?.forEach(subsection => 
+        validateSection(subsection, sectionPath)
+      );
     };
-  
-    sections.forEach((section, idx) => validateSection(section, `root/${idx}`));
-    return errors;
-  };
 
-  // Handle field value changes
-  const handleFieldChange = (key: string, value: any) => {
-    setFormValues(prev => ({ ...prev, [key]: value }));
+    sections.forEach((section, idx) => 
+      validateSection(section, `root.${idx}`)
+    );
     
-    // Clear validation error for this field
-    if (validationErrors[key]) {
-      setValidationErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[key];
-        return newErrors;
-      });
-    }
-  };
+    return errors;
+  }, [fieldRegistry, generateFieldPath, validateField]);
 
-  // Save node changes
-  const saveNode = async () => {
-    if (!node) return;
+  // Save operation
+  const saveNode = useCallback(async () => {
+    if (!node || !nodeContent) return;
 
-    // Validate all fields
-    const errors = validateAllFields(JSON.parse(node.content).sections, formValues);
+    const errors = validateAllFields(nodeContent.sections, formValues);
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);
       toast.error('Please fix validation errors before saving');
@@ -303,22 +246,27 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
     }
 
     try {
-      // Update the node content with form values
-      const updatedContent = JSON.parse(node.content);
+      const updatedContent = { ...nodeContent };
       
       // Update section values with form values
-      const updateSectionValues = (section: Section, parentPath: string) => {
-        const sectionPath = `${parentPath}/${section.id}_${section.section_instance_id || 1}`;
+      const updateSectionValues = (section: Section, ancestorPath: string) => {
+        const sectionPath = `${ancestorPath}.${section.id}${section.section_instance_id ? `_${section.section_instance_id}` : ''}`;
+        
         section.items?.forEach(item => {
-          const fieldKey = getFieldKey(sectionPath, item.ref, item.item_instance_id);
-          if (Object.prototype.hasOwnProperty.call(formValues, fieldKey)) {
-            item.value = formValues[fieldKey];
+          const fieldPath = generateFieldPath(sectionPath, item.ref, item.item_instance_id);
+          if (Object.prototype.hasOwnProperty.call(formValues, fieldPath)) {
+            item.value = formValues[fieldPath];
           }
         });
-        section.subsections?.forEach(sub => updateSectionValues(sub, sectionPath));
+        
+        section.subsections?.forEach(subsection => 
+          updateSectionValues(subsection, sectionPath)
+        );
       };
       
-      updatedContent.sections.forEach((section: Section, idx: number) => updateSectionValues(section, `root/${idx}`));
+      updatedContent.sections.forEach((section, idx) => 
+        updateSectionValues(section, `root.${idx}`)
+      );
 
       const { error } = await supabase
         .from('storyboard_nodes')
@@ -330,7 +278,6 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
 
       if (error) throw error;
 
-      // Update local state
       setNode(prev => prev ? {
         ...prev,
         content: JSON.stringify(updatedContent),
@@ -343,337 +290,9 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
       console.error('Error saving node:', error);
       toast.error('Failed to save node');
     }
-  };
+  }, [node, nodeContent, formValues, validateAllFields, generateFieldPath]);
 
-  // Field Item Renderer
-  const FieldItemRenderer: React.FC<{ 
-    item: FieldItem; 
-    sectionId: string; 
-    sectionPath: string;
-    registry: FieldRegistry; 
-    isEditing: boolean;
-    formValues: Record<string, any>;
-    onValueChange: (key: string, value: any) => void;
-    validationErrors: Record<string, string>;
-    sectionInstanceId?: number;
-  }> = ({ item, sectionId, sectionPath, registry, isEditing, formValues, onValueChange, validationErrors, sectionInstanceId }) => {
-    const fieldKey = getFieldKey(sectionPath, item.ref, item.item_instance_id);
-    const fieldValue = formValues[fieldKey] ?? item.value ?? registry.default_value;
-    const fieldError = validationErrors[fieldKey];
-
-    const getImportanceLabelClasses = (importance?: string) => {
-      switch (importance) {
-        case 'high': return 'text-lg font-bold';
-        case 'low': return 'text-sm font-light text-muted-foreground';
-        default: return 'text-base font-medium';
-      }
-    };
-
-    const getImportanceValueClasses = (importance?: string) => {
-      switch (importance) {
-        case 'high': return 'text-base font-semibold';
-        case 'low': return 'text-sm text-muted-foreground';
-        default: return 'text-base';
-      }
-    };
-
-    const getLabel = (item: FieldItem, registry: FieldRegistry) => {
-      if (item.ui?.override && item.ui.label) {
-        return item.ui.label.fallback || item.ui.label.key;
-      }
-      if (registry.ui?.label) {
-        return registry.ui.label.fallback || registry.ui.label.key || registry.field_id;
-      }
-      return registry.field_id;
-    };
-
-    const isRepeatable = item.repeatable && item.repeatable.max && item.repeatable.max > 1;
-    const repeatableValues = isRepeatable && Array.isArray(fieldValue) ? fieldValue : [];
-    const canAdd = !isRepeatable || !item.repeatable?.max || repeatableValues.length < item.repeatable.max;
-    const canRemove = !isRepeatable || !item.repeatable?.min || repeatableValues.length > (item.repeatable.min || 0);
-
-    const handleRepeatableAdd = () => {
-      addItemInstance(sectionId, item.ref);
-    };
-
-    const handleRepeatableRemove = (instanceId: number) => {
-      removeItemInstance(sectionId, item.ref, instanceId);
-    };
-
-    const handleRepeatableChange = (index: number, value: any) => {
-      if (Array.isArray(fieldValue)) {
-        const newItems = [...fieldValue];
-        newItems[index] = value;
-        onValueChange(fieldKey, newItems);
-      }
-    };
-
-    if (!isEditing) {
-      if (isRepeatable && Array.isArray(fieldValue) && fieldValue.length > 0) {
-        return (
-          <div className="space-y-2">
-            <div className={getImportanceLabelClasses(item.importance)}>
-              {getLabel(item, registry)}
-              {item.required && <span className="text-accent ml-1">*</span>}
-            </div>
-            {fieldValue.map((value: any, index: number) => (
-              <div key={index} className={getImportanceValueClasses(item.importance)}>
-                <ValueDisplay value={value} registry={registry} importance={item.importance} />
-              </div>
-            ))}
-          </div>
-        );
-      }
-
-      return (
-            <div className="space-y-1">
-              <div className={getImportanceLabelClasses(item.importance)}>
-                {getLabel(item, registry)}
-                {item.required && <span className={`ml-1 ${getAccentClasses().color}`}>*</span>}
-              </div>
-          <div className={getImportanceValueClasses(item.importance)}>
-            <ValueDisplay value={fieldValue} registry={registry} importance={item.importance} />
-          </div>
-        </div>
-      );
-    }
-
-    // Editing mode
-    if (isRepeatable) {
-      return (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className={getImportanceLabelClasses(item.importance)}>
-              {getLabel(item, registry)}
-              {item.required && <span className={`ml-1 ${getAccentClasses().color}`}>*</span>}
-            </div>
-            {canAdd && (
-              <Button 
-                size="sm" 
-                variant="ghost" 
-                onClick={handleRepeatableAdd}
-                className="h-6 w-6 p-0"
-              >
-                <Plus className="h-3 w-3" />
-              </Button>
-            )}
-          </div>
-          
-          {repeatableValues.length === 0 ? (
-            <div className="text-muted-foreground text-sm">No items yet. Click + to add one.</div>
-          ) : (
-            <div className="space-y-2">
-              {repeatableValues.map((value: any, index: number) => {
-                const uniqueFieldKey = getFieldKey(sectionPath, item.ref, item.item_instance_id, index);
-                return (
-                  <div key={`${fieldKey}-${index}`} className="flex items-center gap-2">
-                    <div className="flex-1">
-                      <DynamicFieldRenderer
-                        field={registry}
-                        value={value}
-                        onChange={(newValue) => handleRepeatableChange(index, newValue)}
-                        formValues={formValues}
-                        disabled={item.editable === false}
-                        inputId={`input-${uniqueFieldKey}`}
-                      />
-                    </div>
-                    {canRemove && (
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        onClick={() => handleRepeatableRemove(index + 1)}
-                        className={`h-6 w-6 p-0 ${getAccentClasses().color} hover:${getAccentClasses().color}`}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    )}
-                 </div>
-               );
-             })}
-             </div>
-           )}
-           
-           {fieldError && (
-             <div className={`text-sm ${getAccentClasses().color}`}>{fieldError}</div>
-           )}
-         </div>
-       );
-    }
-
-    // Single field editing
-    return (
-      <div className="space-y-1">
-        <DynamicFieldRenderer
-          field={registry}
-          value={fieldValue}
-          onChange={(value) => onValueChange(fieldKey, value)}
-          formValues={formValues}
-          disabled={item.editable === false}
-          inputId={`input-${fieldKey}`}
-        />
-        {fieldError && (
-          <div className={`text-sm ${getAccentClasses().color}`}>{fieldError}</div>
-        )}
-      </div>
-    );
-  };
-
-  // Section Renderer with unique hierarchical collapse keys
-  const SectionRenderer: React.FC<{
-    section: Section;
-    fieldRegistry: FieldRegistry[];
-    isEditing: boolean;
-    formValues: Record<string, any>;
-    onValueChange: (key: string, value: any) => void;
-    validationErrors: Record<string, string>;
-    depth?: number;
-    parentKey?: string;
-  }> = ({ section, fieldRegistry, isEditing, formValues, onValueChange, validationErrors, depth = 0, parentKey = '' }) => {
-    if (section.hidden) return null;
-
-    const sectionKey = `${parentKey}/${section.id}_${section.section_instance_id || 1}`;
-    const isCollapsed = collapsedSections[sectionKey] ?? section.collapsed ?? false;
-    const isRepeatable = section.repeatable && section.repeatable.max && section.repeatable.max > 1;
-
-    // Sort items by idx
-    const sortedItems = [...(section.items || [])].sort((a, b) => (a.idx || 0) - (b.idx || 0));
-    const sortedSubsections = [...(section.subsections || [])].sort((a, b) => (a.idx || 0) - (b.idx || 0));
-
-    const sectionBorderColor = depth === 0 ? "border-primary/20" : "border-muted-foreground/20";
-    const sectionBgColor = depth === 0 ? "bg-card" : "bg-muted/30";
-
-    return (
-      <div className={cn(
-        "rounded-lg border transition-all duration-200",
-        sectionBorderColor,
-        sectionBgColor,
-        depth > 0 && "ml-4"
-      )}>
-        {/* Section Header */}
-        <Collapsible 
-          open={!isCollapsed} 
-          onOpenChange={(open) => setSectionOpen(sectionKey, open)}
-        >
-          <CollapsibleTrigger className="w-full">
-            <div className="flex items-center justify-between p-3 hover:bg-muted/50 transition-colors rounded-t-lg">
-              <div className="flex items-center gap-3">
-                <ChevronRight className={cn(
-                  "h-4 w-4 transition-transform duration-200 text-muted-foreground",
-                  !isCollapsed && "rotate-90"
-                )} />
-                <div className="text-left">
-                  <h3 className={cn(
-                    "font-semibold flex items-center gap-2",
-                    depth === 0 ? "text-base" : "text-sm"
-                  )}>
-                    {section.label.fallback}
-                    {section.required && <span className="text-destructive">*</span>}
-                    {isRepeatable && (
-                      <Badge variant="outline" className="text-xs">
-                        Instance {section.section_instance_id || 1}
-                      </Badge>
-                    )}
-                  </h3>
-                  {section.description && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {section.description.fallback}
-                    </p>
-                  )}
-                </div>
-              </div>
-              
-              {isEditing && isRepeatable && (
-                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    onClick={() => addSectionInstance(section.id, [])}
-                    className="h-6 w-6 p-0"
-                  >
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                  {(section.section_instance_id || 1) > 1 && (
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      onClick={() => removeSectionInstance(section.id, section.section_instance_id || 1)}
-                      className="h-6 w-6 p-0 text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-          </CollapsibleTrigger>
-          
-          <CollapsibleContent>
-            <div className="p-3 pt-0 space-y-3">
-              {/* Direct items in a clean grid */}
-              {sortedItems.length > 0 && (
-                <div className="space-y-2">
-                  {sortedItems.map((item) => {
-                    const registry = fieldRegistry.find(r => r.field_id === item.ref);
-                    if (!registry) {
-                      return (
-                        <div key={`${item.ref}_${item.item_instance_id || 1}`} 
-                             className="p-2 bg-destructive/10 border border-destructive/20 rounded-md">
-                          <p className="text-destructive text-sm">
-                            Field registry not found for: {item.ref}
-                          </p>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div key={`${sectionKey}.${item.ref}_${item.item_instance_id || 1}`}
-                           className={cn(
-                             "p-2 rounded-md border transition-all duration-200",
-                             isEditing ? "bg-background border-border" : "bg-muted/30 border-transparent"
-                           )}>
-                        <FieldItemRenderer
-                          item={item}
-                          sectionId={section.id}
-                          sectionPath={sectionKey}
-                          registry={registry}
-                          isEditing={isEditing}
-                          formValues={formValues}
-                          onValueChange={onValueChange}
-                          validationErrors={validationErrors}
-                          sectionInstanceId={section.section_instance_id}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Subsections */}
-              {sortedSubsections.length > 0 && (
-                <div className="space-y-2">
-                  {sortedSubsections.map((subsection) => (
-                    <SectionRenderer
-                      key={`${subsection.id}_${subsection.section_instance_id || 1}`}
-                      section={subsection}
-                      fieldRegistry={fieldRegistry}
-                      isEditing={isEditing}
-                      formValues={formValues}
-                      onValueChange={onValueChange}
-                      validationErrors={validationErrors}
-                      depth={depth + 1}
-                      parentKey={sectionKey}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </div>
-    );
-  };
-
-  // Load node data
+  // Data loading
   useEffect(() => {
     const loadNode = async () => {
       try {
@@ -701,45 +320,39 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
             dependencies: typeof data.dependencies === 'string' ? data.dependencies : JSON.stringify(data.dependencies)
           };
         } else {
-          // Use default node for testing
           nodeData = JSON.parse(defaultNodeJson);
         }
 
         setNode(nodeData);
 
-        // Parse content and extract form values
+        // Extract initial form values
         try {
           const content: NodeContent = typeof nodeData.content === 'string' 
             ? JSON.parse(nodeData.content) 
             : nodeData.content;
+          
           const initialValues: Record<string, any> = {};
           
-          const extractValues = (section: Section, parentPath: string) => {
-            const sectionPath = `${parentPath}/${section.id}_${section.section_instance_id || 1}`;
+          const extractValues = (section: Section, ancestorPath: string) => {
+            const sectionPath = `${ancestorPath}.${section.id}${section.section_instance_id ? `_${section.section_instance_id}` : ''}`;
+            
             section.items?.forEach(item => {
-              const fieldKey = getFieldKey(sectionPath, item.ref, item.item_instance_id);
+              const fieldPath = generateFieldPath(sectionPath, item.ref, item.item_instance_id);
               if (item.value !== undefined) {
-                initialValues[fieldKey] = item.value;
+                initialValues[fieldPath] = item.value;
               }
             });
-            section.subsections?.forEach(sub => extractValues(sub, sectionPath));
+            
+            section.subsections?.forEach(subsection => 
+              extractValues(subsection, sectionPath)
+            );
           };
 
-          content.sections.forEach((section, idx) => extractValues(section, `root/${idx}`));
+          content.sections.forEach((section, idx) => 
+            extractValues(section, `root.${idx}`)
+          );
+          
           setFormValues(initialValues);
-
-          // Set initial collapsed state based on section properties
-          const initialCollapsedState: Record<string, boolean> = {};
-          const setCollapsedState = (section: Section, parentKey = '') => {
-            const key = `${parentKey}/${section.id}_${section.section_instance_id || 1}`;
-            if (section.collapsed) {
-              initialCollapsedState[key] = true;
-            }
-            section.subsections?.forEach(sub => setCollapsedState(sub, key));
-          };
-          content.sections.forEach(s => setCollapsedState(s));
-          setCollapsedSections(initialCollapsedState);
-
         } catch (e) {
           console.error('Error parsing node content:', e);
         }
@@ -768,24 +381,17 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
 
     loadNode();
     loadFieldRegistry();
-  }, [nodeId]);
+  }, [nodeId, generateFieldPath]);
 
-  // Update validation when formValues change
+  // Validation on form changes
   useEffect(() => {
-    if (node && isEditingNode) {
-      try {
-        const content: NodeContent = typeof node.content === 'string' 
-          ? JSON.parse(node.content) 
-          : node.content;
-          const errors = validateAllFields(content.sections, formValues);
-          setValidationErrors(errors);
-      } catch (error) {
-        console.error('Error validating fields:', error);
-      }
+    if (node && isEditingNode && nodeContent) {
+      const errors = validateAllFields(nodeContent.sections, formValues);
+      setValidationErrors(errors);
     }
-  }, [formValues, isEditingNode, node, fieldRegistry]);
+  }, [formValues, isEditingNode, node, nodeContent, validateAllFields]);
 
-  // Set up real-time subscription
+  // Real-time subscription
   useEffect(() => {
     if (!nodeId) return;
 
@@ -841,12 +447,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
     );
   }
 
-  let nodeContent: NodeContent;
-  try {
-    nodeContent = typeof node.content === 'string' 
-      ? JSON.parse(node.content) 
-      : node.content;
-  } catch (e) {
+  if (!nodeContent) {
     return (
       <Card>
         <CardContent className="p-6">
@@ -869,9 +470,6 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
     );
   }
 
-  const showEditButton = hasEditableFields(nodeContent.sections);
-  
-  // Sort sections by idx
   const sortedSections = [...nodeContent.sections]
     .filter(section => !section.hidden)
     .sort((a, b) => (a.idx || 0) - (b.idx || 0));
@@ -902,7 +500,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
               <span className="text-sm">{errorCount} error{errorCount !== 1 ? 's' : ''}</span>
             </div>
           )}
-          {showEditButton && (
+          {hasEditableFields && (
             <Button
               variant="outline"
               size="sm"
@@ -918,18 +516,15 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {sortedSections.map((section, idx) => (
-          <SectionRenderer
-            key={`${section.id}_${section.section_instance_id || 1}_${idx}`}
-            section={section}
-            fieldRegistry={fieldRegistry}
-            isEditing={isEditingNode}
-            formValues={formValues}
-            onValueChange={handleFieldChange}
-            validationErrors={validationErrors}
-            parentKey={`root/${idx}`}
-          />
-        ))}
+        <ContentRenderer
+          sections={sortedSections}
+          fieldRegistry={fieldRegistry}
+          isEditing={isEditingNode}
+          formValues={formValues}
+          onValueChange={handleFieldChange}
+          validationErrors={validationErrors}
+          generateFieldPath={generateFieldPath}
+        />
 
         {isEditingNode && (
           <div className="flex justify-end gap-2 pt-3 border-t border-border">
