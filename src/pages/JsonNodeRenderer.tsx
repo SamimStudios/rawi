@@ -652,7 +652,11 @@ const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) => {
           
           nodeData = {
             ...data,
-            path: String(data.path)
+            path: String(data.path),
+            content: typeof data.content === 'string' ? data.content : JSON.stringify(data.content),
+            edit: typeof data.edit === 'string' ? data.edit : JSON.stringify(data.edit),
+            actions: typeof data.actions === 'string' ? data.actions : JSON.stringify(data.actions),
+            dependencies: typeof data.dependencies === 'string' ? data.dependencies : JSON.stringify(data.dependencies)
           };
         } else {
           // Use default node for testing
