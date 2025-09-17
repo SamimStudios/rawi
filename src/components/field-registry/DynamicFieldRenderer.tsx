@@ -204,31 +204,47 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {}, 
 
   // Filter options based on dependsOn conditions
   const getFilteredOptions = () => {
-    // Try resolvedOptions first, then fall back to raw options for static sources
+    // Prefer resolvedOptions; fallback to static values
     let options = field.resolvedOptions;
-    
     if (!options && field.options?.source === 'static' && field.options?.values) {
       options = field.options.values;
     }
-    
     if (!options) return [];
 
-    return options.filter(option => {
-      // If no dependsOn, include the option
-      if (!option.dependsOn || !Array.isArray(option.dependsOn)) {
+    const resolveDependentValue = (depField: string) => {
+      // 1) Direct match (full key provided)
+      if (Object.prototype.hasOwnProperty.call(formValues, depField)) {
+        return formValues[depField as keyof typeof formValues];
+      }
+      // 2) Heuristic match by suffix: ...`.${field}` or `.field_#`
+      const entry = Object.entries(formValues).find(([k]) =>
+        k.endsWith(`.${depField}`) || k.includes(`.${depField}_`)
+      );
+      return entry ? entry[1] : undefined;
+    };
+
+    return options.filter((option: any) => {
+      // If no dependencies, include option
+      if (!option.dependsOn || !Array.isArray(option.dependsOn) || option.dependsOn.length === 0) {
         return true;
       }
 
-      // Check all dependencies - ALL must be satisfied
+      // All dependency conditions must be satisfied
       return option.dependsOn.every((dep: any) => {
-        const parentFieldValue = formValues[dep.field];
-        const allowedValues = dep.allow || [];
-        
-        // If parent field has no value, don't show dependent options
-        if (!parentFieldValue) return false;
-        
-        // Check if current parent value is in allowed values
-        return allowedValues.includes(parentFieldValue);
+        const parentFieldValue = resolveDependentValue(dep.field);
+
+        // If dependency requires presence only (no allow list specified)
+        if (!Array.isArray(dep.allow) || dep.allow.length === 0) {
+          return parentFieldValue !== undefined && parentFieldValue !== null && parentFieldValue !== '';
+        }
+
+        // If the parent value is an array (e.g., checkbox group), check intersection
+        if (Array.isArray(parentFieldValue)) {
+          return parentFieldValue.some((v) => dep.allow.includes(v));
+        }
+
+        // Primitive comparison
+        return dep.allow.includes(parentFieldValue);
       });
     });
   };
