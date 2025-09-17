@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DynamicFieldRenderer } from '@/components/field-registry/DynamicFieldRenderer';
 import { EditButton } from '@/components/ui/edit-button';
-import { AlertCircle, RefreshCw, ChevronDown, ChevronRight, Save, X, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, RefreshCw, Edit2, X, Save, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 
 // Node structure interfaces
 interface Node {
@@ -147,7 +147,7 @@ const ValueDisplay: React.FC<{
   );
 };
 
-const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) => {
+export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) => {
   const [node, setNode] = useState<Node | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -667,9 +667,8 @@ const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) => {
 
         // Parse content and extract form values
         try {
-          // Handle both string and object content from Supabase
           const content: NodeContent = typeof nodeData.content === 'string' 
-            ? JSON.parse(nodeData.content)
+            ? JSON.parse(nodeData.content) 
             : nodeData.content;
           const initialValues: Record<string, any> = {};
           
@@ -730,12 +729,11 @@ const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) => {
 
   // Update validation when formValues change
   useEffect(() => {
-      if (node && isEditingNode) {
-        try {
-          // Handle both string and object content from Supabase
-          const content: NodeContent = typeof node.content === 'string' 
-            ? JSON.parse(node.content)
-            : JSON.parse(node.content); // node.content is already stringified above
+    if (node && isEditingNode) {
+      try {
+        const content: NodeContent = typeof node.content === 'string' 
+          ? JSON.parse(node.content) 
+          : node.content;
           const errors = validateAllFields(content.sections, formValues);
           setValidationErrors(errors);
       } catch (error) {
@@ -802,29 +800,29 @@ const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) => {
 
   let nodeContent: NodeContent;
   try {
-    // Handle both string and object content from Supabase
     nodeContent = typeof node.content === 'string' 
-      ? JSON.parse(node.content)
-      : JSON.parse(node.content); // node.content is already stringified above
+      ? JSON.parse(node.content) 
+      : node.content;
   } catch (e) {
     return (
-      <div className="max-w-6xl mx-auto p-6">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>Invalid node content format</AlertDescription>
-        </Alert>
-      </div>
+      <Card>
+        <CardContent className="p-6">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>Invalid node content format</AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
     );
   }
 
-  if (!nodeContent.sections) {
+  if (!nodeContent.sections || nodeContent.sections.length === 0) {
     return (
-      <div className="max-w-6xl mx-auto p-6">
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>No sections found in node content</AlertDescription>
-        </Alert>
-      </div>
+      <Card>
+        <CardContent className="p-6 text-center">
+          <p className="text-muted-foreground">No sections found in this node</p>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -836,128 +834,80 @@ const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) => {
     .sort((a, b) => (a.idx || 0) - (b.idx || 0));
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Main Content - Node Card */}
-        <div className="lg:col-span-3">
-          <Card className={cn(
-            "transition-all duration-300",
-            isEditingNode && "ring-2 ring-yellow-500/50 border-yellow-500/30"
-          )}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-              <div>
-                <CardTitle className="text-2xl">{node.node_type} Node</CardTitle>
-                <CardDescription>{node.path}</CardDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                {errorCount > 0 && (
-                  <div className="flex items-center gap-1 text-accent">
-                    <AlertCircle className="h-4 w-4" />
-                    <span className="text-sm">{errorCount} error{errorCount !== 1 ? 's' : ''}</span>
-                  </div>
-                )}
-                {showEditButton && (
-                  <EditButton
-                    onClick={() => setIsEditingNode(!isEditingNode)}
-                    isEditing={isEditingNode}
-                    variant="outline"
-                  />
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-8">
-              {sortedSections.map((section) => (
-                <SectionRenderer
-                  key={`${section.id}_${section.section_instance_id || 1}`}
-                  section={section}
-                  fieldRegistry={fieldRegistry}
-                  isEditing={isEditingNode}
-                  formValues={formValues}
-                  onValueChange={handleFieldChange}
-                  validationErrors={validationErrors}
-                />
-              ))}
-
-              {isEditingNode && (
-                <div className="flex justify-end gap-3 pt-6 border-t border-border">
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsEditingNode(false)}
-                  >
-                    <X className="h-4 w-4 mr-2" />
-                    Cancel
-                  </Button>
-                  <Button 
-                    onClick={saveNode}
-                    disabled={errorCount > 0}
-                    variant="default"
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    Save Changes
-                  </Button>
-                </div>
+    <Card className={cn(
+      "transition-all duration-300",
+      isEditingNode && "ring-2 ring-yellow-500/50 border-yellow-500/30"
+    )}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <div>
+          <CardTitle className="text-xl">
+            {node.path}
+            {node.job_id && (
+              <Badge variant="secondary" className="ml-2 text-xs">
+                Job: {node.job_id.slice(0, 8)}...
+              </Badge>
+            )}
+          </CardTitle>
+          <CardDescription>
+            Updated: {new Date(node.updated_at).toLocaleDateString()}
+          </CardDescription>
+        </div>
+        <div className="flex items-center gap-2">
+          {errorCount > 0 && (
+            <div className="flex items-center gap-1 text-destructive">
+              <AlertCircle className="h-4 w-4" />
+              <span className="text-sm">{errorCount} error{errorCount !== 1 ? 's' : ''}</span>
+            </div>
+          )}
+          {showEditButton && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditingNode(!isEditingNode)}
+            >
+              {isEditingNode ? (
+                <X className="h-4 w-4" />
+              ) : (
+                <Edit2 className="h-4 w-4" />
               )}
-            </CardContent>
-          </Card>
+            </Button>
+          )}
         </div>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {sortedSections.map((section) => (
+          <SectionRenderer
+            key={`${section.id}_${section.section_instance_id || 1}`}
+            section={section}
+            fieldRegistry={fieldRegistry}
+            isEditing={isEditingNode}
+            formValues={formValues}
+            onValueChange={handleFieldChange}
+            validationErrors={validationErrors}
+          />
+        ))}
 
-        {/* Sidebar */}
-        <div className="lg:col-span-1">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Node Info</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <div className="text-sm font-medium text-muted-foreground">Node ID</div>
-                <div className="text-sm font-mono break-all">{node.id}</div>
-              </div>
-              <div>
-                <div className="text-sm font-medium text-muted-foreground">Job ID</div>
-                <div className="text-sm font-mono break-all">{node.job_id}</div>
-              </div>
-              <div>
-                <div className="text-sm font-medium text-muted-foreground">Type</div>
-                <div className="text-sm">{node.node_type}</div>
-              </div>
-              <div>
-                <div className="text-sm font-medium text-muted-foreground">Path</div>
-                <div className="text-sm">{node.path}</div>
-              </div>
-              <div>
-                <div className="text-sm font-medium text-muted-foreground">Version</div>
-                <div className="text-sm">{node.version}</div>
-              </div>
-              <div>
-                <div className="text-sm font-medium text-muted-foreground">Updated</div>
-                <div className="text-sm">{new Date(node.updated_at).toLocaleDateString()}</div>
-              </div>
-
-              {/* Debug section */}
-              <div className="pt-4 border-t">
-                <div className="text-sm font-medium text-muted-foreground mb-2">Debug</div>
-                <div className="space-y-2">
-                  <div>
-                    <div className="text-xs text-muted-foreground">Form Values</div>
-                    <pre className="text-xs bg-muted p-2 rounded overflow-auto max-h-32">
-                      {JSON.stringify(formValues, null, 2)}
-                    </pre>
-                  </div>
-                  {errorCount > 0 && (
-                    <div>
-                      <div className="text-xs text-muted-foreground">Validation Errors</div>
-                      <pre className="text-xs bg-accent/10 text-accent p-2 rounded overflow-auto max-h-32">
-                        {JSON.stringify(validationErrors, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </div>
+        {isEditingNode && (
+          <div className="flex justify-end gap-3 pt-6 border-t border-border">
+            <Button
+              variant="outline"
+              onClick={() => setIsEditingNode(false)}
+            >
+              <X className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+            <Button 
+              onClick={saveNode}
+              disabled={errorCount > 0}
+              variant="default"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save Changes
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
