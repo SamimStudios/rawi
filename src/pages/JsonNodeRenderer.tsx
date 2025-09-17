@@ -175,13 +175,16 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
   };
 
   // Helper to get field key for form state
-  const getFieldKey = (sectionId: string, itemRef: string, sectionInstanceId?: number, itemInstanceId?: number): string => {
+  const getFieldKey = (sectionId: string, itemRef: string, sectionInstanceId?: number, itemInstanceId?: number, arrayIndex?: number): string => {
     let key = `${sectionId}.${itemRef}`;
     if (sectionInstanceId !== undefined && sectionInstanceId > 1) {
       key = `${sectionId}_${sectionInstanceId}.${itemRef}`;
     }
     if (itemInstanceId !== undefined && itemInstanceId > 1) {
       key += `_${itemInstanceId}`;
+    }
+    if (arrayIndex !== undefined) {
+      key += `[${arrayIndex}]`;
     }
     return key;
   };
@@ -455,19 +458,21 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
             <div className="text-muted-foreground text-sm">No items yet. Click + to add one.</div>
           ) : (
             <div className="space-y-2">
-              {repeatableValues.map((value: any, index: number) => (
-                <div key={index} className="flex items-center gap-2">
-                  <div className="flex-1">
-                    <DynamicFieldRenderer
-                      key={`${fieldKey}-${index}-${registry.field_id}`}
-                      field={registry}
-                      value={value}
-                      onChange={(newValue) => handleRepeatableChange(index, newValue)}
-                      formValues={formValues}
-                      disabled={item.editable === false}
-                    />
-                  </div>
-                  {canRemove && (
+              {repeatableValues.map((value: any, index: number) => {
+                const uniqueFieldKey = getFieldKey(sectionId, item.ref, sectionInstanceId, item.item_instance_id, index);
+                return (
+                  <div key={`${fieldKey}-${index}`} className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <DynamicFieldRenderer
+                        field={registry}
+                        value={value}
+                        onChange={(newValue) => handleRepeatableChange(index, newValue)}
+                        formValues={formValues}
+                        disabled={item.editable === false}
+                        inputId={`input-${uniqueFieldKey}`}
+                      />
+                    </div>
+                    {canRemove && (
                     <Button 
                       size="sm" 
                       variant="ghost" 
@@ -493,12 +498,12 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
     return (
       <div className="space-y-1">
         <DynamicFieldRenderer
-          key={`${fieldKey}-${registry.field_id}`}
           field={registry}
           value={fieldValue}
           onChange={(value) => onValueChange(fieldKey, value)}
           formValues={formValues}
           disabled={item.editable === false}
+          inputId={`input-${fieldKey}`}
         />
         {fieldError && (
           <div className={`text-sm ${getAccentClasses().color}`}>{fieldError}</div>
