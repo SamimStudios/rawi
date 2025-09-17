@@ -5,10 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DynamicFieldRenderer } from '@/components/field-registry/DynamicFieldRenderer';
 import { EditButton } from '@/components/ui/edit-button';
-import { AlertCircle, RefreshCw, ChevronDown, ChevronRight, Save, X } from 'lucide-react';
+import { AlertCircle, RefreshCw, ChevronDown, ChevronRight, Save, X, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 // Node structure interfaces
 interface Node {
@@ -33,36 +34,42 @@ interface I18nText {
   fallback: string;
 }
 
-interface Item {
+interface FieldItem {
   ref: string;
+  idx: number;
   required?: boolean;
-  rules?: Record<string, any>;
   editable?: boolean;
-  ui_override?: {
-    label?: { key: string; fallback: string };
-    placeholder?: { key: string; fallback: string };
-    help?: { key: string; fallback: string };
-  };
-  value?: any;
+  importance?: "low" | "normal" | "high";
+  rules?: Record<string, any>;
   repeatable?: {
     min?: number;
     max?: number;
   };
-  item_instance_id?: string;
-  importance?: "low" | "normal" | "high";
-}
-
-interface Subsection {
-  id: string;
-  label: I18nText;
-  items: Item[];
+  item_instance_id?: number;
+  value?: any;
+  ui?: {
+    override?: boolean;
+    label?: I18nText;
+    placeholder?: I18nText;
+    help?: I18nText;
+  };
 }
 
 interface Section {
   id: string;
+  idx: number;
   label: I18nText;
-  items: Item[];
-  subsections?: Subsection[];
+  description?: I18nText;
+  items: FieldItem[];
+  subsections?: Section[];
+  repeatable?: {
+    min?: number;
+    max?: number;
+  };
+  section_instance_id?: number;
+  collapsed?: boolean;
+  hidden?: boolean;
+  required?: boolean;
 }
 
 interface NodeContent {
@@ -92,994 +99,655 @@ const defaultNodeJson = `{
   "node_type": "form",
   "path": "root.user_input",
   "parent_id": null,
-  "content": "{\\"version\\": \\"v1-sections\\", \\"sections\\": [{\\"id\\": \\"plan\\", \\"items\\": [{\\"ref\\": \\"title\\", \\"required\\": true}, {\\"ref\\": \\"logline\\", \\"required\\": true}, {\\"ref\\": \\"genres\\", \\"rules\\": {\\"max\\": 3}, \\"required\\": true}], \\"label\\": {\\"key\\": \\"sections.plan\\", \\"fallback\\": \\"Plan\\"}}, {\\"id\\": \\"preferences\\", \\"items\\": [{\\"ref\\": \\"language\\", \\"required\\": true}, {\\"ref\\": \\"accent\\"}, {\\"ref\\": \\"size\\", \\"required\\": true}, {\\"ref\\": \\"template\\", \\"required\\": true}, {\\"ref\\": \\"consent\\"}], \\"label\\": {\\"key\\": \\"sections.preferences\\", \\"fallback\\": \\"Preferences\\"}}, {\\"id\\": \\"lead\\", \\"items\\": [{\\"ref\\": \\"character_name\\", \\"required\\": true}, {\\"ref\\": \\"character_gender\\", \\"required\\": true}, {\\"ref\\": \\"faceImage\\"}], \\"label\\": {\\"key\\": \\"sections.lead\\", \\"fallback\\": \\"Lead\\"}, \\"subsections\\": [{\\"id\\": \\"appearance\\", \\"items\\": [{\\"ref\\": \\"age_range\\"}, {\\"ref\\": \\"ethnicity\\"}, {\\"ref\\": \\"skin_tone\\"}, {\\"ref\\": \\"head\\"}, {\\"ref\\": \\"face\\"}, {\\"ref\\": \\"body\\"}, {\\"ref\\": \\"clothes\\"}, {\\"ref\\": \\"look\\"}, {\\"ref\\": \\"distinct_trait\\", \\"repeatable\\": {\\"max\\": 3, \\"min\\": 0}}], \\"label\\": {\\"key\\": \\"sections.lead.appearance\\", \\"fallback\\": \\"Appearance\\"}}, {\\"id\\": \\"persona\\", \\"items\\": [{\\"ref\\": \\"personality\\"}], \\"label\\": {\\"key\\": \\"sections.lead.persona\\", \\"fallback\\": \\"Persona\\"}}]}]}",
+  "content": "{\\"version\\": \\"v1-sections\\", \\"sections\\": [{\\"id\\": \\"plan\\", \\"idx\\": 1, \\"items\\": [{\\"ref\\": \\"title\\", \\"idx\\": 1, \\"required\\": true}, {\\"ref\\": \\"logline\\", \\"idx\\": 2, \\"required\\": true}], \\"label\\": {\\"key\\": \\"sections.plan\\", \\"fallback\\": \\"Plan\\"}}]}",
   "edit": "{}",
   "actions": "{}",
   "dependencies": "[]",
   "removable": true,
   "created_at": "2025-09-16 06:42:08.971583+00",
-  "updated_at": "2025-09-16 07:28:12.494696+00",
+  "updated_at": "2025-09-16 06:42:08.971583+00",
   "version": 1,
-  "is_section": true
+  "is_section": false
 }`;
 
-// Component for displaying values in idle mode
-const ValueDisplay: React.FC<{
-  item: Item;
-  field: FieldRegistry;
-  value: any;
-}> = ({ item, field, value }) => {
-  const parseValueForDisplay = (val: any, datatype: string): string => {
-    if (val === null || val === undefined || val === '') return 'Not set';
+interface JsonNodeRendererProps {
+  nodeId?: string;
+}
+
+// Value display component for non-editing mode
+const ValueDisplay: React.FC<{ 
+  value: any; 
+  registry: FieldRegistry; 
+  importance?: string; 
+}> = ({ value, registry, importance }) => {
+  const formatValue = (val: any): string => {
+    if (val === null || val === undefined || val === '') {
+      return '—';
+    }
     
-    // Handle objects by attempting to extract meaningful display value
-    if (typeof val === 'object' && val !== null) {
-      if (Array.isArray(val)) {
-        return val.length > 0 ? val.map(item => 
-          typeof item === 'object' ? JSON.stringify(item) : String(item)
-        ).join(', ') : 'Not set';
-      }
-      // For non-array objects, try to stringify in a readable way
+    if (typeof val === 'boolean') {
+      return val ? 'Yes' : 'No';
+    }
+    
+    if (Array.isArray(val)) {
+      return val.length > 0 ? val.join(', ') : '—';
+    }
+    
+    if (typeof val === 'object') {
       return JSON.stringify(val);
     }
     
-    switch (datatype.toLowerCase()) {
-      case 'boolean':
-        return val ? 'Yes' : 'No';
-      case 'number':
-      case 'integer':
-        return String(val);
-      case 'array':
-        return Array.isArray(val) ? val.join(', ') : String(val);
-      case 'date':
-        return val instanceof Date ? val.toLocaleDateString() : String(val);
-      case 'email':
-      case 'url':
-      case 'text':
-      case 'string':
-      default:
-        return String(val);
-    }
-  };
-
-  const getLabel = () => {
-    if (item.ui_override?.label) {
-      return item.ui_override.label.fallback;
-    }
-    return field.ui?.label?.fallback || field.field_id;
-  };
-
-  const displayValue = parseValueForDisplay(value || item.value, field.datatype);
-
-  const getImportanceLabelClasses = () => {
-    switch (item.importance) {
-      case 'low':
-        return 'text-xs font-normal text-muted-foreground';
-      case 'high':
-        return 'text-base font-bold text-foreground';
-      default:
-        return 'text-sm font-medium text-muted-foreground';
-    }
-  };
-
-  const getImportanceValueClasses = () => {
-    switch (item.importance) {
-      case 'low':
-        return 'text-xs font-light';
-      case 'high':
-        return 'text-base font-semibold';
-      default:
-        return 'text-sm font-normal';
-    }
+    return String(val);
   };
 
   return (
-    <div className="flex flex-col space-y-1">
-      <dt className={getImportanceLabelClasses()}>{getLabel()}</dt>
-      <dd className={`${getImportanceValueClasses()} ${displayValue === 'Not set' ? 'text-muted-foreground italic' : 'text-foreground'}`}>
-        {displayValue}
-      </dd>
+    <div className="text-foreground">
+      {formatValue(value)}
     </div>
   );
 };
 
-// Component for rendering individual items
-const ItemRenderer: React.FC<{
-  item: Item;
-  field?: FieldRegistry;
-  value: any;
-  onChange: (value: any) => void;
-  formValues: Record<string, any>;
-  isEditing?: boolean;
-  validationErrors?: string[];
-}> = ({ item, field, value, onChange, formValues, isEditing = false, validationErrors = [] }) => {
-  const genId = () => (typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID() : `id_${Math.random().toString(36).slice(2)}_${Date.now()}`);
-
-  const getEffectiveArray = (): any[] => {
-    const vArr = Array.isArray(value) ? value : (value == null || value === '' ? [] : [value]);
-    const iArr = Array.isArray(item.value) ? item.value : (item.value == null || item.value === '' ? [] : [item.value]);
-    return vArr.length ? vArr : iArr;
-  };
-
-  const initialCount = item.repeatable ? Math.max(item.repeatable.min ?? 1, getEffectiveArray().length || 1) : 0;
-  const [instances, setInstances] = useState<string[]>(() => {
-    if (item.repeatable) {
-      const ids: string[] = [];
-      for (let i = 0; i < initialCount; i++) {
-        ids.push(i === 0 && item.item_instance_id ? item.item_instance_id! : genId());
-      }
-      return ids;
-    }
-    return [];
-  });
-
-  if (!field) {
-    return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>Field "{item.ref}" not found in registry</AlertDescription>
-      </Alert>
-    );
-  }
-
-  // Helper function for i18n text resolution (placeholder for now)
-  const t = (key: string) => key; // TODO: Replace with actual i18n hook
-
-  // Get label with ui_override support
-  const getLabel = () => {
-    if (item.ui_override?.label) {
-      return t(item.ui_override.label.key) || item.ui_override.label.fallback;
-    }
-    return field.ui?.label?.fallback || field.field_id;
-  };
-
-  // Get placeholder with ui_override support
-  const getPlaceholder = () => {
-    if (item.ui_override?.placeholder) {
-      return t(item.ui_override.placeholder.key) || item.ui_override.placeholder.fallback;
-    }
-    return field.ui?.placeholder?.fallback || '';
-  };
-
-  // Get help text with ui_override support
-  const getHelpText = () => {
-    if (item.ui_override?.help) {
-      return t(item.ui_override.help.key) || item.ui_override.help.fallback;
-    }
-    return field.ui?.help?.fallback || '';
-  };
-
-  // Merge item rules with field rules
-  const mergedRules = { ...field.rules };
-  if (item.required !== undefined) {
-    mergedRules.required = item.required;
-  }
-  if (item.rules) {
-    Object.assign(mergedRules, item.rules);
-  }
-
-  // Create enhanced field with overrides
-  const mergedField = {
-    ...field,
-    rules: mergedRules,
-    ui: {
-      ...field.ui,
-      label: { fallback: getLabel() },
-      placeholder: { fallback: getPlaceholder() },
-      help: { fallback: getHelpText() }
-    }
-  };
-
-  // Sync instances with array length and min bound
-  useEffect(() => {
-    if (!item.repeatable) return;
-    const arr = getEffectiveArray();
-    const targetLen = Math.max(item.repeatable.min ?? 1, arr.length || 1);
-    if (targetLen !== instances.length) {
-      setInstances((prev) => {
-        const next = [...prev];
-        if (targetLen > prev.length) {
-          for (let i = prev.length; i < targetLen; i++) next.push(genId());
-        } else {
-          next.length = targetLen;
-        }
-        return next;
-      });
-    }
-  }, [value, item.value, item.repeatable?.min]);
-
-  // Handle repeatable instances
-  const addInstance = () => {
-    if (item.repeatable && instances.length < (item.repeatable.max || Infinity)) {
-      const newId = genId();
-      setInstances(prev => [...prev, newId]);
-      const current = getEffectiveArray();
-      onChange([...current, '']);
-    }
-  };
-
-  const removeInstance = (instanceId: string) => {
-    if (item.repeatable && instances.length > (item.repeatable.min || 0)) {
-      setInstances(prev => prev.filter(id => id !== instanceId));
-      // Also remove the value for this instance
-      const currentValue = getEffectiveArray();
-      const instanceIndex = instances.indexOf(instanceId);
-      if (instanceIndex !== -1) {
-        const newValue = currentValue.filter((_, index) => index !== instanceIndex);
-        onChange(newValue);
-      }
-    }
-  };
-
-  // Handle value changes for repeatable fields
-  const handleInstanceChange = (instanceId: string, newValue: any) => {
-    if (item.repeatable) {
-      const instanceIndex = instances.indexOf(instanceId);
-      const currentValue = Array.isArray(value) ? value : [];
-      const updatedValue = [...currentValue];
-      updatedValue[instanceIndex] = newValue;
-      onChange(updatedValue);
-    } else {
-      onChange(newValue);
-    }
-  };
-
-  // Get controlled value - prioritize form state during editing, fallback to item.value
-  const getControlledValue = (instanceIndex?: number) => {
-    // During editing, prioritize form state over item.value
-    if (isEditing) {
-      if (item.repeatable && Array.isArray(value)) {
-        return value[instanceIndex || 0] || '';
-      }
-      return value !== undefined ? value : '';
-    }
-    
-    // In display mode, use item.value if available, otherwise form value
-    if (item.value !== undefined) {
-      return item.repeatable && Array.isArray(item.value) ? item.value[instanceIndex || 0] : item.value;
-    }
-    if (item.repeatable && Array.isArray(value)) {
-      return value[instanceIndex || 0] || '';
-    }
-    return value || '';
-  };
-
-  // Get importance styling classes for typography
-  const getImportanceLabelClasses = () => {
-    switch (item.importance) {
-      case 'low':
-        return 'text-xs font-normal text-muted-foreground';
-      case 'high':
-        return 'text-base font-bold text-foreground';
-      default:
-        return 'text-sm font-medium text-foreground';
-    }
-  };
-
-  // Render single field instance
-  const renderFieldInstance = (instanceId: string, instanceIndex: number) => (
-    <div key={instanceId} className="relative">
-      <div>
-        <label className={getImportanceLabelClasses()}>
-          {getLabel()}
-          {mergedRules.required && <span className="text-destructive ml-1">*</span>}
-        </label>
-        <DynamicFieldRenderer
-          field={mergedField}
-          value={getControlledValue(instanceIndex)}
-          onChange={(newValue) => handleInstanceChange(instanceId, newValue)}
-          formValues={formValues}
-          disabled={item.editable === false}
-        />
-      </div>
-      {item.repeatable && instances.length > 1 && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="absolute top-0 right-0 h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-          onClick={() => removeInstance(instanceId)}
-          disabled={instances.length <= (item.repeatable?.min || 0)}
-        >
-          ×
-        </Button>
-      )}
-    </div>
-  );
-
-  // If not editing, show display mode
-  if (!isEditing) {
-    return (
-      <div className="space-y-2 py-2">
-        <ValueDisplay 
-          item={item} 
-          field={field} 
-          value={value || item.value} 
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-2 py-2">
-      {/* Render field instances */}
-      {item.repeatable ? (
-        <div className="space-y-3">
-          {instances.map((instanceId, index) => renderFieldInstance(instanceId, index))}
-          
-          {/* Add control only if config allows more than one instance */}
-          {item.repeatable && ((item.repeatable.max ?? Infinity) > 1) && (
-            <div className="flex items-center gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addInstance}
-                disabled={instances.length >= (item.repeatable.max || Infinity)}
-                className="h-7 text-xs"
-              >
-                + Add
-              </Button>
-              <div className="text-xs text-muted-foreground">
-                {instances.length} of {item.repeatable.min || 0}-{item.repeatable.max || '∞'}
-              </div>
-            </div>
-          )}
-        </div>
-      ) : (
-        renderFieldInstance(item.item_instance_id || 'single', 0)
-      )}
-
-      {/* Validation errors */}
-      {validationErrors.length > 0 && (
-        <div className="space-y-1">
-          {validationErrors.map((error, index) => (
-            <div key={index} className="text-xs text-destructive flex items-center gap-1">
-              <AlertCircle className="h-3 w-3" />
-              {error}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Help text */}
-      {getHelpText() && (
-        <div className="text-xs text-muted-foreground mt-1">
-          {getHelpText()}
-        </div>
-      )}
-
-      {/* Read-only indicator */}
-      {item.editable === false && (
-        <div className="text-xs text-muted-foreground italic">
-          Read-only
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Component for rendering subsections
-const SubsectionRenderer: React.FC<{
-  subsection: Subsection;
-  sectionId: string;
-  fieldRegistry: Record<string, FieldRegistry>;
-  formValues: Record<string, any>;
-  onFieldChange: (fieldId: string, value: any) => void;
-  isEditing?: boolean;
-  createFieldKey: (sectionId: string, itemRef: string, subsectionId?: string) => string;
-  validationErrors: Record<string, string[]>;
-}> = ({ subsection, sectionId, fieldRegistry, formValues, onFieldChange, isEditing = false, createFieldKey, validationErrors }) => {
-  const [isOpen, setIsOpen] = useState(true);
-
-  return (
-    <div className="border border-border/40 rounded-lg bg-card/30 p-4">
-      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" className="w-full justify-between p-0 h-8 font-medium text-sm hover:bg-transparent">
-            <span className="flex items-center">
-              {isOpen ? <ChevronDown className="h-4 w-4 mr-2" /> : <ChevronRight className="h-4 w-4 mr-2" />}
-              {subsection.label.fallback}
-            </span>
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="mt-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {(subsection.items || []).map((item) => {
-              const fieldKey = createFieldKey(sectionId, item.ref, subsection.id);
-              return (
-                <ItemRenderer
-                  key={item.ref}
-                  item={item}
-                  field={fieldRegistry[item.ref]}
-                  value={formValues[fieldKey] || ''}
-                  onChange={(value) => onFieldChange(fieldKey, value)}
-                  formValues={formValues}
-                  isEditing={isEditing}
-                  validationErrors={validationErrors[fieldKey] || []}
-                />
-              );
-            })}
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
-    </div>
-  );
-};
-
-// Component for rendering sections
-const SectionRenderer: React.FC<{
-  section: Section;
-  fieldRegistry: Record<string, FieldRegistry>;
-  formValues: Record<string, any>;
-  onFieldChange: (fieldId: string, value: any) => void;
-  isEditing?: boolean;
-  createFieldKey: (sectionId: string, itemRef: string, subsectionId?: string) => string;
-  validationErrors: Record<string, string[]>;
-}> = ({ section, fieldRegistry, formValues, onFieldChange, isEditing = false, createFieldKey, validationErrors }) => {
-  const [isOpen, setIsOpen] = useState(true);
-
-  return (
-    <div className="border border-border rounded-lg bg-card shadow-sm">
-      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <div className="p-4 border-b border-border">
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" className="w-full justify-between p-0 h-auto font-semibold text-base hover:bg-transparent">
-              <span className="flex items-center">
-                {isOpen ? <ChevronDown className="h-5 w-5 mr-2" /> : <ChevronRight className="h-5 w-5 mr-2" />}
-                {section.label.fallback}
-              </span>
-            </Button>
-          </CollapsibleTrigger>
-        </div>
-        <CollapsibleContent>
-          <div className="p-4 space-y-4">
-            {/* Direct section items */}
-            {section.items && section.items.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {section.items.map((item) => {
-                  const fieldKey = createFieldKey(section.id, item.ref);
-                  return (
-                    <ItemRenderer
-                      key={item.ref}
-                      item={item}
-                      field={fieldRegistry[item.ref]}
-                      value={formValues[fieldKey] || ''}
-                      onChange={(value) => onFieldChange(fieldKey, value)}
-                      formValues={formValues}
-                      isEditing={isEditing}
-                      validationErrors={validationErrors[fieldKey] || []}
-                    />
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Subsections */}
-            {section.subsections && section.subsections.length > 0 && (
-              <div className="space-y-4">
-                {section.subsections.map((subsection) => (
-                  <SubsectionRenderer
-                    key={subsection.id}
-                    subsection={subsection}
-                    sectionId={section.id}
-                    fieldRegistry={fieldRegistry}
-                    formValues={formValues}
-                    onFieldChange={onFieldChange}
-                    isEditing={isEditing}
-                    createFieldKey={createFieldKey}
-                    validationErrors={validationErrors}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
-    </div>
-  );
-};
-
-export default function JsonNodeRenderer() {
-  const nodeId = '2041b303-a2ec-4f9b-bee2-cccd46fb8563';
-  
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [parsedNode, setParsedNode] = useState<Node | null>(null);
-  const [nodeContent, setNodeContent] = useState<NodeContent | null>(null);
-  const [fieldRegistry, setFieldRegistry] = useState<Record<string, FieldRegistry>>({});
-  const [formValues, setFormValues] = useState<Record<string, any>>({});
+const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) => {
+  const [node, setNode] = useState<Node | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isEditingNode, setIsEditingNode] = useState(false);
-  const [originalValues, setOriginalValues] = useState<Record<string, any>>({});
+  const [fieldRegistry, setFieldRegistry] = useState<FieldRegistry[]>([]);
+  const [formValues, setFormValues] = useState<Record<string, any>>({});
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
-  // Fetch field registry
-  const fetchFieldRegistry = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('field_registry')
-        .select('*');
-      
-      if (error) throw error;
-      
-      const registry: Record<string, FieldRegistry> = {};
-      data.forEach(field => {
-        registry[field.field_id] = {
-          id: field.id,
-          field_id: field.field_id,
-          datatype: field.datatype,
-          widget: field.widget,
-          options: field.options,
-          rules: field.rules,
-          ui: field.ui,
-          default_value: field.default_value,
-          resolvedOptions: []
-        };
-      });
-      
-      setFieldRegistry(registry);
-    } catch (err) {
-      console.error('Failed to fetch field registry:', err);
-      setError(`Failed to fetch field registry: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    }
-  };
+  // Calculate error count
+  const errorCount = Object.keys(validationErrors).length;
 
-  // Fetch node from database
-  const fetchNode = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('storyboard_nodes')
-        .select('*')
-        .eq('id', nodeId)
-        .single();
-      
-      if (error) throw error;
-      if (!data) throw new Error('Node not found');
-      
-      if (data.node_type !== 'form') {
-        throw new Error('Node type must be "form"');
-      }
-
-      // Cast the database response to our expected types
-      const node: Node = {
-        ...data,
-        path: data.path as string,
-        content: typeof data.content === 'string' ? data.content : JSON.stringify(data.content),
-        edit: typeof data.edit === 'string' ? data.edit : JSON.stringify(data.edit),
-        actions: typeof data.actions === 'string' ? data.actions : JSON.stringify(data.actions),
-        dependencies: typeof data.dependencies === 'string' ? data.dependencies : JSON.stringify(data.dependencies),
-      };
-
-      setParsedNode(node);
-      
-      // Parse content - handle both string and object types
-      let content: NodeContent;
-      if (typeof data.content === 'string') {
-        content = JSON.parse(data.content);
-      } else {
-        content = data.content as unknown as NodeContent;
-      }
-      
-      if (content.version !== 'v1-sections') {
-        throw new Error('Only v1-sections format is supported');
-      }
-      
-      setNodeContent(content);
-      setError('');
-      
-      // Initialize form values with item values or default values
-      const initialValues: Record<string, any> = {};
-      content.sections?.forEach((section: Section) => {
-        section.items?.forEach((item: Item) => {
-          const fieldKey = createFieldKey(section.id, item.ref);
-          if (item.value !== undefined) {
-            initialValues[fieldKey] = item.value;
-          } else {
-            const field = fieldRegistry[item.ref];
-            if (field?.default_value !== undefined) {
-              initialValues[fieldKey] = field.default_value;
-            }
-          }
-        });
-        section.subsections?.forEach((subsection: Subsection) => {
-          subsection.items?.forEach((item: Item) => {
-            const fieldKey = createFieldKey(section.id, item.ref, subsection.id);
-            if (item.value !== undefined) {
-              initialValues[fieldKey] = item.value;
-            } else {
-              const field = fieldRegistry[item.ref];
-              if (field?.default_value !== undefined) {
-                initialValues[fieldKey] = field.default_value;
-              }
-            }
-          });
-        });
-      });
-      setFormValues(initialValues);
-      
-    } catch (err) {
-      setError(`Failed to fetch node: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      setParsedNode(null);
-      setNodeContent(null);
-    }
-  };
-
-  // Helper function to create unique field keys
-  const createFieldKey = (sectionId: string, itemRef: string, subsectionId?: string): string => {
-    if (subsectionId) {
-      return `${sectionId}.${subsectionId}.${itemRef}`;
-    }
-    return `${sectionId}.${itemRef}`;
-  };
-
-  // Helper function to parse field key back to components
-  const parseFieldKey = (fieldKey: string): { sectionId: string; subsectionId?: string; itemRef: string } => {
-    const parts = fieldKey.split('.');
-    if (parts.length === 3) {
-      return { sectionId: parts[0], subsectionId: parts[1], itemRef: parts[2] };
-    }
-    return { sectionId: parts[0], itemRef: parts[1] };
-  };
-
-  const handleFieldChange = (fieldId: string, value: any) => {
-    setFormValues(prev => ({ ...prev, [fieldId]: value }));
-  };
-
-  // Validation logic
-  const validateFormValues = (): { isValid: boolean; errors: Record<string, string[]> } => {
-    const errors: Record<string, string[]> = {};
+  // Check if any field is editable to show edit button
+  const hasEditableFields = (sections: Section[]): boolean => {
+    const checkItems = (items: FieldItem[]): boolean => 
+      items.some(item => item.editable !== false);
     
-    if (!nodeContent) return { isValid: true, errors };
+    const checkSection = (section: Section): boolean => 
+      checkItems(section.items || []) || 
+      (section.subsections || []).some(checkSection);
     
-    // Validate all sections
-    nodeContent.sections.forEach((section: Section) => {
-      // Validate section items
+    return sections.some(checkSection);
+  };
+
+  // Helper to get field key for form state
+  const getFieldKey = (sectionId: string, itemRef: string, sectionInstanceId?: number, itemInstanceId?: number): string => {
+    let key = `${sectionId}.${itemRef}`;
+    if (sectionInstanceId !== undefined && sectionInstanceId > 1) {
+      key = `${sectionId}_${sectionInstanceId}.${itemRef}`;
+    }
+    if (itemInstanceId !== undefined && itemInstanceId > 1) {
+      key += `_${itemInstanceId}`;
+    }
+    return key;
+  };
+
+  // Helper to toggle section collapse state
+  const toggleSectionCollapse = (sectionPath: string) => {
+    setCollapsedSections(prev => ({
+      ...prev,
+      [sectionPath]: !prev[sectionPath]
+    }));
+  };
+
+  // Helper to add section instance
+  const addSectionInstance = (sectionId: string, sections: Section[]) => {
+    // This would need to be implemented based on the backend structure
+    // For now, just show a toast
+    toast.info('Add section instance functionality would be implemented here');
+  };
+
+  // Helper to remove section instance
+  const removeSectionInstance = (sectionId: string, instanceId: number) => {
+    toast.info('Remove section instance functionality would be implemented here');
+  };
+
+  // Helper to add item instance
+  const addItemInstance = (sectionId: string, itemRef: string) => {
+    toast.info('Add item instance functionality would be implemented here');
+  };
+
+  // Helper to remove item instance
+  const removeItemInstance = (sectionId: string, itemRef: string, instanceId: number) => {
+    toast.info('Remove item instance functionality would be implemented here');
+  };
+
+  // Validation function
+  const validateField = (field: FieldRegistry, value: any): string | null => {
+    const rules = field.rules || {};
+    
+    // Required validation
+    if (rules.required && (value === null || value === undefined || value === '')) {
+      return 'This field is required';
+    }
+
+    // Type-specific validations would go here
+    // For now, return null (no error)
+    return null;
+  };
+
+  // Validate all form values
+  const validateAllFields = (sections: Section[], values: Record<string, any>): Record<string, string> => {
+    const errors: Record<string, string> = {};
+    
+    const validateSection = (section: Section) => {
+      // Check direct items
       section.items?.forEach(item => {
-        const fieldKey = createFieldKey(section.id, item.ref);
-        const field = fieldRegistry[item.ref];
-        const value = formValues[fieldKey];
-        const fieldErrors: string[] = [];
-        
-        if (field) {
-          // Merge item rules with field rules
-          const mergedRules = { ...field.rules };
-          if (item.required !== undefined) {
-            mergedRules.required = item.required;
-          }
-          if (item.rules) {
-            Object.assign(mergedRules, item.rules);
-          }
+        const registry = fieldRegistry.find(r => r.field_id === item.ref);
+        if (registry) {
+          const fieldKey = getFieldKey(section.id, item.ref, section.section_instance_id, item.item_instance_id);
+          const fieldValue = values[fieldKey] ?? item.value ?? registry.default_value;
           
-          // Check required rule
-          if (mergedRules.required && (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0))) {
-            fieldErrors.push('This field is required');
-          }
-          
-          // Check other rules if value exists
-          if (value !== undefined && value !== null && value !== '') {
-            // Min length
-            if (mergedRules.minLength && typeof value === 'string' && value.length < mergedRules.minLength) {
-              fieldErrors.push(`Minimum length is ${mergedRules.minLength}`);
-            }
-            
-            // Max length
-            if (mergedRules.maxLength && typeof value === 'string' && value.length > mergedRules.maxLength) {
-              fieldErrors.push(`Maximum length is ${mergedRules.maxLength}`);
-            }
-            
-            // Min value
-            if (mergedRules.min && typeof value === 'number' && value < mergedRules.min) {
-              fieldErrors.push(`Minimum value is ${mergedRules.min}`);
-            }
-            
-            // Max value
-            if (mergedRules.max && typeof value === 'number' && value > mergedRules.max) {
-              fieldErrors.push(`Maximum value is ${mergedRules.max}`);
-            }
-            
-            // Array length constraints
-            if (Array.isArray(value)) {
-              if (mergedRules.min && value.length < mergedRules.min) {
-                fieldErrors.push(`Minimum ${mergedRules.min} items required`);
-              }
-              if (mergedRules.max && value.length > mergedRules.max) {
-                fieldErrors.push(`Maximum ${mergedRules.max} items allowed`);
-              }
-            }
-            
-            // Email validation
-            if (field.datatype === 'email' && typeof value === 'string') {
-              const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-              if (!emailRegex.test(value)) {
-                fieldErrors.push('Invalid email format');
-              }
-            }
-            
-            // URL validation
-            if (field.datatype === 'url' && typeof value === 'string') {
-              try {
-                new URL(value);
-              } catch {
-                fieldErrors.push('Invalid URL format');
-              }
+          // Apply field-level required rule
+          if (item.required && (fieldValue === null || fieldValue === undefined || fieldValue === '')) {
+            errors[fieldKey] = 'This field is required';
+          } else {
+            const validationError = validateField(registry, fieldValue);
+            if (validationError) {
+              errors[fieldKey] = validationError;
             }
           }
         }
-        
-        if (fieldErrors.length > 0) {
-          errors[fieldKey] = fieldErrors;
-        }
       });
-      
-      // Validate subsection items
-      section.subsections?.forEach(subsection => {
-        subsection.items?.forEach(item => {
-          const fieldKey = createFieldKey(section.id, item.ref, subsection.id);
-          const field = fieldRegistry[item.ref];
-          const value = formValues[fieldKey];
-          const fieldErrors: string[] = [];
-          
-          if (field) {
-            // Merge item rules with field rules
-            const mergedRules = { ...field.rules };
-            if (item.required !== undefined) {
-              mergedRules.required = item.required;
-            }
-            if (item.rules) {
-              Object.assign(mergedRules, item.rules);
-            }
-            
-            // Check required rule
-            if (mergedRules.required && (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0))) {
-              fieldErrors.push('This field is required');
-            }
-            
-            // Check other rules if value exists
-            if (value !== undefined && value !== null && value !== '') {
-              // Min length
-              if (mergedRules.minLength && typeof value === 'string' && value.length < mergedRules.minLength) {
-                fieldErrors.push(`Minimum length is ${mergedRules.minLength}`);
-              }
-              
-              // Max length
-              if (mergedRules.maxLength && typeof value === 'string' && value.length > mergedRules.maxLength) {
-                fieldErrors.push(`Maximum length is ${mergedRules.maxLength}`);
-              }
-              
-              // Min value
-              if (mergedRules.min && typeof value === 'number' && value < mergedRules.min) {
-                fieldErrors.push(`Minimum value is ${mergedRules.min}`);
-              }
-              
-              // Max value
-              if (mergedRules.max && typeof value === 'number' && value > mergedRules.max) {
-                fieldErrors.push(`Maximum value is ${mergedRules.max}`);
-              }
-              
-              // Array length constraints
-              if (Array.isArray(value)) {
-                if (mergedRules.min && value.length < mergedRules.min) {
-                  fieldErrors.push(`Minimum ${mergedRules.min} items required`);
-                }
-                if (mergedRules.max && value.length > mergedRules.max) {
-                  fieldErrors.push(`Maximum ${mergedRules.max} items allowed`);
-                }
-              }
-              
-              // Email validation
-              if (field.datatype === 'email' && typeof value === 'string') {
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                if (!emailRegex.test(value)) {
-                  fieldErrors.push('Invalid email format');
-                }
-              }
-              
-              // URL validation
-              if (field.datatype === 'url' && typeof value === 'string') {
-                try {
-                  new URL(value);
-                } catch {
-                  fieldErrors.push('Invalid URL format');
-                }
-              }
-            }
-          }
-          
-          if (fieldErrors.length > 0) {
-            errors[fieldKey] = fieldErrors;
-          }
-        });
-      });
-    });
-    
-    return { isValid: Object.keys(errors).length === 0, errors };
+
+      // Check subsections
+      section.subsections?.forEach(validateSection);
+    };
+
+    sections.forEach(validateSection);
+    return errors;
   };
 
-  // Get validation state
-  const validationState = validateFormValues();
-  const hasValidationErrors = !validationState.isValid;
-
-  // Parse values based on field datatype
-  const parseValueByDatatype = (value: any, datatype: string): any => {
-    if (value === null || value === undefined || value === '') return value;
+  // Handle field value changes
+  const handleFieldChange = (key: string, value: any) => {
+    setFormValues(prev => ({ ...prev, [key]: value }));
     
-    switch (datatype.toLowerCase()) {
-      case 'boolean':
-        return Boolean(value);
-      case 'number':
-      case 'integer':
-        return Number(value);
-      case 'array':
-        return Array.isArray(value) ? value : [value];
-      case 'date':
-        return value instanceof Date ? value : new Date(value);
-      case 'email':
-      case 'url':
-      case 'text':
-      case 'string':
-      default:
-        return value;
+    // Clear validation error for this field
+    if (validationErrors[key]) {
+      setValidationErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[key];
+        return newErrors;
+      });
     }
   };
 
-  const toggleNodeEdit = () => {
-    if (isEditingNode) {
-      // Cancel editing - restore original values
-      setFormValues(originalValues);
-      setIsEditingNode(false);
-      setOriginalValues({});
-    } else {
-      // Enter edit mode - store original values
-      setOriginalValues({ ...formValues });
-      setIsEditingNode(true);
-    }
-  };
-
+  // Save node changes
   const saveNode = async () => {
-    // Validate before saving
-    const validation = validateFormValues();
-    if (!validation.isValid) {
-      const errorCount = Object.keys(validation.errors).length;
-      toast.error(`Cannot save: ${errorCount} field${errorCount > 1 ? 's have' : ' has'} validation errors`);
+    if (!node) return;
+
+    // Validate all fields
+    const errors = validateAllFields(JSON.parse(node.content).sections, formValues);
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      toast.error('Please fix validation errors before saving');
       return;
     }
 
     try {
-      if (!nodeContent || !parsedNode) {
-        throw new Error('No node content to save');
-      }
-
-      // Parse values according to their datatypes and match them to their original items
-      const parsedValues: Record<string, any> = {};
+      // Update the node content with form values
+      const updatedContent = JSON.parse(node.content);
       
-      // Get all items across all sections to parse their values
-      nodeContent.sections.forEach((section: Section) => {
-        // Parse section items
+      // Update section values with form values
+      const updateSectionValues = (section: Section) => {
         section.items?.forEach(item => {
-          const fieldKey = createFieldKey(section.id, item.ref);
-          const field = fieldRegistry[item.ref];
-          if (field && formValues[fieldKey] !== undefined) {
-            parsedValues[fieldKey] = parseValueByDatatype(formValues[fieldKey], field.datatype);
+          const fieldKey = getFieldKey(section.id, item.ref, section.section_instance_id, item.item_instance_id);
+          if (formValues.hasOwnProperty(fieldKey)) {
+            item.value = formValues[fieldKey];
           }
         });
-        
-        // Parse subsection items
-        section.subsections?.forEach(subsection => {
-          subsection.items?.forEach(item => {
-            const fieldKey = createFieldKey(section.id, item.ref, subsection.id);
-            const field = fieldRegistry[item.ref];
-            if (field && formValues[fieldKey] !== undefined) {
-              parsedValues[fieldKey] = parseValueByDatatype(formValues[fieldKey], field.datatype);
-            }
-          });
-        });
-      });
-
-      // Create updated content with new values
-      const updatedContent = JSON.parse(JSON.stringify(nodeContent)); // Deep clone
+        section.subsections?.forEach(updateSectionValues);
+      };
       
-      // Update item values in the content using the parsed field keys
-      updatedContent.sections.forEach((section: Section) => {
-        // Update section items
-        section.items?.forEach(item => {
-          const fieldKey = createFieldKey(section.id, item.ref);
-          if (parsedValues[fieldKey] !== undefined) {
-            item.value = parsedValues[fieldKey];
-          }
-        });
-        
-        // Update subsection items
-        section.subsections?.forEach(subsection => {
-          subsection.items?.forEach(item => {
-            const fieldKey = createFieldKey(section.id, item.ref, subsection.id);
-            if (parsedValues[fieldKey] !== undefined) {
-              item.value = parsedValues[fieldKey];
-            }
-          });
-        });
-      });
+      updatedContent.sections.forEach(updateSectionValues);
 
-      // Save to database
       const { error } = await supabase
         .from('storyboard_nodes')
-        .update({
-          content: updatedContent,
+        .update({ 
+          content: JSON.stringify(updatedContent),
           updated_at: new Date().toISOString()
         })
-        .eq('id', nodeId);
+        .eq('id', node.id);
 
       if (error) throw error;
 
       // Update local state
-      setParsedNode(prev => prev ? { ...prev, updated_at: new Date().toISOString() } : null);
-      setNodeContent(updatedContent);
-      
-      // Exit edit mode
-      setIsEditingNode(false);
-      setOriginalValues({});
+      setNode(prev => prev ? {
+        ...prev,
+        content: JSON.stringify(updatedContent),
+        updated_at: new Date().toISOString()
+      } : null);
 
-      toast.success('Node saved successfully!');
-    } catch (err) {
-      console.error('Failed to save node:', err);
-      toast.error(`Failed to save node: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setIsEditingNode(false);
+      toast.success('Node saved successfully');
+    } catch (error) {
+      console.error('Error saving node:', error);
+      toast.error('Failed to save node');
     }
   };
 
-  const handleRefresh = async () => {
-    setLoading(true);
-    await fetchFieldRegistry();
-    await fetchNode();
-    setLoading(false);
+  // Field Item Renderer
+  const FieldItemRenderer: React.FC<{ 
+    item: FieldItem; 
+    sectionId: string; 
+    registry: FieldRegistry; 
+    isEditing: boolean;
+    formValues: Record<string, any>;
+    onValueChange: (key: string, value: any) => void;
+    validationErrors: Record<string, string>;
+    sectionInstanceId?: number;
+  }> = ({ item, sectionId, registry, isEditing, formValues, onValueChange, validationErrors, sectionInstanceId }) => {
+    const fieldKey = getFieldKey(sectionId, item.ref, sectionInstanceId, item.item_instance_id);
+    const fieldValue = formValues[fieldKey] ?? item.value ?? registry.default_value;
+    const fieldError = validationErrors[fieldKey];
+
+    const getImportanceLabelClasses = (importance?: string) => {
+      switch (importance) {
+        case 'high': return 'text-lg font-bold';
+        case 'low': return 'text-sm font-light text-muted-foreground';
+        default: return 'text-base font-medium';
+      }
+    };
+
+    const getImportanceValueClasses = (importance?: string) => {
+      switch (importance) {
+        case 'high': return 'text-base font-semibold';
+        case 'low': return 'text-sm text-muted-foreground';
+        default: return 'text-base';
+      }
+    };
+
+    const getLabel = (item: FieldItem, registry: FieldRegistry) => {
+      if (item.ui?.override && item.ui.label) {
+        return item.ui.label.fallback || item.ui.label.key;
+      }
+      if (registry.ui?.label) {
+        return registry.ui.label.fallback || registry.ui.label.key || registry.field_id;
+      }
+      return registry.field_id;
+    };
+
+    const isRepeatable = item.repeatable && item.repeatable.max && item.repeatable.max > 1;
+    const repeatableValues = isRepeatable && Array.isArray(fieldValue) ? fieldValue : [];
+    const canAdd = !isRepeatable || !item.repeatable?.max || repeatableValues.length < item.repeatable.max;
+    const canRemove = !isRepeatable || !item.repeatable?.min || repeatableValues.length > (item.repeatable.min || 0);
+
+    const handleRepeatableAdd = () => {
+      addItemInstance(sectionId, item.ref);
+    };
+
+    const handleRepeatableRemove = (instanceId: number) => {
+      removeItemInstance(sectionId, item.ref, instanceId);
+    };
+
+    const handleRepeatableChange = (index: number, value: any) => {
+      if (Array.isArray(fieldValue)) {
+        const newItems = [...fieldValue];
+        newItems[index] = value;
+        onValueChange(fieldKey, newItems);
+      }
+    };
+
+    if (!isEditing) {
+      if (isRepeatable && Array.isArray(fieldValue) && fieldValue.length > 0) {
+        return (
+          <div className="space-y-2">
+            <div className={getImportanceLabelClasses(item.importance)}>
+              {getLabel(item, registry)}
+              {item.required && <span className="text-accent ml-1">*</span>}
+            </div>
+            {fieldValue.map((value: any, index: number) => (
+              <div key={index} className={getImportanceValueClasses(item.importance)}>
+                <ValueDisplay value={value} registry={registry} importance={item.importance} />
+              </div>
+            ))}
+          </div>
+        );
+      }
+
+      return (
+        <div className="space-y-1">
+          <div className={getImportanceLabelClasses(item.importance)}>
+            {getLabel(item, registry)}
+            {item.required && <span className="text-accent ml-1">*</span>}
+          </div>
+          <div className={getImportanceValueClasses(item.importance)}>
+            <ValueDisplay value={fieldValue} registry={registry} importance={item.importance} />
+          </div>
+        </div>
+      );
+    }
+
+    // Editing mode
+    if (isRepeatable) {
+      return (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className={getImportanceLabelClasses(item.importance)}>
+              {getLabel(item, registry)}
+              {item.required && <span className="text-accent ml-1">*</span>}
+            </div>
+            {canAdd && (
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                onClick={handleRepeatableAdd}
+                className="h-6 w-6 p-0"
+              >
+                <Plus className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+          
+          {repeatableValues.length === 0 ? (
+            <div className="text-muted-foreground text-sm">No items yet. Click + to add one.</div>
+          ) : (
+            <div className="space-y-2">
+              {repeatableValues.map((value: any, index: number) => (
+                <div key={index} className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <DynamicFieldRenderer
+                      field={registry}
+                      value={value}
+                      onChange={(newValue) => handleRepeatableChange(index, newValue)}
+                      formValues={formValues}
+                      disabled={item.editable === false}
+                    />
+                  </div>
+                  {canRemove && (
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      onClick={() => handleRepeatableRemove(index + 1)}
+                      className="h-6 w-6 p-0 text-accent hover:text-accent"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {fieldError && (
+            <div className="text-sm text-accent">{fieldError}</div>
+          )}
+        </div>
+      );
+    }
+
+    // Single field editing
+    return (
+      <div className="space-y-1">
+        <DynamicFieldRenderer
+          field={registry}
+          value={fieldValue}
+          onChange={(value) => onValueChange(fieldKey, value)}
+          formValues={formValues}
+          disabled={item.editable === false}
+        />
+        {fieldError && (
+          <div className="text-sm text-accent">{fieldError}</div>
+        )}
+      </div>
+    );
   };
 
-  // Set up realtime subscription
+  // Section Renderer
+  const SectionRenderer: React.FC<{
+    section: Section;
+    fieldRegistry: FieldRegistry[];
+    isEditing: boolean;
+    formValues: Record<string, any>;
+    onValueChange: (key: string, value: any) => void;
+    validationErrors: Record<string, string>;
+    depth?: number;
+  }> = ({ section, fieldRegistry, isEditing, formValues, onValueChange, validationErrors, depth = 0 }) => {
+    if (section.hidden) return null;
+
+    const sectionPath = `section_${section.id}_${section.section_instance_id || 1}`;
+    const isCollapsed = section.collapsed ? collapsedSections[sectionPath] !== false : collapsedSections[sectionPath] === true;
+    
+    const isRepeatable = section.repeatable && section.repeatable.max && section.repeatable.max > 1;
+    const canAddSection = !isRepeatable || !section.repeatable?.max || true; // Would need proper instance counting
+    const canRemoveSection = !isRepeatable || !section.repeatable?.min || (section.section_instance_id || 1) > (section.repeatable.min || 1);
+
+    // Sort items by idx
+    const sortedItems = [...(section.items || [])].sort((a, b) => (a.idx || 0) - (b.idx || 0));
+    const sortedSubsections = [...(section.subsections || [])].sort((a, b) => (a.idx || 0) - (b.idx || 0));
+
+    const renderSectionHeader = () => (
+      <div className="flex items-center justify-between w-full">
+        <div className="flex items-center gap-2">
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="p-0 h-auto">
+              <ChevronDown className={cn(
+                "h-4 w-4 transition-transform duration-200",
+                isCollapsed && "-rotate-90"
+              )} />
+            </Button>
+          </CollapsibleTrigger>
+          <div>
+            <h3 className={cn(
+              "font-semibold",
+              depth === 0 ? "text-xl" : "text-lg"
+            )}>
+              {section.label.fallback}
+              {section.required && <span className="text-accent ml-1">*</span>}
+            </h3>
+            {section.description && (
+              <p className="text-sm text-muted-foreground mt-1">
+                {section.description.fallback}
+              </p>
+            )}
+          </div>
+        </div>
+        
+        {isEditing && isRepeatable && (
+          <div className="flex items-center gap-2">
+            {canAddSection && (
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => addSectionInstance(section.id, [])}
+                className="h-8"
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Add {section.label.fallback}
+              </Button>
+            )}
+            {canRemoveSection && (section.section_instance_id || 1) > 1 && (
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => removeSectionInstance(section.id, section.section_instance_id || 1)}
+                className="h-8 text-accent border-accent hover:bg-accent hover:text-accent-foreground"
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+
+    return (
+      <Collapsible 
+        open={!isCollapsed} 
+        onOpenChange={() => toggleSectionCollapse(sectionPath)}
+        className="space-y-4"
+      >
+        {renderSectionHeader()}
+        
+        <CollapsibleContent className="space-y-6">
+          {/* Direct items */}
+          {sortedItems.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {sortedItems.map((item) => {
+                const registry = fieldRegistry.find(r => r.field_id === item.ref);
+                if (!registry) {
+                  return (
+                    <div key={`${item.ref}_${item.item_instance_id || 1}`} className="text-muted-foreground">
+                      Field registry not found for: {item.ref}
+                    </div>
+                  );
+                }
+
+                return (
+                  <FieldItemRenderer
+                    key={`${item.ref}_${item.item_instance_id || 1}`}
+                    item={item}
+                    sectionId={section.id}
+                    registry={registry}
+                    isEditing={isEditing}
+                    formValues={formValues}
+                    onValueChange={onValueChange}
+                    validationErrors={validationErrors}
+                    sectionInstanceId={section.section_instance_id}
+                  />
+                );
+              })}
+            </div>
+          )}
+
+          {/* Subsections */}
+          {sortedSubsections.map((subsection) => (
+            <div key={`${subsection.id}_${subsection.section_instance_id || 1}`} className="ml-4 border-l-2 border-border pl-4">
+              <SectionRenderer
+                section={subsection}
+                fieldRegistry={fieldRegistry}
+                isEditing={isEditing}
+                formValues={formValues}
+                onValueChange={onValueChange}
+                validationErrors={validationErrors}
+                depth={depth + 1}
+              />
+            </div>
+          ))}
+        </CollapsibleContent>
+      </Collapsible>
+    );
+  };
+
+  // Load node data
   useEffect(() => {
-    const channel = supabase
-      .channel('node-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'storyboard_nodes',
-          filter: `id=eq.${nodeId}`
-        },
-        (payload) => {
-          console.log('Node updated:', payload);
-          if (payload.new) {
-            const updatedData = payload.new;
-            
-            // Cast the realtime update to our expected types
-            const node: Node = {
-              id: updatedData.id,
-              job_id: updatedData.job_id,
-              node_type: updatedData.node_type,
-              parent_id: updatedData.parent_id,
-              removable: updatedData.removable,
-              created_at: updatedData.created_at,
-              updated_at: updatedData.updated_at,
-              version: updatedData.version,
-              is_section: updatedData.is_section,
-              path: updatedData.path as string,
-              content: typeof updatedData.content === 'string' ? updatedData.content : JSON.stringify(updatedData.content),
-              edit: typeof updatedData.edit === 'string' ? updatedData.edit : JSON.stringify(updatedData.edit),
-              actions: typeof updatedData.actions === 'string' ? updatedData.actions : JSON.stringify(updatedData.actions),
-              dependencies: typeof updatedData.dependencies === 'string' ? updatedData.dependencies : JSON.stringify(updatedData.dependencies),
-            };
-            
-            setParsedNode(node);
-            
-            // Parse content for display
-            let content: NodeContent;
-            if (typeof updatedData.content === 'string') {
-              content = JSON.parse(updatedData.content);
-            } else {
-              content = updatedData.content as unknown as NodeContent;
-            }
-            
-            setNodeContent(content);
-          }
+    const loadNode = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        let nodeData: Node;
+
+        if (nodeId) {
+          const { data, error: fetchError } = await supabase
+            .from('storyboard_nodes')
+            .select('*')
+            .eq('id', nodeId)
+            .single();
+
+          if (fetchError) throw fetchError;
+          if (!data) throw new Error('Node not found');
+          
+          nodeData = {
+            ...data,
+            path: String(data.path)
+          };
+        } else {
+          // Use default node for testing
+          nodeData = JSON.parse(defaultNodeJson);
         }
-      )
+
+        setNode(nodeData);
+
+        // Parse content and extract form values
+        try {
+          const content: NodeContent = JSON.parse(nodeData.content);
+          const initialValues: Record<string, any> = {};
+          
+          const extractValues = (section: Section) => {
+            section.items?.forEach(item => {
+              const fieldKey = getFieldKey(section.id, item.ref, section.section_instance_id, item.item_instance_id);
+              if (item.value !== undefined) {
+                initialValues[fieldKey] = item.value;
+              }
+            });
+            section.subsections?.forEach(extractValues);
+          };
+
+          content.sections.forEach(extractValues);
+          setFormValues(initialValues);
+
+          // Set initial collapsed state based on section properties
+          const initialCollapsedState: Record<string, boolean> = {};
+          const setCollapsedState = (section: Section) => {
+            const sectionPath = `section_${section.id}_${section.section_instance_id || 1}`;
+            if (section.collapsed) {
+              initialCollapsedState[sectionPath] = true;
+            }
+            section.subsections?.forEach(setCollapsedState);
+          };
+          content.sections.forEach(setCollapsedState);
+          setCollapsedSections(initialCollapsedState);
+
+        } catch (e) {
+          console.error('Error parsing node content:', e);
+        }
+
+      } catch (error) {
+        console.error('Error loading node:', error);
+        setError(error instanceof Error ? error.message : 'Failed to load node');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    const loadFieldRegistry = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('field_registry')
+          .select('*')
+          .order('field_id');
+
+        if (error) throw error;
+        setFieldRegistry(data || []);
+      } catch (error) {
+        console.error('Error loading field registry:', error);
+      }
+    };
+
+    loadNode();
+    loadFieldRegistry();
+  }, [nodeId]);
+
+  // Update validation when formValues change
+  useEffect(() => {
+    if (node && isEditingNode) {
+      try {
+        const content: NodeContent = JSON.parse(node.content);
+        const errors = validateAllFields(content.sections, formValues);
+        setValidationErrors(errors);
+      } catch (error) {
+        console.error('Error validating fields:', error);
+      }
+    }
+  }, [formValues, isEditingNode, node, fieldRegistry]);
+
+  // Set up real-time subscription
+  useEffect(() => {
+    if (!nodeId) return;
+
+    const channel = supabase
+      .channel(`node-${nodeId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'storyboard_nodes',
+        filter: `id=eq.${nodeId}`
+      }, (payload) => {
+        setNode(payload.new as Node);
+      })
       .subscribe();
 
     return () => {
@@ -1087,150 +755,197 @@ export default function JsonNodeRenderer() {
     };
   }, [nodeId]);
 
-  // Fetch on mount
-  useEffect(() => {
-    handleRefresh();
-  }, []);
-
-  return (
-    <div className="container mx-auto p-4 max-w-7xl">
-      <div className="mb-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Live Node Renderer</h1>
-            <p className="text-sm text-muted-foreground">
-              Node {nodeId.split('-')[0]}... • {nodeContent?.sections?.length || 0} sections
-            </p>
-          </div>
-          <Button onClick={handleRefresh} disabled={loading} size="sm" variant="outline">
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </Button>
-        </div>
+  if (isLoading) {
+    return (
+      <div className="max-w-6xl mx-auto p-6">
+        <Card>
+          <CardContent className="flex items-center justify-center p-8">
+            <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+            Loading node...
+          </CardContent>
+        </Card>
       </div>
+    );
+  }
 
-      {error && (
-        <Alert variant="destructive" className="mb-4">
+  if (error) {
+    return (
+      <div className="max-w-6xl mx-auto p-6">
+        <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-      )}
+      </div>
+    );
+  }
 
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-        {/* Main Content */}
-        <div className="xl:col-span-3">
-          {nodeContent && (
-            <div className={`rounded-lg border-2 transition-all duration-200 ${
-              isEditingNode 
-                ? 'border-yellow-400/60 bg-yellow-50/5 shadow-lg shadow-yellow-400/10' 
-                : 'border-border bg-card'
-            }`}>
-              <div className="p-4 border-b border-border bg-muted/30">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold">Node: {parsedNode?.path}</h2>
-                    <p className="text-sm text-muted-foreground">
-                      {nodeContent.sections.length} sections • 
-                      {nodeContent.sections.reduce((total, section) => {
-                        const sectionItems = section.items?.length || 0;
-                        const subsectionItems = section.subsections?.reduce((subTotal, sub) => 
-                          subTotal + (sub.items?.length || 0), 0) || 0;
-                        return total + sectionItems + subsectionItems;
-                      }, 0)} fields
-                      {isEditingNode && hasValidationErrors && (
-                        <span className="text-destructive ml-2">
-                          • {Object.keys(validationState.errors).length} validation error{Object.keys(validationState.errors).length > 1 ? 's' : ''}
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {isEditingNode ? (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={toggleNodeEdit}
-                          className="h-8 text-muted-foreground"
-                        >
-                          <X className="h-4 w-4 mr-1" />
-                          Cancel
-                        </Button>
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={saveNode}
-                          disabled={hasValidationErrors}
-                          className="h-8"
-                        >
-                          <Save className="h-4 w-4 mr-1" />
-                          Save
-                        </Button>
-                      </>
-                    ) : (
-                      <EditButton
-                        onClick={toggleNodeEdit}
-                        isEditing={isEditingNode}
-                        size="sm"
-                        variant="outline"
-                      />
-                    )}
-                  </div>
-                </div>
+  if (!node) {
+    return (
+      <div className="max-w-6xl mx-auto p-6">
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>Node not found</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  let nodeContent: NodeContent;
+  try {
+    nodeContent = JSON.parse(node.content);
+  } catch (e) {
+    return (
+      <div className="max-w-6xl mx-auto p-6">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>Invalid node content format</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (!nodeContent.sections) {
+    return (
+      <div className="max-w-6xl mx-auto p-6">
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>No sections found in node content</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  const showEditButton = hasEditableFields(nodeContent.sections);
+  
+  // Sort sections by idx
+  const sortedSections = [...nodeContent.sections]
+    .filter(section => !section.hidden)
+    .sort((a, b) => (a.idx || 0) - (b.idx || 0));
+
+  return (
+    <div className="max-w-6xl mx-auto p-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Main Content - Node Card */}
+        <div className="lg:col-span-3">
+          <Card className={cn(
+            "transition-all duration-300",
+            isEditingNode && "ring-2 ring-yellow-500/50 border-yellow-500/30"
+          )}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+              <div>
+                <CardTitle className="text-2xl">{node.node_type} Node</CardTitle>
+                <CardDescription>{node.path}</CardDescription>
               </div>
-              <div className="p-4 space-y-4">
-                {nodeContent.sections.map((section) => (
-                  <SectionRenderer
-                    key={section.id}
-                    section={section}
-                    fieldRegistry={fieldRegistry}
-                    formValues={formValues}
-                    onFieldChange={handleFieldChange}
+              <div className="flex items-center gap-2">
+                {errorCount > 0 && (
+                  <div className="flex items-center gap-1 text-accent">
+                    <AlertCircle className="h-4 w-4" />
+                    <span className="text-sm">{errorCount} error{errorCount !== 1 ? 's' : ''}</span>
+                  </div>
+                )}
+                {showEditButton && (
+                  <EditButton
+                    onClick={() => setIsEditingNode(!isEditingNode)}
                     isEditing={isEditingNode}
-                    createFieldKey={createFieldKey}
-                    validationErrors={validationState.errors}
+                    variant="outline"
                   />
-                ))}
+                )}
               </div>
-            </div>
-          )}
+            </CardHeader>
+            <CardContent className="space-y-8">
+              {sortedSections.map((section) => (
+                <SectionRenderer
+                  key={`${section.id}_${section.section_instance_id || 1}`}
+                  section={section}
+                  fieldRegistry={fieldRegistry}
+                  isEditing={isEditingNode}
+                  formValues={formValues}
+                  onValueChange={handleFieldChange}
+                  validationErrors={validationErrors}
+                />
+              ))}
+
+              {isEditingNode && (
+                <div className="flex justify-end gap-3 pt-6 border-t border-border">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsEditingNode(false)}
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={saveNode}
+                    disabled={errorCount > 0}
+                    variant="default"
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    Save Changes
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Sidebar */}
-        <div className="xl:col-span-1 space-y-4">
-          {/* Node Info */}
-          <Card className="p-4">
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-sm font-medium">Connected</span>
+        <div className="lg:col-span-1">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Node Info</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <div className="text-sm font-medium text-muted-foreground">Node ID</div>
+                <div className="text-sm font-mono break-all">{node.id}</div>
               </div>
-              {parsedNode && (
-                <div className="space-y-2 text-xs">
-                  <div><span className="font-medium">Type:</span> {parsedNode.node_type}</div>
-                  <div><span className="font-medium">Job:</span> {parsedNode.job_id.split('-')[0]}...</div>
-                  <div><span className="font-medium">Version:</span> {parsedNode.version}</div>
-                  <div><span className="font-medium">Updated:</span> {new Date(parsedNode.updated_at).toLocaleString()}</div>
-                </div>
-              )}
-            </div>
-          </Card>
+              <div>
+                <div className="text-sm font-medium text-muted-foreground">Job ID</div>
+                <div className="text-sm font-mono break-all">{node.job_id}</div>
+              </div>
+              <div>
+                <div className="text-sm font-medium text-muted-foreground">Type</div>
+                <div className="text-sm">{node.node_type}</div>
+              </div>
+              <div>
+                <div className="text-sm font-medium text-muted-foreground">Path</div>
+                <div className="text-sm">{node.path}</div>
+              </div>
+              <div>
+                <div className="text-sm font-medium text-muted-foreground">Version</div>
+                <div className="text-sm">{node.version}</div>
+              </div>
+              <div>
+                <div className="text-sm font-medium text-muted-foreground">Updated</div>
+                <div className="text-sm">{new Date(node.updated_at).toLocaleDateString()}</div>
+              </div>
 
-          {/* Form State Debug */}
-          {isEditingNode && (
-            <Card className="p-4">
-              <h3 className="text-sm font-medium mb-2">Debug Info</h3>
-              <div className="text-xs space-y-1">
-                <div>Fields: {Object.keys(formValues).length}</div>
-                <div>Registry: {Object.keys(fieldRegistry).length}</div>
-                <div className="text-destructive">
-                  Errors: {Object.keys(validationState.errors).length}
+              {/* Debug section */}
+              <div className="pt-4 border-t">
+                <div className="text-sm font-medium text-muted-foreground mb-2">Debug</div>
+                <div className="space-y-2">
+                  <div>
+                    <div className="text-xs text-muted-foreground">Form Values</div>
+                    <pre className="text-xs bg-muted p-2 rounded overflow-auto max-h-32">
+                      {JSON.stringify(formValues, null, 2)}
+                    </pre>
+                  </div>
+                  {errorCount > 0 && (
+                    <div>
+                      <div className="text-xs text-muted-foreground">Validation Errors</div>
+                      <pre className="text-xs bg-accent/10 text-accent p-2 rounded overflow-auto max-h-32">
+                        {JSON.stringify(validationErrors, null, 2)}
+                      </pre>
+                    </div>
+                  )}
                 </div>
               </div>
-            </Card>
-          )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
   );
-}
+};
+
+export default JsonNodeRenderer;
