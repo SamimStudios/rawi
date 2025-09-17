@@ -667,7 +667,10 @@ const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) => {
 
         // Parse content and extract form values
         try {
-          const content: NodeContent = JSON.parse(nodeData.content);
+          // Handle both string and object content from Supabase
+          const content: NodeContent = typeof nodeData.content === 'string' 
+            ? JSON.parse(nodeData.content)
+            : nodeData.content;
           const initialValues: Record<string, any> = {};
           
           const extractValues = (section: Section) => {
@@ -727,11 +730,14 @@ const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) => {
 
   // Update validation when formValues change
   useEffect(() => {
-    if (node && isEditingNode) {
-      try {
-        const content: NodeContent = JSON.parse(node.content);
-        const errors = validateAllFields(content.sections, formValues);
-        setValidationErrors(errors);
+      if (node && isEditingNode) {
+        try {
+          // Handle both string and object content from Supabase
+          const content: NodeContent = typeof node.content === 'string' 
+            ? JSON.parse(node.content)
+            : JSON.parse(node.content); // node.content is already stringified above
+          const errors = validateAllFields(content.sections, formValues);
+          setValidationErrors(errors);
       } catch (error) {
         console.error('Error validating fields:', error);
       }
@@ -796,7 +802,10 @@ const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) => {
 
   let nodeContent: NodeContent;
   try {
-    nodeContent = JSON.parse(node.content);
+    // Handle both string and object content from Supabase
+    nodeContent = typeof node.content === 'string' 
+      ? JSON.parse(node.content)
+      : JSON.parse(node.content); // node.content is already stringified above
   } catch (e) {
     return (
       <div className="max-w-6xl mx-auto p-6">
