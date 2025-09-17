@@ -466,12 +466,12 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {}, 
       <Label className="text-sm font-medium flex items-center gap-1">
         {getLabel()}
         {field.rules?.required && (
-          <span className="text-red-500">*</span>
+          <span className="text-destructive">*</span>
         )}
       </Label>
       {renderByWidget()}
       {validationError && (
-        <p className="text-sm text-red-500 font-medium">
+        <p className="text-sm text-destructive font-medium">
           {validationError.message}
         </p>
       )}

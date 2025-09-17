@@ -2,14 +2,35 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 type Language = 'en' | 'ar';
 
+interface AccentConfig {
+  color: string;
+  borderColor: string;
+  bgColor: string;
+}
+
 interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
   t: (key: string) => string;
   isRTL: boolean;
+  getAccentClasses: () => AccentConfig;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
+
+// Accent color configuration based on language
+const accentConfig = {
+  en: {
+    color: 'text-primary',
+    borderColor: 'border-primary',
+    bgColor: 'bg-primary/10'
+  },
+  ar: {
+    color: 'text-accent', 
+    borderColor: 'border-accent',
+    bgColor: 'bg-accent/10'
+  }
+};
 
 // Centralized translations organized by category
 const translations = {
@@ -1232,11 +1253,16 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return translations[language][key as keyof typeof translations[typeof language]] || key;
   };
 
+  const getAccentClasses = (): AccentConfig => {
+    return accentConfig[language];
+  };
+
   const value: LanguageContextType = {
     language,
     setLanguage,
     t,
     isRTL,
+    getAccentClasses,
   };
 
   return (

@@ -10,6 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 // Node structure interfaces
 interface Node {
@@ -148,6 +149,7 @@ const ValueDisplay: React.FC<{
 };
 
 export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) => {
+  const { getAccentClasses } = useLanguage();
   const [node, setNode] = useState<Node | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -416,11 +418,11 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
       }
 
       return (
-        <div className="space-y-1">
-          <div className={getImportanceLabelClasses(item.importance)}>
-            {getLabel(item, registry)}
-            {item.required && <span className="text-accent ml-1">*</span>}
-          </div>
+            <div className="space-y-1">
+              <div className={getImportanceLabelClasses(item.importance)}>
+                {getLabel(item, registry)}
+                {item.required && <span className={`ml-1 ${getAccentClasses().color}`}>*</span>}
+              </div>
           <div className={getImportanceValueClasses(item.importance)}>
             <ValueDisplay value={fieldValue} registry={registry} importance={item.importance} />
           </div>
@@ -435,7 +437,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
           <div className="flex items-center justify-between">
             <div className={getImportanceLabelClasses(item.importance)}>
               {getLabel(item, registry)}
-              {item.required && <span className="text-accent ml-1">*</span>}
+              {item.required && <span className={`ml-1 ${getAccentClasses().color}`}>*</span>}
             </div>
             {canAdd && (
               <Button 
@@ -469,7 +471,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
                       size="sm" 
                       variant="ghost" 
                       onClick={() => handleRepeatableRemove(index + 1)}
-                      className="h-6 w-6 p-0 text-accent hover:text-accent"
+                      className={`h-6 w-6 p-0 ${getAccentClasses().color} hover:${getAccentClasses().color}`}
                     >
                       <X className="h-3 w-3" />
                     </Button>
@@ -480,7 +482,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
           )}
           
           {fieldError && (
-            <div className="text-sm text-accent">{fieldError}</div>
+            <div className={`text-sm ${getAccentClasses().color}`}>{fieldError}</div>
           )}
         </div>
       );
@@ -497,7 +499,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
           disabled={item.editable === false}
         />
         {fieldError && (
-          <div className="text-sm text-accent">{fieldError}</div>
+          <div className={`text-sm ${getAccentClasses().color}`}>{fieldError}</div>
         )}
       </div>
     );
@@ -540,16 +542,16 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
           onOpenChange={(open) => setSectionOpen(sectionKey, open)}
         >
           <CollapsibleTrigger className="w-full">
-            <div className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors rounded-t-lg">
+            <div className="flex items-center justify-between p-3 hover:bg-muted/50 transition-colors rounded-t-lg">
               <div className="flex items-center gap-3">
                 <ChevronRight className={cn(
-                  "h-5 w-5 transition-transform duration-200 text-muted-foreground",
+                  "h-4 w-4 transition-transform duration-200 text-muted-foreground",
                   !isCollapsed && "rotate-90"
                 )} />
                 <div className="text-left">
                   <h3 className={cn(
                     "font-semibold flex items-center gap-2",
-                    depth === 0 ? "text-lg" : "text-base"
+                    depth === 0 ? "text-base" : "text-sm"
                   )}>
                     {section.label.fallback}
                     {section.required && <span className="text-destructive">*</span>}
@@ -560,7 +562,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
                     )}
                   </h3>
                   {section.description && (
-                    <p className="text-sm text-muted-foreground mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       {section.description.fallback}
                     </p>
                   )}
@@ -568,12 +570,12 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
               </div>
               
               {isEditing && isRepeatable && (
-                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                   <Button 
                     size="sm" 
                     variant="outline" 
                     onClick={() => addSectionInstance(section.id, [])}
-                    className="h-7"
+                    className="h-6 w-6 p-0"
                   >
                     <Plus className="h-3 w-3" />
                   </Button>
@@ -582,7 +584,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
                       size="sm" 
                       variant="outline" 
                       onClick={() => removeSectionInstance(section.id, section.section_instance_id || 1)}
-                      className="h-7 text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
+                      className="h-6 w-6 p-0 text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
@@ -593,16 +595,16 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
           </CollapsibleTrigger>
           
           <CollapsibleContent>
-            <div className="p-4 pt-0 space-y-6">
+            <div className="p-3 pt-0 space-y-3">
               {/* Direct items in a clean grid */}
               {sortedItems.length > 0 && (
-                <div className="space-y-4">
+                <div className="space-y-2">
                   {sortedItems.map((item) => {
                     const registry = fieldRegistry.find(r => r.field_id === item.ref);
                     if (!registry) {
                       return (
                         <div key={`${item.ref}_${item.item_instance_id || 1}`} 
-                             className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                             className="p-2 bg-destructive/10 border border-destructive/20 rounded-md">
                           <p className="text-destructive text-sm">
                             Field registry not found for: {item.ref}
                           </p>
@@ -613,7 +615,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
                     return (
                       <div key={`${item.ref}_${item.item_instance_id || 1}`}
                            className={cn(
-                             "p-4 rounded-md border transition-all duration-200",
+                             "p-2 rounded-md border transition-all duration-200",
                              isEditing ? "bg-background border-border" : "bg-muted/30 border-transparent"
                            )}>
                         <FieldItemRenderer
@@ -634,7 +636,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
 
               {/* Subsections */}
               {sortedSubsections.length > 0 && (
-                <div className="space-y-4">
+                <div className="space-y-2">
                   {sortedSubsections.map((subsection) => (
                     <SectionRenderer
                       key={`${subsection.id}_${subsection.section_instance_id || 1}`}
@@ -900,7 +902,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
           )}
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-3">
         {sortedSections.map((section, idx) => (
           <SectionRenderer
             key={`${section.id}_${section.section_instance_id || 1}_${idx}`}
@@ -915,20 +917,22 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
         ))}
 
         {isEditingNode && (
-          <div className="flex justify-end gap-3 pt-6 border-t border-border">
+          <div className="flex justify-end gap-2 pt-3 border-t border-border">
             <Button
               variant="outline"
+              size="sm"
               onClick={() => setIsEditingNode(false)}
             >
-              <X className="h-4 w-4 mr-2" />
+              <X className="h-4 w-4 mr-1" />
               Cancel
             </Button>
             <Button 
               onClick={saveNode}
               disabled={errorCount > 0}
               variant="default"
+              size="sm"
             >
-              <Save className="h-4 w-4 mr-2" />
+              <Save className="h-4 w-4 mr-1" />
               Save Changes
             </Button>
           </div>
