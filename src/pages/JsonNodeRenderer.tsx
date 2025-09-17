@@ -459,6 +459,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
                 <div key={index} className="flex items-center gap-2">
                   <div className="flex-1">
                     <DynamicFieldRenderer
+                      key={`${fieldKey}-${index}-${registry.field_id}`}
                       field={registry}
                       value={value}
                       onChange={(newValue) => handleRepeatableChange(index, newValue)}
@@ -492,6 +493,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
     return (
       <div className="space-y-1">
         <DynamicFieldRenderer
+          key={`${fieldKey}-${registry.field_id}`}
           field={registry}
           value={fieldValue}
           onChange={(value) => onValueChange(fieldKey, value)}

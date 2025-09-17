@@ -256,6 +256,8 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {}, 
       case 'text':
         return (
           <Input
+            id={`field-${field.field_id}`}
+            key={`field-${field.field_id}`}
             placeholder={getPlaceholder() || t('enterUrl') || 'https://example.com'}
             value={value || ''}
             onChange={(e) => onChange(e.target.value)}
@@ -267,6 +269,8 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {}, 
       case 'textarea':
         return (
           <Textarea
+            id={`field-${field.field_id}`}
+            key={`field-${field.field_id}`}
             placeholder={getPlaceholder()}
             value={value || ''}
             onChange={(e) => onChange(e.target.value)}
@@ -428,6 +432,8 @@ export function DynamicFieldRenderer({ field, value, onChange, formValues = {}, 
       case 'url':
         return (
           <Input
+            id={`field-${field.field_id}`}
+            key={`field-${field.field_id}`}
             type="url"
             placeholder={getPlaceholder() || t('enterUrl') || 'https://example.com'}
             value={value || ''}
