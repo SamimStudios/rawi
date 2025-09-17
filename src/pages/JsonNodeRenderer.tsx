@@ -901,15 +901,16 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        {sortedSections.map((section) => (
+        {sortedSections.map((section, idx) => (
           <SectionRenderer
-            key={`${section.id}_${section.section_instance_id || 1}`}
+            key={`${section.id}_${section.section_instance_id || 1}_${idx}`}
             section={section}
             fieldRegistry={fieldRegistry}
             isEditing={isEditingNode}
             formValues={formValues}
             onValueChange={handleFieldChange}
             validationErrors={validationErrors}
+            parentKey={`root/${idx}`}
           />
         ))}
 
