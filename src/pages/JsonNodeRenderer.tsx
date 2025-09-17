@@ -184,11 +184,19 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
     return key;
   };
 
-  // Helper to toggle section collapse state
-  const toggleSectionCollapse = (sectionPath: string) => {
+  // Helper to set section open state (collapsed map stores "isCollapsed")
+  const setSectionOpen = (sectionKey: string, open: boolean) => {
     setCollapsedSections(prev => ({
       ...prev,
-      [sectionPath]: !prev[sectionPath]
+      [sectionKey]: !open,
+    }));
+  };
+
+  // Helper to toggle section collapse state
+  const toggleSectionCollapse = (sectionKey: string) => {
+    setCollapsedSections(prev => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey],
     }));
   };
 
@@ -495,7 +503,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
     );
   };
 
-  // Section Renderer with proper individual collapse state
+  // Section Renderer with unique hierarchical collapse keys
   const SectionRenderer: React.FC<{
     section: Section;
     fieldRegistry: FieldRegistry[];
@@ -504,13 +512,12 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
     onValueChange: (key: string, value: any) => void;
     validationErrors: Record<string, string>;
     depth?: number;
-  }> = ({ section, fieldRegistry, isEditing, formValues, onValueChange, validationErrors, depth = 0 }) => {
+    parentKey?: string;
+  }> = ({ section, fieldRegistry, isEditing, formValues, onValueChange, validationErrors, depth = 0, parentKey = '' }) => {
     if (section.hidden) return null;
 
-    const sectionPath = `section_${section.id}_${section.section_instance_id || 1}`;
-    // Each section has independent collapse state - default to expanded unless explicitly collapsed
-    const isCollapsed = collapsedSections[sectionPath] ?? section.collapsed ?? false;
-    
+    const sectionKey = `${parentKey}/${section.id}_${section.section_instance_id || 1}`;
+    const isCollapsed = collapsedSections[sectionKey] ?? section.collapsed ?? false;
     const isRepeatable = section.repeatable && section.repeatable.max && section.repeatable.max > 1;
 
     // Sort items by idx
@@ -530,7 +537,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
         {/* Section Header */}
         <Collapsible 
           open={!isCollapsed} 
-          onOpenChange={() => toggleSectionCollapse(sectionPath)}
+          onOpenChange={(open) => setSectionOpen(sectionKey, open)}
         >
           <CollapsibleTrigger className="w-full">
             <div className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors rounded-t-lg">
@@ -638,6 +645,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
                       onValueChange={onValueChange}
                       validationErrors={validationErrors}
                       depth={depth + 1}
+                      parentKey={sectionKey}
                     />
                   ))}
                 </div>
@@ -705,14 +713,14 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
 
           // Set initial collapsed state based on section properties
           const initialCollapsedState: Record<string, boolean> = {};
-          const setCollapsedState = (section: Section) => {
-            const sectionPath = `section_${section.id}_${section.section_instance_id || 1}`;
+          const setCollapsedState = (section: Section, parentKey = '') => {
+            const key = `${parentKey}/${section.id}_${section.section_instance_id || 1}`;
             if (section.collapsed) {
-              initialCollapsedState[sectionPath] = true;
+              initialCollapsedState[key] = true;
             }
-            section.subsections?.forEach(setCollapsedState);
+            section.subsections?.forEach(sub => setCollapsedState(sub, key));
           };
-          content.sections.forEach(setCollapsedState);
+          content.sections.forEach(s => setCollapsedState(s));
           setCollapsedSections(initialCollapsedState);
 
         } catch (e) {
