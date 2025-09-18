@@ -26,10 +26,12 @@ const Header = () => {
 
   const navItems = user ? [
     { key: 'templates', href: '/templates' },
+    { key: 'workspace', href: '/workspace', label: 'Workspace' },
     { key: 'myHistory', href: '/app/history' },
     { key: 'wallet', href: '/app/wallet' },
   ] : [
     { key: 'templates', href: '/templates' },
+    { key: 'workspace', href: '/workspace', label: 'Workspace' },
     { key: 'tryFree', href: '/try/cinematic-teaser' },
     { key: 'help', href: '/help' },
     { key: 'nodes', href: '/nodes', label: 'Nodes' },

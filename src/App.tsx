@@ -43,6 +43,8 @@ import FieldRegistry from "./pages/FieldRegistry";
 import Nodes from "./pages/Nodes";
 import JsonNodeRenderer from "./pages/JsonNodeRenderer";
 import WidgetShowcase from "./pages/WidgetShowcase";
+import WorkspaceList from "./pages/workspace/WorkspaceList";
+import WorkspaceJob from "./pages/workspace/WorkspaceJob";
 
 
 
@@ -237,6 +239,20 @@ const MainApp = () => (
                      <div>
                        <Header />
                        <WidgetShowcase />
+                       <Footer />
+                     </div>
+                   } />
+                   <Route path="/workspace" element={
+                     <div>
+                       <Header />
+                       <WorkspaceList />
+                       <Footer />
+                     </div>
+                   } />
+                   <Route path="/workspace/:jobId" element={
+                     <div>
+                       <Header />
+                       <WorkspaceJob />
                        <Footer />
                      </div>
                    } />
