@@ -8,7 +8,6 @@ const corsHeaders = {
 
 interface FieldRegistry {
   id: string;
-  field_id: string;
   datatype: string;
   widget: string;
   options: any;
@@ -34,7 +33,7 @@ serve(async (req) => {
     const { data: fields, error: fieldsError } = await supabase
       .from('field_registry')
       .select('*')
-      .order('field_id');
+      .order('id');
 
     if (fieldsError) {
       throw new Error(`Failed to fetch fields: ${fieldsError.message}`);
@@ -97,7 +96,7 @@ async function resolveFieldOptions(field: FieldRegistry, supabase: any) {
         return null;
     }
   } catch (error) {
-    console.error(`Error resolving options for field ${field.field_id}:`, error);
+    console.error(`Error resolving options for field ${field.id}:`, error);
     return null;
   }
 }

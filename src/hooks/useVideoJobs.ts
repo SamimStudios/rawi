@@ -17,13 +17,13 @@ export function useVideoJobs() {
       setError(null);
 
       const { data: jobsData, error: jobsError } = await supabase
-        .from('storyboard_jobs')
+        .from('video_jobs' as any)
         .select('*')
         .order('updated_at', { ascending: false });
 
       if (jobsError) throw jobsError;
 
-      setJobs(jobsData || []);
+      setJobs((jobsData as unknown as VideoJob[]) || []);
     } catch (e: any) {
       setError(e?.message || 'Failed to load jobs');
     } finally {
@@ -50,14 +50,14 @@ export function useVideoJob(jobId: string) {
       setError(null);
 
       const { data: jobData, error: jobError } = await supabase
-        .from('storyboard_jobs')
+        .from('video_jobs' as any)
         .select('*')
         .eq('id', jobId)
         .single();
 
       if (jobError) throw jobError;
 
-      setJob(jobData);
+      setJob(jobData as unknown as VideoJob);
     } catch (e: any) {
       setError(e?.message || 'Failed to load job');
     } finally {

@@ -205,7 +205,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
       
       // Validate items
       section.items?.forEach(item => {
-        const registry = fieldRegistry.find(r => r.field_id === item.ref);
+        const registry = fieldRegistry.find(r => r.id === item.ref);
         if (registry) {
           const fieldPath = generateFieldPath(sectionPath, item.ref, item.item_instance_id);
           const fieldValue = values[fieldPath] ?? item.value ?? registry.default_value;

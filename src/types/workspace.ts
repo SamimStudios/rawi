@@ -2,20 +2,14 @@
 export interface VideoJob {
   id: string;
   user_id?: string;
-  template_key?: string;
-  status?: string;
-  characters?: any;
-  props?: any;
-  timeline?: any;
-  music?: any;
-  movie_info?: any;
-  user_input?: any;
-  user_input_updated_at?: string;
-  characters_updated_at?: string;
-  props_updated_at?: string;
-  timeline_updated_at?: string;
-  music_updated_at?: string;
-  movie_info_updated_at?: string;
+  template_key: string;
+  status: string;
+  watermark: boolean;
+  credits_used: number;
+  session_id?: string;
+  accepted_terms_at?: string;
+  accepted_ip_at?: string;
+  node_index: any;
   created_at: string;
   updated_at: string;
 }

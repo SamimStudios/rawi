@@ -248,7 +248,7 @@ const SectionRenderer: React.FC<SectionRendererProps> = ({
             {sortedItems.length > 0 && (
               <div className="space-y-2">
                 {sortedItems.map((item) => {
-                  const registry = fieldRegistry.find(r => r.field_id === item.ref);
+                  const registry = fieldRegistry.find(r => r.id === item.ref);
                   if (!registry) {
                     return (
                       <div key={`${sectionPath}.${item.ref}_${item.item_instance_id || 1}`} 

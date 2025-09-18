@@ -102,15 +102,15 @@ export default function WorkspaceJob() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <h4 className="font-medium text-sm text-muted-foreground">Status</h4>
-              <p className="text-sm">{job.status || 'Unknown'}</p>
+              <p className="text-sm">{job.status}</p>
             </div>
             <div>
-              <h4 className="font-medium text-sm text-muted-foreground">Template</h4>
-              <p className="text-sm">{job.template_key || 'None'}</p>
+              <h4 className="font-medium text-sm text-muted-foreground">Credits Used</h4>
+              <p className="text-sm">{job.credits_used}</p>
             </div>
             <div>
-              <h4 className="font-medium text-sm text-muted-foreground">Has Characters</h4>
-              <p className="text-sm">{job.characters ? 'Yes' : 'No'}</p>
+              <h4 className="font-medium text-sm text-muted-foreground">Watermark</h4>
+              <p className="text-sm">{job.watermark ? 'Enabled' : 'Disabled'}</p>
             </div>
             <div>
               <h4 className="font-medium text-sm text-muted-foreground">Last Updated</h4>

@@ -85,14 +85,16 @@ export default function WorkspaceList() {
 
                   <div className="space-y-2">
                     <div className="text-sm">
-                      <span className="font-medium">Template:</span> {job.template_key || 'None'}
+                      <span className="font-medium">Credits Used:</span> {job.credits_used}
                     </div>
-                    <div className="text-sm">
-                      <span className="font-medium">Status:</span> {job.status || 'Unknown'}
+                    <div className="text-sm ">
+                      <span className="font-medium">Watermark:</span> {job.watermark ? 'Yes' : 'No'}
                     </div>
-                    <div className="text-sm">
-                      <span className="font-medium">Has Characters:</span> {job.characters ? 'Yes' : 'No'}
-                    </div>
+                    {job.node_index && Array.isArray(job.node_index) && (
+                      <div className="text-sm">
+                        <span className="font-medium">Nodes:</span> {job.node_index.length}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex gap-2 pt-2">
