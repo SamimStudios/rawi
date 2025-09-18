@@ -26,9 +26,9 @@ export default function Nodes() {
       setLoading(true);
       setError(null);
 
-      const { data: nodesData, error: nodesError } = await supabase
-        .from('storyboard_nodes')
-        .select('id, job_id, path, content, updated_at')
+      const { data: nodesData, error: nodesError } = await (supabase as any)
+        .from('nodes')
+        .select('id, job_id, path, content, updated_at, node_type')
         .eq('node_type', 'form')
         .order('updated_at', { ascending: false });
 
@@ -61,7 +61,7 @@ export default function Nodes() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex flex-col space-y-2">
-        <h1 className="text-3xl font-bold">Storyboard Nodes</h1>
+        <h1 className="text-3xl font-bold">Nodes</h1>
         <p className="text-muted-foreground">
           Form nodes from the storyboard system
         </p>

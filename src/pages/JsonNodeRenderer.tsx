@@ -80,7 +80,6 @@ interface NodeContent {
 
 interface FieldRegistry {
   id: string;
-  field_id: string;
   datatype: string;
   widget: string;
   options: any;
@@ -268,8 +267,8 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
         updateSectionValues(section, `root.${idx}`)
       );
 
-      const { error } = await supabase
-        .from('storyboard_nodes')
+      const { error } = await (supabase as any)
+        .from('nodes')
         .update({ 
           content: JSON.stringify(updatedContent),
           updated_at: new Date().toISOString()
@@ -302,8 +301,8 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
         let nodeData: Node;
 
         if (nodeId) {
-          const { data, error: fetchError } = await supabase
-            .from('storyboard_nodes')
+        const { data, error: fetchError } = await (supabase as any)
+            .from('nodes')
             .select('*')
             .eq('id', nodeId)
             .single();
@@ -370,7 +369,7 @@ export const JsonNodeRenderer: React.FC<JsonNodeRendererProps> = ({ nodeId }) =>
         const { data, error } = await supabase
           .from('field_registry')
           .select('*')
-          .order('field_id');
+          .order('id');
 
         if (error) throw error;
         setFieldRegistry(data || []);

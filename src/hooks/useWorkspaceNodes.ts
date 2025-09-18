@@ -17,15 +17,15 @@ export function useWorkspaceNodes(jobId: string) {
       setLoading(true);
       setError(null);
 
-      const { data: nodesData, error: nodesError } = await supabase
-        .from('storyboard_nodes')
+      const { data: nodesData, error: nodesError } = await (supabase as any)
+        .from('nodes')
         .select('*')
         .eq('job_id', jobId)
         .order('path', { ascending: true });
 
       if (nodesError) throw nodesError;
 
-      setNodes(nodesData || []);
+      setNodes((nodesData as unknown as WorkspaceNode[]) || []);
     } catch (e: any) {
       setError(e?.message || 'Failed to load nodes');
     } finally {

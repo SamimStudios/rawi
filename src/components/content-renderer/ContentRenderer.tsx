@@ -53,7 +53,6 @@ interface Section {
 
 interface FieldRegistry {
   id: string;
-  field_id: string;
   datatype: string;
   widget: string;
   options: any;

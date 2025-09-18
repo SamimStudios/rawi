@@ -34,7 +34,6 @@ interface FieldItem {
 
 interface FieldRegistry {
   id: string;
-  field_id: string;
   datatype: string;
   widget: string;
   options: any;
@@ -141,9 +140,9 @@ export const FieldItemRenderer: React.FC<FieldItemRendererProps> = ({
       return item.ui.label.fallback || item.ui.label.key;
     }
     if (registry.ui?.label) {
-      return registry.ui.label.fallback || registry.ui.label.key || registry.field_id;
+      return registry.ui.label.fallback || registry.ui.label.key || registry.id;
     }
-    return registry.field_id;
+    return registry.id;
   }, []);
 
   // Repeatable field logic

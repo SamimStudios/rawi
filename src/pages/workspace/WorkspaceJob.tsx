@@ -6,7 +6,7 @@ import { useVideoJob } from '@/hooks/useVideoJobs';
 import { useWorkspaceNodes } from '@/hooks/useWorkspaceNodes';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Settings, RefreshCw } from 'lucide-react';
-import NodeRenderer from '@/components/workspace/NodeRenderer';
+import JsonNodeRenderer from '@/pages/JsonNodeRenderer';
 
 const getStatusColor = (status: string) => {
   switch (status.toLowerCase()) {
@@ -133,9 +133,9 @@ export default function WorkspaceJob() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-1">
             {nodes.map((node) => (
-              <NodeRenderer key={node.id} node={node} />
+              <JsonNodeRenderer key={node.id} nodeId={node.id} />
             ))}
           </div>
         )}
