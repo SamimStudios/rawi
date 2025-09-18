@@ -9,7 +9,6 @@ import { useLanguage } from '@/contexts/LanguageContext';
 
 interface FieldRegistry {
   id: string;
-  field_id: string;
   datatype: string;
   widget: string;
   options: any;
@@ -35,7 +34,7 @@ export function FieldCard({ field, formValues = {}, onFieldChange }: FieldCardPr
 
   const handleValueChange = (value: any) => {
     setTestValue(value);
-    onFieldChange?.(field.field_id, value);
+    onFieldChange?.(field.id, value);
   };
 
   const getDataTypeBadgeColor = (datatype: string) => {
@@ -72,7 +71,7 @@ export function FieldCard({ field, formValues = {}, onFieldChange }: FieldCardPr
 
   const getLabel = () => {
     const labelData = field.ui?.label;
-    return labelData?.key ? t(labelData.key) : (labelData?.fallback || field.field_id);
+    return labelData?.key ? t(labelData.key) : (labelData?.fallback || field.id);
   };
 
   const getPlaceholder = () => {
@@ -96,7 +95,7 @@ export function FieldCard({ field, formValues = {}, onFieldChange }: FieldCardPr
                 <div>
                   <CardTitle className="text-lg">{getLabel()}</CardTitle>
                   <CardDescription>
-                    {t('fieldId') || 'Field ID'}: <code className="text-xs bg-muted px-1 rounded">{field.field_id}</code>
+                    {t('fieldId') || 'Field ID'}: <code className="text-xs bg-muted px-1 rounded">{field.id}</code>
                   </CardDescription>
                 </div>
               </div>

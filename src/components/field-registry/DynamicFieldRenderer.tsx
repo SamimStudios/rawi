@@ -13,7 +13,6 @@ import { useLanguage } from '@/contexts/LanguageContext';
 
 interface FieldRegistry {
   id: string;
-  field_id: string;
   datatype: string;
   widget: string;
   options: any;
@@ -49,8 +48,8 @@ export function DynamicFieldRenderer({
   
   // Generate unique base ID for this field instance
   const baseId = useMemo(() => 
-    inputId || `field-${field.field_id}`,
-    [inputId, field.field_id]
+    inputId || `field-${field.id}`,
+    [inputId, field.id]
   );
   
   // Validation logic
@@ -208,8 +207,8 @@ export function DynamicFieldRenderer({
   
   const getLabel = useCallback(() => {
     const labelData = field.ui?.label;
-    return labelData?.key ? t(labelData.key) : (labelData?.fallback || field.field_id);
-  }, [field.ui?.label, field.field_id, t]);
+    return labelData?.key ? t(labelData.key) : (labelData?.fallback || field.id);
+  }, [field.ui?.label, field.id, t]);
   
   const getPlaceholder = useCallback(() => {
     const placeholderData = field.ui?.placeholder;

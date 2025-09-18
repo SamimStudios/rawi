@@ -10,7 +10,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface FieldRegistry {
   id: string;
-  field_id: string;
   datatype: string;
   widget: string;
   options: any;
