@@ -137,45 +137,6 @@ export type Database = {
         }
         Relationships: []
       }
-      field_registry: {
-        Row: {
-          created_at: string
-          datatype: Database["public"]["Enums"]["field_datatype"]
-          default_value: Json | null
-          id: string
-          options: Json | null
-          rules: Json
-          ui: Json
-          updated_at: string
-          version: number
-          widget: Database["public"]["Enums"]["field_widget"]
-        }
-        Insert: {
-          created_at?: string
-          datatype: Database["public"]["Enums"]["field_datatype"]
-          default_value?: Json | null
-          id: string
-          options?: Json | null
-          rules?: Json
-          ui?: Json
-          updated_at?: string
-          version?: number
-          widget: Database["public"]["Enums"]["field_widget"]
-        }
-        Update: {
-          created_at?: string
-          datatype?: Database["public"]["Enums"]["field_datatype"]
-          default_value?: Json | null
-          id?: string
-          options?: Json | null
-          rules?: Json
-          ui?: Json
-          updated_at?: string
-          version?: number
-          widget?: Database["public"]["Enums"]["field_widget"]
-        }
-        Relationships: []
-      }
       invoices: {
         Row: {
           amount: number
@@ -226,181 +187,6 @@ export type Database = {
           },
         ]
       }
-      n8n_functions: {
-        Row: {
-          active: boolean
-          created_at: string
-          description: string | null
-          expected_payload: Json | null
-          expected_schema: Json | null
-          id: string
-          name: string
-          price: number
-          production_webhook: string | null
-          success_response_schema: Json | null
-          test_webhook: string | null
-          type: string
-          updated_at: string
-        }
-        Insert: {
-          active?: boolean
-          created_at?: string
-          description?: string | null
-          expected_payload?: Json | null
-          expected_schema?: Json | null
-          id?: string
-          name: string
-          price?: number
-          production_webhook?: string | null
-          success_response_schema?: Json | null
-          test_webhook?: string | null
-          type: string
-          updated_at?: string
-        }
-        Update: {
-          active?: boolean
-          created_at?: string
-          description?: string | null
-          expected_payload?: Json | null
-          expected_schema?: Json | null
-          id?: string
-          name?: string
-          price?: number
-          production_webhook?: string | null
-          success_response_schema?: Json | null
-          test_webhook?: string | null
-          type?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      node_definitions: {
-        Row: {
-          actions_template: Json
-          active: boolean
-          content_template: Json
-          created_at: string
-          def_key: string
-          dependencies_template: Json
-          description: string | null
-          edit_template: Json
-          id: string
-          is_section: boolean
-          node_type: string
-          parent_path_template: string | null
-          path_template: string
-          title: string
-          updated_at: string
-          version: number
-        }
-        Insert: {
-          actions_template?: Json
-          active?: boolean
-          content_template?: Json
-          created_at?: string
-          def_key: string
-          dependencies_template?: Json
-          description?: string | null
-          edit_template?: Json
-          id?: string
-          is_section?: boolean
-          node_type: string
-          parent_path_template?: string | null
-          path_template: string
-          title: string
-          updated_at?: string
-          version?: number
-        }
-        Update: {
-          actions_template?: Json
-          active?: boolean
-          content_template?: Json
-          created_at?: string
-          def_key?: string
-          dependencies_template?: Json
-          description?: string | null
-          edit_template?: Json
-          id?: string
-          is_section?: boolean
-          node_type?: string
-          parent_path_template?: string | null
-          path_template?: string
-          title?: string
-          updated_at?: string
-          version?: number
-        }
-        Relationships: []
-      }
-      nodes: {
-        Row: {
-          content: Json
-          created_at: string
-          dependencies: Json
-          generate_n8n_id: string | null
-          id: string
-          job_id: string
-          node_type: string
-          parent_id: string | null
-          path: unknown
-          removable: boolean
-          updated_at: string
-          validate_n8n_id: string | null
-          version: number
-        }
-        Insert: {
-          content: Json
-          created_at?: string
-          dependencies?: Json
-          generate_n8n_id?: string | null
-          id?: string
-          job_id: string
-          node_type: string
-          parent_id?: string | null
-          path: unknown
-          removable?: boolean
-          updated_at?: string
-          validate_n8n_id?: string | null
-          version?: number
-        }
-        Update: {
-          content?: Json
-          created_at?: string
-          dependencies?: Json
-          generate_n8n_id?: string | null
-          id?: string
-          job_id?: string
-          node_type?: string
-          parent_id?: string | null
-          path?: unknown
-          removable?: boolean
-          updated_at?: string
-          validate_n8n_id?: string | null
-          version?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "nodes_generate_n8n_id_fkey"
-            columns: ["generate_n8n_id"]
-            isOneToOne: false
-            referencedRelation: "n8n_functions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "nodes_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "nodes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "nodes_validate_n8n_id_fkey"
-            columns: ["validate_n8n_id"]
-            isOneToOne: false
-            referencedRelation: "n8n_functions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       rewards: {
         Row: {
           active: boolean
@@ -436,86 +222,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
-      }
-      storyboard_nodes: {
-        Row: {
-          actions: Json
-          content: Json
-          created_at: string
-          dependencies: Json
-          edit: Json
-          id: string
-          is_section: boolean
-          job_id: string
-          node_type: string
-          parent_id: string | null
-          path: unknown
-          removable: boolean
-          updated_at: string
-          version: number
-        }
-        Insert: {
-          actions?: Json
-          content?: Json
-          created_at?: string
-          dependencies?: Json
-          edit?: Json
-          id?: string
-          is_section?: boolean
-          job_id: string
-          node_type: string
-          parent_id?: string | null
-          path: unknown
-          removable?: boolean
-          updated_at?: string
-          version?: number
-        }
-        Update: {
-          actions?: Json
-          content?: Json
-          created_at?: string
-          dependencies?: Json
-          edit?: Json
-          id?: string
-          is_section?: boolean
-          job_id?: string
-          node_type?: string
-          parent_id?: string | null
-          path?: unknown
-          removable?: boolean
-          updated_at?: string
-          version?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_storyboard_nodes_parent"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "storyboard_nodes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_storyboard_nodes_parent"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "v_storyboard_forms_normalized"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_storyboard_nodes_parent"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "v_storyboard_sections"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "storyboard_nodes_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "video_jobs"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       subscription_plans: {
         Row: {
@@ -595,21 +301,6 @@ export type Database = {
         }
         Relationships: []
       }
-      test: {
-        Row: {
-          created_at: string
-          id: number
-        }
-        Insert: {
-          created_at?: string
-          id?: number
-        }
-        Update: {
-          created_at?: string
-          id?: number
-        }
-        Relationships: []
-      }
       transactions: {
         Row: {
           amount_paid: number | null
@@ -658,30 +349,6 @@ export type Database = {
         }
         Relationships: []
       }
-      translations: {
-        Row: {
-          ar: string
-          created_at: string
-          en: string
-          id: string
-          updated_at: string
-        }
-        Insert: {
-          ar?: string
-          created_at?: string
-          en?: string
-          id: string
-          updated_at?: string
-        }
-        Update: {
-          ar?: string
-          created_at?: string
-          en?: string
-          id?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       user_credits: {
         Row: {
           created_at: string
@@ -706,158 +373,46 @@ export type Database = {
         }
         Relationships: []
       }
-      video_jobs: {
-        Row: {
-          accepted_ip_at: string | null
-          accepted_terms_at: string | null
-          created_at: string
-          credits_used: number
-          id: string
-          node_index: Json
-          session_id: string | null
-          status: string
-          template_key: string
-          updated_at: string
-          user_id: string | null
-          watermark: boolean
-        }
-        Insert: {
-          accepted_ip_at?: string | null
-          accepted_terms_at?: string | null
-          created_at?: string
-          credits_used?: number
-          id?: string
-          node_index?: Json
-          session_id?: string | null
-          status?: string
-          template_key: string
-          updated_at?: string
-          user_id?: string | null
-          watermark?: boolean
-        }
-        Update: {
-          accepted_ip_at?: string | null
-          accepted_terms_at?: string | null
-          created_at?: string
-          credits_used?: number
-          id?: string
-          node_index?: Json
-          session_id?: string | null
-          status?: string
-          template_key?: string
-          updated_at?: string
-          user_id?: string | null
-          watermark?: boolean
-        }
-        Relationships: []
-      }
     }
     Views: {
-      v_storyboard_forms_normalized: {
+      field_registry: {
         Row: {
-          actions: Json | null
-          content: Json | null
-          dependencies: Json | null
-          edit: Json | null
+          created_at: string | null
+          datatype: Database["public"]["Enums"]["field_datatype"] | null
+          default_value: Json | null
           id: string | null
-          job_id: string | null
-          parent_id: string | null
-          path: unknown | null
+          options: Json | null
+          rules: Json | null
+          ui: Json | null
           updated_at: string | null
           version: number | null
+          widget: Database["public"]["Enums"]["field_widget"] | null
         }
         Insert: {
-          actions?: Json | null
-          content?: never
-          dependencies?: Json | null
-          edit?: Json | null
+          created_at?: string | null
+          datatype?: Database["public"]["Enums"]["field_datatype"] | null
+          default_value?: Json | null
           id?: string | null
-          job_id?: string | null
-          parent_id?: string | null
-          path?: unknown | null
+          options?: Json | null
+          rules?: Json | null
+          ui?: Json | null
           updated_at?: string | null
           version?: number | null
+          widget?: Database["public"]["Enums"]["field_widget"] | null
         }
         Update: {
-          actions?: Json | null
-          content?: never
-          dependencies?: Json | null
-          edit?: Json | null
+          created_at?: string | null
+          datatype?: Database["public"]["Enums"]["field_datatype"] | null
+          default_value?: Json | null
           id?: string | null
-          job_id?: string | null
-          parent_id?: string | null
-          path?: unknown | null
+          options?: Json | null
+          rules?: Json | null
+          ui?: Json | null
           updated_at?: string | null
           version?: number | null
+          widget?: Database["public"]["Enums"]["field_widget"] | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "fk_storyboard_nodes_parent"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "storyboard_nodes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_storyboard_nodes_parent"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "v_storyboard_forms_normalized"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_storyboard_nodes_parent"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "v_storyboard_sections"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "storyboard_nodes_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "video_jobs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      v_storyboard_sections: {
-        Row: {
-          id: string | null
-          job_id: string | null
-          n_forms: number | null
-          n_groups: number | null
-          n_media: number | null
-          path: unknown | null
-          updated_at: string | null
-        }
-        Insert: {
-          id?: string | null
-          job_id?: string | null
-          n_forms?: never
-          n_groups?: never
-          n_media?: never
-          path?: unknown | null
-          updated_at?: string | null
-        }
-        Update: {
-          id?: string | null
-          job_id?: string | null
-          n_forms?: never
-          n_groups?: never
-          n_media?: never
-          path?: unknown | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "storyboard_nodes_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "video_jobs"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Functions: {

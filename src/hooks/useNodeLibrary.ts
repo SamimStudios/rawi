@@ -53,6 +53,7 @@ export function useNodeLibrary() {
   const fetchN8NFunctions = useCallback(async () => {
     try {
       const { data, error } = await supabase
+        .schema('app' as any)
         .from('n8n_functions')
         .select('id, name, type, active')
         .eq('active', true)
@@ -67,15 +68,27 @@ export function useNodeLibrary() {
 
   const validateEntry = useCallback(async (entry: Omit<NodeLibraryEntry, 'created_at' | 'updated_at'>) => {
     try {
+      console.group('🔍 Validating node entry');
+      console.log('Node type:', entry.node_type);
+      console.log('Content structure:', entry.content);
+
       const { data, error } = await supabase.rpc('is_valid_content_shape', {
         node_type: entry.node_type,
         content: entry.content
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ RPC validation error:', error);
+        console.groupEnd();
+        throw error;
+      }
+      
+      console.log('✅ Validation result:', data);
+      console.groupEnd();
       return data as boolean;
     } catch (err) {
-      console.error('Error validating entry:', err);
+      console.error('❌ Error validating entry:', err);
+      console.groupEnd();
       return false;
     }
   }, []);

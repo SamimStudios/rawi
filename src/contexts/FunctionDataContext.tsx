@@ -41,6 +41,7 @@ export function FunctionDataProvider({ children }: { children: React.ReactNode }
     const loadingPromise = (async () => {
       try {
         const { data, error } = await supabase
+          .schema('app' as any)
           .from('n8n_functions')
           .select('price')
           .eq('id', functionId)
