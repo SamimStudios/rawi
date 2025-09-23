@@ -25,18 +25,12 @@ const Header = () => {
     : "/brand/logo-lockup-en-horizontal.svg";
 
   const navItems = user ? [
-    { key: 'templates', href: '/templates' },
-    { key: 'workspace', href: '/workspace', label: 'Workspace' },
-    { key: 'myHistory', href: '/app/history' },
-    { key: 'wallet', href: '/app/wallet' },
+    { key: 'templates', href: '/templates', label: undefined },
+    { key: 'wallet', href: '/user/wallet', label: undefined },
   ] : [
-    { key: 'templates', href: '/templates' },
-    { key: 'workspace', href: '/workspace', label: 'Workspace' },
-    { key: 'tryFree', href: '/try/cinematic-teaser' },
-    { key: 'help', href: '/help' },
-    { key: 'nodes', href: '/nodes', label: 'Nodes' },
-    { key: 'jsonRenderer', href: '/json-renderer', label: 'JSON Renderer' },
-    { key: 'widgets', href: '/widget-showcase', label: 'Widget Showcase' },
+    { key: 'templates', href: '/templates', label: undefined },
+    { key: 'tryFree', href: '/try/cinematic-teaser', label: undefined },
+    { key: 'help', href: '/help', label: undefined },
   ];
 
   const walletCredits = user ? credits : 0;
@@ -94,7 +88,7 @@ const Header = () => {
             </DropdownMenu>
 
             {/* Wallet */}
-            <Link to={user ? "/app/wallet" : "/auth/sign-in"}>
+            <Link to={user ? "/user/wallet" : "/auth/sign-in"}>
               <Button variant="outline" size="sm" className="flex items-center gap-2">
                 <Wallet className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium">{walletCredits} {t('credits')}</span>
@@ -115,7 +109,7 @@ const Header = () => {
                     <Link to="/app" className="cursor-pointer">{t('dashboard')}</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link to="/app/settings" className="cursor-pointer">{t('settings')}</Link>
+                    <Link to="/user/settings" className="cursor-pointer">{t('settings')}</Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
@@ -162,7 +156,7 @@ const Header = () => {
                 </Link>
               ))}
               <div className="flex items-center justify-between pt-4 border-t border-border">
-                <Link to={user ? "/app/wallet" : "/auth/sign-in"}>
+                <Link to={user ? "/user/wallet" : "/auth/sign-in"}>
                   <Button variant="outline" size="sm" className="flex items-center gap-2">
                     <Wallet className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm font-medium">{walletCredits} {t('credits')}</span>
@@ -170,7 +164,7 @@ const Header = () => {
                 </Link>
                 {user ? (
                   <Button variant="type_3_blue" size="sm" asChild>
-                    <Link to="/app/settings">{t('settings')}</Link>
+                    <Link to="/user/settings">{t('settings')}</Link>
                   </Button>
                 ) : (
                   <Button variant="type_3_blue" size="sm" asChild>

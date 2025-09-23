@@ -32,19 +32,10 @@ import Privacy from "./pages/legal/Privacy";
 import Consent from "./pages/legal/Consent";
 import Refund from "./pages/legal/Refund";
 import Dashboard from "./pages/app/Dashboard";
-
-import Wallet from "./pages/app/Wallet";
-import Settings from "./pages/app/Settings";
-import Result from "./pages/app/Result";
+import Wallet from "./pages/user/Wallet";
+import Settings from "./pages/user/Settings";
 import StyleGuideline from "./pages/StyleGuideline";
-import N8NTest from "./pages/N8NTest";
 import ButtonShowcase from "./pages/ButtonShowcase";
-import FieldRegistry from "./pages/FieldRegistry";
-import Nodes from "./pages/Nodes";
-import JsonNodeRenderer from "./pages/JsonNodeRenderer";
-import WidgetShowcase from "./pages/WidgetShowcase";
-import WorkspaceList from "./pages/workspace/WorkspaceList";
-import WorkspaceJob from "./pages/workspace/WorkspaceJob";
 
 
 
@@ -88,24 +79,17 @@ const MainApp = () => (
                       <Footer />
                     </div>
                   } />
-                  <Route path="/app/wallet" element={
+                  <Route path="/user/wallet" element={
                     <div>
                       <Header />
                       <Wallet />
                       <Footer />
                     </div>
                   } />
-                  <Route path="/app/settings" element={
+                  <Route path="/user/settings" element={
                     <div>
                       <Header />
                       <Settings />
-                      <Footer />
-                    </div>
-                  } />
-                   <Route path="/app/results/:id" element={
-                    <div>
-                      <Header />
-                      <Result />
                       <Footer />
                     </div>
                   } />
@@ -207,55 +191,6 @@ const MainApp = () => (
                       <Footer />
                     </div>
                   } />
-                   <Route path="/n8n-test" element={
-                     <div>
-                       <Header />
-                       <N8NTest />
-                       <Footer />
-                     </div>
-                   } />
-                   <Route path="/field-registry" element={
-                     <div>
-                       <Header />
-                       <FieldRegistry />
-                       <Footer />
-                     </div>
-                   } />
-                   <Route path="/nodes" element={
-                     <div>
-                       <Header />
-                       <Nodes />
-                       <Footer />
-                     </div>
-                   } />
-                   <Route path="/json-renderer" element={
-                     <div>
-                       <Header />
-                       <JsonNodeRenderer />
-                       <Footer />
-                     </div>
-                   } />
-                   <Route path="/widget-showcase" element={
-                     <div>
-                       <Header />
-                       <WidgetShowcase />
-                       <Footer />
-                     </div>
-                   } />
-                   <Route path="/workspace" element={
-                     <div>
-                       <Header />
-                       <WorkspaceList />
-                       <Footer />
-                     </div>
-                   } />
-                   <Route path="/workspace/:jobId" element={
-                     <div>
-                       <Header />
-                       <WorkspaceJob />
-                       <Footer />
-                     </div>
-                   } />
                    {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={
                     <div>
