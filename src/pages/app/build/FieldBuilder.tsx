@@ -165,6 +165,16 @@ export default function FieldBuilder() {
         default_value: fieldData.default_value || null
       };
 
+      // Debug logs to inspect payloads before insert
+      console.group('FieldBuilder Save Payload');
+      console.log('Schema:', 'app.field_registry');
+      console.log('Raw field state:', field);
+      console.log('Option source:', optionSource);
+      console.log('Static options state:', options);
+      console.log('contractWidgetRequiresOptions:', contractWidgetRequiresOptions(fieldData.widget));
+      console.log('fieldData (pre-insert):', fieldData);
+      console.log('insertData (final payload):', insertData);
+      console.groupEnd();
       const { error } = await supabase
         .schema('app' as any)
         .from('field_registry')
@@ -192,6 +202,16 @@ export default function FieldBuilder() {
       setOptions([]);
     } catch (error) {
       console.error('Error saving field:', error);
+      // Extra error detail logs for debugging constraints
+      if (typeof error === 'object' && error) {
+        const anyErr = error as any;
+        console.log('Supabase error details:', {
+          code: anyErr?.code,
+          message: anyErr?.message,
+          details: anyErr?.details,
+          hint: anyErr?.hint,
+        });
+      }
       toast({
         title: "Error",
         description: `Failed to save field: ${error instanceof Error ? error.message : 'Unknown error'}`,
