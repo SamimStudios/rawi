@@ -3,7 +3,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-import { Plus, History, Settings, CreditCard } from 'lucide-react';
+import { Plus, History, Settings, CreditCard, Wrench } from 'lucide-react';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -92,6 +92,29 @@ export default function Dashboard() {
                   </p>
                   <Button variant="outline" className="w-full">
                     {language === 'ar' ? 'فتح المحفظة' : 'Open Wallet'}
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+
+            {/* Build Tools */}
+            <Card className="bg-card border-border hover:bg-card/80 transition-colors">
+              <CardContent className="p-6">
+                <Link to="/app/build" className="block">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Wrench className="w-8 h-8 text-primary" />
+                    <h3 className="text-xl font-semibold text-foreground">
+                      {language === 'ar' ? 'أدوات البناء' : 'Build Tools'}
+                    </h3>
+                  </div>
+                  <p className="text-muted-foreground mb-4">
+                    {language === 'ar' 
+                      ? 'إنشاء وإدارة الحقول والنماذج' 
+                      : 'Create and manage fields, forms, and workflows'
+                    }
+                  </p>
+                  <Button variant="outline" className="w-full">
+                    {language === 'ar' ? 'فتح الأدوات' : 'Open Tools'}
                   </Button>
                 </Link>
               </CardContent>

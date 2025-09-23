@@ -31,9 +31,11 @@ import Terms from "./pages/legal/Terms";
 import Privacy from "./pages/legal/Privacy";
 import Consent from "./pages/legal/Consent";
 import Refund from "./pages/legal/Refund";
-import Dashboard from "./pages/app/Dashboard";
-import Wallet from "./pages/user/Wallet";
-import Settings from "./pages/user/Settings";
+import Dashboard from '@/pages/app/Dashboard';
+import BuildIndex from '@/pages/app/build';
+import FieldBuilder from '@/pages/app/build/FieldBuilder';
+import Wallet from '@/pages/user/Wallet';
+import Settings from '@/pages/user/Settings';
 import StyleGuideline from "./pages/StyleGuideline";
 import ButtonShowcase from "./pages/ButtonShowcase";
 
@@ -76,6 +78,20 @@ const MainApp = () => (
                     <div>
                       <Header />
                       <Dashboard />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/app/build" element={
+                    <div>
+                      <Header />
+                      <BuildIndex />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/app/build/field" element={
+                    <div>
+                      <Header />
+                      <FieldBuilder />
                       <Footer />
                     </div>
                   } />
