@@ -274,7 +274,7 @@ export default function NodeLibraryBuilder() {
                   <SelectItem value="">None</SelectItem>
                   {n8nFunctions.map(func => (
                     <SelectItem key={func.id} value={func.id}>
-                      {func.name} ({func.type})
+                      {func.name} ({func.kind})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -294,7 +294,7 @@ export default function NodeLibraryBuilder() {
                   <SelectItem value="">None</SelectItem>
                   {n8nFunctions.map(func => (
                     <SelectItem key={func.id} value={func.id}>
-                      {func.name} ({func.type})
+                      {func.name} ({func.kind})
                     </SelectItem>
                   ))}
                 </SelectContent>
