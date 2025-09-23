@@ -19,7 +19,7 @@ export interface NodeLibraryEntry {
 export interface N8NFunction {
   id: string;
   name: string;
-  kind: string;
+  type: string;
   active: boolean;
 }
 
@@ -54,9 +54,8 @@ export function useNodeLibrary() {
   const fetchN8NFunctions = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .schema('app' as any)
         .from('n8n_functions')
-        .select('id, name, kind, active')
+        .select('id, name, type, active')
         .eq('active', true)
         .order('name');
 

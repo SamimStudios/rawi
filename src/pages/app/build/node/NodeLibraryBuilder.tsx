@@ -264,17 +264,17 @@ export default function NodeLibraryBuilder() {
             <div className="space-y-2">
               <Label htmlFor="validateN8NId">Validation Function</Label>
               <Select 
-                value={entry.validate_n8n_id || ''} 
-                onValueChange={(value) => setEntry(prev => ({ ...prev, validate_n8n_id: value || null }))}
+                value={entry.validate_n8n_id ?? 'none'} 
+                onValueChange={(value) => setEntry(prev => ({ ...prev, validate_n8n_id: value === 'none' ? null : value }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select validation function" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
                   {n8nFunctions.map(func => (
                     <SelectItem key={func.id} value={func.id}>
-                      {func.name} ({func.kind})
+                      {func.name} ({func.type})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -284,17 +284,17 @@ export default function NodeLibraryBuilder() {
             <div className="space-y-2">
               <Label htmlFor="generateN8NId">Generation Function</Label>
               <Select 
-                value={entry.generate_n8n_id || ''} 
-                onValueChange={(value) => setEntry(prev => ({ ...prev, generate_n8n_id: value || null }))}
+                value={entry.generate_n8n_id ?? 'none'} 
+                onValueChange={(value) => setEntry(prev => ({ ...prev, generate_n8n_id: value === 'none' ? null : value }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select generation function" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
                   {n8nFunctions.map(func => (
                     <SelectItem key={func.id} value={func.id}>
-                      {func.name} ({func.kind})
+                      {func.name} ({func.type})
                     </SelectItem>
                   ))}
                 </SelectContent>
