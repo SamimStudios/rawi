@@ -10,9 +10,10 @@ import { Badge } from '@/components/ui/badge';
 import { Trash2, Plus, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useFieldContracts, type RuleConfig } from '@/hooks/useFieldContracts';
 
-type DataType = 'string' | 'number' | 'boolean' | 'array' | 'object' | 'uuid' | 'url' | 'date' | 'datetime';
-type Widget = 'text' | 'textarea' | 'select' | 'multiselect' | 'radio' | 'checkbox' | 'tags' | 'date' | 'datetime' | 'url' | 'number' | 'switch' | 'file';
+type DataType = string;
+type Widget = string;
 
 interface FieldOption {
   value: string;
@@ -37,16 +38,7 @@ interface FieldData {
     orderBy?: Array<{ column: string; dir: 'asc' | 'desc' }>;
     limit?: number;
   } | null;
-  rules: {
-    required?: boolean;
-    minLength?: number;
-    maxLength?: number;
-    min?: number;
-    max?: number;
-    pattern?: string;
-    minItems?: number;
-    maxItems?: number;
-  };
+  rules: Record<string, any>;
   ui: {
     label: {
       fallback: string;
@@ -64,44 +56,25 @@ interface FieldData {
   default_value?: any;
 }
 
-const dataTypeOptions: DataType[] = ['string', 'number', 'boolean', 'array', 'object', 'uuid', 'url', 'date', 'datetime'];
-const widgetOptions: Widget[] = ['text', 'textarea', 'select', 'multiselect', 'radio', 'checkbox', 'tags', 'date', 'datetime', 'url', 'number', 'switch', 'file'];
+const dataTypeOptions: DataType[] = [];
+const widgetOptions: Widget[] = [];
 
-const getCompatibleWidgets = (dataType: DataType): Widget[] => {
-  switch (dataType) {
-    case 'string':
-      return ['text', 'textarea', 'select', 'radio', 'url'];
-    case 'number':
-      return ['number', 'select', 'radio'];
-    case 'boolean':
-      return ['checkbox', 'switch', 'select', 'radio'];
-    case 'array':
-      return ['tags', 'multiselect', 'checkbox'];
-    case 'uuid':
-      return ['select', 'radio'];
-    case 'date':
-      return ['date'];
-    case 'datetime':
-      return ['datetime'];
-    case 'url':
-      return ['url', 'text'];
-    case 'object':
-      return ['file'];
-    default:
-      return ['text'];
-  }
+const getCompatibleWidgets = (dataType: DataType, contracts: any): Widget[] => {
+  if (!contracts) return [];
+  return contracts.widgetCompatibility[dataType] || [];
 };
 
 const widgetRequiresOptions = (widget: Widget): boolean => {
-  return ['select', 'multiselect', 'radio', 'checkbox', 'tags'].includes(widget);
+  return ['select', 'radio', 'checkbox', 'tags'].includes(widget);
 };
 
 export default function FieldBuilder() {
   const { toast } = useToast();
+  const { contracts, loading: contractsLoading, getAvailableWidgets, getAvailableRules, widgetRequiresOptions: contractWidgetRequiresOptions } = useFieldContracts();
   const [field, setField] = useState<FieldData>({
     id: '',
-    datatype: 'string',
-    widget: 'text',
+    datatype: 'string' as DataType,
+    widget: 'text' as Widget,
     options: null,
     rules: {},
     ui: {
@@ -112,17 +85,28 @@ export default function FieldBuilder() {
   const [options, setOptions] = useState<FieldOption[]>([]);
   const [optionSource, setOptionSource] = useState<'static' | 'table' | 'endpoint'>('static');
 
-  const compatibleWidgets = getCompatibleWidgets(field.datatype);
+  const availableDataTypes = contracts?.datatypes || [];
+  const availableWidgets = getAvailableWidgets(field.datatype);
+  const availableRules = getAvailableRules(field.datatype);
+
+  if (contractsLoading) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="text-center">Loading field contracts...</div>
+      </div>
+    );
+  }
 
   const handleDataTypeChange = (datatype: DataType) => {
-    const compatible = getCompatibleWidgets(datatype);
+    const compatible = getAvailableWidgets(datatype);
     const newWidget = compatible.includes(field.widget) ? field.widget : compatible[0];
     
     setField(prev => ({
       ...prev,
       datatype,
       widget: newWidget,
-      options: widgetRequiresOptions(newWidget) ? (prev.options || { source: 'static', values: [] }) : null
+      rules: {}, // Reset rules when datatype changes
+      options: contractWidgetRequiresOptions(newWidget) ? (prev.options || { source: 'static', values: [] }) : null
     }));
   };
 
@@ -130,7 +114,7 @@ export default function FieldBuilder() {
     setField(prev => ({
       ...prev,
       widget,
-      options: widgetRequiresOptions(widget) ? (prev.options || { source: 'static', values: [] }) : null
+      options: contractWidgetRequiresOptions(widget) ? (prev.options || { source: 'static', values: [] }) : null
     }));
   };
 
@@ -194,8 +178,8 @@ export default function FieldBuilder() {
       // Reset form
       setField({
         id: '',
-        datatype: 'string',
-        widget: 'text',
+        datatype: 'string' as DataType,
+        widget: 'text' as Widget,
         options: null,
         rules: {},
         ui: { label: { fallback: '' } }
@@ -245,7 +229,7 @@ export default function FieldBuilder() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {dataTypeOptions.map(type => (
+                  {availableDataTypes.map(type => (
                     <SelectItem key={type} value={type}>{type}</SelectItem>
                   ))}
                 </SelectContent>
@@ -259,7 +243,7 @@ export default function FieldBuilder() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {compatibleWidgets.map(widget => (
+                  {availableWidgets.map(widget => (
                     <SelectItem key={widget} value={widget}>{widget}</SelectItem>
                   ))}
                 </SelectContent>
@@ -328,120 +312,108 @@ export default function FieldBuilder() {
             <CardTitle>Validation Rules</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label>Required</Label>
-              <Switch
-                checked={field.rules.required || false}
-                onCheckedChange={(checked) => setField(prev => ({
-                  ...prev,
-                  rules: { ...prev.rules, required: checked }
-                }))}
-              />
-            </div>
-
-            {field.datatype === 'string' && (
-              <>
-                <div>
-                  <Label htmlFor="minLength">Min Length</Label>
-                  <Input
-                    id="minLength"
-                    type="number"
-                    value={field.rules.minLength || ''}
-                    onChange={(e) => setField(prev => ({
-                      ...prev,
-                      rules: { ...prev.rules, minLength: e.target.value ? parseInt(e.target.value) : undefined }
-                    }))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="maxLength">Max Length</Label>
-                  <Input
-                    id="maxLength"
-                    type="number"
-                    value={field.rules.maxLength || ''}
-                    onChange={(e) => setField(prev => ({
-                      ...prev,
-                      rules: { ...prev.rules, maxLength: e.target.value ? parseInt(e.target.value) : undefined }
-                    }))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="pattern">Pattern (Regex)</Label>
-                  <Input
-                    id="pattern"
-                    value={field.rules.pattern || ''}
-                    onChange={(e) => setField(prev => ({
-                      ...prev,
-                      rules: { ...prev.rules, pattern: e.target.value || undefined }
-                    }))}
-                    placeholder="^[a-zA-Z0-9]+$"
-                  />
-                </div>
-              </>
-            )}
-
-            {field.datatype === 'number' && (
-              <>
-                <div>
-                  <Label htmlFor="min">Min Value</Label>
-                  <Input
-                    id="min"
-                    type="number"
-                    value={field.rules.min || ''}
-                    onChange={(e) => setField(prev => ({
-                      ...prev,
-                      rules: { ...prev.rules, min: e.target.value ? parseFloat(e.target.value) : undefined }
-                    }))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="max">Max Value</Label>
-                  <Input
-                    id="max"
-                    type="number"
-                    value={field.rules.max || ''}
-                    onChange={(e) => setField(prev => ({
-                      ...prev,
-                      rules: { ...prev.rules, max: e.target.value ? parseFloat(e.target.value) : undefined }
-                    }))}
-                  />
-                </div>
-              </>
-            )}
-
-            {field.datatype === 'array' && (
-              <>
-                <div>
-                  <Label htmlFor="minItems">Min Items</Label>
-                  <Input
-                    id="minItems"
-                    type="number"
-                    value={field.rules.minItems || ''}
-                    onChange={(e) => setField(prev => ({
-                      ...prev,
-                      rules: { ...prev.rules, minItems: e.target.value ? parseInt(e.target.value) : undefined }
-                    }))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="maxItems">Max Items</Label>
-                  <Input
-                    id="maxItems"
-                    type="number"
-                    value={field.rules.maxItems || ''}
-                    onChange={(e) => setField(prev => ({
-                      ...prev,
-                      rules: { ...prev.rules, maxItems: e.target.value ? parseInt(e.target.value) : undefined }
-                    }))}
-                  />
-                </div>
-              </>
+            {Object.entries(availableRules).map(([ruleKey, ruleConfig]) => (
+              <div key={ruleKey}>
+                {ruleConfig.type === 'boolean' && (
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>{ruleConfig.label}</Label>
+                      {ruleConfig.description && (
+                        <p className="text-sm text-muted-foreground">{ruleConfig.description}</p>
+                      )}
+                    </div>
+                    <Switch
+                      checked={field.rules[ruleKey] || false}
+                      onCheckedChange={(checked) => setField(prev => ({
+                        ...prev,
+                        rules: { ...prev.rules, [ruleKey]: checked }
+                      }))}
+                    />
+                  </div>
+                )}
+                
+                {ruleConfig.type === 'number' && (
+                  <div>
+                    <Label htmlFor={ruleKey}>{ruleConfig.label}</Label>
+                    {ruleConfig.description && (
+                      <p className="text-sm text-muted-foreground mb-2">{ruleConfig.description}</p>
+                    )}
+                    <Input
+                      id={ruleKey}
+                      type="number"
+                      min={ruleConfig.min}
+                      max={ruleConfig.max}
+                      value={field.rules[ruleKey] || ''}
+                      onChange={(e) => setField(prev => ({
+                        ...prev,
+                        rules: { 
+                          ...prev.rules, 
+                          [ruleKey]: e.target.value ? parseFloat(e.target.value) : undefined 
+                        }
+                      }))}
+                    />
+                  </div>
+                )}
+                
+                {ruleConfig.type === 'string' && (
+                  <div>
+                    <Label htmlFor={ruleKey}>{ruleConfig.label}</Label>
+                    {ruleConfig.description && (
+                      <p className="text-sm text-muted-foreground mb-2">{ruleConfig.description}</p>
+                    )}
+                    <Input
+                      id={ruleKey}
+                      value={field.rules[ruleKey] || ''}
+                      onChange={(e) => setField(prev => ({
+                        ...prev,
+                        rules: { ...prev.rules, [ruleKey]: e.target.value || undefined }
+                      }))}
+                    />
+                  </div>
+                )}
+                
+                {ruleConfig.type === 'array' && ruleConfig.options && (
+                  <div>
+                    <Label>{ruleConfig.label}</Label>
+                    {ruleConfig.description && (
+                      <p className="text-sm text-muted-foreground mb-2">{ruleConfig.description}</p>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      {ruleConfig.options.map(option => (
+                        <Badge
+                          key={option}
+                          variant={field.rules[ruleKey]?.includes(option) ? "default" : "outline"}
+                          className="cursor-pointer"
+                          onClick={() => {
+                            const current = field.rules[ruleKey] || [];
+                            const updated = current.includes(option)
+                              ? current.filter((item: string) => item !== option)
+                              : [...current, option];
+                            setField(prev => ({
+                              ...prev,
+                              rules: { ...prev.rules, [ruleKey]: updated }
+                            }));
+                          }}
+                        >
+                          {option}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+            
+            {Object.keys(availableRules).length === 0 && (
+              <p className="text-muted-foreground text-center py-4">
+                No validation rules available for {field.datatype} type
+              </p>
             )}
           </CardContent>
         </Card>
 
         {/* Options Configuration */}
-        {widgetRequiresOptions(field.widget) && (
+        {contractWidgetRequiresOptions(field.widget) && (
           <Card>
             <CardHeader>
               <CardTitle>Options Configuration</CardTitle>
