@@ -159,7 +159,7 @@ export default function FieldBuilder() {
         id: fieldData.id,
         datatype: fieldData.datatype as any,
         widget: fieldData.widget as any,
-        options: fieldData.options || {},
+        options: contractWidgetRequiresOptions(fieldData.widget) ? fieldData.options : null,
         rules: fieldData.rules || {},
         ui: fieldData.ui || {},
         default_value: fieldData.default_value || null
