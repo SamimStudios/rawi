@@ -54,7 +54,7 @@ export function MediaContentEditor({ content, onChange }: MediaContentEditorProp
       ...content,
       ...mediaContent
     });
-  }, [mediaContent, onChange, content]);
+  }, [mediaContent, onChange]);
 
   const addVersion = () => {
     const newVersion: MediaVersion = {

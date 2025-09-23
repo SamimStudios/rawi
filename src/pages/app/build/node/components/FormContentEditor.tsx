@@ -15,6 +15,41 @@ interface I18nText {
   key?: string;
 }
 
+interface CollectionInstance {
+  instance_id: number;
+  path: string;
+  children?: (FieldItem | SectionItem | CollectionSection | CollectionFieldItem)[];
+  value?: any;
+}
+
+interface CollectionSection {
+  kind: 'CollectionSection';
+  idx: number;
+  path: string;
+  label: I18nText;
+  description?: I18nText;
+  required: boolean;
+  hidden: boolean;
+  collapsed: boolean;
+  min_instances: number;
+  max_instances: number;
+  instances: CollectionInstance[];
+}
+
+interface CollectionFieldItem {
+  kind: 'CollectionFieldItem';
+  idx: number;
+  path: string;
+  ref: string;
+  editable: boolean;
+  required: boolean;
+  importance: 'low' | 'normal' | 'high';
+  ui: UIBlock;
+  min_instances: number;
+  max_instances: number;
+  instances: CollectionInstance[];
+}
+
 interface UIBlock {
   kind: 'UIBlock';
   label: I18nText;
@@ -44,10 +79,10 @@ interface SectionItem {
   required: boolean;
   hidden: boolean;
   collapsed: boolean;
-  children: (FieldItem | SectionItem)[];
+  children: ContentItem[];
 }
 
-type ContentItem = FieldItem | SectionItem;
+type ContentItem = FieldItem | SectionItem | CollectionSection | CollectionFieldItem;
 
 interface FormContent {
   kind: 'FormContent';
@@ -297,9 +332,9 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs">Label Override</Label>
+              <Label className="text-xs">Label Fallback</Label>
               <Input
                 value={field.ui.label?.fallback || ''}
                 onChange={(e) => onUpdate({
@@ -313,16 +348,74 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs">Help Text</Label>
+              <Label className="text-xs">Label Key</Label>
+              <Input
+                value={field.ui.label?.key || ''}
+                onChange={(e) => onUpdate({
+                  ui: {
+                    ...field.ui,
+                    label: { ...field.ui.label, key: e.target.value }
+                  }
+                })}
+                placeholder="translation.key"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Help Fallback</Label>
               <Input
                 value={field.ui.help?.fallback || ''}
                 onChange={(e) => onUpdate({
                   ui: {
                     ...field.ui,
-                    help: { fallback: e.target.value }
+                    help: { ...field.ui.help, fallback: e.target.value }
                   }
                 })}
                 placeholder="Help text"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Help Key</Label>
+              <Input
+                value={field.ui.help?.key || ''}
+                onChange={(e) => onUpdate({
+                  ui: {
+                    ...field.ui,
+                    help: { ...field.ui.help, key: e.target.value }
+                  }
+                })}
+                placeholder="help.key"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Placeholder Fallback</Label>
+              <Input
+                value={field.ui.placeholder?.fallback || ''}
+                onChange={(e) => onUpdate({
+                  ui: {
+                    ...field.ui,
+                    placeholder: { ...field.ui.placeholder, fallback: e.target.value }
+                  }
+                })}
+                placeholder="Placeholder text"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Placeholder Key</Label>
+              <Input
+                value={field.ui.placeholder?.key || ''}
+                onChange={(e) => onUpdate({
+                  ui: {
+                    ...field.ui,
+                    placeholder: { ...field.ui.placeholder, key: e.target.value }
+                  }
+                })}
+                placeholder="placeholder.key"
               />
             </div>
           </div>
@@ -342,6 +435,16 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
                 onCheckedChange={(checked) => onUpdate({ editable: checked })}
               />
               <Label className="text-xs">Editable</Label>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                checked={field.ui.override}
+                onCheckedChange={(checked) => onUpdate({
+                  ui: { ...field.ui, override: checked }
+                })}
+              />
+              <Label className="text-xs">Override</Label>
             </div>
             
             <Badge variant={field.importance === 'high' ? 'destructive' : field.importance === 'normal' ? 'default' : 'secondary'}>
