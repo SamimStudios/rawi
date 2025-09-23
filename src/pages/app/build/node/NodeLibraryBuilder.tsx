@@ -15,7 +15,7 @@ import { useNodeLibrary, type NodeLibraryEntry } from '@/hooks/useNodeLibrary';
 import { FormContentEditor } from './components/FormContentEditor';
 import { MediaContentEditor } from './components/MediaContentEditor';
 import { GroupContentEditor } from './components/GroupContentEditor';
-import { CollectionContentEditor } from './components/CollectionContentEditor';
+
 import { PayloadEditor } from './components/PayloadEditor';
 
 export default function NodeLibraryBuilder() {
@@ -129,14 +129,6 @@ export default function NodeLibraryBuilder() {
             onChange={handleContentChange}
           />
         );
-      case 'collection':
-      case 'collectiongroup':
-        return (
-          <CollectionContentEditor 
-            content={entry.content} 
-            onChange={handleContentChange}
-          />
-        );
       default:
         return <div>Unknown node type</div>;
     }
@@ -207,7 +199,7 @@ export default function NodeLibraryBuilder() {
               <Label htmlFor="nodeType">Node Type *</Label>
               <Select 
                 value={entry.node_type} 
-                onValueChange={(value: 'form' | 'media' | 'group' | 'collection' | 'collectiongroup') => 
+                onValueChange={(value: 'form' | 'media' | 'group') => 
                   setEntry(prev => ({ ...prev, node_type: value, content: {} }))
                 }
               >
@@ -218,8 +210,6 @@ export default function NodeLibraryBuilder() {
                   <SelectItem value="form">Form</SelectItem>
                   <SelectItem value="media">Media</SelectItem>
                   <SelectItem value="group">Group</SelectItem>
-                  <SelectItem value="collection">Collection</SelectItem>
-                  <SelectItem value="collectiongroup">Collection Group</SelectItem>
                 </SelectContent>
               </Select>
             </div>

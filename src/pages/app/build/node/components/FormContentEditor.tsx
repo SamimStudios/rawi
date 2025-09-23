@@ -291,7 +291,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
                 value={field.ref || undefined}
                 onValueChange={(value) => onUpdate({ ref: value, path: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger id={`field-ref-${field.idx}`}>
                   <SelectValue placeholder="Select field" />
                 </SelectTrigger>
                 <SelectContent>
@@ -336,6 +336,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
             <div className="space-y-1">
               <Label className="text-xs">Label Fallback</Label>
               <Input
+                id={`field-label-fallback-${field.idx}`}
                 value={field.ui.label?.fallback || ''}
                 onChange={(e) => onUpdate({
                   ui: {
@@ -350,6 +351,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
             <div className="space-y-1">
               <Label className="text-xs">Label Key</Label>
               <Input
+                id={`field-label-key-${field.idx}`}
                 value={field.ui.label?.key || ''}
                 onChange={(e) => onUpdate({
                   ui: {
@@ -364,6 +366,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
             <div className="space-y-1">
               <Label className="text-xs">Help Fallback</Label>
               <Input
+                id={`field-help-fallback-${field.idx}`}
                 value={field.ui.help?.fallback || ''}
                 onChange={(e) => onUpdate({
                   ui: {
@@ -378,6 +381,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
             <div className="space-y-1">
               <Label className="text-xs">Help Key</Label>
               <Input
+                id={`field-help-key-${field.idx}`}
                 value={field.ui.help?.key || ''}
                 onChange={(e) => onUpdate({
                   ui: {
@@ -394,6 +398,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
             <div className="space-y-1">
               <Label className="text-xs">Placeholder Fallback</Label>
               <Input
+                id={`field-placeholder-fallback-${field.idx}`}
                 value={field.ui.placeholder?.fallback || ''}
                 onChange={(e) => onUpdate({
                   ui: {
@@ -408,6 +413,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
             <div className="space-y-1">
               <Label className="text-xs">Placeholder Key</Label>
               <Input
+                id={`field-placeholder-key-${field.idx}`}
                 value={field.ui.placeholder?.key || ''}
                 onChange={(e) => onUpdate({
                   ui: {

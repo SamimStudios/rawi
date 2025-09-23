@@ -4,7 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 
 export interface NodeLibraryEntry {
   id: string;
-  node_type: 'form' | 'media' | 'group' | 'collection' | 'collectiongroup';
+  node_type: 'form' | 'media' | 'group';
   content: Record<string, any>;
   payload_validate?: Record<string, any> | null;
   payload_generate?: Record<string, any> | null;

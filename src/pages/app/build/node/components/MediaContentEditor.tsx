@@ -50,10 +50,7 @@ export function MediaContentEditor({ content, onChange }: MediaContentEditorProp
 
   useEffect(() => {
     // Update parent content when media content changes
-    onChange({
-      ...content,
-      ...mediaContent
-    });
+    onChange(mediaContent);
   }, [mediaContent, onChange]);
 
   const addVersion = () => {
