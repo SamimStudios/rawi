@@ -34,6 +34,7 @@ import Refund from "./pages/legal/Refund";
 import Dashboard from '@/pages/app/Dashboard';
 import BuildIndex from '@/pages/app/build';
 import FieldBuilder from '@/pages/app/build/FieldBuilder';
+import NodeLibraryRoutes from '@/pages/app/build/node';
 import Wallet from '@/pages/user/Wallet';
 import Settings from '@/pages/user/Settings';
 import StyleGuideline from "./pages/StyleGuideline";
@@ -92,6 +93,13 @@ const MainApp = () => (
                     <div>
                       <Header />
                       <FieldBuilder />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/app/build/node/*" element={
+                    <div>
+                      <Header />
+                      <NodeLibraryRoutes />
                       <Footer />
                     </div>
                   } />

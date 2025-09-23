@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-import { Settings, Database, Workflow, FileText } from 'lucide-react';
+import { Settings, Database, Workflow, FileText, Boxes } from 'lucide-react';
 
 const buildTools = [
   {
@@ -11,6 +11,13 @@ const buildTools = [
     icon: <Settings className="w-6 h-6" />,
     href: '/app/build/field',
     color: 'text-blue-600'
+  },
+  {
+    title: 'Node Library',
+    description: 'Build reusable node definitions for forms, media, and groups',
+    icon: <Boxes className="w-6 h-6" />,
+    href: '/app/build/node',
+    color: 'text-indigo-600'
   },
   {
     title: 'Schemas',
