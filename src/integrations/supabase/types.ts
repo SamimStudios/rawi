@@ -501,7 +501,7 @@ export type Database = {
         Returns: Json
       }
       get_form_node: {
-        Args: { p_job_id: string; p_path: unknown }
+        Args: { p_job_id: string; p_path: unknown } | { p_node_id: string }
         Returns: Json
       }
       get_n8n_function_id: {
@@ -608,7 +608,7 @@ export type Database = {
         Returns: boolean
       }
       is_valid_form_content: {
-        Args: { p: Json }
+        Args: { content: Json }
         Returns: boolean
       }
       is_valid_image_item: {
