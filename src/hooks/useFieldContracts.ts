@@ -11,9 +11,18 @@ export interface RuleConfig {
 }
 
 export interface UIConfig {
-  label?: string;
-  placeholder?: string;
-  help_text?: string;
+  label?: {
+    key?: string;
+    fallback: string;
+  };
+  placeholder?: {
+    key?: string;
+    fallback: string;
+  };
+  help_text?: {
+    key?: string;
+    fallback: string;
+  };
 }
 
 export interface FieldContracts {
@@ -73,11 +82,35 @@ export function useFieldContracts() {
         rulesConfig[datatype] = await getDataTypeRules(datatype);
       }
 
-      // Basic UI fields configuration
+      // UI fields configuration with key/fallback structure
       const uiFields = {
-        label: { type: 'string', label: 'Label', required: false },
-        placeholder: { type: 'string', label: 'Placeholder', required: false },
-        help_text: { type: 'string', label: 'Help Text', required: false }
+        label: { 
+          type: 'object', 
+          label: 'Label', 
+          required: false,
+          properties: {
+            key: { type: 'string', label: 'Translation Key', required: false },
+            fallback: { type: 'string', label: 'Default Text', required: true }
+          }
+        },
+        placeholder: { 
+          type: 'object', 
+          label: 'Placeholder', 
+          required: false,
+          properties: {
+            key: { type: 'string', label: 'Translation Key', required: false },
+            fallback: { type: 'string', label: 'Default Text', required: true }
+          }
+        },
+        help_text: { 
+          type: 'object', 
+          label: 'Help Text', 
+          required: false,
+          properties: {
+            key: { type: 'string', label: 'Translation Key', required: false },
+            fallback: { type: 'string', label: 'Default Text', required: true }
+          }
+        }
       };
 
       setContracts({
