@@ -10,11 +10,19 @@ export interface RuleConfig {
   options?: string[];
 }
 
+export interface UIConfig {
+  label?: string;
+  placeholder?: string;
+  help_text?: string;
+}
+
 export interface FieldContracts {
   datatypes: string[];
   widgets: string[];
   rules: Record<string, Record<string, RuleConfig>>;
   widgetCompatibility: Record<string, string[]>;
+  uiFields: Record<string, any>;
+  optionsConfig: any;
 }
 
 export function useFieldContracts() {
@@ -30,145 +38,55 @@ export function useFieldContracts() {
     try {
       setLoading(true);
 
-      // Get available datatypes using direct SQL query
-      const datatypeQuery = await supabase
+      // Get available datatypes and widgets from field_registry table
+      const { data: registryData, error: registryError } = await supabase
         .from('field_registry')
-        .select('datatype')
-        .limit(1);
+        .select('datatype, widget')
+        .limit(100);
 
-      const widgetQuery = await supabase  
-        .from('field_registry')
-        .select('widget')
-        .limit(1);
+      if (registryError) {
+        throw new Error(`Registry error: ${registryError.message}`);
+      }
 
-      // Hardcode the enums based on what we know from the schema
-      const datatypes = ['string', 'number', 'boolean', 'array', 'object', 'uuid', 'url', 'date', 'datetime'];
-      const widgets = ['text', 'textarea', 'select', 'radio', 'checkbox', 'tags', 'group', 'date', 'datetime', 'url', 'color', 'file'];
+      // Extract unique datatypes and widgets
+      const datatypes = [...new Set(registryData?.map(item => item.datatype) || [])];
+      const widgets = [...new Set(registryData?.map(item => item.widget) || [])];
 
-      // Define basic rules for each datatype (simplified approach)
-      const rulesConfig: Record<string, Record<string, RuleConfig>> = {
-        string: {
-          required: {
-            type: 'boolean',
-            label: 'Required',
-            description: 'Field is required'
-          },
-          minLength: {
-            type: 'number',
-            label: 'Min Length',
-            description: 'Minimum number of characters',
-            min: 0
-          },
-          maxLength: {
-            type: 'number',
-            label: 'Max Length',
-            description: 'Maximum number of characters',
-            min: 1
-          },
-          pattern: {
-            type: 'string',
-            label: 'Pattern',
-            description: 'Regular expression pattern'
-          }
-        },
-        number: {
-          required: {
-            type: 'boolean',
-            label: 'Required',
-            description: 'Field is required'
-          },
-          minimum: {
-            type: 'number',
-            label: 'Minimum',
-            description: 'Minimum value'
-          },
-          maximum: {
-            type: 'number',
-            label: 'Maximum',
-            description: 'Maximum value'
-          }
-        },
-        boolean: {
-          required: {
-            type: 'boolean',
-            label: 'Required',
-            description: 'Field is required'
-          }
-        },
-        array: {
-          required: {
-            type: 'boolean',
-            label: 'Required',
-            description: 'Field is required'
-          },
-          minItems: {
-            type: 'number',
-            label: 'Min Items',
-            description: 'Minimum number of items',
-            min: 0
-          },
-          maxItems: {
-            type: 'number',
-            label: 'Max Items',
-            description: 'Maximum number of items',
-            min: 1
-          }
-        },
-        object: {
-          required: {
-            type: 'boolean',
-            label: 'Required',
-            description: 'Field is required'
-          }
-        },
-        uuid: {
-          required: {
-            type: 'boolean',
-            label: 'Required',
-            description: 'Field is required'
-          }
-        },
-        url: {
-          required: {
-            type: 'boolean',
-            label: 'Required',
-            description: 'Field is required'
-          }
-        },
-        date: {
-          required: {
-            type: 'boolean',
-            label: 'Required',
-            description: 'Field is required'
-          }
-        },
-        datetime: {
-          required: {
-            type: 'boolean',
-            label: 'Required',
-            description: 'Field is required'
+      const widgetCompatibility: Record<string, string[]> = {};
+      const rulesConfig: Record<string, Record<string, RuleConfig>> = {};
+
+      // Build widget compatibility matrix
+      for (const datatype of datatypes) {
+        widgetCompatibility[datatype] = [];
+        
+        // Get compatible widgets for each datatype
+        for (const widget of widgets) {
+          const isCompatible = await checkWidgetCompatibility(datatype, widget);
+          if (isCompatible) {
+            widgetCompatibility[datatype].push(widget);
           }
         }
-      };
+      }
 
-      // Define widget compatibility
-      const widgetCompatibility: Record<string, string[]> = {
-        string: ['text', 'textarea', 'select', 'radio', 'url'],
-        number: ['text', 'select', 'radio'],
-        boolean: ['checkbox', 'select', 'radio'],
-        array: ['tags', 'checkbox'],
-        object: ['file', 'group'],
-        uuid: ['select', 'radio'],
-        url: ['url', 'text'],
-        date: ['date'],
-        datetime: ['datetime']
+      // Build rules configuration for each datatype
+      for (const datatype of datatypes) {
+        rulesConfig[datatype] = await getDataTypeRules(datatype);
+      }
+
+      // Basic UI fields configuration
+      const uiFields = {
+        label: { type: 'string', label: 'Label', required: false },
+        placeholder: { type: 'string', label: 'Placeholder', required: false },
+        help_text: { type: 'string', label: 'Help Text', required: false }
       };
 
       setContracts({
-        datatypes: datatypes,
-        widgets: widgets,
+        datatypes,
+        widgets,
         rules: rulesConfig,
-        widgetCompatibility
+        widgetCompatibility,
+        uiFields,
+        optionsConfig: null
       });
 
     } catch (err) {
@@ -177,6 +95,89 @@ export function useFieldContracts() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper function to check widget compatibility with datatype
+  const checkWidgetCompatibility = async (datatype: string, widget: string): Promise<boolean> => {
+    // Basic compatibility rules - this could be enhanced with RPC calls
+    const compatibilityMap: Record<string, string[]> = {
+      string: ['text', 'textarea', 'select', 'radio', 'url'],
+      number: ['text', 'select', 'radio'],
+      boolean: ['checkbox', 'select', 'radio'],
+      array: ['tags', 'checkbox'],
+      object: ['file', 'group'],
+      uuid: ['select', 'radio'],
+      url: ['url', 'text'],
+      date: ['date'],
+      datetime: ['datetime']
+    };
+
+    return compatibilityMap[datatype]?.includes(widget) || false;
+  };
+
+  // Helper function to get rules for a specific datatype
+  const getDataTypeRules = async (datatype: string): Promise<Record<string, RuleConfig>> => {
+    // Basic rules configuration - could be enhanced with specific RPC calls
+    const baseRules = {
+      required: {
+        type: 'boolean' as const,
+        label: 'Required',
+        description: 'Field is required'
+      }
+    };
+
+    const specificRules: Record<string, Record<string, RuleConfig>> = {
+      string: {
+        ...baseRules,
+        minLength: {
+          type: 'number' as const,
+          label: 'Min Length',
+          description: 'Minimum number of characters',
+          min: 0
+        },
+        maxLength: {
+          type: 'number' as const,
+          label: 'Max Length',
+          description: 'Maximum number of characters',
+          min: 1
+        },
+        pattern: {
+          type: 'string' as const,
+          label: 'Pattern',
+          description: 'Regular expression pattern'
+        }
+      },
+      number: {
+        ...baseRules,
+        minimum: {
+          type: 'number' as const,
+          label: 'Minimum',
+          description: 'Minimum value'
+        },
+        maximum: {
+          type: 'number' as const,
+          label: 'Maximum',
+          description: 'Maximum value'
+        }
+      },
+      array: {
+        ...baseRules,
+        minItems: {
+          type: 'number' as const,
+          label: 'Min Items',
+          description: 'Minimum number of items',
+          min: 0
+        },
+        maxItems: {
+          type: 'number' as const,
+          label: 'Max Items',
+          description: 'Maximum number of items',
+          min: 1
+        }
+      }
+    };
+
+    return specificRules[datatype] || baseRules;
   };
 
   const getAvailableWidgets = (datatype: string): string[] => {
