@@ -156,18 +156,18 @@ export default function FieldBuilder() {
       };
 
       const insertData = {
-        field_id: fieldData.id,
+        id: fieldData.id,
         datatype: fieldData.datatype as any,
         widget: fieldData.widget as any,
-        options: fieldData.options ? JSON.parse(JSON.stringify(fieldData.options)) : null,
-        rules: JSON.parse(JSON.stringify(fieldData.rules)),
-        ui: JSON.parse(JSON.stringify(fieldData.ui)),
-        default_value: fieldData.default_value ? JSON.parse(JSON.stringify(fieldData.default_value)) : null
+        options: fieldData.options || {},
+        rules: fieldData.rules || {},
+        ui: fieldData.ui || {},
+        default_value: fieldData.default_value || null
       };
 
       const { error } = await supabase
         .from('field_registry')
-        .insert(insertData);
+        .insert(insertData as any);
 
       if (error) {
         console.error('Database error:', error);

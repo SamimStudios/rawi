@@ -57,9 +57,13 @@ export function useFieldContracts() {
         throw new Error(`Registry error: ${registryError.message}`);
       }
 
-      // Extract unique datatypes and widgets
-      const datatypes = [...new Set(registryData?.map(item => item.datatype) || [])];
-      const widgets = [...new Set(registryData?.map(item => item.widget) || [])];
+      // Extract unique datatypes and widgets, including all known types
+      const allDatatypes = [...new Set(registryData?.map(item => item.datatype) || [])];
+      const allWidgets = [...new Set(registryData?.map(item => item.widget) || [])];
+      
+      // Add known datatypes that might not be in the registry yet
+      const datatypes = [...new Set([...allDatatypes, 'string', 'number', 'boolean', 'array', 'object', 'uuid', 'url', 'date', 'datetime'])];
+      const widgets = [...new Set([...allWidgets, 'text', 'textarea', 'select', 'radio', 'checkbox', 'tags', 'file', 'group', 'url', 'date', 'datetime'])];
 
       const widgetCompatibility: Record<string, string[]> = {};
       const rulesConfig: Record<string, Record<string, RuleConfig>> = {};
