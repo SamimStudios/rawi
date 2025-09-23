@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,10 +49,10 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
   const [availableNodes, setAvailableNodes] = useState<LibraryNode[]>([]);
 
   useEffect(() => {
-    console.log('GroupContentEditor: Loading content', content);
+    // Initialize from existing content structure - only when content actually changes
+    if (!content || typeof content !== 'object') return;
     
-    // Initialize from existing content structure
-    if (content && typeof content === 'object' && Object.keys(content).length > 0) {
+    if (Object.keys(content).length > 0) {
       setGroupContent({
         kind: content.kind || 'Group',
         idx: content.idx || 1,
@@ -63,13 +63,12 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
         children: content.children || []
       });
     }
-  }, [content]);
+  }, [JSON.stringify(content)]);
 
   useEffect(() => {
-    // Fetch available nodes from library
+    // Fetch available nodes from library - only once
     const fetchNodes = async () => {
       try {
-        console.log('GroupContentEditor: Fetching available library nodes');
         const { data, error } = await supabase
           .schema('app' as any)
           .from('node_library')
@@ -77,26 +76,27 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
           .eq('active', true)
           .order('node_type', { ascending: true });
         
-        if (error) {
-          console.error('GroupContentEditor: Error fetching nodes:', error);
-          throw error;
-        }
-        
-        console.log('GroupContentEditor: Fetched nodes:', data?.length || 0);
+        if (error) throw error;
         setAvailableNodes(data || []);
       } catch (error) {
-        console.error('GroupContentEditor: Failed to fetch library nodes:', error);
+        console.error('Failed to fetch library nodes:', error);
       }
     };
 
     fetchNodes();
   }, []);
 
-  useEffect(() => {
-    // Update parent content when group content changes
-    console.log('GroupContentEditor: Updating parent content', groupContent);
+  // Use callback to avoid infinite loops
+  const handleContentChange = useCallback(() => {
     onChange(groupContent);
   }, [groupContent, onChange]);
+
+  useEffect(() => {
+    // Only update if groupContent actually changed
+    if (groupContent.path !== 'group' || groupContent.children.length > 0) {
+      handleContentChange();
+    }
+  }, [handleContentChange]);
 
   const addChildNode = (nodeId: string) => {
     if (!groupContent.children.includes(nodeId)) {

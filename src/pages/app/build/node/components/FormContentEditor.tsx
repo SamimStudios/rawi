@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,18 +69,17 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
   const [availableFields, setAvailableFields] = useState<Array<{ id: string; ui: any }>>([]);
 
   useEffect(() => {
-    console.log('FormContentEditor: Loading content', content);
+    // Initialize from existing content structure - only run once when content changes
+    if (!content) return;
     
-    // Initialize from existing content structure
-    if (content && content.items) {
+    if (content.items) {
       setFormContent({
         kind: content.kind || 'FormContent',
         version: content.version || 'v2-items',
         items: content.items || []
       });
-    } else if (content && content.sections) {
+    } else if (content.sections) {
       // Legacy sections format - convert to v2-items
-      console.log('FormContentEditor: Converting legacy sections format');
       const convertedItems: ContentItem[] = content.sections.map((section: any, idx: number) => ({
         kind: 'SectionItem' as const,
         idx: idx + 1,
@@ -114,39 +113,39 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
         items: convertedItems
       });
     }
-  }, [content]);
+  }, [JSON.stringify(content)]);
 
   useEffect(() => {
-    // Fetch available fields from field registry
+    // Fetch available fields from field registry - only once
     const fetchFields = async () => {
       try {
-        console.log('FormContentEditor: Fetching field registry from app schema');
         const { data, error } = await supabase
           .schema('app' as any)
           .from('field_registry')
           .select('id, ui, datatype, widget')
           .order('id');
         
-        if (error) {
-          console.error('FormContentEditor: Error fetching fields:', error);
-          throw error;
-        }
-        
-        console.log('FormContentEditor: Fetched fields:', data?.length || 0);
+        if (error) throw error;
         setAvailableFields(data || []);
       } catch (error) {
-        console.error('FormContentEditor: Failed to fetch field registry:', error);
+        console.error('Failed to fetch field registry:', error);
       }
     };
 
     fetchFields();
   }, []);
 
-  useEffect(() => {
-    // Update parent content when form content changes
-    console.log('FormContentEditor: Updating parent content', formContent);
+  // Use callback to avoid infinite loops
+  const handleContentChange = useCallback(() => {
     onChange(formContent);
   }, [formContent, onChange]);
+
+  useEffect(() => {
+    // Only update if formContent actually changed
+    if (formContent.items.length > 0 || Object.keys(content).length === 0) {
+      handleContentChange();
+    }
+  }, [handleContentChange]);
 
   const addTopLevelField = () => {
     const newIdx = Math.max(0, ...formContent.items.map(item => item.idx)) + 1;
