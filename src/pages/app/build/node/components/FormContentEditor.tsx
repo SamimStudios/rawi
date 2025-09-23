@@ -490,16 +490,20 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Section Path</Label>
+              <Label htmlFor={`section-${sectionIndex}-path`}>Section Path</Label>
               <Input
+                id={`section-${sectionIndex}-path`}
+                name={`section-${sectionIndex}-path`}
                 value={section.path}
                 onChange={(e) => updateItem(sectionIndex, { path: e.target.value })}
                 placeholder="section_path"
               />
             </div>
             <div className="space-y-2">
-              <Label>Label (Fallback Text)</Label>
+              <Label htmlFor={`section-${sectionIndex}-label-fallback`}>Label (Fallback Text)</Label>
               <Input
+                id={`section-${sectionIndex}-label-fallback`}
+                name={`section-${sectionIndex}-label-fallback`}
                 value={section.label.fallback}
                 onChange={(e) => updateItem(sectionIndex, {
                   label: { ...section.label, fallback: e.target.value }
@@ -510,8 +514,10 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
           </div>
 
           <div className="space-y-2">
-            <Label>Description</Label>
+            <Label htmlFor={`section-${sectionIndex}-description`}>Description</Label>
             <Textarea
+              id={`section-${sectionIndex}-description`}
+              name={`section-${sectionIndex}-description`}
               value={section.description?.fallback || ''}
               onChange={(e) => updateItem(sectionIndex, {
                 description: { fallback: e.target.value }

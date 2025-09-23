@@ -37,21 +37,27 @@ export function MediaContentEditor({ content, onChange }: MediaContentEditorProp
     default_version: undefined
   });
 
-  useEffect(() => {
-    // Initialize from content
-    if (content.type && Array.isArray(content.versions)) {
-      setMediaContent({
-        type: content.type || 'image',
-        versions: content.versions || [],
-        default_version: content.default_version
-      });
-    }
-  }, [content]);
+  const contentKey = JSON.stringify({
+    type: content?.type ?? 'image',
+    versions: Array.isArray(content?.versions) ? content.versions : [],
+    default_version: content?.default_version
+  });
 
   useEffect(() => {
-    // Update parent content when media content changes
-    onChange(mediaContent);
-  }, [mediaContent, onChange]);
+    setMediaContent(prev => {
+      const prevKey = JSON.stringify(prev);
+      if (prevKey === contentKey) return prev;
+      return JSON.parse(contentKey) as MediaContent;
+    });
+  }, [contentKey]);
+
+  const updateMedia = (updater: (prev: MediaContent) => MediaContent) => {
+    setMediaContent(prev => {
+      const next = updater(prev);
+      onChange(next);
+      return next;
+    });
+  };
 
   const addVersion = () => {
     const newVersion: MediaVersion = {
@@ -60,7 +66,7 @@ export function MediaContentEditor({ content, onChange }: MediaContentEditorProp
       metadata: {}
     };
     
-    setMediaContent(prev => ({
+    updateMedia(prev => ({
       ...prev,
       versions: [...prev.versions, newVersion],
       default_version: prev.versions.length === 0 ? newVersion.version : prev.default_version
@@ -68,7 +74,7 @@ export function MediaContentEditor({ content, onChange }: MediaContentEditorProp
   };
 
   const updateVersion = (index: number, updates: Partial<MediaVersion>) => {
-    setMediaContent(prev => ({
+    updateMedia(prev => ({
       ...prev,
       versions: prev.versions.map((version, i) => 
         i === index ? { ...version, ...updates } : version
@@ -79,7 +85,7 @@ export function MediaContentEditor({ content, onChange }: MediaContentEditorProp
   const removeVersion = (index: number) => {
     const versionToRemove = mediaContent.versions[index];
     
-    setMediaContent(prev => ({
+    updateMedia(prev => ({
       ...prev,
       versions: prev.versions.filter((_, i) => i !== index),
       default_version: prev.default_version === versionToRemove.version 
@@ -89,7 +95,7 @@ export function MediaContentEditor({ content, onChange }: MediaContentEditorProp
   };
 
   const setDefaultVersion = (version: string) => {
-    setMediaContent(prev => ({
+    updateMedia(prev => ({
       ...prev,
       default_version: version
     }));
@@ -138,10 +144,10 @@ export function MediaContentEditor({ content, onChange }: MediaContentEditorProp
           </CardHeader>
           <CardContent>
             <Select
-              value={mediaContent.type}
-              onValueChange={(value: 'image' | 'video' | 'audio') => 
-                setMediaContent(prev => ({ ...prev, type: value }))
-              }
+            value={mediaContent.type}
+            onValueChange={(value: 'image' | 'video' | 'audio') => 
+                updateMedia(prev => ({ ...prev, type: value }))
+            }
             >
               <SelectTrigger className="w-40">
                 <SelectValue />
@@ -224,8 +230,10 @@ export function MediaContentEditor({ content, onChange }: MediaContentEditorProp
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label>Version Name</Label>
+                          <Label htmlFor={`ver-${index}-name`}>Version Name</Label>
                           <Input
+                            id={`ver-${index}-name`}
+                            name={`ver-${index}-name`}
                             value={version.version}
                             onChange={(e) => updateVersion(index, { version: e.target.value })}
                             placeholder="v1, hd, mobile..."
@@ -233,8 +241,10 @@ export function MediaContentEditor({ content, onChange }: MediaContentEditorProp
                         </div>
 
                         <div className="space-y-2">
-                          <Label>URL</Label>
+                          <Label htmlFor={`ver-${index}-url`}>URL</Label>
                           <Input
+                            id={`ver-${index}-url`}
+                            name={`ver-${index}-url`}
                             value={version.url}
                             onChange={(e) => updateVersion(index, { url: e.target.value })}
                             placeholder="https://example.com/media.jpg"
@@ -249,8 +259,10 @@ export function MediaContentEditor({ content, onChange }: MediaContentEditorProp
                           {(mediaContent.type === 'image' || mediaContent.type === 'video') && (
                             <>
                               <div className="space-y-2">
-                                <Label className="text-xs">Width (px)</Label>
+                                <Label className="text-xs" htmlFor={`ver-${index}-width`}>Width (px)</Label>
                                 <Input
+                                  id={`ver-${index}-width`}
+                                  name={`ver-${index}-width`}
                                   type="number"
                                   value={version.metadata?.width || ''}
                                   onChange={(e) => updateMetadata(index, 'width', parseInt(e.target.value) || undefined)}
@@ -258,8 +270,10 @@ export function MediaContentEditor({ content, onChange }: MediaContentEditorProp
                                 />
                               </div>
                               <div className="space-y-2">
-                                <Label className="text-xs">Height (px)</Label>
+                                <Label className="text-xs" htmlFor={`ver-${index}-height`}>Height (px)</Label>
                                 <Input
+                                  id={`ver-${index}-height`}
+                                  name={`ver-${index}-height`}
                                   type="number"
                                   value={version.metadata?.height || ''}
                                   onChange={(e) => updateMetadata(index, 'height', parseInt(e.target.value) || undefined)}
@@ -270,21 +284,25 @@ export function MediaContentEditor({ content, onChange }: MediaContentEditorProp
                           )}
 
                           {(mediaContent.type === 'video' || mediaContent.type === 'audio') && (
-                            <div className="space-y-2">
-                              <Label className="text-xs">Duration (sec)</Label>
-                              <Input
-                                type="number"
-                                step="0.1"
-                                value={version.metadata?.duration || ''}
-                                onChange={(e) => updateMetadata(index, 'duration', parseFloat(e.target.value) || undefined)}
-                                placeholder="30.5"
-                              />
-                            </div>
+                              <div className="space-y-2">
+                                <Label className="text-xs" htmlFor={`ver-${index}-duration`}>Duration (sec)</Label>
+                                <Input
+                                  id={`ver-${index}-duration`}
+                                  name={`ver-${index}-duration`}
+                                  type="number"
+                                  step="0.1"
+                                  value={version.metadata?.duration || ''}
+                                  onChange={(e) => updateMetadata(index, 'duration', parseFloat(e.target.value) || undefined)}
+                                  placeholder="30.5"
+                                />
+                              </div>
                           )}
 
                           <div className="space-y-2">
-                            <Label className="text-xs">File Size (bytes)</Label>
+                            <Label className="text-xs" htmlFor={`ver-${index}-size`}>File Size (bytes)</Label>
                             <Input
+                              id={`ver-${index}-size`}
+                              name={`ver-${index}-size`}
                               type="number"
                               value={version.metadata?.size || ''}
                               onChange={(e) => updateMetadata(index, 'size', parseInt(e.target.value) || undefined)}
@@ -293,8 +311,10 @@ export function MediaContentEditor({ content, onChange }: MediaContentEditorProp
                           </div>
 
                           <div className="space-y-2">
-                            <Label className="text-xs">Format</Label>
+                            <Label className="text-xs" htmlFor={`ver-${index}-format`}>Format</Label>
                             <Input
+                              id={`ver-${index}-format`}
+                              name={`ver-${index}-format`}
                               value={version.metadata?.format || ''}
                               onChange={(e) => updateMetadata(index, 'format', e.target.value)}
                               placeholder="jpg, mp4, mp3..."

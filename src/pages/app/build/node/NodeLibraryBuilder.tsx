@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,7 @@ import { MediaContentEditor } from './components/MediaContentEditor';
 import { GroupContentEditor } from './components/GroupContentEditor';
 
 import { PayloadEditor } from './components/PayloadEditor';
+import isEqual from 'lodash/isEqual';
 
 export default function NodeLibraryBuilder() {
   const { id } = useParams();
@@ -102,9 +103,9 @@ export default function NodeLibraryBuilder() {
     }
   };
 
-  const handleContentChange = (newContent: Record<string, any>) => {
-    setEntry(prev => ({ ...prev, content: newContent }));
-  };
+  const handleContentChange = useCallback((newContent: Record<string, any>) => {
+    setEntry(prev => (isEqual(prev.content, newContent) ? prev : { ...prev, content: newContent }));
+  }, []);
 
   const renderContentEditor = () => {
     switch (entry.node_type) {
