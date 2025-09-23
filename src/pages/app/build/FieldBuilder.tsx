@@ -155,20 +155,24 @@ export default function FieldBuilder() {
         } : null
       };
 
+      const insertData = {
+        field_id: fieldData.id,
+        datatype: fieldData.datatype as any,
+        widget: fieldData.widget as any,
+        options: fieldData.options ? JSON.parse(JSON.stringify(fieldData.options)) : null,
+        rules: JSON.parse(JSON.stringify(fieldData.rules)),
+        ui: JSON.parse(JSON.stringify(fieldData.ui)),
+        default_value: fieldData.default_value ? JSON.parse(JSON.stringify(fieldData.default_value)) : null
+      };
+
       const { error } = await supabase
         .from('field_registry')
-        .insert({
-          id: fieldData.id,
-          datatype: fieldData.datatype as any,
-          widget: fieldData.widget as any,
-          options: JSON.parse(JSON.stringify(fieldData.options)),
-          rules: JSON.parse(JSON.stringify(fieldData.rules)),
-          ui: JSON.parse(JSON.stringify(fieldData.ui)),
-          default_value: fieldData.default_value ? JSON.parse(JSON.stringify(fieldData.default_value)) : null
-        } as any)
-        .select();
+        .insert(insertData);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        throw error;
+      }
 
       toast({
         title: "Success",
@@ -189,7 +193,7 @@ export default function FieldBuilder() {
       console.error('Error saving field:', error);
       toast({
         title: "Error",
-        description: "Failed to save field",
+        description: `Failed to save field: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive"
       });
     }
@@ -257,51 +261,125 @@ export default function FieldBuilder() {
           <CardHeader>
             <CardTitle>UI Configuration</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="label">Label*</Label>
-              <Input
-                id="label"
-                value={field.ui.label.fallback}
-                onChange={(e) => setField(prev => ({
-                  ...prev,
-                  ui: { ...prev.ui, label: { ...prev.ui.label, fallback: e.target.value } }
-                }))}
-                placeholder="Field Label"
-              />
+          <CardContent className="space-y-6">
+            {/* Label Fields */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Label*</Label>
+              <div className="grid grid-cols-1 gap-2">
+                <div>
+                  <Label htmlFor="label-key" className="text-xs text-muted-foreground">Translation Key</Label>
+                  <Input
+                    id="label-key"
+                    value={field.ui.label.key || ''}
+                    onChange={(e) => setField(prev => ({
+                      ...prev,
+                      ui: { ...prev.ui, label: { ...prev.ui.label, key: e.target.value || undefined } }
+                    }))}
+                    placeholder="label.field_name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="label-fallback" className="text-xs text-muted-foreground">Default Text</Label>
+                  <Input
+                    id="label-fallback"
+                    value={field.ui.label.fallback}
+                    onChange={(e) => setField(prev => ({
+                      ...prev,
+                      ui: { ...prev.ui, label: { ...prev.ui.label, fallback: e.target.value } }
+                    }))}
+                    placeholder="Field Label"
+                  />
+                </div>
+              </div>
             </div>
 
-            <div>
-              <Label htmlFor="placeholder">Placeholder</Label>
-              <Input
-                id="placeholder"
-                value={field.ui.placeholder?.fallback || ''}
-                onChange={(e) => setField(prev => ({
-                  ...prev,
-                  ui: { 
-                    ...prev.ui, 
-                    placeholder: e.target.value ? { fallback: e.target.value } : undefined
-                  }
-                }))}
-                placeholder="Placeholder text"
-              />
+            {/* Placeholder Fields */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Placeholder</Label>
+              <div className="grid grid-cols-1 gap-2">
+                <div>
+                  <Label htmlFor="placeholder-key" className="text-xs text-muted-foreground">Translation Key</Label>
+                  <Input
+                    id="placeholder-key"
+                    value={field.ui.placeholder?.key || ''}
+                    onChange={(e) => setField(prev => ({
+                      ...prev,
+                      ui: { 
+                        ...prev.ui, 
+                        placeholder: {
+                          ...prev.ui.placeholder,
+                          key: e.target.value || undefined,
+                          fallback: prev.ui.placeholder?.fallback || ''
+                        }
+                      }
+                    }))}
+                    placeholder="placeholder.field_name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="placeholder-fallback" className="text-xs text-muted-foreground">Default Text</Label>
+                  <Input
+                    id="placeholder-fallback"
+                    value={field.ui.placeholder?.fallback || ''}
+                    onChange={(e) => setField(prev => ({
+                      ...prev,
+                      ui: { 
+                        ...prev.ui, 
+                        placeholder: e.target.value ? { 
+                          ...prev.ui.placeholder,
+                          fallback: e.target.value 
+                        } : undefined
+                      }
+                    }))}
+                    placeholder="Enter placeholder text"
+                  />
+                </div>
+              </div>
             </div>
 
-            <div>
-              <Label htmlFor="help">Help Text</Label>
-              <Textarea
-                id="help"
-                value={field.ui.help?.fallback || ''}
-                onChange={(e) => setField(prev => ({
-                  ...prev,
-                  ui: { 
-                    ...prev.ui, 
-                    help: e.target.value ? { fallback: e.target.value } : undefined
-                  }
-                }))}
-                placeholder="Help text for users"
-                rows={3}
-              />
+            {/* Help Text Fields */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Help Text</Label>
+              <div className="grid grid-cols-1 gap-2">
+                <div>
+                  <Label htmlFor="help-key" className="text-xs text-muted-foreground">Translation Key</Label>
+                  <Input
+                    id="help-key"
+                    value={field.ui.help?.key || ''}
+                    onChange={(e) => setField(prev => ({
+                      ...prev,
+                      ui: { 
+                        ...prev.ui, 
+                        help: {
+                          ...prev.ui.help,
+                          key: e.target.value || undefined,
+                          fallback: prev.ui.help?.fallback || ''
+                        }
+                      }
+                    }))}
+                    placeholder="help.field_name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="help-fallback" className="text-xs text-muted-foreground">Default Text</Label>
+                  <Textarea
+                    id="help-fallback"
+                    value={field.ui.help?.fallback || ''}
+                    onChange={(e) => setField(prev => ({
+                      ...prev,
+                      ui: { 
+                        ...prev.ui, 
+                        help: e.target.value ? { 
+                          ...prev.ui.help,
+                          fallback: e.target.value 
+                        } : undefined
+                      }
+                    }))}
+                    placeholder="Help text for users"
+                    rows={3}
+                  />
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
