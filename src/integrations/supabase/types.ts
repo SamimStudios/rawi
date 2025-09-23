@@ -27,6 +27,7 @@ export type Database = {
           stripe_price_id_aed: string | null
           stripe_price_id_sar: string | null
           stripe_price_id_usd: string | null
+          updated_at: string
         }
         Insert: {
           active?: boolean
@@ -40,6 +41,7 @@ export type Database = {
           stripe_price_id_aed?: string | null
           stripe_price_id_sar?: string | null
           stripe_price_id_usd?: string | null
+          updated_at?: string
         }
         Update: {
           active?: boolean
@@ -53,6 +55,7 @@ export type Database = {
           stripe_price_id_aed?: string | null
           stripe_price_id_sar?: string | null
           stripe_price_id_usd?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -139,7 +142,6 @@ export type Database = {
           created_at: string
           datatype: Database["public"]["Enums"]["field_datatype"]
           default_value: Json | null
-          field_id: string
           id: string
           options: Json | null
           rules: Json
@@ -152,8 +154,7 @@ export type Database = {
           created_at?: string
           datatype: Database["public"]["Enums"]["field_datatype"]
           default_value?: Json | null
-          field_id: string
-          id?: string
+          id: string
           options?: Json | null
           rules?: Json
           ui?: Json
@@ -165,7 +166,6 @@ export type Database = {
           created_at?: string
           datatype?: Database["public"]["Enums"]["field_datatype"]
           default_value?: Json | null
-          field_id?: string
           id?: string
           options?: Json | null
           rules?: Json
@@ -187,6 +187,7 @@ export type Database = {
           status: string
           stripe_invoice_id: string | null
           transaction_id: string | null
+          updated_at: string
           user_id: string
         }
         Insert: {
@@ -199,6 +200,7 @@ export type Database = {
           status?: string
           stripe_invoice_id?: string | null
           transaction_id?: string | null
+          updated_at?: string
           user_id: string
         }
         Update: {
@@ -211,6 +213,7 @@ export type Database = {
           status?: string
           stripe_invoice_id?: string | null
           transaction_id?: string | null
+          updated_at?: string
           user_id?: string
         }
         Relationships: [
@@ -219,113 +222,6 @@ export type Database = {
             columns: ["transaction_id"]
             isOneToOne: false
             referencedRelation: "transactions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      jobs: {
-        Row: {
-          accent: string | null
-          cards: Json | null
-          characters: Json | null
-          created_at: string
-          email: string | null
-          face_image_url: string | null
-          gender: string | null
-          genres: string | null
-          id: string
-          input_data: Json
-          internal_stage: number | null
-          language: string | null
-          look: string | null
-          movie_logline: string | null
-          movie_title: string | null
-          music_path: string | null
-          music_prefs: Json | null
-          music_public_url: string | null
-          name: string | null
-          progress: string | null
-          props: Json | null
-          result_data: Json | null
-          session_id: string | null
-          shots: Json | null
-          stage: number | null
-          template: string | null
-          type: string
-          updated_at: string
-          user_id: string | null
-          world: string | null
-        }
-        Insert: {
-          accent?: string | null
-          cards?: Json | null
-          characters?: Json | null
-          created_at?: string
-          email?: string | null
-          face_image_url?: string | null
-          gender?: string | null
-          genres?: string | null
-          id?: string
-          input_data: Json
-          internal_stage?: number | null
-          language?: string | null
-          look?: string | null
-          movie_logline?: string | null
-          movie_title?: string | null
-          music_path?: string | null
-          music_prefs?: Json | null
-          music_public_url?: string | null
-          name?: string | null
-          progress?: string | null
-          props?: Json | null
-          result_data?: Json | null
-          session_id?: string | null
-          shots?: Json | null
-          stage?: number | null
-          template?: string | null
-          type: string
-          updated_at?: string
-          user_id?: string | null
-          world?: string | null
-        }
-        Update: {
-          accent?: string | null
-          cards?: Json | null
-          characters?: Json | null
-          created_at?: string
-          email?: string | null
-          face_image_url?: string | null
-          gender?: string | null
-          genres?: string | null
-          id?: string
-          input_data?: Json
-          internal_stage?: number | null
-          language?: string | null
-          look?: string | null
-          movie_logline?: string | null
-          movie_title?: string | null
-          music_path?: string | null
-          music_prefs?: Json | null
-          music_public_url?: string | null
-          name?: string | null
-          progress?: string | null
-          props?: Json | null
-          result_data?: Json | null
-          session_id?: string | null
-          shots?: Json | null
-          stage?: number | null
-          template?: string | null
-          type?: string
-          updated_at?: string
-          user_id?: string | null
-          world?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "jobs_template_fkey"
-            columns: ["template"]
-            isOneToOne: false
-            referencedRelation: "templates"
             referencedColumns: ["id"]
           },
         ]
@@ -435,6 +331,76 @@ export type Database = {
         }
         Relationships: []
       }
+      nodes: {
+        Row: {
+          content: Json
+          created_at: string
+          dependencies: Json
+          generate_n8n_id: string | null
+          id: string
+          job_id: string
+          node_type: string
+          parent_id: string | null
+          path: unknown
+          removable: boolean
+          updated_at: string
+          validate_n8n_id: string | null
+          version: number
+        }
+        Insert: {
+          content: Json
+          created_at?: string
+          dependencies?: Json
+          generate_n8n_id?: string | null
+          id?: string
+          job_id: string
+          node_type: string
+          parent_id?: string | null
+          path: unknown
+          removable?: boolean
+          updated_at?: string
+          validate_n8n_id?: string | null
+          version?: number
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          dependencies?: Json
+          generate_n8n_id?: string | null
+          id?: string
+          job_id?: string
+          node_type?: string
+          parent_id?: string | null
+          path?: unknown
+          removable?: boolean
+          updated_at?: string
+          validate_n8n_id?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nodes_generate_n8n_id_fkey"
+            columns: ["generate_n8n_id"]
+            isOneToOne: false
+            referencedRelation: "n8n_functions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nodes_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nodes_validate_n8n_id_fkey"
+            columns: ["validate_n8n_id"]
+            isOneToOne: false
+            referencedRelation: "n8n_functions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rewards: {
         Row: {
           active: boolean
@@ -468,107 +434,6 @@ export type Database = {
           name?: string
           reward_type?: string
           updated_at?: string
-        }
-        Relationships: []
-      }
-      story_nodes: {
-        Row: {
-          content: Json
-          created_at: string
-          editable: boolean | null
-          id: string
-          needs_validation: boolean | null
-          parent_id: string | null
-          path: string
-          updated_at: string
-        }
-        Insert: {
-          content?: Json
-          created_at?: string
-          editable?: boolean | null
-          id?: string
-          needs_validation?: boolean | null
-          parent_id?: string | null
-          path: string
-          updated_at?: string
-        }
-        Update: {
-          content?: Json
-          created_at?: string
-          editable?: boolean | null
-          id?: string
-          needs_validation?: boolean | null
-          parent_id?: string | null
-          path?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "story_nodes_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "story_nodes"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      storyboard_jobs: {
-        Row: {
-          characters: Json | null
-          characters_updated_at: string | null
-          created_at: string
-          id: string
-          movie_info: Json | null
-          movie_info_updated_at: string | null
-          music: Json | null
-          music_updated_at: string | null
-          props: Json | null
-          props_updated_at: string | null
-          session_id: string | null
-          timeline: Json | null
-          timeline_updated_at: string | null
-          updated_at: string
-          user_id: string | null
-          user_input: Json | null
-          user_input_updated_at: string
-        }
-        Insert: {
-          characters?: Json | null
-          characters_updated_at?: string | null
-          created_at?: string
-          id?: string
-          movie_info?: Json | null
-          movie_info_updated_at?: string | null
-          music?: Json | null
-          music_updated_at?: string | null
-          props?: Json | null
-          props_updated_at?: string | null
-          session_id?: string | null
-          timeline?: Json | null
-          timeline_updated_at?: string | null
-          updated_at?: string
-          user_id?: string | null
-          user_input?: Json | null
-          user_input_updated_at?: string
-        }
-        Update: {
-          characters?: Json | null
-          characters_updated_at?: string | null
-          created_at?: string
-          id?: string
-          movie_info?: Json | null
-          movie_info_updated_at?: string | null
-          music?: Json | null
-          music_updated_at?: string | null
-          props?: Json | null
-          props_updated_at?: string | null
-          session_id?: string | null
-          timeline?: Json | null
-          timeline_updated_at?: string | null
-          updated_at?: string
-          user_id?: string | null
-          user_input?: Json | null
-          user_input_updated_at?: string
         }
         Relationships: []
       }
@@ -647,28 +512,7 @@ export type Database = {
             foreignKeyName: "storyboard_nodes_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
-            referencedRelation: "storyboard_jobs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "storyboard_nodes_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "storyboard_nodes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "storyboard_nodes_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "v_storyboard_forms_normalized"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "storyboard_nodes_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "v_storyboard_sections"
+            referencedRelation: "video_jobs"
             referencedColumns: ["id"]
           },
         ]
@@ -686,6 +530,7 @@ export type Database = {
           stripe_price_id_aed: string | null
           stripe_price_id_sar: string | null
           stripe_price_id_usd: string | null
+          updated_at: string
         }
         Insert: {
           active?: boolean
@@ -699,6 +544,7 @@ export type Database = {
           stripe_price_id_aed?: string | null
           stripe_price_id_sar?: string | null
           stripe_price_id_usd?: string | null
+          updated_at?: string
         }
         Update: {
           active?: boolean
@@ -712,6 +558,7 @@ export type Database = {
           stripe_price_id_aed?: string | null
           stripe_price_id_sar?: string | null
           stripe_price_id_usd?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -748,6 +595,21 @@ export type Database = {
         }
         Relationships: []
       }
+      test: {
+        Row: {
+          created_at: string
+          id: number
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+        }
+        Update: {
+          created_at?: string
+          id?: number
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           amount_paid: number | null
@@ -761,6 +623,7 @@ export type Database = {
           stripe_session_id: string | null
           stripe_subscription_id: string | null
           type: string
+          updated_at: string
           user_id: string | null
         }
         Insert: {
@@ -775,6 +638,7 @@ export type Database = {
           stripe_session_id?: string | null
           stripe_subscription_id?: string | null
           type: string
+          updated_at?: string
           user_id?: string | null
         }
         Update: {
@@ -789,7 +653,32 @@ export type Database = {
           stripe_session_id?: string | null
           stripe_subscription_id?: string | null
           type?: string
+          updated_at?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      translations: {
+        Row: {
+          ar: string
+          created_at: string
+          en: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          ar?: string
+          created_at?: string
+          en?: string
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          ar?: string
+          created_at?: string
+          en?: string
+          id?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -814,6 +703,51 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      video_jobs: {
+        Row: {
+          accepted_ip_at: string | null
+          accepted_terms_at: string | null
+          created_at: string
+          credits_used: number
+          id: string
+          node_index: Json
+          session_id: string | null
+          status: string
+          template_key: string
+          updated_at: string
+          user_id: string | null
+          watermark: boolean
+        }
+        Insert: {
+          accepted_ip_at?: string | null
+          accepted_terms_at?: string | null
+          created_at?: string
+          credits_used?: number
+          id?: string
+          node_index?: Json
+          session_id?: string | null
+          status?: string
+          template_key: string
+          updated_at?: string
+          user_id?: string | null
+          watermark?: boolean
+        }
+        Update: {
+          accepted_ip_at?: string | null
+          accepted_terms_at?: string | null
+          created_at?: string
+          credits_used?: number
+          id?: string
+          node_index?: Json
+          session_id?: string | null
+          status?: string
+          template_key?: string
+          updated_at?: string
+          user_id?: string | null
+          watermark?: boolean
         }
         Relationships: []
       }
@@ -882,28 +816,7 @@ export type Database = {
             foreignKeyName: "storyboard_nodes_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
-            referencedRelation: "storyboard_jobs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "storyboard_nodes_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "storyboard_nodes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "storyboard_nodes_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "v_storyboard_forms_normalized"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "storyboard_nodes_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "v_storyboard_sections"
+            referencedRelation: "video_jobs"
             referencedColumns: ["id"]
           },
         ]
@@ -941,7 +854,7 @@ export type Database = {
             foreignKeyName: "storyboard_nodes_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
-            referencedRelation: "storyboard_jobs"
+            referencedRelation: "video_jobs"
             referencedColumns: ["id"]
           },
         ]
@@ -971,6 +884,10 @@ export type Database = {
       add_updated_at_trigger: {
         Args: { p_schema: string; p_table: string }
         Returns: undefined
+      }
+      api_job_get: {
+        Args: { p_job_id: string }
+        Returns: Json
       }
       citext: {
         Args: { "": boolean } | { "": string } | { "": unknown }
@@ -1004,13 +921,33 @@ export type Database = {
         Args: { p_credits: number; p_description?: string; p_user_id: string }
         Returns: boolean
       }
+      export_db_catalog: {
+        Args: { p_schemas?: string[] }
+        Returns: Json
+      }
+      flatten_section_items: {
+        Args: { p: Json }
+        Returns: Json[]
+      }
       form_default_required_false: {
         Args: { j: Json }
         Returns: Json
       }
+      form_plain_to_lquery: {
+        Args: { p: string }
+        Returns: unknown
+      }
       generate_guest_session_id: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      get_field_contracts: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      get_form_node: {
+        Args: { p_job_id: string; p_path: unknown }
+        Returns: Json
       }
       get_n8n_function_id: {
         Args: { id_or_name: string }
@@ -1090,18 +1027,6 @@ export type Database = {
             }
         Returns: boolean
       }
-      is_valid_field_group: {
-        Args: { p: Json }
-        Returns: boolean
-      }
-      is_valid_field_groups: {
-        Args: { p: Json }
-        Returns: boolean
-      }
-      is_valid_field_item: {
-        Args: { j: Json }
-        Returns: boolean
-      }
       is_valid_field_item_strict: {
         Args: { j: Json }
         Returns: boolean
@@ -1133,10 +1058,6 @@ export type Database = {
       }
       is_valid_image_item: {
         Args: { j: Json }
-        Returns: boolean
-      }
-      is_valid_items_with_groups: {
-        Args: { groups: Json; items: Json }
         Returns: boolean
       }
       is_valid_media_content: {
@@ -1195,6 +1116,10 @@ export type Database = {
       is_valid_video_item: {
         Args: { j: Json }
         Returns: boolean
+      }
+      jsonb_strip_key_recursive: {
+        Args: { kill_key: string; p: Json }
+        Returns: Json
       }
       lca: {
         Args: { "": unknown[] }
@@ -1291,6 +1216,106 @@ export type Database = {
         Args: { "": unknown }
         Returns: number
       }
+      nodes_form_get: {
+        Args: { p_job_id: string; p_node_path: unknown; p_q: unknown }
+        Returns: {
+          path: string
+          path_i: string
+          path_ltree: unknown
+          ref: string
+          value: Json
+        }[]
+      }
+      nodes_form_get_text: {
+        Args: { p_job_id: string; p_node_path: unknown; p_plain: string }
+        Returns: {
+          path: string
+          path_i: string
+          path_ltree: unknown
+          ref: string
+          value: Json
+        }[]
+      }
+      nodes_form_items: {
+        Args: { p_job_id: string; p_node_path: unknown }
+        Returns: {
+          editable: boolean
+          importance: string
+          item_instance_id: number
+          path: string
+          path_i: string
+          path_ltree: unknown
+          ref: string
+          required: boolean
+          value: Json
+        }[]
+      }
+      nodes_form_items_scan: {
+        Args: { p_content: Json }
+        Returns: {
+          editable: boolean
+          importance: string
+          item_instance_id: number
+          path: string
+          path_i: string
+          path_ltree: unknown
+          ref: string
+          required: boolean
+          value: Json
+        }[]
+      }
+      nodes_form_normalize_content_v3: {
+        Args: { p_content: Json }
+        Returns: Json
+      }
+      nodes_normalize_field_item_v3: {
+        Args: {
+          p: Json
+          p_idx: number
+          p_item_instance_id: number
+          p_ref: string
+          p_sec_path: string
+          p_sec_path_i: string
+        }
+        Returns: Json
+      }
+      nodes_normalize_section_v3: {
+        Args: {
+          p: Json
+          p_idx: number
+          p_parent_path: string
+          p_parent_pi: string
+        }
+        Returns: Json
+      }
+      nodes_rpc_normalize_by_path_v3: {
+        Args: { p_job_id: string; p_path: unknown }
+        Returns: Json
+      }
+      normalize_field_item: {
+        Args: { p: Json; p_idx: number } | { p: Json; p_idx: number }
+        Returns: Json
+      }
+      normalize_form_content: {
+        Args: { p: Json }
+        Returns: Json
+      }
+      normalize_section: {
+        Args: { p: Json; p_idx: number } | { p: Json; p_idx: number }
+        Returns: Json
+      }
+      nullif_blank: {
+        Args: { p: string }
+        Returns: string
+      }
+      path_i_to_ltree: {
+        Args: { p: string }
+        Returns: unknown
+      }
+      refresh_job_node_index: {
+        Args: { p_job_id: string }
+        Returns: undefined
+      }
       set_character_description: {
         Args: { p_desc: Json; p_id: string; p_role: string }
         Returns: undefined
@@ -1298,6 +1323,10 @@ export type Database = {
       set_character_portrait_url: {
         Args: { p_id: string; p_role: string; p_url: string }
         Returns: undefined
+      }
+      slugify_ident: {
+        Args: { p: string }
+        Returns: string
       }
       text2ltree: {
         Args: { "": string }

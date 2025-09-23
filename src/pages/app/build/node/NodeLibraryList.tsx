@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Search, Edit, Trash2, Copy, Eye } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { useNodeLibrary } from '@/hooks/useNodeLibrary';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -14,6 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 export default function NodeLibraryList() {
   const { entries, loading, fetchEntries, deleteEntry } = useNodeLibrary();
   const { toast } = useToast();
+  const navigate = useNavigate();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
@@ -43,10 +44,8 @@ export default function NodeLibraryList() {
     }
   };
 
-  const handleClone = async (entry: any) => {
-    const newId = `${entry.id}_copy_${Date.now()}`;
-    // For now, just navigate to create new - in future could pre-populate
-    window.location.href = `/app/build/node/new?clone=${entry.id}`;
+  const handleClone = (entry: any) => {
+    navigate(`/app/build/node/new?clone=${encodeURIComponent(entry.id)}`);
   };
 
   if (loading) {
