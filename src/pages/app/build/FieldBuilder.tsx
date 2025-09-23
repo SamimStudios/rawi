@@ -166,6 +166,7 @@ export default function FieldBuilder() {
       };
 
       const { error } = await supabase
+        .schema('app' as any)
         .from('field_registry')
         .insert(insertData as any);
 
