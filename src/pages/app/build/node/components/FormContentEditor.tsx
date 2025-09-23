@@ -7,38 +7,52 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, GripVertical } from 'lucide-react';
+import { Plus, Trash2, GripVertical, ChevronDown, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
-interface FormSection {
-  key: string;
-  title: {
-    fallback: string;
-    key?: string;
-  };
-  fields: FormField[];
-  ui?: {
-    help?: {
-      fallback: string;
-      key?: string;
-    };
-  };
+interface I18nText {
+  fallback: string;
+  key?: string;
 }
 
-interface FormField {
-  field_ref: string;
+interface UIBlock {
+  kind: 'UIBlock';
+  label: I18nText;
+  help?: I18nText;
+  placeholder?: I18nText;
+  override: boolean;
+}
+
+interface FieldItem {
+  kind: 'FieldItem';
+  idx: number;
+  path: string;
+  ref: string;
+  editable: boolean;
   required: boolean;
-  importance?: 'low' | 'medium' | 'high';
-  ui?: {
-    label?: {
-      fallback: string;
-      key?: string;
-    };
-    help?: {
-      fallback: string;
-      key?: string;
-    };
-  };
+  importance: 'low' | 'normal' | 'high';
+  ui: UIBlock;
+  value: any;
+}
+
+interface SectionItem {
+  kind: 'SectionItem';
+  idx: number;
+  path: string;
+  label: I18nText;
+  description?: I18nText;
+  required: boolean;
+  hidden: boolean;
+  collapsed: boolean;
+  children: (FieldItem | SectionItem)[];
+}
+
+type ContentItem = FieldItem | SectionItem;
+
+interface FormContent {
+  kind: 'FormContent';
+  version: 'v2-items';
+  items: ContentItem[];
 }
 
 interface FormContentEditorProps {
@@ -47,29 +61,81 @@ interface FormContentEditorProps {
 }
 
 export function FormContentEditor({ content, onChange }: FormContentEditorProps) {
-  const [sections, setSections] = useState<FormSection[]>([]);
+  const [formContent, setFormContent] = useState<FormContent>({
+    kind: 'FormContent',
+    version: 'v2-items',
+    items: []
+  });
   const [availableFields, setAvailableFields] = useState<Array<{ id: string; ui: any }>>([]);
 
   useEffect(() => {
-    // Initialize sections from content
-    const contentSections = content.sections || [];
-    setSections(Array.isArray(contentSections) ? contentSections : []);
+    console.log('FormContentEditor: Loading content', content);
+    
+    // Initialize from existing content structure
+    if (content && content.items) {
+      setFormContent({
+        kind: content.kind || 'FormContent',
+        version: content.version || 'v2-items',
+        items: content.items || []
+      });
+    } else if (content && content.sections) {
+      // Legacy sections format - convert to v2-items
+      console.log('FormContentEditor: Converting legacy sections format');
+      const convertedItems: ContentItem[] = content.sections.map((section: any, idx: number) => ({
+        kind: 'SectionItem' as const,
+        idx: idx + 1,
+        path: section.key || `section_${idx + 1}`,
+        label: section.title || { fallback: `Section ${idx + 1}` },
+        description: section.ui?.help,
+        required: false,
+        hidden: false,
+        collapsed: false,
+        children: (section.fields || []).map((field: any, fieldIdx: number) => ({
+          kind: 'FieldItem' as const,
+          idx: fieldIdx + 1,
+          path: field.field_ref || `field_${fieldIdx + 1}`,
+          ref: field.field_ref || '',
+          editable: true,
+          required: field.required || false,
+          importance: field.importance || 'normal',
+          ui: {
+            kind: 'UIBlock' as const,
+            label: field.ui?.label || { fallback: field.field_ref || 'Field' },
+            help: field.ui?.help,
+            placeholder: field.ui?.placeholder,
+            override: false
+          },
+          value: null
+        }))
+      }));
+      setFormContent({
+        kind: 'FormContent',
+        version: 'v2-items',
+        items: convertedItems
+      });
+    }
   }, [content]);
 
   useEffect(() => {
     // Fetch available fields from field registry
     const fetchFields = async () => {
       try {
+        console.log('FormContentEditor: Fetching field registry from app schema');
         const { data, error } = await supabase
           .schema('app' as any)
           .from('field_registry')
-          .select('id, ui')
+          .select('id, ui, datatype, widget')
           .order('id');
         
-        if (error) throw error;
+        if (error) {
+          console.error('FormContentEditor: Error fetching fields:', error);
+          throw error;
+        }
+        
+        console.log('FormContentEditor: Fetched fields:', data?.length || 0);
         setAvailableFields(data || []);
       } catch (error) {
-        console.error('Error fetching fields:', error);
+        console.error('FormContentEditor: Failed to fetch field registry:', error);
       }
     };
 
@@ -77,253 +143,397 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
   }, []);
 
   useEffect(() => {
-    // Update parent content when sections change
-    onChange({
-      ...content,
-      sections: sections
-    });
-  }, [sections, onChange, content]);
+    // Update parent content when form content changes
+    console.log('FormContentEditor: Updating parent content', formContent);
+    onChange(formContent);
+  }, [formContent, onChange]);
 
-  const addSection = () => {
-    const newSection: FormSection = {
-      key: `section_${Date.now()}`,
-      title: {
-        fallback: 'New Section',
-        key: ''
-      },
-      fields: []
-    };
-    setSections(prev => [...prev, newSection]);
-  };
-
-  const updateSection = (index: number, updates: Partial<FormSection>) => {
-    setSections(prev => prev.map((section, i) => 
-      i === index ? { ...section, ...updates } : section
-    ));
-  };
-
-  const removeSection = (index: number) => {
-    setSections(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const addField = (sectionIndex: number) => {
-    const newField: FormField = {
-      field_ref: '',
+  const addTopLevelField = () => {
+    const newIdx = Math.max(0, ...formContent.items.map(item => item.idx)) + 1;
+    const newField: FieldItem = {
+      kind: 'FieldItem',
+      idx: newIdx,
+      path: `field_${newIdx}`,
+      ref: '',
+      editable: true,
       required: false,
-      importance: 'medium'
+      importance: 'normal',
+      ui: {
+        kind: 'UIBlock',
+        label: { fallback: 'New Field' },
+        override: false
+      },
+      value: null
     };
     
-    setSections(prev => prev.map((section, i) => 
-      i === sectionIndex 
-        ? { ...section, fields: [...section.fields, newField] }
-        : section
-    ));
+    setFormContent(prev => ({
+      ...prev,
+      items: [...prev.items, newField]
+    }));
   };
 
-  const updateField = (sectionIndex: number, fieldIndex: number, updates: Partial<FormField>) => {
-    setSections(prev => prev.map((section, i) => 
-      i === sectionIndex 
-        ? {
-            ...section,
-            fields: section.fields.map((field, j) => 
-              j === fieldIndex ? { ...field, ...updates } : field
-            )
-          }
-        : section
-    ));
+  const addSection = () => {
+    const newIdx = Math.max(0, ...formContent.items.map(item => item.idx)) + 1;
+    const newSection: SectionItem = {
+      kind: 'SectionItem',
+      idx: newIdx,
+      path: `section_${newIdx}`,
+      label: { fallback: 'New Section' },
+      required: false,
+      hidden: false,
+      collapsed: false,
+      children: []
+    };
+    
+    setFormContent(prev => ({
+      ...prev,
+      items: [...prev.items, newSection]
+    }));
   };
 
-  const removeField = (sectionIndex: number, fieldIndex: number) => {
-    setSections(prev => prev.map((section, i) => 
-      i === sectionIndex 
-        ? { ...section, fields: section.fields.filter((_, j) => j !== fieldIndex) }
-        : section
-    ));
+  const updateItem = (index: number, updates: Partial<ContentItem>) => {
+    setFormContent(prev => ({
+      ...prev,
+      items: prev.items.map((item, i) => 
+        i === index ? { ...item, ...updates } as ContentItem : item
+      )
+    }));
   };
+
+  const removeItem = (index: number) => {
+    setFormContent(prev => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== index)
+    }));
+  };
+
+  const addFieldToSection = (sectionIndex: number) => {
+    const section = formContent.items[sectionIndex] as SectionItem;
+    const newIdx = Math.max(0, ...section.children.map(child => child.idx)) + 1;
+    const newField: FieldItem = {
+      kind: 'FieldItem',
+      idx: newIdx,
+      path: `${section.path}.field_${newIdx}`,
+      ref: '',
+      editable: true,
+      required: false,
+      importance: 'normal',
+      ui: {
+        kind: 'UIBlock',
+        label: { fallback: 'New Field' },
+        override: false
+      },
+      value: null
+    };
+    
+    const updatedChildren = [...section.children, newField];
+    updateItem(sectionIndex, { children: updatedChildren });
+  };
+
+  const updateSectionChild = (sectionIndex: number, childIndex: number, updates: Partial<ContentItem>) => {
+    const section = formContent.items[sectionIndex] as SectionItem;
+    const updatedChildren = section.children.map((child, i) => 
+      i === childIndex ? { ...child, ...updates } as ContentItem : child
+    );
+    updateItem(sectionIndex, { children: updatedChildren });
+  };
+
+  const removeSectionChild = (sectionIndex: number, childIndex: number) => {
+    const section = formContent.items[sectionIndex] as SectionItem;
+    const updatedChildren = section.children.filter((_, i) => i !== childIndex);
+    updateItem(sectionIndex, { children: updatedChildren });
+  };
+
+  const renderFieldEditor = (field: FieldItem, onUpdate: (updates: Partial<FieldItem>) => void, onRemove: () => void) => (
+    <Card className="p-4">
+      <div className="flex items-start gap-4">
+        <GripVertical className="w-4 h-4 text-muted-foreground mt-2 flex-shrink-0" />
+        
+        <div className="flex-1 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Field Reference</Label>
+              <Select
+                value={field.ref || undefined}
+                onValueChange={(value) => onUpdate({ ref: value, path: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select field" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableFields.map(availableField => (
+                    <SelectItem key={availableField.id} value={availableField.id}>
+                      {availableField.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Importance</Label>
+              <Select
+                value={field.importance}
+                onValueChange={(value: 'low' | 'normal' | 'high') => onUpdate({ importance: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="normal">Normal</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Index</Label>
+              <Input
+                type="number"
+                value={field.idx}
+                onChange={(e) => onUpdate({ idx: parseInt(e.target.value) || 1 })}
+                min="1"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Label Override</Label>
+              <Input
+                value={field.ui.label?.fallback || ''}
+                onChange={(e) => onUpdate({
+                  ui: {
+                    ...field.ui,
+                    label: { ...field.ui.label, fallback: e.target.value }
+                  }
+                })}
+                placeholder="Custom label"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Help Text</Label>
+              <Input
+                value={field.ui.help?.fallback || ''}
+                onChange={(e) => onUpdate({
+                  ui: {
+                    ...field.ui,
+                    help: { fallback: e.target.value }
+                  }
+                })}
+                placeholder="Help text"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <Switch
+                checked={field.required}
+                onCheckedChange={(checked) => onUpdate({ required: checked })}
+              />
+              <Label className="text-xs">Required</Label>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Switch
+                checked={field.editable}
+                onCheckedChange={(checked) => onUpdate({ editable: checked })}
+              />
+              <Label className="text-xs">Editable</Label>
+            </div>
+            
+            <Badge variant={field.importance === 'high' ? 'destructive' : field.importance === 'normal' ? 'default' : 'secondary'}>
+              {field.importance}
+            </Badge>
+          </div>
+        </div>
+
+        <Button onClick={onRemove} variant="ghost" size="sm">
+          <Trash2 className="w-4 h-4 text-destructive" />
+        </Button>
+      </div>
+    </Card>
+  );
+
+  const renderSectionEditor = (section: SectionItem, sectionIndex: number) => (
+    <Card key={sectionIndex} className="border-l-4 border-l-primary">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => updateItem(sectionIndex, { collapsed: !section.collapsed })}
+            >
+              {section.collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </Button>
+            <CardTitle className="text-base">Section: {section.label.fallback}</CardTitle>
+          </div>
+          <Button onClick={() => removeItem(sectionIndex)} variant="ghost" size="sm">
+            <Trash2 className="w-4 h-4 text-destructive" />
+          </Button>
+        </div>
+      </CardHeader>
+      
+      {!section.collapsed && (
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Section Path</Label>
+              <Input
+                value={section.path}
+                onChange={(e) => updateItem(sectionIndex, { path: e.target.value })}
+                placeholder="section_path"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Label (Fallback Text)</Label>
+              <Input
+                value={section.label.fallback}
+                onChange={(e) => updateItem(sectionIndex, {
+                  label: { ...section.label, fallback: e.target.value }
+                })}
+                placeholder="Section Label"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Description</Label>
+            <Textarea
+              value={section.description?.fallback || ''}
+              onChange={(e) => updateItem(sectionIndex, {
+                description: { fallback: e.target.value }
+              })}
+              placeholder="Section description"
+            />
+          </div>
+
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <Switch
+                checked={section.required}
+                onCheckedChange={(checked) => updateItem(sectionIndex, { required: checked })}
+              />
+              <Label className="text-xs">Required</Label>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Switch
+                checked={section.hidden}
+                onCheckedChange={(checked) => updateItem(sectionIndex, { hidden: checked })}
+              />
+              <Label className="text-xs">Hidden</Label>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium">Fields in Section</h4>
+              <Button
+                onClick={() => addFieldToSection(sectionIndex)}
+                variant="outline"
+                size="sm"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Field
+              </Button>
+            </div>
+
+            {section.children.length === 0 ? (
+              <div className="text-center py-4 border border-dashed rounded-md">
+                <p className="text-muted-foreground mb-2">No fields in this section</p>
+                <Button
+                  onClick={() => addFieldToSection(sectionIndex)}
+                  variant="outline"
+                  size="sm"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Field
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {section.children.map((child, childIndex) => {
+                  if (child.kind === 'FieldItem') {
+                    return renderFieldEditor(
+                      child,
+                      (updates) => updateSectionChild(sectionIndex, childIndex, updates),
+                      () => removeSectionChild(sectionIndex, childIndex)
+                    );
+                  }
+                  return null; // Nested sections not supported in this UI
+                })}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-medium">Form Sections</h3>
+          <h3 className="text-lg font-medium">Form Content (v2-items)</h3>
           <p className="text-sm text-muted-foreground">
-            Configure the sections and fields for this form node
+            Configure fields and sections for this form node
           </p>
         </div>
-        <Button onClick={addSection} variant="outline" size="sm">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Section
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={addTopLevelField} variant="outline" size="sm">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Field
+          </Button>
+          <Button onClick={addSection} variant="outline" size="sm">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Section
+          </Button>
+        </div>
       </div>
 
-      {sections.length === 0 ? (
+      {formContent.items.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="flex items-center justify-center py-8">
             <div className="text-center">
-              <p className="text-muted-foreground mb-4">No sections configured</p>
-              <Button onClick={addSection} variant="outline">
-                <Plus className="w-4 h-4 mr-2" />
-                Add First Section
-              </Button>
+              <p className="text-muted-foreground mb-4">No content configured</p>
+              <div className="flex gap-2 justify-center">
+                <Button onClick={addTopLevelField} variant="outline">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Field
+                </Button>
+                <Button onClick={addSection} variant="outline">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Section
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-4">
-          {sections.map((section, sectionIndex) => (
-            <Card key={section.key} className="border-l-4 border-l-primary">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">Section {sectionIndex + 1}</CardTitle>
-                  <Button
-                    onClick={() => removeSection(sectionIndex)}
-                    variant="ghost"
-                    size="sm"
-                  >
-                    <Trash2 className="w-4 h-4 text-destructive" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Section Configuration */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Section Key</Label>
-                    <Input
-                      value={section.key}
-                      onChange={(e) => updateSection(sectionIndex, { key: e.target.value })}
-                      placeholder="section_key"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Title (Fallback Text)</Label>
-                    <Input
-                      value={section.title.fallback}
-                      onChange={(e) => updateSection(sectionIndex, {
-                        title: { ...section.title, fallback: e.target.value }
-                      })}
-                      placeholder="Section Title"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Title Translation Key (Optional)</Label>
-                  <Input
-                    value={section.title.key || ''}
-                    onChange={(e) => updateSection(sectionIndex, {
-                      title: { ...section.title, key: e.target.value }
-                    })}
-                    placeholder="translations.section.title"
-                  />
-                </div>
-
-                {/* Fields */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium">Fields</h4>
-                    <Button
-                      onClick={() => addField(sectionIndex)}
-                      variant="outline"
-                      size="sm"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Field
-                    </Button>
-                  </div>
-
-                  {section.fields.length === 0 ? (
-                    <div className="text-center py-4 border border-dashed rounded-md">
-                      <p className="text-muted-foreground mb-2">No fields in this section</p>
-                      <Button
-                        onClick={() => addField(sectionIndex)}
-                        variant="outline"
-                        size="sm"
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Field
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {section.fields.map((field, fieldIndex) => (
-                        <Card key={fieldIndex} className="p-4">
-                          <div className="flex items-start gap-4">
-                            <GripVertical className="w-4 h-4 text-muted-foreground mt-2 flex-shrink-0" />
-                            
-                            <div className="flex-1 space-y-3">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Field Reference</Label>
-                                  <Select
-                                    value={field.field_ref}
-                                    onValueChange={(value) => updateField(sectionIndex, fieldIndex, { field_ref: value })}
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Select field" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {availableFields.map(availableField => (
-                                        <SelectItem key={availableField.id} value={availableField.id}>
-                                          {availableField.id}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Importance</Label>
-                                  <Select
-                                    value={field.importance || 'medium'}
-                                    onValueChange={(value: 'low' | 'medium' | 'high') => 
-                                      updateField(sectionIndex, fieldIndex, { importance: value })
-                                    }
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="low">Low</SelectItem>
-                                      <SelectItem value="medium">Medium</SelectItem>
-                                      <SelectItem value="high">High</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center space-x-2">
-                                <Switch
-                                  checked={field.required}
-                                  onCheckedChange={(checked) => 
-                                    updateField(sectionIndex, fieldIndex, { required: checked })
-                                  }
-                                />
-                                <Label className="text-xs">Required</Label>
-                                <Badge variant={field.importance === 'high' ? 'destructive' : field.importance === 'medium' ? 'default' : 'secondary'}>
-                                  {field.importance || 'medium'}
-                                </Badge>
-                              </div>
-                            </div>
-
-                            <Button
-                              onClick={() => removeField(sectionIndex, fieldIndex)}
-                              variant="ghost"
-                              size="sm"
-                            >
-                              <Trash2 className="w-4 h-4 text-destructive" />
-                            </Button>
-                          </div>
-                        </Card>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+          {formContent.items.map((item, index) => {
+            if (item.kind === 'FieldItem') {
+              return renderFieldEditor(
+                item,
+                (updates) => updateItem(index, updates),
+                () => removeItem(index)
+              );
+            } else if (item.kind === 'SectionItem') {
+              return renderSectionEditor(item, index);
+            }
+            return null;
+          })}
         </div>
       )}
+      
+      <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-md">
+        <strong>Debug Info:</strong> Content structure: {formContent.version}, Items: {formContent.items.length}, Available fields: {availableFields.length}
+      </div>
     </div>
   );
 }
