@@ -112,7 +112,7 @@ export default function FieldBuilder() {
             options: existingField.options,
             rules: existingField.rules || {},
             ui: {
-              label: { fallback: existingField.ui?.label?.fallback || '' },
+              label: existingField.ui?.label || { fallback: '' },
               help: existingField.ui?.help,
               placeholder: existingField.ui?.placeholder
             },
@@ -137,7 +137,7 @@ export default function FieldBuilder() {
             options: existingField.options,
             rules: existingField.rules || {},
             ui: {
-              label: { fallback: existingField.ui?.label?.fallback || '' },
+              label: existingField.ui?.label || { fallback: '' },
               help: existingField.ui?.help,
               placeholder: existingField.ui?.placeholder
             },
