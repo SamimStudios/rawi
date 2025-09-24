@@ -110,30 +110,39 @@ export function useTemplates() {
   }, []);
 
   const saveTemplate = useCallback(async (template: Omit<Template, 'created_at' | 'updated_at'>) => {
+    console.log('🔄 saveTemplate called with:', template);
     setLoading(true);
     setError(null);
     
     try {
       // Validate template ID pattern
+      console.log('✅ Validating template ID pattern:', template.id);
       if (!/^[a-zA-Z0-9_-]+$/.test(template.id)) {
         throw new Error('Template ID can only contain letters, numbers, underscores, and hyphens');
       }
 
+      console.log('📤 Attempting to save template to Supabase...');
       const { error } = await supabase
         .schema('app' as any)
         .from('templates')
         .upsert(template, { onConflict: 'id' });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Supabase error:', error);
+        throw error;
+      }
 
+      console.log('✅ Template saved successfully');
       toast({
         title: "Success",
         description: "Template saved successfully",
       });
 
+      console.log('🔄 Refreshing templates list...');
       await fetchTemplates();
       return true;
     } catch (err) {
+      console.error('❌ saveTemplate error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to save template';
       setError(errorMessage);
       toast({
@@ -148,12 +157,14 @@ export function useTemplates() {
   }, [fetchTemplates, toast]);
 
   const saveTemplateNodes = useCallback(async (nodes: TemplateNode[]) => {
+    console.log('🔄 saveTemplateNodes called with:', nodes);
     setLoading(true);
     setError(null);
     
     try {
       // Delete existing nodes for this template/version first
       if (nodes.length > 0) {
+        console.log('🗑️ Deleting existing nodes for template:', nodes[0].template_id, 'version:', nodes[0].version);
         const { error: deleteError } = await supabase
           .schema('app' as any)
           .from('template_nodes')
@@ -161,17 +172,28 @@ export function useTemplates() {
           .eq('template_id', nodes[0].template_id)
           .eq('version', nodes[0].version);
 
-        if (deleteError) throw deleteError;
+        if (deleteError) {
+          console.error('❌ Delete existing nodes error:', deleteError);
+          throw deleteError;
+        }
+        console.log('✅ Existing nodes deleted successfully');
       }
 
       // Insert new nodes
       if (nodes.length > 0) {
+        console.log('➕ Inserting', nodes.length, 'new nodes');
         const { error } = await supabase
           .schema('app' as any)
           .from('template_nodes')
           .insert(nodes);
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Insert nodes error:', error);
+          throw error;
+        }
+        console.log('✅ Nodes inserted successfully');
+      } else {
+        console.log('ℹ️ No nodes to insert');
       }
 
       toast({
@@ -181,6 +203,7 @@ export function useTemplates() {
 
       return true;
     } catch (err) {
+      console.error('❌ saveTemplateNodes error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to save template nodes';
       setError(errorMessage);
       toast({

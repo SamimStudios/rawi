@@ -131,7 +131,12 @@ export default function TemplateBuilder() {
   }, [expandedNodes]);
 
   const handleSave = async () => {
+    console.log('🔄 handleSave called');
+    console.log('📝 Current template data:', template);
+    console.log('🌳 Current nodes:', nodes);
+    
     if (!template.id.trim() || !template.name.trim()) {
+      console.warn('⚠️ Validation failed - missing required fields');
       toast({
         title: "Validation Error",
         description: "Template ID and name are required",
@@ -141,6 +146,7 @@ export default function TemplateBuilder() {
     }
 
     if (!/^[a-zA-Z0-9_-]+$/.test(template.id)) {
+      console.warn('⚠️ Validation failed - invalid template ID format');
       toast({
         title: "Validation Error",
         description: "Template ID can only contain letters, numbers, underscores, and hyphens",
@@ -149,18 +155,32 @@ export default function TemplateBuilder() {
       return;
     }
 
+    console.log('✅ Validation passed, starting save process...');
     setIsSaving(true);
 
     try {
+      console.log('🚀 Calling saveTemplate...');
       const templateSuccess = await saveTemplate(template);
-      if (!templateSuccess) return;
+      console.log('📊 saveTemplate result:', templateSuccess);
+      
+      if (!templateSuccess) {
+        console.error('❌ Template save failed, aborting');
+        return;
+      }
 
+      console.log('🚀 Calling saveTemplateNodes...');
       const nodesSuccess = await saveTemplateNodes(nodes);
-      if (!nodesSuccess) return;
+      console.log('📊 saveTemplateNodes result:', nodesSuccess);
+      
+      if (!nodesSuccess) {
+        console.error('❌ Template nodes save failed, aborting');
+        return;
+      }
 
+      console.log('✅ Both saves successful, navigating back...');
       navigate('/app/build/template');
     } catch (error) {
-      console.error('Save error:', error);
+      console.error('❌ Unexpected error in handleSave:', error);
     } finally {
       setIsSaving(false);
     }
