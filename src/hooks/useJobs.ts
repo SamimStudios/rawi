@@ -200,19 +200,14 @@ export function useJobs() {
 
   const checkJobReady = useCallback(async (jobId: string): Promise<boolean> => {
     try {
-      // For now, return basic readiness check
-      // TODO: Implement proper job_ready RPC call
-      const { data, error } = await supabase
-        .schema('app' as any)
-        .from('nodes')
-        .select('validation_status')
-        .eq('job_id', jobId);
+      const { data, error } = await (supabase as any)
+        .schema('app')
+        .rpc('job_ready', {
+          p_job_id: jobId
+        });
 
       if (error) throw error;
-      
-      // Check if all nodes are valid
-      const allValid = data?.every(node => node.validation_status === 'valid') || false;
-      return allValid;
+      return data || false;
     } catch (err) {
       console.error('Error checking job readiness:', err);
       return false;
@@ -221,37 +216,14 @@ export function useJobs() {
 
   const getJobGenerationInput = useCallback(async (jobId: string): Promise<Record<string, any> | null> => {
     try {
-      // Extract field values from node content
-      const { data, error } = await supabase
-        .schema('app' as any)
-        .from('nodes')
-        .select('path, content')
-        .eq('job_id', jobId);
+      const { data, error } = await (supabase as any)
+        .schema('app')
+        .rpc('job_generation_input', {
+          p_job_id: jobId
+        });
 
       if (error) throw error;
-      
-      // Extract field values from form nodes
-      const generationData: Record<string, any> = {};
-      data?.forEach(node => {
-        if (node.content?.items) {
-          const fieldValues: Record<string, any> = {};
-          const extractFieldValues = (items: any[]) => {
-            items.forEach((item: any) => {
-              if (item.kind === 'FieldItem' && item.value !== null && item.ref) {
-                fieldValues[item.ref] = item.value;
-              } else if (item.children) {
-                extractFieldValues(item.children);
-              }
-            });
-          };
-          extractFieldValues(node.content.items);
-          if (Object.keys(fieldValues).length > 0) {
-            generationData[node.path] = fieldValues;
-          }
-        }
-      });
-      
-      return generationData;
+      return data || null;
     } catch (err) {
       console.error('Error getting job generation input:', err);
       return null;

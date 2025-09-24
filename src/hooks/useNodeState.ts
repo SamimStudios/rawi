@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { JobNode } from '@/hooks/useJobs';
+import { useLtreeResolver } from '@/hooks/useLtreeResolver';
 
 interface UseNodeStateReturn {
   nodeContent: any;
@@ -18,6 +19,7 @@ interface UseNodeStateProps {
 
 export function useNodeState({ node, onUpdate }: UseNodeStateProps): UseNodeStateReturn {
   const { toast } = useToast();
+  const { setValue } = useLtreeResolver();
   const [nodeContent, setNodeContent] = useState(node.content || {});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isAutoSaving, setIsAutoSaving] = useState(false);
@@ -64,37 +66,55 @@ export function useNodeState({ node, onUpdate }: UseNodeStateProps): UseNodeStat
     }, 300); // 300ms debounce
   }, [saveChanges]);
 
-  const updateField = useCallback((fieldRef: string, value: any) => {
-    setNodeContent(prev => {
-      const updateFieldInItems = (items: any[]): any[] => {
-        return items.map(item => {
-          if (item.kind === 'FieldItem' && item.ref === fieldRef) {
-            return { ...item, value };
-          } else if (item.children) {
-            return { ...item, children: updateFieldInItems(item.children) };
-          }
-          return item;
-        });
-      };
+  const updateField = useCallback(async (fieldRef: string, value: any) => {
+    // Build ltree address for this field
+    const address = `${node.path}.content.items.${fieldRef}.value`;
+    
+    try {
+      // Update via ltree resolver
+      await setValue(node.job_id, address, value);
+      
+      // Update local state for immediate UI feedback
+      setNodeContent(prev => {
+        const updateFieldInItems = (items: any[]): any[] => {
+          return items.map(item => {
+            if (item.kind === 'FieldItem' && item.ref === fieldRef) {
+              return { ...item, value };
+            } else if (item.children) {
+              return { ...item, children: updateFieldInItems(item.children) };
+            }
+            return item;
+          });
+        };
 
-      const updated = { ...prev };
-      if (updated.items) {
-        updated.items = updateFieldInItems(updated.items);
-      }
-      return updated;
-    });
-    
-    setHasUnsavedChanges(true);
-    
-    // Clear any existing error for this field
-    setFieldErrors(prev => {
-      const updated = { ...prev };
-      delete updated[fieldRef];
-      return updated;
-    });
-    
-    debouncedSave();
-  }, [debouncedSave]);
+        const updated = { ...prev };
+        if (updated.items) {
+          updated.items = updateFieldInItems(updated.items);
+        }
+        return updated;
+      });
+      
+      // Clear any existing error for this field
+      setFieldErrors(prev => {
+        const updated = { ...prev };
+        delete updated[fieldRef];
+        return updated;
+      });
+
+      toast({
+        title: "Field updated",
+        description: `${fieldRef} saved successfully`,
+      });
+      
+    } catch (error) {
+      console.error('Failed to update field:', error);
+      toast({
+        title: "Update failed",
+        description: `Failed to update ${fieldRef}. Please try again.`,
+        variant: "destructive",
+      });
+    }
+  }, [node.path, node.job_id, setValue, toast]);
 
   // Validate fields
   const validateField = useCallback((fieldRef: string, value: any, rules: any) => {

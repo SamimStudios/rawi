@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useJobs, Job, JobNode } from '@/hooks/useJobs';
 import { Button } from '@/components/ui/button';
@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, ArrowLeft, CheckCircle, AlertCircle, Play } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import NodeRenderer from '@/components/renderers/NodeRenderer';
+import SystematicNodeRenderer from '@/components/renderers/SystematicNodeRenderer';
 
 export default function JobEditor() {
   const { id } = useParams<{ id: string }>();
@@ -54,11 +54,13 @@ export default function JobEditor() {
     }
   };
 
-  const handleNodeUpdate = async (nodeId: string, content: any) => {
-    await updateJobNode(nodeId, content);
-    // Refresh job readiness after any node update
-    await checkReadiness();
-  };
+  const handleNodeUpdate = useCallback(async (nodeId: string, content: any): Promise<void> => {
+    const success = await updateJobNode(nodeId, content);
+    if (success) {
+      // Refresh job readiness after any node update
+      await checkReadiness();
+    }
+  }, [updateJobNode, checkReadiness]);
 
   const groupNodesByPath = (nodes: JobNode[]) => {
     const grouped: Record<string, JobNode[]> = {};
@@ -141,10 +143,10 @@ export default function JobEditor() {
             <CardContent>
               <div className="space-y-4">
                 {nodes.map(node => (
-                <NodeRenderer
+                <SystematicNodeRenderer
                   key={node.id}
                   node={node}
-                  onUpdate={(content) => handleNodeUpdate(node.id, content)}
+                  onUpdate={async (nodeId, content) => await handleNodeUpdate(nodeId, content)}
                 />
                 ))}
               </div>

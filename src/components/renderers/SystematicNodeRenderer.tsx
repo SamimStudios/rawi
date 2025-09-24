@@ -163,70 +163,80 @@ export default function SystematicNodeRenderer({
   const renderFormContent = () => {
     if (!nodeContent?.items) return null;
 
+    const renderFieldItem = (item: any, index: number) => (
+      <SystematicFieldRenderer
+        key={item.ref || index}
+        field={{
+          id: item.ref,
+          widget: item.widget || 'text',
+          datatype: item.datatype || 'text',
+          ui: item.ui,
+          rules: item.rules,
+          options: item.options,
+          default_value: item.default_value
+        }}
+        value={item.value}
+        onChange={(newValue) => updateField(item.ref, newValue)}
+      />
+    );
+
+    const renderSectionItem = (item: any, index: number) => (
+      <Collapsible key={item.ref || index} defaultOpen={!item.collapsed}>
+        <CollapsibleTrigger className="flex w-full items-center justify-between p-3 border rounded-md hover:bg-muted/50">
+          <div>
+            <h4 className="font-medium">{item.label?.fallback || item.ref}</h4>
+            {item.description && (
+              <p className="text-sm text-muted-foreground">
+                {item.description.fallback}
+              </p>
+            )}
+          </div>
+          <ChevronDown className="h-4 w-4" />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-4">
+          <div className="space-y-4 pl-4">
+            {/* Render child items within this section */}
+            {item.children?.map((childItem: any, childIndex: number) => {
+              if (childItem.kind === 'FieldItem') {
+                return renderFieldItem(childItem, childIndex);
+              } else if (childItem.kind === 'SectionItem') {
+                return renderSectionItem(childItem, childIndex);
+              }
+              return null;
+            })}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    );
+
     return (
       <div className="space-y-6">
         {nodeContent.items.map((item: any, index: number) => {
           if (item.kind === 'SectionItem') {
+            return renderSectionItem(item, index);
+          } else if (item.kind === 'FieldItem') {
+            return renderFieldItem(item, index);
+          } else if (item.kind === 'CollectionSectionItem') {
+            // Handle collection sections with instances
             return (
-              <Collapsible key={item.ref || index} defaultOpen={!item.collapsed}>
-                <CollapsibleTrigger className="flex w-full items-center justify-between p-3 border rounded-md hover:bg-muted/50">
-                  <div>
-                    <h4 className="font-medium">{item.label?.fallback || item.ref}</h4>
-                    {item.description && (
-                      <p className="text-sm text-muted-foreground">
-                        {item.description.fallback}
-                      </p>
-                    )}
+              <div key={item.ref || index} className="border rounded-lg p-4">
+                <h4 className="font-medium mb-4">{item.label?.fallback || item.ref}</h4>
+                {item.instances?.map((instance: any, instanceIndex: number) => (
+                  <div key={instance.instance_id || instanceIndex} className="border-l-2 pl-4 mb-4">
+                    <h5 className="text-sm font-medium mb-2">Instance {instance.instance_id}</h5>
+                    <div className="space-y-4">
+                      {instance.children?.map((childItem: any, childIndex: number) => {
+                        if (childItem.kind === 'FieldItem') {
+                          return renderFieldItem(childItem, childIndex);
+                        }
+                        return null;
+                      })}
+                    </div>
                   </div>
-                  <ChevronDown className="h-4 w-4" />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pt-4">
-                  <div className="space-y-4 pl-4">
-                    {/* Render fields within this section */}
-                    {nodeContent.items
-                      .filter((subItem: any) => subItem.path?.startsWith(item.path))
-                      .filter((subItem: any) => subItem.kind === 'FieldItem')
-                      .map((fieldItem: any, fieldIndex: number) => (
-                        <SystematicFieldRenderer
-                          key={fieldItem.ref || fieldIndex}
-                          field={{
-                            id: fieldItem.ref,
-                            widget: fieldItem.widget || 'text',
-                            datatype: fieldItem.datatype || 'text',
-                            ui: fieldItem.ui,
-                            rules: fieldItem.rules,
-                            options: fieldItem.options,
-                            default_value: fieldItem.default_value
-                          }}
-                          value={fieldItem.value}
-                          onChange={(newValue) => updateField(fieldItem.ref, newValue)}
-                        />
-                      ))}
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
+                ))}
+              </div>
             );
           }
-
-          if (item.kind === 'FieldItem') {
-            return (
-              <SystematicFieldRenderer
-                key={item.ref || index}
-                field={{
-                  id: item.ref,
-                  widget: item.widget || 'text',
-                  datatype: item.datatype || 'text',
-                  ui: item.ui,
-                  rules: item.rules,
-                  options: item.options,
-                  default_value: item.default_value
-                }}
-                value={item.value}
-                onChange={(newValue) => updateField(item.ref, newValue)}
-              />
-            );
-          }
-
           return null;
         })}
       </div>
