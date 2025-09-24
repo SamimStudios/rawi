@@ -287,11 +287,11 @@ export default function NodeLibraryBuilder() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
-                  {n8nFunctions.map(func => (
-                    <SelectItem key={func.id} value={func.id}>
-                      {func.name} ({func.type})
-                    </SelectItem>
-                  ))}
+                   {n8nFunctions.map(func => (
+                     <SelectItem key={func.id} value={func.id}>
+                       {func.name} ({func.kind})
+                     </SelectItem>
+                   ))}
                 </SelectContent>
               </Select>
             </div>
@@ -307,11 +307,11 @@ export default function NodeLibraryBuilder() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
-                  {n8nFunctions.map(func => (
-                    <SelectItem key={func.id} value={func.id}>
-                      {func.name} ({func.type})
-                    </SelectItem>
-                  ))}
+                   {n8nFunctions.map(func => (
+                     <SelectItem key={func.id} value={func.id}>
+                       {func.name} ({func.kind})
+                     </SelectItem>
+                   ))}
                 </SelectContent>
               </Select>
             </div>
