@@ -25,11 +25,27 @@ Deno.serve(async (req) => {
 
     console.log('🔄 Fetching N8N functions from database...');
     
-    const { data, error } = await supabaseAdmin
-      .from('n8n_functions')
-      .select('id, name, kind, active')
-      .eq('active', true)
-      .order('name');
+    // Try app schema first, then fall back to public
+    let data: any[] | null = null;
+    let error: any = null;
+
+    const fetchFromSchema = async (schema?: string) => {
+      const client = supabaseAdmin;
+      const query = schema ? client.schema(schema as any).from('n8n_functions') : client.from('n8n_functions');
+      return await query
+        .select('id, name, kind, active')
+        .eq('active', true)
+        .order('name');
+    };
+
+    let res = await fetchFromSchema('app');
+    if (res.error) {
+      console.warn('⚠️ app.n8n_functions query failed, falling back to public:', res.error.message);
+      res = await fetchFromSchema();
+    }
+
+    data = res.data ?? [];
+    error = res.error;
 
     if (error) {
       console.error('❌ Database error:', error);

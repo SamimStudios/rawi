@@ -209,13 +209,24 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Fetch function details
+    // Fetch function details (try app schema first, then public)
     console.log('Fetching function details...');
-    const { data: functionData, error: functionError } = await supabase
-      .from('n8n_functions')
-      .select('*')
-      .eq('id', n8n_function_id)
-      .eq('active', true)
-      .single();
+    let functionData: any = null;
+    let functionError: any = null;
+
+    const fetchFn = async (schema?: string) => {
+      const q = schema ? supabase.schema(schema as any).from('n8n_functions') : supabase.from('n8n_functions');
+      return await q.select('*').eq('id', n8n_function_id).eq('active', true).maybeSingle();
+    };
+
+    let resFn = await fetchFn('app');
+    if (resFn.error || !resFn.data) {
+      if (resFn.error) console.warn('⚠️ app.n8n_functions lookup failed, falling back to public:', resFn.error.message);
+      resFn = await fetchFn();
+    }
+
+    functionData = resFn.data;
+    functionError = resFn.error;
 
     if (functionError || !functionData) {
       console.error('Function not found or inactive:', functionError);

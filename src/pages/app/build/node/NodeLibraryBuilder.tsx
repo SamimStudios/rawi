@@ -285,14 +285,20 @@ export default function NodeLibraryBuilder() {
                 <SelectTrigger>
                   <SelectValue placeholder="Select validation function" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                   {n8nFunctions.map(func => (
-                     <SelectItem key={func.id} value={func.id}>
-                       {func.name} ({func.kind})
-                     </SelectItem>
-                   ))}
-                </SelectContent>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {n8nFunctions.length === 0 ? (
+                      <SelectItem value="__no_results" disabled>
+                        No active N8N functions found
+                      </SelectItem>
+                    ) : (
+                      n8nFunctions.map(func => (
+                        <SelectItem key={func.id} value={func.id}>
+                          {func.name} ({func.kind})
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
               </Select>
             </div>
 
@@ -305,14 +311,20 @@ export default function NodeLibraryBuilder() {
                 <SelectTrigger>
                   <SelectValue placeholder="Select generation function" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                   {n8nFunctions.map(func => (
-                     <SelectItem key={func.id} value={func.id}>
-                       {func.name} ({func.kind})
-                     </SelectItem>
-                   ))}
-                </SelectContent>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {n8nFunctions.length === 0 ? (
+                      <SelectItem value="__no_results" disabled>
+                        No active N8N functions found
+                      </SelectItem>
+                    ) : (
+                      n8nFunctions.map(func => (
+                        <SelectItem key={func.id} value={func.id}>
+                          {func.name} ({func.kind})
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
               </Select>
             </div>
           </div>
