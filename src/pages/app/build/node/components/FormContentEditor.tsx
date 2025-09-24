@@ -241,13 +241,14 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
     }));
   };
 
-  const addFieldToSection = (sectionIndex: number) => {
+  const addFieldToSection = (sectionIndex: number, parentPath?: string) => {
     const section = formContent.items[sectionIndex] as SectionItem;
     const newIdx = Math.max(0, ...section.children.map(child => child.idx)) + 1;
+    const basePath = parentPath || section.path;
     const newField: FieldItem = {
       kind: 'FieldItem',
       idx: newIdx,
-      path: `${section.path}.field_${newIdx}`,
+      path: `${basePath}.field_${newIdx}`,
       ref: '',
       editable: true,
       required: false,
@@ -261,6 +262,25 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
     };
     
     const updatedChildren = [...section.children, newField];
+    updateItem(sectionIndex, { children: updatedChildren });
+  };
+
+  const addSubsectionToSection = (sectionIndex: number, parentPath?: string) => {
+    const section = formContent.items[sectionIndex] as SectionItem;
+    const newIdx = Math.max(0, ...section.children.map(child => child.idx)) + 1;
+    const basePath = parentPath || section.path;
+    const newSubsection: SectionItem = {
+      kind: 'SectionItem',
+      idx: newIdx,
+      path: `${basePath}.section_${newIdx}`,
+      label: { fallback: 'New Subsection' },
+      required: false,
+      hidden: false,
+      collapsed: false,
+      children: []
+    };
+    
+    const updatedChildren = [...section.children, newSubsection];
     updateItem(sectionIndex, { children: updatedChildren });
   };
 
@@ -466,8 +486,8 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
     </Card>
   );
 
-  const renderSectionEditor = (section: SectionItem, sectionIndex: number) => (
-    <Card key={sectionIndex} className="border-l-4 border-l-primary">
+  const renderSectionEditor = (section: SectionItem, sectionIndex: number, depth: number = 0) => (
+    <Card key={sectionIndex} className={`border-l-4 ${depth === 0 ? 'border-l-primary' : depth === 1 ? 'border-l-secondary' : 'border-l-muted'} ${depth > 0 ? 'ml-6' : ''}`}>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -478,7 +498,10 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
             >
               {section.collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </Button>
-            <CardTitle className="text-base">Section: {section.label.fallback}</CardTitle>
+            <CardTitle className={`${depth === 0 ? 'text-base' : 'text-sm'}`}>
+              {depth > 0 ? 'Subsection' : 'Section'}: {section.label.fallback}
+            </CardTitle>
+            {depth > 0 && <Badge variant="outline" className="text-xs">Level {depth + 1}</Badge>}
           </div>
           <Button onClick={() => removeItem(sectionIndex)} variant="ghost" size="sm">
             <Trash2 className="w-4 h-4 text-destructive" />
@@ -500,6 +523,20 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor={`section-${sectionIndex}-idx`}>Index</Label>
+              <Input
+                id={`section-${sectionIndex}-idx`}
+                name={`section-${sectionIndex}-idx`}
+                type="number"
+                value={section.idx}
+                onChange={(e) => updateItem(sectionIndex, { idx: parseInt(e.target.value) || 1 })}
+                min="1"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
               <Label htmlFor={`section-${sectionIndex}-label-fallback`}>Label (Fallback Text)</Label>
               <Input
                 id={`section-${sectionIndex}-label-fallback`}
@@ -511,19 +548,45 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
                 placeholder="Section Label"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor={`section-${sectionIndex}-label-key`}>Label (Translation Key)</Label>
+              <Input
+                id={`section-${sectionIndex}-label-key`}
+                name={`section-${sectionIndex}-label-key`}
+                value={section.label.key || ''}
+                onChange={(e) => updateItem(sectionIndex, {
+                  label: { ...section.label, key: e.target.value }
+                })}
+                placeholder="section.label.key"
+              />
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor={`section-${sectionIndex}-description`}>Description</Label>
-            <Textarea
-              id={`section-${sectionIndex}-description`}
-              name={`section-${sectionIndex}-description`}
-              value={section.description?.fallback || ''}
-              onChange={(e) => updateItem(sectionIndex, {
-                description: { fallback: e.target.value }
-              })}
-              placeholder="Section description"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor={`section-${sectionIndex}-description-fallback`}>Description (Fallback Text)</Label>
+              <Textarea
+                id={`section-${sectionIndex}-description-fallback`}
+                name={`section-${sectionIndex}-description-fallback`}
+                value={section.description?.fallback || ''}
+                onChange={(e) => updateItem(sectionIndex, {
+                  description: { ...section.description, fallback: e.target.value }
+                })}
+                placeholder="Section description"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`section-${sectionIndex}-description-key`}>Description (Translation Key)</Label>
+              <Input
+                id={`section-${sectionIndex}-description-key`}
+                name={`section-${sectionIndex}-description-key`}
+                value={section.description?.key || ''}
+                onChange={(e) => updateItem(sectionIndex, {
+                  description: { ...section.description, key: e.target.value }
+                })}
+                placeholder="section.description.key"
+              />
+            </div>
           </div>
 
           <div className="flex items-center space-x-4">
@@ -546,28 +609,48 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
 
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h4 className="font-medium">Fields in Section</h4>
-              <Button
-                onClick={() => addFieldToSection(sectionIndex)}
-                variant="outline"
-                size="sm"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Field
-              </Button>
-            </div>
-
-            {section.children.length === 0 ? (
-              <div className="text-center py-4 border border-dashed rounded-md">
-                <p className="text-muted-foreground mb-2">No fields in this section</p>
+              <h4 className="font-medium">Content in Section</h4>
+              <div className="flex gap-2">
                 <Button
-                  onClick={() => addFieldToSection(sectionIndex)}
+                  onClick={() => addFieldToSection(sectionIndex, section.path)}
                   variant="outline"
                   size="sm"
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Add Field
                 </Button>
+                <Button
+                  onClick={() => addSubsectionToSection(sectionIndex, section.path)}
+                  variant="outline"
+                  size="sm"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Subsection
+                </Button>
+              </div>
+            </div>
+
+            {section.children.length === 0 ? (
+              <div className="text-center py-4 border border-dashed rounded-md">
+                <p className="text-muted-foreground mb-2">No content in this section</p>
+                <div className="flex gap-2 justify-center">
+                  <Button
+                    onClick={() => addFieldToSection(sectionIndex, section.path)}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Field
+                  </Button>
+                  <Button
+                    onClick={() => addSubsectionToSection(sectionIndex, section.path)}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Subsection
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="space-y-3">
@@ -578,8 +661,14 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
                       (updates) => updateSectionChild(sectionIndex, childIndex, updates),
                       () => removeSectionChild(sectionIndex, childIndex)
                     );
+                  } else if (child.kind === 'SectionItem') {
+                    return renderSectionEditor(
+                      child,
+                      childIndex,
+                      depth + 1
+                    );
                   }
-                  return null; // Nested sections not supported in this UI
+                  return null;
                 })}
               </div>
             )}
@@ -638,7 +727,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
                 () => removeItem(index)
               );
             } else if (item.kind === 'SectionItem') {
-              return renderSectionEditor(item, index);
+              return renderSectionEditor(item, index, 0);
             }
             return null;
           })}
