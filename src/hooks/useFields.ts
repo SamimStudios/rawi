@@ -25,14 +25,31 @@ export function useFields() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await (supabase as any)
-        .schema('app')
-        .from('field_registry')
-        .select('*')
-        .order('updated_at', { ascending: false });
+      // Try app schema first, then fall back to public view
+      let data: any = null;
+      let error: any = null;
+
+      try {
+        const res = await (supabase as any)
+          .schema('app')
+          .from('field_registry')
+          .select('*')
+          .order('updated_at', { ascending: false });
+        data = res.data; error = res.error;
+      } catch (e) {
+        error = e;
+      }
+
+      if (error || !Array.isArray(data)) {
+        const resPublic = await (supabase as any)
+          .from('field_registry')
+          .select('*')
+          .order('updated_at', { ascending: false });
+        data = resPublic.data; error = resPublic.error;
+      }
 
       if (error) throw error;
-      setEntries(data as FieldEntry[] || []);
+      setEntries((data as FieldEntry[]) || []);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch field registry';
       setError(errorMessage);
@@ -112,15 +129,31 @@ export function useFields() {
 
   const getEntry = useCallback(async (id: string): Promise<FieldEntry | null> => {
     try {
-      const { data, error } = await (supabase as any)
-        .schema('app')
-        .from('field_registry')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle();
+      // Try app schema first
+      let data: any = null; let error: any = null;
+      try {
+        const res = await (supabase as any)
+          .schema('app')
+          .from('field_registry')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+        data = res.data; error = res.error;
+      } catch (e) {
+        error = e;
+      }
+
+      if (error || !data) {
+        const resPublic = await (supabase as any)
+          .from('field_registry')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+        data = resPublic.data; error = resPublic.error;
+      }
 
       if (error) throw error;
-      return data as FieldEntry || null;
+      return (data as FieldEntry) || null;
     } catch (err) {
       console.error('Error fetching field:', err);
       return null;

@@ -159,29 +159,33 @@ export default function NodeRenderer({
   useEffect(() => {
     const collectAllFieldRefs = (items: any[]): string[] => {
       const refs: string[] = [];
-      
       for (const item of items || []) {
-        if (item.kind === 'FieldItem' && item.ref) {
+        if (item?.kind === 'FieldItem' && item.ref) {
           refs.push(item.ref);
-        } else if ((item.kind === 'Section' || item.kind === 'SubSection' || item.kind === 'Group') && item.children) {
+          continue;
+        }
+        // Recurse into any nested children/items
+        if (Array.isArray(item?.children)) {
           refs.push(...collectAllFieldRefs(item.children));
-        } else if (item.instances) {
-          // Handle collection instances
-          for (const instance of item.instances) {
-            if (instance.children) {
-              refs.push(...collectAllFieldRefs(instance.children));
-            }
+        }
+        if (Array.isArray(item?.items)) {
+          refs.push(...collectAllFieldRefs(item.items));
+        }
+        // Collections with instances
+        if (Array.isArray(item?.instances)) {
+          for (const inst of item.instances) {
+            if (Array.isArray(inst?.children)) refs.push(...collectAllFieldRefs(inst.children));
+            if (Array.isArray(inst?.items)) refs.push(...collectAllFieldRefs(inst.items));
           }
         }
       }
-      
       return refs;
     };
 
     const loadFieldEntries = async () => {
       if (!editContent?.items) return;
       
-      const allFieldRefs = collectAllFieldRefs(editContent.items);
+      const allFieldRefs = Array.from(new Set(collectAllFieldRefs(editContent.items)));
       const entries: Record<string, FieldEntry | null> = {};
       
       for (const ref of allFieldRefs) {
@@ -297,18 +301,22 @@ export default function NodeRenderer({
         return items.map(item => {
           if (item.kind === 'FieldItem' && item.ref === fieldRef) {
             return { ...item, value };
-          } else if (item.children) {
-            return { ...item, children: updateFieldInItems(item.children) };
-          } else if (item.instances) {
-            return {
-              ...item,
-              instances: item.instances.map((instance: any) => ({
-                ...instance,
-                children: updateFieldInItems(instance.children || [])
-              }))
-            };
           }
-          return item;
+          const next: any = { ...item };
+          if (Array.isArray(item.children)) {
+            next.children = updateFieldInItems(item.children);
+          }
+          if (Array.isArray(item.items)) {
+            next.items = updateFieldInItems(item.items);
+          }
+          if (Array.isArray(item.instances)) {
+            next.instances = item.instances.map((instance: any) => ({
+              ...instance,
+              ...(Array.isArray(instance.children) ? { children: updateFieldInItems(instance.children) } : {}),
+              ...(Array.isArray(instance.items) ? { items: updateFieldInItems(instance.items) } : {}),
+            }));
+          }
+          return next;
         });
       };
 
@@ -495,7 +503,7 @@ export default function NodeRenderer({
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div className="p-4 pt-0 space-y-4">
-              {item.children && renderItems(item.children)}
+              {renderItems(item.children || item.items || [])}
             </div>
           </CollapsibleContent>
         </Collapsible>
@@ -522,7 +530,7 @@ export default function NodeRenderer({
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div className="p-3 pt-0 space-y-3">
-              {item.children && renderItems(item.children)}
+              {renderItems(item.children || item.items || [])}
             </div>
           </CollapsibleContent>
         </Collapsible>
@@ -550,7 +558,7 @@ export default function NodeRenderer({
               </Button>
             </div>
             <div className="space-y-4">
-              {instance.children && renderItems(instance.children)}
+              {renderItems((instance.children || instance.items || []))}
             </div>
           </div>
         ))}
