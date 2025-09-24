@@ -40,8 +40,7 @@ const buildTools = [
     description: 'Create reusable templates and components',
     icon: <FileText className="w-6 h-6" />,
     href: '/app/build/template',
-    color: 'text-orange-600',
-    disabled: true
+    color: 'text-orange-600'
   }
 ];
 

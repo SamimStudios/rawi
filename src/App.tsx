@@ -35,6 +35,7 @@ import Dashboard from '@/pages/app/Dashboard';
 import BuildIndex from '@/pages/app/build';
 import FieldRoutes from '@/pages/app/build/field';
 import NodeLibraryRoutes from '@/pages/app/build/node';
+import TemplateRoutes from '@/pages/app/build/template';
 import Wallet from '@/pages/user/Wallet';
 import Settings from '@/pages/user/Settings';
 import StyleGuideline from "./pages/StyleGuideline";
@@ -100,6 +101,13 @@ const MainApp = () => (
                     <div>
                       <Header />
                       <NodeLibraryRoutes />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/app/build/template/*" element={
+                    <div>
+                      <Header />
+                      <TemplateRoutes />
                       <Footer />
                     </div>
                   } />
