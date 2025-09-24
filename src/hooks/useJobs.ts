@@ -34,7 +34,6 @@ export interface JobNode {
   path_ltree?: any;
   addr?: any;
   library_id?: string;
-  user_data?: Record<string, any>;
   validation_status?: 'pending' | 'valid' | 'invalid';
   created_at?: string;
   updated_at?: string;
@@ -166,7 +165,7 @@ export function useJobs() {
     }
   }, [toast, user]);
 
-  const updateJobNode = useCallback(async (nodeId: string, userData: Record<string, any>): Promise<boolean> => {
+  const updateJobNode = useCallback(async (nodeId: string, content: Record<string, any>): Promise<boolean> => {
     setLoading(true);
     setError(null);
     
@@ -174,7 +173,7 @@ export function useJobs() {
       const { error } = await supabase
         .schema('app' as any)
         .from('nodes')
-        .update({ user_data: userData })
+        .update({ content })
         .eq('id', nodeId);
 
       if (error) throw error;
@@ -222,21 +221,33 @@ export function useJobs() {
 
   const getJobGenerationInput = useCallback(async (jobId: string): Promise<Record<string, any> | null> => {
     try {
-      // For now, return aggregated user data from nodes
-      // TODO: Implement proper job_generation_input RPC call
+      // Extract field values from node content
       const { data, error } = await supabase
         .schema('app' as any)
         .from('nodes')
-        .select('path, user_data')
+        .select('path, content')
         .eq('job_id', jobId);
 
       if (error) throw error;
       
-      // Aggregate user data by path
+      // Extract field values from form nodes
       const generationData: Record<string, any> = {};
       data?.forEach(node => {
-        if (node.user_data) {
-          generationData[node.path] = node.user_data;
+        if (node.content?.items) {
+          const fieldValues: Record<string, any> = {};
+          const extractFieldValues = (items: any[]) => {
+            items.forEach((item: any) => {
+              if (item.kind === 'FieldItem' && item.value !== null && item.ref) {
+                fieldValues[item.ref] = item.value;
+              } else if (item.children) {
+                extractFieldValues(item.children);
+              }
+            });
+          };
+          extractFieldValues(node.content.items);
+          if (Object.keys(fieldValues).length > 0) {
+            generationData[node.path] = fieldValues;
+          }
         }
       });
       

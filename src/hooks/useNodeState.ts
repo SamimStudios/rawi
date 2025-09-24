@@ -11,10 +11,12 @@ interface UseNodeStateReturn {
   saveChanges: () => Promise<void>;
 }
 
-export function useNodeState(
-  node: JobNode,
-  onUpdate: (nodeId: string, content: any) => Promise<void>
-): UseNodeStateReturn {
+interface UseNodeStateProps {
+  node: JobNode;
+  onUpdate: (content: any) => Promise<void>;
+}
+
+export function useNodeState({ node, onUpdate }: UseNodeStateProps): UseNodeStateReturn {
   const { toast } = useToast();
   const [nodeContent, setNodeContent] = useState(node.content || {});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -37,7 +39,7 @@ export function useNodeState(
 
     try {
       setIsAutoSaving(true);
-      await onUpdate(node.id, nodeContent);
+      await onUpdate(nodeContent);
       lastSavedContentRef.current = nodeContent;
       setHasUnsavedChanges(false);
     } catch (error) {
@@ -50,7 +52,7 @@ export function useNodeState(
     } finally {
       setIsAutoSaving(false);
     }
-  }, [hasUnsavedChanges, nodeContent, onUpdate, node.id, toast]);
+  }, [hasUnsavedChanges, nodeContent, onUpdate, toast]);
 
   const debouncedSave = useCallback(() => {
     if (saveTimeoutRef.current) {
@@ -64,18 +66,21 @@ export function useNodeState(
 
   const updateField = useCallback((fieldRef: string, value: any) => {
     setNodeContent(prev => {
-      const updated = { ...prev };
-      
-      // Update the field value in the items array
-      if (updated.items && Array.isArray(updated.items)) {
-        updated.items = updated.items.map((item: any) => {
-          if (item.ref === fieldRef && item.kind === 'FieldItem') {
+      const updateFieldInItems = (items: any[]): any[] => {
+        return items.map(item => {
+          if (item.kind === 'FieldItem' && item.ref === fieldRef) {
             return { ...item, value };
+          } else if (item.children) {
+            return { ...item, children: updateFieldInItems(item.children) };
           }
           return item;
         });
+      };
+
+      const updated = { ...prev };
+      if (updated.items) {
+        updated.items = updateFieldInItems(updated.items);
       }
-      
       return updated;
     });
     

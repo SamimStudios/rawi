@@ -6,7 +6,7 @@ import FieldRenderer from './FieldRenderer';
 
 interface NodeRendererProps {
   node: JobNode;
-  onUpdate: () => void;
+  onUpdate: (content: any) => void;
 }
 
 export default function NodeRenderer({ node, onUpdate }: NodeRendererProps) {
@@ -21,11 +21,11 @@ export default function NodeRenderer({ node, onUpdate }: NodeRendererProps) {
           <FieldRenderer
             key={field.id || index}
             field={field}
-            value={node.user_data?.[field.id]}
+            value={null} // TODO: Extract from node.content properly
             onChange={(value) => {
               // TODO: Implement field value update
               console.log('Field updated:', field.id, value);
-              onUpdate();
+              onUpdate(node.content);
             }}
           />
         ))}

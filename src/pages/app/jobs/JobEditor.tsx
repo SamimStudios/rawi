@@ -11,7 +11,7 @@ import NodeRenderer from '@/components/renderers/NodeRenderer';
 export default function JobEditor() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getJob, fetchJobNodes, jobNodes, loading, checkJobReady, getJobGenerationInput } = useJobs();
+  const { getJob, fetchJobNodes, jobNodes, loading, checkJobReady, getJobGenerationInput, updateJobNode } = useJobs();
   const { toast } = useToast();
   
   const [job, setJob] = useState<Job | null>(null);
@@ -54,7 +54,8 @@ export default function JobEditor() {
     }
   };
 
-  const handleNodeUpdate = async () => {
+  const handleNodeUpdate = async (nodeId: string, content: any) => {
+    await updateJobNode(nodeId, content);
     // Refresh job readiness after any node update
     await checkReadiness();
   };
@@ -140,11 +141,11 @@ export default function JobEditor() {
             <CardContent>
               <div className="space-y-4">
                 {nodes.map(node => (
-                  <NodeRenderer
-                    key={node.id}
-                    node={node}
-                    onUpdate={handleNodeUpdate}
-                  />
+                <NodeRenderer
+                  key={node.id}
+                  node={node}
+                  onUpdate={(content) => handleNodeUpdate(node.id, content)}
+                />
                 ))}
               </div>
             </CardContent>

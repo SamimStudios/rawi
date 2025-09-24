@@ -67,7 +67,10 @@ export default function SystematicNodeRenderer({
     hasUnsavedChanges,
     isAutoSaving,
     fieldErrors
-  } = useNodeState(node, onUpdate);
+  } = useNodeState({ 
+    node, 
+    onUpdate: async (content) => await onUpdate(node.id, content) 
+  });
 
   const {
     isBlocked,
@@ -79,7 +82,7 @@ export default function SystematicNodeRenderer({
   // Get node metadata
   const label = nodeContent?.label?.fallback || nodeContent?.label?.key || node.path;
   const description = nodeContent?.description?.fallback || nodeContent?.description?.key || '';
-  const lastUpdated = node.user_data?.updated_at || node.updated_at;
+  const lastUpdated = node.updated_at;
   const hasGenerateAction = Boolean(node.library_id); // Simplified check
   const hasValidateAction = Boolean(node.library_id); // Simplified check
 
