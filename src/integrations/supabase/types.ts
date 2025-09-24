@@ -84,6 +84,7 @@ export type Database = {
           status_url: string
           terminal_statuses: string[] | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           attempts?: number
@@ -109,6 +110,7 @@ export type Database = {
           status_url: string
           terminal_statuses?: string[] | null
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           attempts?: number
@@ -134,6 +136,7 @@ export type Database = {
           status_url?: string
           terminal_statuses?: string[] | null
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -738,6 +741,16 @@ export type Database = {
       }
       link_guest_jobs_to_user: {
         Args: { p_email: string } | { p_email: string; p_session_id: string }
+        Returns: undefined
+      }
+      log_security_event: {
+        Args: {
+          p_action: string
+          p_new_values?: Json
+          p_old_values?: Json
+          p_record_id?: string
+          p_table_name?: string
+        }
         Returns: undefined
       }
       lquery_in: {
