@@ -35,15 +35,13 @@ export default function TemplateList() {
   const filteredTemplates = templates.filter(template => {
     const matchesSearch = template.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          template.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = filterCategory === 'all' || template.category === filterCategory;
-    const matchesActive = filterActive === 'all' || 
-      (filterActive === 'active' && template.active) ||
-      (filterActive === 'inactive' && !template.active);
+    const matchesCategory = filterCategory === 'all' || template.type === filterCategory;
+    const matchesActive = filterActive === 'all';
     
     return matchesSearch && matchesCategory && matchesActive;
   });
 
-  const categories = Array.from(new Set(templates.map(t => t.category)));
+  const categories = Array.from(new Set(templates.map(t => t.type)));
 
   const handleDelete = async (id: string) => {
     const success = await deleteTemplate(id);
@@ -152,16 +150,6 @@ export default function TemplateList() {
               </SelectContent>
             </Select>
 
-            <Select value={filterActive} onValueChange={setFilterActive}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active Only</SelectItem>
-                <SelectItem value="inactive">Inactive Only</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
         </CardContent>
       </Card>
@@ -193,9 +181,8 @@ export default function TemplateList() {
                   <TableRow>
                     <TableHead>ID</TableHead>
                     <TableHead>Name</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Version</TableHead>
+                     <TableHead>Type</TableHead>
+                     <TableHead>Description</TableHead>
                     <TableHead>Updated</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -207,17 +194,14 @@ export default function TemplateList() {
                         {template.id}
                       </TableCell>
                       <TableCell>{template.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="capitalize">
-                          {template.category.split('_').join(' ')}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={template.active ? "default" : "secondary"}>
-                          {template.active ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{template.current_version}</TableCell>
+                       <TableCell>
+                         <Badge variant="outline" className="capitalize">
+                           {template.type.split('_').join(' ')}
+                         </Badge>
+                       </TableCell>
+                       <TableCell className="text-sm text-muted-foreground">
+                         {template.description || '-'}
+                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {template.updated_at ? new Date(template.updated_at).toLocaleDateString() : '-'}
                       </TableCell>

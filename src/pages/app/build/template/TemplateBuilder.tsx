@@ -38,10 +38,9 @@ export default function TemplateBuilder() {
   const [template, setTemplate] = useState<Template>({
     id: '',
     name: '',
-    category: 'cinematic_trailer',
-    active: true,
-    current_version: 1,
-    meta: {},
+    type: 'cinematic_trailer',
+    description: '',
+    template: {},
   });
 
   const [nodes, setNodes] = useState<TemplateNode[]>([]);
@@ -60,7 +59,7 @@ export default function TemplateBuilder() {
       const existingTemplate = templates.find(t => t.id === id);
       if (existingTemplate) {
         setTemplate(existingTemplate);
-        fetchTemplateNodes(id, existingTemplate.current_version);
+        fetchTemplateNodes(id);
       } else {
         toast({
           title: "Template not found",
@@ -220,7 +219,7 @@ export default function TemplateBuilder() {
 
     const newNode: TemplateNode = {
       template_id: template.id,
-      version: template.current_version,
+      version: 1,
       addr: newAddr,
       idx: maxIdx + 1,
       node_type: libraryNode.node_type,
@@ -308,10 +307,10 @@ export default function TemplateBuilder() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="category">Category</Label>
+              <Label htmlFor="type">Type</Label>
               <Select 
-                value={template.category} 
-                onValueChange={(value) => setTemplate(prev => ({ ...prev, category: value }))}
+                value={template.type} 
+                onValueChange={(value) => setTemplate(prev => ({ ...prev, type: value }))}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -326,23 +325,13 @@ export default function TemplateBuilder() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="version">Version</Label>
+              <Label htmlFor="description">Description</Label>
               <Input
-                id="version"
-                type="number"
-                min="1"
-                value={template.current_version}
-                onChange={(e) => setTemplate(prev => ({ ...prev, current_version: parseInt(e.target.value) || 1 }))}
+                id="description"
+                value={template.description || ''}
+                onChange={(e) => setTemplate(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Template description"
               />
-            </div>
-
-            <div className="flex items-center space-x-2 pt-7">
-              <Switch
-                id="active"
-                checked={template.active}
-                onCheckedChange={(checked) => setTemplate(prev => ({ ...prev, active: checked }))}
-              />
-              <Label htmlFor="active">Active</Label>
             </div>
           </div>
         </CardContent>
