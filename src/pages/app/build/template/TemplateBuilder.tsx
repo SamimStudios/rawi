@@ -38,9 +38,10 @@ export default function TemplateBuilder() {
   const [template, setTemplate] = useState<Template>({
     id: '',
     name: '',
-    type: 'cinematic_trailer',
-    description: '',
-    template: {},
+    category: 'cinematic_trailer',
+    active: true,
+    current_version: 1,
+    meta: {},
   });
 
   const [nodes, setNodes] = useState<TemplateNode[]>([]);
@@ -307,10 +308,10 @@ export default function TemplateBuilder() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="type">Type</Label>
+              <Label htmlFor="category">Category</Label>
               <Select 
-                value={template.type} 
-                onValueChange={(value) => setTemplate(prev => ({ ...prev, type: value }))}
+                value={template.category} 
+                onValueChange={(value) => setTemplate(prev => ({ ...prev, category: value }))}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -325,12 +326,14 @@ export default function TemplateBuilder() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="version">Version</Label>
               <Input
-                id="description"
-                value={template.description || ''}
-                onChange={(e) => setTemplate(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Template description"
+                id="version"
+                type="number"
+                value={template.current_version}
+                onChange={(e) => setTemplate(prev => ({ ...prev, current_version: parseInt(e.target.value) || 1 }))}
+                placeholder="Template version"
+                min="1"
               />
             </div>
           </div>

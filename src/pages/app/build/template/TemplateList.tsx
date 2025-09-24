@@ -35,13 +35,13 @@ export default function TemplateList() {
   const filteredTemplates = templates.filter(template => {
     const matchesSearch = template.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          template.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = filterCategory === 'all' || template.type === filterCategory;
+    const matchesCategory = filterCategory === 'all' || template.category === filterCategory;
     const matchesActive = filterActive === 'all';
     
     return matchesSearch && matchesCategory && matchesActive;
   });
 
-  const categories = Array.from(new Set(templates.map(t => t.type)));
+  const categories = Array.from(new Set(templates.map(t => t.category)));
 
   const handleDelete = async (id: string) => {
     const success = await deleteTemplate(id);
@@ -195,12 +195,12 @@ export default function TemplateList() {
                       </TableCell>
                       <TableCell>{template.name}</TableCell>
                        <TableCell>
-                         <Badge variant="outline" className="capitalize">
-                           {template.type.split('_').join(' ')}
-                         </Badge>
+                        <Badge variant="outline" className="capitalize">
+                          {template.category.split('_').join(' ')}
+                        </Badge>
                        </TableCell>
                        <TableCell className="text-sm text-muted-foreground">
-                         {template.description || '-'}
+                         Version {template.current_version}
                        </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {template.updated_at ? new Date(template.updated_at).toLocaleDateString() : '-'}

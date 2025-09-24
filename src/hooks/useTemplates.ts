@@ -5,10 +5,10 @@ import { useToast } from '@/hooks/use-toast';
 export interface Template {
   id: string;
   name: string;
-  type: string;
-  description?: string;
-  template: Record<string, any>;
-  structure?: string;
+  category: string;
+  active: boolean;
+  current_version: number;
+  meta: Record<string, any>;
   created_at?: string;
   updated_at?: string;
 }
@@ -55,15 +55,14 @@ export function useTemplates() {
     setError(null);
     try {
       const { data, error } = await supabase
+        .schema('app' as any)
         .from('templates')
         .select('*')
+        .eq('active', true)
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      setTemplates((data || []).map(template => ({
-        ...template,
-        template: template.template as Record<string, any>
-      })));
+      setTemplates(data || []);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch templates';
       setError(errorMessage);
