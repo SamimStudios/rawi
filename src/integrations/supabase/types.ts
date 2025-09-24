@@ -483,6 +483,15 @@ export type Database = {
         Args: { p_job_id: string }
         Returns: Json
       }
+      check_rate_limit: {
+        Args: {
+          p_action: string
+          p_limit?: number
+          p_user_id: string
+          p_window_minutes?: number
+        }
+        Returns: boolean
+      }
       citext: {
         Args: { "": boolean } | { "": string } | { "": unknown }
         Returns: string
@@ -918,6 +927,10 @@ export type Database = {
         Args: { p_job_id: string }
         Returns: undefined
       }
+      safe_refresh_job_node_index: {
+        Args: { p_job_id: string }
+        Returns: undefined
+      }
       sanitize_json_input: {
         Args: { input_json: Json }
         Returns: Json
@@ -940,6 +953,14 @@ export type Database = {
       }
       validate_characters_payload: {
         Args: { doc: Json }
+        Returns: boolean
+      }
+      validate_json_structure: {
+        Args: { input_json: Json; required_fields: string[] }
+        Returns: boolean
+      }
+      validate_session_token: {
+        Args: { p_token: string }
         Returns: boolean
       }
     }
