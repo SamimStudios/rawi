@@ -27,10 +27,8 @@ export default function AppTemplates() {
   }, [fetchTemplates]);
 
   const filteredTemplates = templates.filter(template => 
-    template.active && (
-      template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      template.category.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    template.type.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleCreateJob = async () => {
@@ -102,19 +100,15 @@ export default function AppTemplates() {
                     Template ID: {template.id}
                   </CardDescription>
                 </div>
-                <Badge variant="outline">{template.category}</Badge>
+                <Badge variant="outline">{template.type}</Badge>
               </div>
             </CardHeader>
             
             <CardContent>
-              <div className="space-y-2">
-                <div className="text-sm text-muted-foreground">
-                  Version: {template.current_version}
-                </div>
-                
-                {template.meta?.description && (
+              <div className="space-y-2">                
+                {template.description && (
                   <p className="text-sm text-muted-foreground">
-                    {template.meta.description}
+                    {template.description}
                   </p>
                 )}
               </div>

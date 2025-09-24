@@ -99,9 +99,9 @@ export default function JobEditor() {
               Back to Templates
             </Button>
             <div>
-              <h1 className="text-3xl font-bold">{job.name}</h1>
+              <h1 className="text-3xl font-bold">{job.name || job.id || 'Unnamed Job'}</h1>
               <p className="text-muted-foreground">
-                Template: {job.template_id} • Status: <Badge variant={
+                Template: {job.template} • Status: <Badge variant={
                   job.status === 'completed' ? 'default' : 
                   job.status === 'failed' ? 'destructive' : 'secondary'
                 }>{job.status}</Badge>

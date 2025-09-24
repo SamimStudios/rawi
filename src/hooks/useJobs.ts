@@ -1,33 +1,41 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 export interface Job {
   id: string;
-  template_id: string;
-  name: string;
-  status: 'draft' | 'in_progress' | 'completed' | 'failed';
-  user_input?: Record<string, any>;
-  characters?: Record<string, any>;
-  props?: Record<string, any>;
-  timeline?: Record<string, any>;
-  music?: Record<string, any>;
-  movie_info?: Record<string, any>;
+  user_id: string;
+  session_id?: string;
+  status: string;
+  category?: string;
+  template?: string;
+  credits_used: number;
+  nodes?: string[];
+  final_output?: Record<string, any>;
+  name?: string; // Add name for compatibility
   created_at?: string;
   updated_at?: string;
 }
 
 export interface JobNode {
   id: string;
+  idx: number;
   job_id: string;
+  node_type: string;
   path: string;
-  node_type: 'form' | 'media' | 'group';
-  library_id: string;
+  parent_id?: string;
   content: Record<string, any>;
+  dependencies: string[];
+  removable: boolean;
+  validate_n8n_id?: string;
+  generate_n8n_id?: string;
+  arrangeable: boolean;
+  path_ltree?: any;
+  addr?: any;
+  library_id?: string;
   user_data?: Record<string, any>;
   validation_status?: 'pending' | 'valid' | 'invalid';
-  dependencies?: string[];
-  parent_path?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -38,6 +46,7 @@ export function useJobs() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const fetchJobs = useCallback(async () => {
     setLoading(true);
@@ -98,6 +107,15 @@ export function useJobs() {
   }, []);
 
   const createJobFromTemplate = useCallback(async (templateId: string, jobName: string): Promise<string | null> => {
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to create jobs",
+        variant: "destructive",
+      });
+      return null;
+    }
+
     setLoading(true);
     setError(null);
     
@@ -105,25 +123,21 @@ export function useJobs() {
       console.group('🚀 Creating job from template');
       console.log('Template ID:', templateId);
       console.log('Job Name:', jobName);
+      console.log('User ID:', user.id);
 
-      // For now, create a basic job structure until we implement the RPC function
-      const { data, error } = await supabase
-        .schema('app' as any)
-        .from('jobs')
-        .insert({
+      // Use direct RPC call with type assertion
+      const { data, error } = await (supabase as any)
+        .rpc('instantiate_template', {
           template_id: templateId,
-          name: jobName,
-          status: 'draft'
-        })
-        .select()
-        .single();
+          user_id: user.id
+        });
 
       if (error) {
-        console.error('❌ Insert error:', error);
+        console.error('❌ RPC error:', error);
         throw error;
       }
 
-      console.log('✅ Job created with ID:', data.id);
+      console.log('✅ Job created with ID:', data);
       console.groupEnd();
 
       toast({
@@ -131,7 +145,7 @@ export function useJobs() {
         description: `Job "${jobName}" created successfully`,
       });
 
-      return data.id as string;
+      return data as string;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create job from template';
       setError(errorMessage);
@@ -145,7 +159,7 @@ export function useJobs() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, user]);
 
   const updateJobNode = useCallback(async (nodeId: string, userData: Record<string, any>): Promise<boolean> => {
     setLoading(true);
