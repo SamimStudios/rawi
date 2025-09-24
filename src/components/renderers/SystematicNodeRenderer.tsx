@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import SystematicFieldRenderer from './SystematicFieldRenderer';
+import RegistryFieldRenderer from './RegistryFieldRenderer';
 import { useNodeState } from '@/hooks/useNodeState';
 import { useDependencies } from '@/hooks/useDependencies';
 import { JobNode } from '@/hooks/useJobs';
@@ -164,17 +164,9 @@ export default function SystematicNodeRenderer({
     if (!nodeContent?.items) return null;
 
     const renderFieldItem = (item: any, index: number) => (
-      <SystematicFieldRenderer
+      <RegistryFieldRenderer
         key={item.ref || index}
-        field={{
-          id: item.ref,
-          widget: item.widget || 'text',
-          datatype: item.datatype || 'text',
-          ui: item.ui,
-          rules: item.rules,
-          options: item.options,
-          default_value: item.default_value
-        }}
+        fieldRef={item.ref}
         value={item.value}
         onChange={(newValue) => updateField(item.ref, newValue)}
       />
