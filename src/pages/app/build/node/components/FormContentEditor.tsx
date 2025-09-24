@@ -714,7 +714,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
               <h4 className="font-medium">Content in Section</h4>
               <div className="flex gap-2">
                 <Button
-                  onClick={() => addFieldToSection(sectionIndex, section.path)}
+                  onClick={() => addFieldAt([sectionIndex], section.path)}
                   variant="outline"
                   size="sm"
                 >
@@ -722,7 +722,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
                   Add Field
                 </Button>
                 <Button
-                  onClick={() => addSubsectionToSection(sectionIndex, section.path)}
+                  onClick={() => addSubsectionAt([sectionIndex], section.path)}
                   variant="outline"
                   size="sm"
                 >
@@ -737,7 +737,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
                 <p className="text-muted-foreground mb-2">No content in this section</p>
                 <div className="flex gap-2 justify-center">
                   <Button
-                    onClick={() => addFieldToSection(sectionIndex, section.path)}
+                    onClick={() => addFieldAt([sectionIndex], section.path)}
                     variant="outline"
                     size="sm"
                   >
@@ -745,7 +745,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
                     Add Field
                   </Button>
                   <Button
-                    onClick={() => addSubsectionToSection(sectionIndex, section.path)}
+                    onClick={() => addSubsectionAt([sectionIndex], section.path)}
                     variant="outline"
                     size="sm"
                   >
@@ -760,17 +760,15 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
                   if (child.kind === 'FieldItem') {
                     return renderFieldEditor(
                       child,
-                      (updates) => updateSectionChild(sectionIndex, childIndex, updates),
-                      () => removeSectionChild(sectionIndex, childIndex)
+                      (updates) => updateChildAt([sectionIndex], (child as any).path, updates),
+                      () => removeChildAt([sectionIndex], (child as any).path)
                     );
                   } else if (child.kind === 'SectionItem') {
-                    // For nested sections, we need different update functions
                     return (
                       <div key={(child as any).path || `child-${childIndex}`} className="ml-4 border-l-2 border-l-muted pl-4">
                         {renderNestedSectionEditor(
                           child,
-                          sectionIndex,
-                          childIndex,
+                          [sectionIndex, childIndex],
                           depth + 1
                         )}
                       </div>
@@ -786,7 +784,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
     </Card>
   );
 
-  const renderNestedSectionEditor = (section: SectionItem, parentSectionIndex: number, childIndex: number, depth: number = 1) => (
+  const renderNestedSectionEditor = (section: SectionItem, path: number[], depth: number = 1) => (
     <Card className={`border-l-4 ${depth === 1 ? 'border-l-secondary' : 'border-l-muted'}`}>
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -794,7 +792,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => updateSectionChild(parentSectionIndex, childIndex, { collapsed: !section.collapsed })}
+              onClick={() => updateSectionAtPath(path, { collapsed: !section.collapsed })}
             >
               {section.collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </Button>
@@ -803,7 +801,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
             </CardTitle>
             <Badge variant="outline" className="text-xs">Level {depth + 1}</Badge>
           </div>
-          <Button onClick={() => removeSectionChild(parentSectionIndex, childIndex)} variant="ghost" size="sm">
+          <Button onClick={() => removeChildAt(path.slice(0, -1), section.path)} variant="ghost" size="sm">
             <Trash2 className="w-4 h-4 text-destructive" />
           </Button>
         </div>
@@ -816,7 +814,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
               <Label>Section Path</Label>
               <Input
                 value={section.path}
-                onChange={(e) => updateSectionChild(parentSectionIndex, childIndex, { path: e.target.value })}
+                onChange={(e) => updateSectionAtPath(path, { path: e.target.value })}
                 placeholder="section_path"
               />
             </div>
@@ -825,7 +823,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
               <Input
                 type="number"
                 value={section.idx}
-                onChange={(e) => updateSectionChild(parentSectionIndex, childIndex, { idx: parseInt(e.target.value) || 1 })}
+                onChange={(e) => updateSectionAtPath(path, { idx: parseInt(e.target.value) || 1 })}
                 min="1"
               />
             </div>
@@ -836,9 +834,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
               <Label>Label (Fallback Text)</Label>
               <Input
                 value={section.label.fallback}
-                onChange={(e) => updateSectionChild(parentSectionIndex, childIndex, {
-                  label: { ...section.label, fallback: e.target.value }
-                })}
+                onChange={(e) => updateSectionAtPath(path, { label: { ...section.label, fallback: e.target.value } })}
                 placeholder="Section Label"
               />
             </div>
@@ -846,9 +842,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
               <Label>Label (Translation Key)</Label>
               <Input
                 value={section.label.key || ''}
-                onChange={(e) => updateSectionChild(parentSectionIndex, childIndex, {
-                  label: { ...section.label, key: e.target.value }
-                })}
+                onChange={(e) => updateSectionAtPath(path, { label: { ...section.label, key: e.target.value } })}
                 placeholder="section.label.key"
               />
             </div>
@@ -859,9 +853,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
               <Label>Description (Fallback Text)</Label>
               <Textarea
                 value={section.description?.fallback || ''}
-                onChange={(e) => updateSectionChild(parentSectionIndex, childIndex, {
-                  description: { ...section.description, fallback: e.target.value }
-                })}
+                onChange={(e) => updateSectionAtPath(path, { description: { ...section.description, fallback: e.target.value } })}
                 placeholder="Section description"
               />
             </div>
@@ -869,9 +861,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
               <Label>Description (Translation Key)</Label>
               <Input
                 value={section.description?.key || ''}
-                onChange={(e) => updateSectionChild(parentSectionIndex, childIndex, {
-                  description: { ...section.description, key: e.target.value }
-                })}
+                onChange={(e) => updateSectionAtPath(path, { description: { ...section.description, key: e.target.value } })}
                 placeholder="section.description.key"
               />
             </div>
@@ -881,7 +871,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
             <div className="flex items-center space-x-2">
               <Switch
                 checked={section.required}
-                onCheckedChange={(checked) => updateSectionChild(parentSectionIndex, childIndex, { required: checked })}
+                onCheckedChange={(checked) => updateSectionAtPath(path, { required: checked })}
               />
               <Label className="text-xs">Required</Label>
             </div>
@@ -889,7 +879,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
             <div className="flex items-center space-x-2">
               <Switch
                 checked={section.hidden}
-                onCheckedChange={(checked) => updateSectionChild(parentSectionIndex, childIndex, { hidden: checked })}
+                onCheckedChange={(checked) => updateSectionAtPath(path, { hidden: checked })}
               />
               <Label className="text-xs">Hidden</Label>
             </div>
@@ -900,23 +890,21 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
               <h4 className="font-medium">Content in Subsection</h4>
               <div className="flex gap-2">
                 <Button
-                  onClick={() => addFieldToNestedSection(parentSectionIndex, childIndex, section.path)}
+                  onClick={() => addFieldAt(path, section.path)}
                   variant="outline"
                   size="sm"
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Add Field
                 </Button>
-                {depth < 2 && (
-                  <Button
-                    onClick={() => addSubsectionToNestedSection(parentSectionIndex, childIndex, section.path)}
-                    variant="outline"
-                    size="sm"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Subsection
-                  </Button>
-                )}
+                <Button
+                  onClick={() => addSubsectionAt(path, section.path)}
+                  variant="outline"
+                  size="sm"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Subsection
+                </Button>
               </div>
             </div>
 
@@ -925,23 +913,21 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
                 <p className="text-muted-foreground mb-2">No content in this subsection</p>
                 <div className="flex gap-2 justify-center">
                   <Button
-                    onClick={() => addFieldToNestedSection(parentSectionIndex, childIndex, section.path)}
+                    onClick={() => addFieldAt(path, section.path)}
                     variant="outline"
                     size="sm"
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     Add Field
                   </Button>
-                  {depth < 2 && (
-                    <Button
-                      onClick={() => addSubsectionToNestedSection(parentSectionIndex, childIndex, section.path)}
-                      variant="outline"
-                      size="sm"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Subsection
-                    </Button>
-                  )}
+                  <Button
+                    onClick={() => addSubsectionAt(path, section.path)}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Subsection
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -950,16 +936,15 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
                   if (child.kind === 'FieldItem') {
                     return renderFieldEditor(
                       child,
-                      (updates) => updateNestedSectionChild(parentSectionIndex, childIndex, nestedChildIndex, updates),
-                      () => removeNestedSectionChild(parentSectionIndex, childIndex, nestedChildIndex)
+                      (updates) => updateChildAt(path, (child as any).path, updates),
+                      () => removeChildAt(path, (child as any).path)
                     );
-                  } else if (child.kind === 'SectionItem' && depth < 2) {
+                  } else if (child.kind === 'SectionItem') {
                     return (
                       <div key={(child as any).path || `child-${nestedChildIndex}`} className="ml-4 border-l-2 border-l-muted pl-4">
                         {renderNestedSectionEditor(
                           child,
-                          parentSectionIndex,
-                          nestedChildIndex,
+                          [...path, nestedChildIndex],
                           depth + 1
                         )}
                       </div>
