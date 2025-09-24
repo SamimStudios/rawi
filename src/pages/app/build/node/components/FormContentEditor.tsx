@@ -298,6 +298,104 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
     updateItem(sectionIndex, { children: updatedChildren });
   };
 
+  // Functions for handling nested sections (sections within sections)
+  const addFieldToNestedSection = (parentSectionIndex: number, nestedSectionIndex: number, parentPath: string) => {
+    const parentSection = formContent.items[parentSectionIndex] as SectionItem;
+    const nestedSection = parentSection.children[nestedSectionIndex] as SectionItem;
+    const newIdx = Math.max(0, ...nestedSection.children.map(child => child.idx)) + 1;
+    const newField: FieldItem = {
+      kind: 'FieldItem',
+      idx: newIdx,
+      path: `${parentPath}.field_${newIdx}`,
+      ref: '',
+      editable: true,
+      required: false,
+      importance: 'normal',
+      ui: {
+        kind: 'UIBlock',
+        label: { fallback: 'New Field' },
+        override: false
+      },
+      value: null
+    };
+    
+    const updatedNestedSection = {
+      ...nestedSection,
+      children: [...nestedSection.children, newField]
+    };
+    
+    const updatedParentChildren = parentSection.children.map((child, i) => 
+      i === nestedSectionIndex ? updatedNestedSection : child
+    );
+    
+    updateItem(parentSectionIndex, { children: updatedParentChildren });
+  };
+
+  const addSubsectionToNestedSection = (parentSectionIndex: number, nestedSectionIndex: number, parentPath: string) => {
+    const parentSection = formContent.items[parentSectionIndex] as SectionItem;
+    const nestedSection = parentSection.children[nestedSectionIndex] as SectionItem;
+    const newIdx = Math.max(0, ...nestedSection.children.map(child => child.idx)) + 1;
+    const newSubsection: SectionItem = {
+      kind: 'SectionItem',
+      idx: newIdx,
+      path: `${parentPath}.section_${newIdx}`,
+      label: { fallback: 'New Subsection' },
+      required: false,
+      hidden: false,
+      collapsed: false,
+      children: []
+    };
+    
+    const updatedNestedSection = {
+      ...nestedSection,
+      children: [...nestedSection.children, newSubsection]
+    };
+    
+    const updatedParentChildren = parentSection.children.map((child, i) => 
+      i === nestedSectionIndex ? updatedNestedSection : child
+    );
+    
+    updateItem(parentSectionIndex, { children: updatedParentChildren });
+  };
+
+  const updateNestedSectionChild = (parentSectionIndex: number, nestedSectionIndex: number, childIndex: number, updates: Partial<ContentItem>) => {
+    const parentSection = formContent.items[parentSectionIndex] as SectionItem;
+    const nestedSection = parentSection.children[nestedSectionIndex] as SectionItem;
+    
+    const updatedNestedChildren = nestedSection.children.map((child, i) => 
+      i === childIndex ? { ...child, ...updates } as ContentItem : child
+    );
+    
+    const updatedNestedSection = {
+      ...nestedSection,
+      children: updatedNestedChildren
+    };
+    
+    const updatedParentChildren = parentSection.children.map((child, i) => 
+      i === nestedSectionIndex ? updatedNestedSection : child
+    );
+    
+    updateItem(parentSectionIndex, { children: updatedParentChildren });
+  };
+
+  const removeNestedSectionChild = (parentSectionIndex: number, nestedSectionIndex: number, childIndex: number) => {
+    const parentSection = formContent.items[parentSectionIndex] as SectionItem;
+    const nestedSection = parentSection.children[nestedSectionIndex] as SectionItem;
+    
+    const updatedNestedChildren = nestedSection.children.filter((_, i) => i !== childIndex);
+    
+    const updatedNestedSection = {
+      ...nestedSection,
+      children: updatedNestedChildren
+    };
+    
+    const updatedParentChildren = parentSection.children.map((child, i) => 
+      i === nestedSectionIndex ? updatedNestedSection : child
+    );
+    
+    updateItem(parentSectionIndex, { children: updatedParentChildren });
+  };
+
   const renderFieldEditor = (field: FieldItem, onUpdate: (updates: Partial<FieldItem>) => void, onRemove: () => void) => (
     <Card className="p-4">
       <div className="flex items-start gap-4">
@@ -662,10 +760,205 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
                       () => removeSectionChild(sectionIndex, childIndex)
                     );
                   } else if (child.kind === 'SectionItem') {
-                    return renderSectionEditor(
+                    // For nested sections, we need different update functions
+                    return (
+                      <div key={childIndex} className="ml-4 border-l-2 border-l-muted pl-4">
+                        {renderNestedSectionEditor(
+                          child,
+                          sectionIndex,
+                          childIndex,
+                          depth + 1
+                        )}
+                      </div>
+                    );
+                  }
+                  return null;
+                })}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+
+  const renderNestedSectionEditor = (section: SectionItem, parentSectionIndex: number, childIndex: number, depth: number = 1) => (
+    <Card className={`border-l-4 ${depth === 1 ? 'border-l-secondary' : 'border-l-muted'}`}>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => updateSectionChild(parentSectionIndex, childIndex, { collapsed: !section.collapsed })}
+            >
+              {section.collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </Button>
+            <CardTitle className="text-sm">
+              Subsection: {section.label.fallback}
+            </CardTitle>
+            <Badge variant="outline" className="text-xs">Level {depth + 1}</Badge>
+          </div>
+          <Button onClick={() => removeSectionChild(parentSectionIndex, childIndex)} variant="ghost" size="sm">
+            <Trash2 className="w-4 h-4 text-destructive" />
+          </Button>
+        </div>
+      </CardHeader>
+      
+      {!section.collapsed && (
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Section Path</Label>
+              <Input
+                value={section.path}
+                onChange={(e) => updateSectionChild(parentSectionIndex, childIndex, { path: e.target.value })}
+                placeholder="section_path"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Index</Label>
+              <Input
+                type="number"
+                value={section.idx}
+                onChange={(e) => updateSectionChild(parentSectionIndex, childIndex, { idx: parseInt(e.target.value) || 1 })}
+                min="1"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Label (Fallback Text)</Label>
+              <Input
+                value={section.label.fallback}
+                onChange={(e) => updateSectionChild(parentSectionIndex, childIndex, {
+                  label: { ...section.label, fallback: e.target.value }
+                })}
+                placeholder="Section Label"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Label (Translation Key)</Label>
+              <Input
+                value={section.label.key || ''}
+                onChange={(e) => updateSectionChild(parentSectionIndex, childIndex, {
+                  label: { ...section.label, key: e.target.value }
+                })}
+                placeholder="section.label.key"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Description (Fallback Text)</Label>
+              <Textarea
+                value={section.description?.fallback || ''}
+                onChange={(e) => updateSectionChild(parentSectionIndex, childIndex, {
+                  description: { ...section.description, fallback: e.target.value }
+                })}
+                placeholder="Section description"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description (Translation Key)</Label>
+              <Input
+                value={section.description?.key || ''}
+                onChange={(e) => updateSectionChild(parentSectionIndex, childIndex, {
+                  description: { ...section.description, key: e.target.value }
+                })}
+                placeholder="section.description.key"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <Switch
+                checked={section.required}
+                onCheckedChange={(checked) => updateSectionChild(parentSectionIndex, childIndex, { required: checked })}
+              />
+              <Label className="text-xs">Required</Label>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Switch
+                checked={section.hidden}
+                onCheckedChange={(checked) => updateSectionChild(parentSectionIndex, childIndex, { hidden: checked })}
+              />
+              <Label className="text-xs">Hidden</Label>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium">Content in Subsection</h4>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => addFieldToNestedSection(parentSectionIndex, childIndex, section.path)}
+                  variant="outline"
+                  size="sm"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Field
+                </Button>
+                {depth < 2 && (
+                  <Button
+                    onClick={() => addSubsectionToNestedSection(parentSectionIndex, childIndex, section.path)}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Subsection
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {section.children.length === 0 ? (
+              <div className="text-center py-4 border border-dashed rounded-md">
+                <p className="text-muted-foreground mb-2">No content in this subsection</p>
+                <div className="flex gap-2 justify-center">
+                  <Button
+                    onClick={() => addFieldToNestedSection(parentSectionIndex, childIndex, section.path)}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Field
+                  </Button>
+                  {depth < 2 && (
+                    <Button
+                      onClick={() => addSubsectionToNestedSection(parentSectionIndex, childIndex, section.path)}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Subsection
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {section.children.map((child, nestedChildIndex) => {
+                  if (child.kind === 'FieldItem') {
+                    return renderFieldEditor(
                       child,
-                      childIndex,
-                      depth + 1
+                      (updates) => updateNestedSectionChild(parentSectionIndex, childIndex, nestedChildIndex, updates),
+                      () => removeNestedSectionChild(parentSectionIndex, childIndex, nestedChildIndex)
+                    );
+                  } else if (child.kind === 'SectionItem' && depth < 2) {
+                    return (
+                      <div key={nestedChildIndex} className="ml-4 border-l-2 border-l-muted pl-4">
+                        {renderNestedSectionEditor(
+                          child,
+                          parentSectionIndex,
+                          nestedChildIndex,
+                          depth + 1
+                        )}
+                      </div>
                     );
                   }
                   return null;
