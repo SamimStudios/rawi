@@ -117,8 +117,8 @@ export function useTemplates() {
     try {
       // Validate template ID pattern
       console.log('✅ Validating template ID pattern:', template.id);
-      if (!/^[a-zA-Z0-9_-]+$/.test(template.id)) {
-        throw new Error('Template ID can only contain letters, numbers, underscores, and hyphens');
+      if (!/^[a-z][a-z0-9_]*$/.test(template.id)) {
+        throw new Error('Template ID must start with a lowercase letter and contain only lowercase letters, numbers, and underscores');
       }
 
       console.log('📤 Attempting to save template to Supabase...');
@@ -182,10 +182,16 @@ export function useTemplates() {
       // Insert new nodes
       if (nodes.length > 0) {
         console.log('➕ Inserting', nodes.length, 'new nodes');
+        // Transform nodes to exclude auto-generated fields
+        const nodesToInsert = nodes.map(node => {
+          const { addr, created_at, updated_at, ...nodeData } = node;
+          return nodeData;
+        });
+        console.log('🔄 Transformed nodes for insertion:', nodesToInsert);
         const { error } = await supabase
           .schema('app' as any)
           .from('template_nodes')
-          .insert(nodes);
+          .insert(nodesToInsert);
 
         if (error) {
           console.error('❌ Insert nodes error:', error);
@@ -303,12 +309,13 @@ export function useTemplates() {
 
       // Create new nodes
       if (originalNodes && originalNodes.length > 0) {
-        const newNodes = originalNodes.map(node => ({
-          ...node,
-          template_id: newId,
-          created_at: undefined,
-          updated_at: undefined,
-        }));
+        const newNodes = originalNodes.map(node => {
+          const { addr, created_at, updated_at, ...nodeData } = node;
+          return {
+            ...nodeData,
+            template_id: newId,
+          };
+        });
 
         const { error: saveNodesError } = await supabase
           .schema('app' as any)

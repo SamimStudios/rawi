@@ -145,11 +145,11 @@ export default function TemplateBuilder() {
       return;
     }
 
-    if (!/^[a-zA-Z0-9_-]+$/.test(template.id)) {
+    if (!/^[a-z][a-z0-9_]*$/.test(template.id)) {
       console.warn('⚠️ Validation failed - invalid template ID format');
       toast({
         title: "Validation Error",
-        description: "Template ID can only contain letters, numbers, underscores, and hyphens",
+        description: "Template ID must start with a lowercase letter and contain only lowercase letters, numbers, and underscores",
         variant: "destructive",
       });
       return;
@@ -287,9 +287,12 @@ export default function TemplateBuilder() {
                 id="id"
                 value={template.id}
                 onChange={(e) => setTemplate(prev => ({ ...prev, id: e.target.value }))}
-                placeholder="my-template-id"
+                placeholder="my_template_id"
                 disabled={!!id}
               />
+              <p className="text-xs text-muted-foreground">
+                Must start with lowercase letter, use only lowercase letters, numbers, and underscores
+              </p>
             </div>
             
             <div className="space-y-2">
