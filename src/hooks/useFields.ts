@@ -25,7 +25,8 @@ export function useFields() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
+        .schema('app')
         .from('field_registry')
         .select('*')
         .order('updated_at', { ascending: false });
@@ -45,7 +46,8 @@ export function useFields() {
     setError(null);
     
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
+        .schema('app')
         .from('field_registry')
         .upsert(entry as any, { onConflict: 'id' });
 
@@ -78,7 +80,8 @@ export function useFields() {
     setError(null);
     
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
+        .schema('app')
         .from('field_registry')
         .delete()
         .eq('id', id);
@@ -109,7 +112,8 @@ export function useFields() {
 
   const getEntry = useCallback(async (id: string): Promise<FieldEntry | null> => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
+        .schema('app')
         .from('field_registry')
         .select('*')
         .eq('id', id)

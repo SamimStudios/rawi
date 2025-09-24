@@ -38,6 +38,7 @@ import NodeLibraryRoutes from '@/pages/app/build/node';
 import TemplateRoutes from '@/pages/app/build/template';
 import AppTemplates from '@/pages/app/Templates';
 import JobRoutes from '@/pages/app/jobs';
+import FieldRendererPreview from '@/pages/app/renderers/field';
 import Wallet from '@/pages/user/Wallet';
 import Settings from '@/pages/user/Settings';
 import StyleGuideline from "./pages/StyleGuideline";
@@ -124,6 +125,13 @@ const MainApp = () => (
                     <div>
                       <Header />
                       <JobRoutes />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/app/renderers/field" element={
+                    <div>
+                      <Header />
+                      <FieldRendererPreview />
                       <Footer />
                     </div>
                   } />
