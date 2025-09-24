@@ -26,7 +26,7 @@ export default function NodeLibraryBuilder() {
   const { entries, n8nFunctions, loading, saveEntry, validateEntry, fetchEntries, fetchN8NFunctions } = useNodeLibrary();
 
   const [entry, setEntry] = useState<NodeLibraryEntry>({
-    id: '',
+    id: id ? '' : 'lib_',
     node_type: 'form',
     content: {},
     payload_validate: null,
@@ -71,11 +71,21 @@ export default function NodeLibraryBuilder() {
       return;
     }
 
-    // Validate ID pattern (alphanumeric, underscores, hyphens)
-    if (!/^[a-zA-Z0-9_-]+$/.test(entry.id)) {
+    // Validate ID starts with lib_ for library nodes
+    if (!entry.id.startsWith('lib_')) {
       toast({
         title: "Validation Error",
-        description: "Node ID can only contain letters, numbers, underscores, and hyphens",
+        description: "Library node IDs must start with 'lib_'",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate ID pattern (alphanumeric, underscores, hyphens)
+    if (!/^lib_[a-zA-Z0-9_-]+$/.test(entry.id)) {
+      toast({
+        title: "Validation Error",
+        description: "Node ID can only contain letters, numbers, underscores, and hyphens after 'lib_' prefix",
         variant: "destructive",
       });
       return;
@@ -191,9 +201,12 @@ export default function NodeLibraryBuilder() {
                 id="id"
                 value={entry.id}
                 onChange={(e) => setEntry(prev => ({ ...prev, id: e.target.value }))}
-                placeholder="my-node-id"
+                placeholder="lib_my-node-id"
                 disabled={!!id} // Disable editing ID for existing entries
               />
+              <p className="text-xs text-muted-foreground">
+                Library node IDs must start with 'lib_'
+              </p>
             </div>
             
             <div className="space-y-2">
