@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useJobs } from '@/hooks/useJobs';
 import SystematicNodeRenderer from '@/components/renderers/SystematicNodeRenderer';
+import { supabase } from '@/integrations/supabase/client';
 
 const MOCK_NODES = [
   {
@@ -133,50 +134,43 @@ export default function NodeRendererPreview() {
   const { language, setLanguage } = useLanguage();
   const { updateJobNode } = useJobs();
   
-  const [jobId, setJobId] = useState('');
   const [mode, setMode] = useState<'idle' | 'edit'>('idle');
   const [mockDependenciesUnmet, setMockDependenciesUnmet] = useState(false);
   const [selectedNodeType, setSelectedNodeType] = useState<'form' | 'media' | 'group'>('form');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [realNodes, setRealNodes] = useState<any[]>([]);
-  const [useRealData, setUseRealData] = useState(false);
+  const [useRealData, setUseRealData] = useState(true);
 
   const currentNodes = useRealData ? realNodes : [MOCK_NODES.find(n => n.node_type === selectedNodeType)!];
 
-  const loadRealNodes = async () => {
-    if (!jobId.trim()) {
-      toast({
-        title: "Job ID required",
-        description: "Please enter a job ID to load real nodes",
-        variant: "destructive"
-      });
-      return;
-    }
+  useEffect(() => {
+    const loadAllNodes = async () => {
+      setIsLoading(true);
+      try {
+        // For demo purposes, simulate loading time and show mock data
+        // In production, this would fetch from app.nodes table
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        setRealNodes(MOCK_NODES);
+        toast({
+          title: "Demo data loaded",
+          description: `Showing ${MOCK_NODES.length} sample nodes (would be from app.nodes table)`,
+        });
+      } catch (error) {
+        console.error('Error loading nodes:', error);
+        setRealNodes(MOCK_NODES);
+        setUseRealData(false);
+        toast({
+          title: "Using fallback data",
+          description: "Showing sample nodes for preview",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-    setIsLoading(true);
-    try {
-      // TODO: Implement real node loading from Supabase
-      // const nodes = await fetchJobNodes(jobId);
-      // setRealNodes(nodes);
-      setRealNodes(MOCK_NODES); // Fallback to mock data for now
-      setUseRealData(true);
-      
-      toast({
-        title: "Nodes loaded",
-        description: `Loaded ${MOCK_NODES.length} nodes for job ${jobId}`,
-      });
-    } catch (error) {
-      toast({
-        title: "Load failed",
-        description: "Failed to load nodes. Using mock data.",
-        variant: "destructive"
-      });
-      setRealNodes(MOCK_NODES);
-      setUseRealData(false);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    loadAllNodes();
+  }, [toast]);
 
   const handleNodeUpdate = async (nodeId: string, content: any) => {
     console.log('Updating node:', nodeId, content);
@@ -227,33 +221,21 @@ export default function NodeRendererPreview() {
           <CardTitle>Control Panel</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Job Loading */}
+          {/* Database Status */}
           <div className="space-y-3">
-            <Label>Load Real Job Data</Label>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Enter job ID (UUID)"
-                value={jobId}
-                onChange={(e) => setJobId(e.target.value)}
-                className="flex-1"
-              />
-              <Button 
-                onClick={loadRealNodes}
-                disabled={isLoading || !jobId.trim()}
-              >
-                {isLoading ? (
+            <Label>Database Status</Label>
+            <div className="flex items-center gap-2">
+              {isLoading ? (
+                <Badge variant="outline">
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                )}
-                Load Nodes
-              </Button>
+                  Loading nodes...
+                </Badge>
+              ) : (
+                <Badge variant="secondary">
+                  Showing {realNodes.length} sample nodes (simulating app.nodes table data)
+                </Badge>
+              )}
             </div>
-            {useRealData && (
-              <Badge variant="secondary">
-                Using real data: {realNodes.length} nodes loaded
-              </Badge>
-            )}
           </div>
 
           <Separator />
