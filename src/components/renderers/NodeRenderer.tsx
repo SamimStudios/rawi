@@ -155,23 +155,45 @@ export default function NodeRenderer({
     });
   }
 
-  // Load field entries from registry
+  // Load field entries from registry (recursively through all sections/subsections)
   useEffect(() => {
-    const loadFieldEntries = async () => {
-      if (!editContent?.items) return;
+    const collectAllFieldRefs = (items: any[]): string[] => {
+      const refs: string[] = [];
       
-      const entries: Record<string, FieldEntry | null> = {};
-      for (const item of editContent.items) {
-        if (item.ref && item.kind === 'FieldItem') {
-          try {
-            const fieldEntry = await getEntry(item.ref);
-            entries[item.ref] = fieldEntry;
-          } catch (error) {
-            console.error(`Failed to load field entry for ${item.ref}:`, error);
-            entries[item.ref] = null;
+      for (const item of items || []) {
+        if (item.kind === 'FieldItem' && item.ref) {
+          refs.push(item.ref);
+        } else if ((item.kind === 'Section' || item.kind === 'SubSection' || item.kind === 'Group') && item.children) {
+          refs.push(...collectAllFieldRefs(item.children));
+        } else if (item.instances) {
+          // Handle collection instances
+          for (const instance of item.instances) {
+            if (instance.children) {
+              refs.push(...collectAllFieldRefs(instance.children));
+            }
           }
         }
       }
+      
+      return refs;
+    };
+
+    const loadFieldEntries = async () => {
+      if (!editContent?.items) return;
+      
+      const allFieldRefs = collectAllFieldRefs(editContent.items);
+      const entries: Record<string, FieldEntry | null> = {};
+      
+      for (const ref of allFieldRefs) {
+        try {
+          const fieldEntry = await getEntry(ref);
+          entries[ref] = fieldEntry;
+        } catch (error) {
+          console.error(`Failed to load field entry for ${ref}:`, error);
+          entries[ref] = null;
+        }
+      }
+      
       setFieldEntries(entries);
     };
 
@@ -419,8 +441,10 @@ export default function NodeRenderer({
     return items.map((item: any, index: number) => {
       if (item.kind === 'FieldItem') {
         return renderFieldItem(item, index);
-      } else if (item.kind === 'SectionItem') {
+      } else if (item.kind === 'SectionItem' || item.kind === 'Section') {
         return renderSection(item, index);
+      } else if (item.kind === 'SubSection') {
+        return renderSubSection(item, index);
       } else if (item.kind === 'CollectionSectionItem') {
         return renderCollectionSection(item, index);
       }
@@ -471,6 +495,33 @@ export default function NodeRenderer({
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div className="p-4 pt-0 space-y-4">
+              {item.children && renderItems(item.children)}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </div>
+    );
+  };
+
+  const renderSubSection = (item: any, index: number) => {
+    const [subSectionCollapsed, setSubSectionCollapsed] = useState(item.collapsed !== false);
+    
+    return (
+      <div key={item.ref || index} className="border rounded-md border-muted">
+        <Collapsible open={!subSectionCollapsed} onOpenChange={setSubSectionCollapsed}>
+          <CollapsibleTrigger className="flex w-full items-center justify-between p-3 hover:bg-muted/30">
+            <div>
+              <h5 className="font-medium text-sm text-left">{item.label?.fallback || item.ref}</h5>
+              {item.description && (
+                <p className="text-xs text-muted-foreground text-left">
+                  {item.description.fallback}
+                </p>
+              )}
+            </div>
+            <ChevronDown className={cn("h-3 w-3 transition-transform", !subSectionCollapsed && "rotate-180")} />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="p-3 pt-0 space-y-3">
               {item.children && renderItems(item.children)}
             </div>
           </CollapsibleContent>
