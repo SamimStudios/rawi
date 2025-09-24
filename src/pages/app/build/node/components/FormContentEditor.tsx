@@ -241,6 +241,85 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
     }));
   };
 
+  // Generic helpers to operate on any nested section by index path
+  // path example: [topSectionIndex, nestedIndex, deeperIndex, ...]
+  const updateSectionWith = (path: number[], updater: (section: SectionItem) => SectionItem) => {
+    setFormContent(prev => {
+      const newItems = [...prev.items];
+      const apply = (sect: SectionItem, rest: number[]): SectionItem => {
+        if (rest.length === 0) return updater(sect);
+        const [i, ...r] = rest;
+        const child = sect.children[i] as SectionItem;
+        if (!child || child.kind !== 'SectionItem') return sect;
+        const updatedChild = apply(child, r);
+        const newChildren = sect.children.map((c, idx) => idx === i ? updatedChild : c);
+        return { ...sect, children: newChildren };
+      };
+
+      const [topIndex, ...rest] = path;
+      const top = newItems[topIndex];
+      if (!top || top.kind !== 'SectionItem') return prev;
+      const updatedTop = apply(top, rest);
+      newItems[topIndex] = updatedTop;
+      return { ...prev, items: newItems };
+    });
+  };
+
+  const updateSectionAtPath = (path: number[], updates: Partial<SectionItem>) => {
+    updateSectionWith(path, (s) => ({ ...s, ...updates }));
+  };
+
+  const addFieldAt = (path: number[], parentPath: string) => {
+    updateSectionWith(path, (s) => {
+      const nextIdx = Math.max(0, ...s.children.map((c: any) => Number(c?.idx) || 0)) + 1;
+      const newField: FieldItem = {
+        kind: 'FieldItem',
+        idx: nextIdx,
+        path: `${parentPath}.field_${nextIdx}`,
+        ref: '',
+        editable: true,
+        required: false,
+        importance: 'normal',
+        ui: { kind: 'UIBlock', label: { fallback: 'New Field' }, override: false },
+        value: null,
+      };
+      return { ...s, children: [...s.children, newField] };
+    });
+  };
+
+  const addSubsectionAt = (path: number[], parentPath: string) => {
+    updateSectionWith(path, (s) => {
+      const nextIdx = Math.max(0, ...s.children.map((c: any) => Number(c?.idx) || 0)) + 1;
+      const newSection: SectionItem = {
+        kind: 'SectionItem',
+        idx: nextIdx,
+        path: `${parentPath}.section_${nextIdx}`,
+        label: { fallback: 'New Subsection' },
+        required: false,
+        hidden: false,
+        collapsed: false,
+        children: [],
+      };
+      return { ...s, children: [...s.children, newSection] };
+    });
+  };
+
+  const updateChildAt = (path: number[], childPath: string, updates: Partial<ContentItem>) => {
+    updateSectionWith(path, (s) => {
+      const updatedChildren = s.children.map((c: any) => (c?.path === childPath ? ({ ...c, ...updates } as ContentItem) : c));
+      return { ...s, children: updatedChildren };
+    });
+  };
+
+  const removeChildAt = (path: number[], childPath: string) => {
+    updateSectionWith(path, (s) => {
+      const before = s.children.length;
+      const updatedChildren = s.children.filter((c: any) => c?.path !== childPath);
+      console.log('FormContentEditor: removeChildAt', { path, childPath, before, after: updatedChildren.length });
+      return { ...s, children: updatedChildren };
+    });
+  };
+
   const addFieldToSection = (sectionIndex: number, parentPath?: string) => {
     const section = formContent.items[sectionIndex] as SectionItem;
     const newIdx = Math.max(0, ...section.children.map(child => child.idx)) + 1;
