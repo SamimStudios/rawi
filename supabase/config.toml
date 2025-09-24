@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.execute-function]
 verify_jwt = false
+
+[functions.list-n8n-functions]
+verify_jwt = false
