@@ -36,6 +36,8 @@ import BuildIndex from '@/pages/app/build';
 import FieldRoutes from '@/pages/app/build/field';
 import NodeLibraryRoutes from '@/pages/app/build/node';
 import TemplateRoutes from '@/pages/app/build/template';
+import AppTemplates from '@/pages/app/Templates';
+import JobRoutes from '@/pages/app/jobs';
 import Wallet from '@/pages/user/Wallet';
 import Settings from '@/pages/user/Settings';
 import StyleGuideline from "./pages/StyleGuideline";
@@ -108,6 +110,20 @@ const MainApp = () => (
                     <div>
                       <Header />
                       <TemplateRoutes />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/app/templates" element={
+                    <div>
+                      <Header />
+                      <AppTemplates />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/app/jobs/*" element={
+                    <div>
+                      <Header />
+                      <JobRoutes />
                       <Footer />
                     </div>
                   } />

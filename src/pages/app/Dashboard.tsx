@@ -35,21 +35,23 @@ export default function Dashboard() {
             {/* Create New Project */}
             <Card className="bg-card border-border hover:bg-card/80 transition-colors">
               <CardContent className="p-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <Plus className="w-8 h-8 text-primary" />
-                  <h3 className="text-xl font-semibold text-foreground">
-                    {language === 'ar' ? 'إنشاء مشروع جديد' : 'Create New Project'}
-                  </h3>
-                </div>
-                <p className="text-muted-foreground mb-4">
-                  {language === 'ar' 
-                    ? 'ابدأ مشروع إبداعي جديد' 
-                    : 'Start a new creative project'
-                  }
-                </p>
-                <Button variant="primary" className="w-full" disabled>
-                  {language === 'ar' ? 'ابدأ الآن' : 'Get Started'}
-                </Button>
+                <Link to="/app/templates" className="block">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Plus className="w-8 h-8 text-primary" />
+                    <h3 className="text-xl font-semibold text-foreground">
+                      {language === 'ar' ? 'إنشاء مشروع جديد' : 'Create New Project'}
+                    </h3>
+                  </div>
+                  <p className="text-muted-foreground mb-4">
+                    {language === 'ar' 
+                      ? 'اختر قالباً لبدء مشروع جديد' 
+                      : 'Choose a template to start a new project'
+                    }
+                  </p>
+                  <Button variant="primary" className="w-full">
+                    {language === 'ar' ? 'تصفح القوالب' : 'Browse Templates'}
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
 
