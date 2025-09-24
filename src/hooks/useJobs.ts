@@ -125,11 +125,16 @@ export function useJobs() {
       console.log('Job Name:', jobName);
       console.log('User ID:', user.id);
 
-      // Use direct RPC call with type assertion
+      // Generate a session ID for this job
+      const sessionId = crypto.randomUUID();
+      
+      // Use app schema RPC call with type assertion
       const { data, error } = await (supabase as any)
+        .schema('app')
         .rpc('instantiate_template', {
-          template_id: templateId,
-          user_id: user.id
+          p_template_id: templateId,
+          p_user_id: user.id,
+          p_session_id: sessionId
         });
 
       if (error) {
