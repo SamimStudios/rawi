@@ -6,13 +6,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, ArrowLeft, CheckCircle, AlertCircle, Play } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import SystematicNodeRenderer from '@/components/renderers/SystematicNodeRenderer';
+import NodeRenderer from '@/components/renderers/NodeRenderer';
+import { useNodeEditor } from '@/hooks/useNodeEditor';
 
 export default function JobEditor() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { getJob, fetchJobNodes, jobNodes, loading, checkJobReady, getJobGenerationInput, updateJobNode } = useJobs();
   const { toast } = useToast();
+  const { editingNodeId, setEditingNodeId } = useNodeEditor();
   
   const [job, setJob] = useState<Job | null>(null);
   const [isReady, setIsReady] = useState(false);
@@ -143,10 +145,12 @@ export default function JobEditor() {
             <CardContent>
               <div className="space-y-4">
                 {nodes.map(node => (
-                <SystematicNodeRenderer
+                <NodeRenderer
                   key={node.id}
                   node={node}
-                  onUpdate={async (nodeId, content) => await handleNodeUpdate(nodeId, content)}
+                  onUpdate={async (content) => await handleNodeUpdate(node.id, content)}
+                  editingNodeId={editingNodeId}
+                  onEditingNodeChange={setEditingNodeId}
                 />
                 ))}
               </div>

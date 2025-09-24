@@ -49,7 +49,7 @@ import { useToast } from '@/hooks/use-toast';
 import SystematicFieldRenderer from './SystematicFieldRenderer';
 import { useFields, type FieldEntry } from '@/hooks/useFields';
 
-// Node data structure from app.nodes
+// Node data structure from app.nodes or jobs
 interface AppNode {
   id: string;
   idx: number;
@@ -63,10 +63,34 @@ interface AppNode {
   created_at: string;
 }
 
+// Job node structure from jobs
+interface JobNode {
+  id: string;
+  idx: number;
+  job_id: string;
+  node_type: string;
+  path: string;
+  parent_id?: string;
+  content: Record<string, any>;
+  dependencies: string[];
+  removable: boolean;
+  validate_n8n_id?: string;
+  generate_n8n_id?: string;
+  arrangeable: boolean;
+  path_ltree?: any;
+  addr?: any;
+  library_id?: string;
+  validation_status?: 'pending' | 'valid' | 'invalid';
+  created_at?: string;
+  updated_at?: string;
+}
+
+type RenderableNode = AppNode | JobNode;
+
 interface NodeRendererProps {
-  node: AppNode;
+  node: RenderableNode;
   children?: AppNode[];
-  onUpdate: (nodeId: string, content: any) => Promise<void>;
+  onUpdate: (content: any) => Promise<void>;
   onGenerate?: (nodeId: string, n8nId: string) => Promise<void>;
   onValidate?: (nodeId: string, n8nId: string, content: any) => Promise<{ valid: boolean; errors?: any[] }>;
   editingNodeId: string | null;
@@ -94,6 +118,17 @@ export default function NodeRenderer({
   const [validationState, setValidationState] = useState<'idle' | 'validating' | 'valid' | 'invalid'>('idle');
   const [validationErrors, setValidationErrors] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Helper to get updated_at timestamp safely
+  const getUpdatedAt = () => {
+    if ('updated_at' in node && node.updated_at) {
+      return node.updated_at;
+    }
+    if ('created_at' in node && node.created_at) {
+      return node.created_at;
+    }
+    return new Date().toISOString();
+  };
 
   const isEditing = editingNodeId === node.id;
   const canEdit = node.node_type === 'form' && hasEditableFields();
@@ -216,7 +251,7 @@ export default function NodeRenderer({
 
     try {
       setIsLoading(true);
-      await onUpdate(node.id, editContent);
+      await onUpdate(editContent);
       onEditingNodeChange(null);
       toast({
         title: "Changes saved",
@@ -602,7 +637,7 @@ export default function NodeRenderer({
     );
   };
 
-  const lastUpdated = node.updated_at;
+  const lastUpdated = getUpdatedAt();
 
   return (
     <TooltipProvider>
