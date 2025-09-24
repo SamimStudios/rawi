@@ -52,17 +52,29 @@ export function useNodeLibrary() {
 
   const fetchN8NFunctions = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .schema('app' as any)
-        .from('n8n_functions')
-        .select('id, name, type, active')
-        .eq('active', true)
-        .order('name');
+      console.log('🔄 Fetching N8N functions...');
+      
+      // Query app.n8n_functions using direct REST API with schema profile
+      const response = await fetch(`https://ubrxxvgfbwboucuxteec.supabase.co/rest/v1/n8n_functions?active=eq.true&select=id,name,type,active&order=name`, {
+        headers: {
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVicnh4dmdmYndib3VjdXh0ZWVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUzNTQ4MTQsImV4cCI6MjA3MDkzMDgxNH0.qW50RBzQBeudVHeVLbmvYWp0dYmjWUpI5K7AbGKDtVY',
+          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVicnh4dmdmYndib3VjdXh0ZWVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUzNTQ4MTQsImV4cCI6MjA3MDkzMDgxNH0.qW50RBzQBeudVHeVLbmvYWp0dYmjWUpI5K7AbGKDtVY',
+          'Accept-Profile': 'app',
+          'Content-Type': 'application/json'
+        }
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('📊 N8N functions response:', data);
+      
       setN8NFunctions(data || []);
+      console.log('✅ N8N functions loaded:', data?.length || 0);
     } catch (err) {
-      console.error('Error fetching n8n functions:', err);
+      console.error('❌ Error fetching n8n functions:', err);
     }
   }, []);
 
