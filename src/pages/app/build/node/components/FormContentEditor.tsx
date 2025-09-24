@@ -294,7 +294,9 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
 
   const removeSectionChild = (sectionIndex: number, childIndex: number) => {
     const section = formContent.items[sectionIndex] as SectionItem;
+    const before = section.children.length;
     const updatedChildren = section.children.filter((_, i) => i !== childIndex);
+    console.log('FormContentEditor: removeSectionChild', { sectionIndex, childIndex, before, after: updatedChildren.length });
     updateItem(sectionIndex, { children: updatedChildren });
   };
 
@@ -382,6 +384,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
     const parentSection = formContent.items[parentSectionIndex] as SectionItem;
     const nestedSection = parentSection.children[nestedSectionIndex] as SectionItem;
     
+    const before = nestedSection.children.length;
     const updatedNestedChildren = nestedSection.children.filter((_, i) => i !== childIndex);
     
     const updatedNestedSection = {
@@ -393,6 +396,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
       i === nestedSectionIndex ? updatedNestedSection : child
     );
     
+    console.log('FormContentEditor: removeNestedSectionChild', { parentSectionIndex, nestedSectionIndex, childIndex, before, after: updatedNestedSection.children.length });
     updateItem(parentSectionIndex, { children: updatedParentChildren });
   };
 
@@ -762,7 +766,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
                   } else if (child.kind === 'SectionItem') {
                     // For nested sections, we need different update functions
                     return (
-                      <div key={childIndex} className="ml-4 border-l-2 border-l-muted pl-4">
+                      <div key={(child as any).path || `child-${childIndex}`} className="ml-4 border-l-2 border-l-muted pl-4">
                         {renderNestedSectionEditor(
                           child,
                           sectionIndex,
@@ -951,7 +955,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
                     );
                   } else if (child.kind === 'SectionItem' && depth < 2) {
                     return (
-                      <div key={nestedChildIndex} className="ml-4 border-l-2 border-l-muted pl-4">
+                      <div key={(child as any).path || `child-${nestedChildIndex}`} className="ml-4 border-l-2 border-l-muted pl-4">
                         {renderNestedSectionEditor(
                           child,
                           parentSectionIndex,
