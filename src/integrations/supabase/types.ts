@@ -223,6 +223,45 @@ export type Database = {
         }
         Relationships: []
       }
+      security_audit_log: {
+        Row: {
+          action: string
+          created_at: string | null
+          id: string
+          ip_address: string | null
+          new_values: Json | null
+          old_values: Json | null
+          record_id: string | null
+          table_name: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          id?: string
+          ip_address?: string | null
+          new_values?: Json | null
+          old_values?: Json | null
+          record_id?: string | null
+          table_name?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          id?: string
+          ip_address?: string | null
+          new_values?: Json | null
+          old_values?: Json | null
+          record_id?: string | null
+          table_name?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       subscription_plans: {
         Row: {
           active: boolean
@@ -496,6 +535,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      generate_secure_token: {
+        Args: { length_bytes?: number }
+        Returns: string
+      }
       get_field_contracts: {
         Args: Record<PropertyKey, never>
         Returns: Json
@@ -514,6 +557,10 @@ export type Database = {
       }
       in_enum: {
         Args: { etype: unknown; val: string }
+        Returns: boolean
+      }
+      is_admin_user: {
+        Args: Record<PropertyKey, never>
         Returns: boolean
       }
       is_i18n_text: {
@@ -870,6 +917,10 @@ export type Database = {
       refresh_job_node_index: {
         Args: { p_job_id: string }
         Returns: undefined
+      }
+      sanitize_json_input: {
+        Args: { input_json: Json }
+        Returns: Json
       }
       set_character_description: {
         Args: { p_desc: Json; p_id: string; p_role: string }
