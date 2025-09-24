@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,9 +7,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Plus, Save } from 'lucide-react';
+import { Trash2, Plus, Save, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useFields } from '@/hooks/useFields';
 import { useFieldContracts, type RuleConfig } from '@/hooks/useFieldContracts';
 
 type DataType = string;
@@ -70,7 +71,14 @@ const widgetRequiresOptions = (widget: Widget): boolean => {
 
 export default function FieldBuilder() {
   const { toast } = useToast();
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const cloneId = searchParams.get('clone');
+  const isEditMode = Boolean(id);
   const { contracts, loading: contractsLoading, getAvailableWidgets, getAvailableRules, widgetRequiresOptions: contractWidgetRequiresOptions } = useFieldContracts();
+  const { getEntry, saveEntry } = useFields();
+  
   const [field, setField] = useState<FieldData>({
     id: '',
     datatype: 'string' as DataType,
@@ -84,15 +92,75 @@ export default function FieldBuilder() {
 
   const [options, setOptions] = useState<FieldOption[]>([]);
   const [optionSource, setOptionSource] = useState<'static' | 'table' | 'endpoint'>('static');
+  const [loading, setLoading] = useState(false);
 
   const availableDataTypes = contracts?.datatypes || [];
   const availableWidgets = getAvailableWidgets(field.datatype);
   const availableRules = getAvailableRules(field.datatype);
 
-  if (contractsLoading) {
+  // Load existing field data in edit mode or for cloning
+  useEffect(() => {
+    const loadFieldData = async () => {
+      if (id && isEditMode) {
+        setLoading(true);
+        const existingField = await getEntry(id);
+        if (existingField) {
+          setField({
+            id: existingField.id,
+            datatype: existingField.datatype as DataType,
+            widget: existingField.widget as Widget,
+            options: existingField.options,
+            rules: existingField.rules || {},
+            ui: {
+              label: { fallback: existingField.ui?.label?.fallback || '' },
+              help: existingField.ui?.help,
+              placeholder: existingField.ui?.placeholder
+            },
+            default_value: existingField.default_value
+          });
+          if (existingField.options?.values) {
+            setOptions(existingField.options.values);
+          }
+          if (existingField.options?.source) {
+            setOptionSource(existingField.options.source);
+          }
+        }
+        setLoading(false);
+      } else if (cloneId) {
+        setLoading(true);
+        const existingField = await getEntry(cloneId);
+        if (existingField) {
+          setField({
+            id: '', // Clear ID for cloning
+            datatype: existingField.datatype as DataType,
+            widget: existingField.widget as Widget,
+            options: existingField.options,
+            rules: existingField.rules || {},
+            ui: {
+              label: { fallback: existingField.ui?.label?.fallback || '' },
+              help: existingField.ui?.help,
+              placeholder: existingField.ui?.placeholder
+            },
+            default_value: existingField.default_value
+          });
+          if (existingField.options?.values) {
+            setOptions(existingField.options.values);
+          }
+          if (existingField.options?.source) {
+            setOptionSource(existingField.options.source);
+          }
+        }
+        setLoading(false);
+      }
+    };
+
+    loadFieldData();
+  }, [id, cloneId, isEditMode, getEntry]);
+
+  if (contractsLoading || loading) {
     return (
       <div className="max-w-4xl mx-auto p-6">
-        <div className="text-center">Loading field contracts...</div>
+        <div className="text-center">Loading...</div>
       </div>
     );
   }
@@ -155,63 +223,33 @@ export default function FieldBuilder() {
         } : null
       };
 
-      const insertData = {
-        id: fieldData.id,
-        datatype: fieldData.datatype as any,
-        widget: fieldData.widget as any,
-        options: contractWidgetRequiresOptions(fieldData.widget) ? fieldData.options : null,
-        rules: fieldData.rules || {},
-        ui: fieldData.ui || {},
-        default_value: fieldData.default_value || null
-      };
-
-      // Debug logs to inspect payloads before insert
-      console.group('FieldBuilder Save Payload');
-      console.log('Schema:', 'app.field_registry');
-      console.log('Raw field state:', field);
-      console.log('Option source:', optionSource);
-      console.log('Static options state:', options);
-      console.log('contractWidgetRequiresOptions:', contractWidgetRequiresOptions(fieldData.widget));
-      console.log('fieldData (pre-insert):', fieldData);
-      console.log('insertData (final payload):', insertData);
-      console.groupEnd();
-      const { error } = await supabase
-        .schema('app' as any)
-        .from('field_registry')
-        .insert(insertData as any);
-
-      if (error) {
-        console.error('Database error:', error);
-        throw error;
+      const success = await saveEntry(fieldData);
+      
+      if (success) {
+        if (isEditMode) {
+          toast({
+            title: "Success",
+            description: "Field updated successfully"
+          });
+        } else {
+          toast({
+            title: "Success",
+            description: "Field created successfully"
+          });
+          // Reset form for new field creation
+          setField({
+            id: '',
+            datatype: 'string' as DataType,
+            widget: 'text' as Widget,
+            options: null,
+            rules: {},
+            ui: { label: { fallback: '' } }
+          });
+          setOptions([]);
+        }
       }
-
-      toast({
-        title: "Success",
-        description: "Field created successfully"
-      });
-
-      // Reset form
-      setField({
-        id: '',
-        datatype: 'string' as DataType,
-        widget: 'text' as Widget,
-        options: null,
-        rules: {},
-        ui: { label: { fallback: '' } }
-      });
-      setOptions([]);
     } catch (error) {
       console.error('Error saving field:', error);
-      // Extra error detail logs for debugging constraints
-      if (typeof error === 'object' && error) {
-        const anyErr = error as any;
-        console.log('Supabase error details:', {
-          code: anyErr?.code,
-          message: anyErr?.message,
-          details: anyErr?.details,
-          hint: anyErr?.hint,
-        });
-      }
       toast({
         title: "Error",
         description: `Failed to save field: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -223,11 +261,26 @@ export default function FieldBuilder() {
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Field Builder</h1>
-        <Button onClick={handleSave} className="flex items-center gap-2">
-          <Save className="w-4 h-4" />
-          Save Field
-        </Button>
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" asChild>
+            <Link to="/app/build/field">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Fields
+            </Link>
+          </Button>
+          <h1 className="text-3xl font-bold">
+            {isEditMode ? `Edit Field: ${field.id}` : 'Create Field'}
+          </h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link to="/app/build/field">Cancel</Link>
+          </Button>
+          <Button onClick={handleSave} className="flex items-center gap-2">
+            <Save className="w-4 h-4" />
+            {isEditMode ? 'Update Field' : 'Save Field'}
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

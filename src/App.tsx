@@ -33,7 +33,7 @@ import Consent from "./pages/legal/Consent";
 import Refund from "./pages/legal/Refund";
 import Dashboard from '@/pages/app/Dashboard';
 import BuildIndex from '@/pages/app/build';
-import FieldBuilder from '@/pages/app/build/FieldBuilder';
+import FieldRoutes from '@/pages/app/build/field';
 import NodeLibraryRoutes from '@/pages/app/build/node';
 import Wallet from '@/pages/user/Wallet';
 import Settings from '@/pages/user/Settings';
@@ -89,10 +89,10 @@ const MainApp = () => (
                       <Footer />
                     </div>
                   } />
-                  <Route path="/app/build/field" element={
+                  <Route path="/app/build/field/*" element={
                     <div>
                       <Header />
-                      <FieldBuilder />
+                      <FieldRoutes />
                       <Footer />
                     </div>
                   } />
