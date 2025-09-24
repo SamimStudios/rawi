@@ -33,7 +33,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import RegistryFieldRenderer from './RegistryFieldRenderer';
+import SystematicFieldRenderer from './SystematicFieldRenderer';
+import { useFields, type FieldEntry } from '@/hooks/useFields';
 import { useNodeState } from '@/hooks/useNodeState';
 import { useDependencies } from '@/hooks/useDependencies';
 import { JobNode } from '@/hooks/useJobs';
@@ -57,9 +58,12 @@ export default function SystematicNodeRenderer({
   const [internalMode, setInternalMode] = useState<'idle' | 'edit'>('idle');
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [fieldEntries, setFieldEntries] = useState<Record<string, FieldEntry | null>>({});
   
   const mode = externalMode || internalMode;
   const setMode = onModeChange || setInternalMode;
+
+  const { getEntry } = useFields();
 
   const {
     nodeContent,
@@ -85,6 +89,29 @@ export default function SystematicNodeRenderer({
   const lastUpdated = node.updated_at;
   const hasGenerateAction = Boolean(node.library_id); // Simplified check
   const hasValidateAction = Boolean(node.library_id); // Simplified check
+
+  // Load field entries from registry
+  useEffect(() => {
+    const loadFieldEntries = async () => {
+      if (!nodeContent?.items) return;
+      
+      const entries: Record<string, FieldEntry | null> = {};
+      for (const item of nodeContent.items) {
+        if (item.ref && item.kind === 'FieldItem') {
+          try {
+            const fieldEntry = await getEntry(item.ref);
+            entries[item.ref] = fieldEntry;
+          } catch (error) {
+            console.error(`Failed to load field entry for ${item.ref}:`, error);
+            entries[item.ref] = null;
+          }
+        }
+      }
+      setFieldEntries(entries);
+    };
+
+    loadFieldEntries();
+  }, [nodeContent?.items, getEntry]);
 
   // Persist collapse state per addr
   const collapseKey = `node-collapsed-${node.path}`;
@@ -163,14 +190,29 @@ export default function SystematicNodeRenderer({
   const renderFormContent = () => {
     if (!nodeContent?.items) return null;
 
-    const renderFieldItem = (item: any, index: number) => (
-      <RegistryFieldRenderer
-        key={item.ref || index}
-        fieldRef={item.ref}
-        value={item.value}
-        onChange={(newValue) => updateField(item.ref, newValue)}
-      />
-    );
+    const renderFieldItem = (item: any, index: number) => {
+      const fieldEntry = fieldEntries[item.ref];
+      
+      if (!fieldEntry) {
+        return (
+          <div key={item.ref || index} className="p-4 border border-dashed border-destructive/50 rounded-md">
+            <p className="text-destructive text-sm flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              Field not found in registry: {item.ref}
+            </p>
+          </div>
+        );
+      }
+
+      return (
+        <SystematicFieldRenderer
+          key={item.ref || index}
+          field={fieldEntry}
+          value={item.value}
+          onChange={(newValue) => updateField(item.ref, newValue)}
+        />
+      );
+    };
 
     const renderSectionItem = (item: any, index: number) => (
       <Collapsible key={item.ref || index} defaultOpen={!item.collapsed}>
