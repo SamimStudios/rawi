@@ -16,8 +16,9 @@ export default function LtreeTesterPage() {
   // Pre-fill with real job ID from your database
   const [jobId, setJobId] = useState('7d6e3fe9-5ed8-4e27-9a9c-eb3f80d9d0ce');
   const [address, setAddress] = useState('');
-  const [jsonValue, setJsonValue] = useState('{\n  "example": "Test Value"\n}');
+  const [jsonValue, setJsonValue] = useState('Hello World');
   const [mode, setMode] = useState<'read' | 'write'>('read');
+  const [inputMode, setInputMode] = useState<'json' | 'raw'>('raw');
   const { toast } = useToast();
 
   // Hooks for real-time validation and data
@@ -39,11 +40,29 @@ export default function LtreeTesterPage() {
     }
 
     try {
-      const parsedValue = JSON.parse(jsonValue);
+      let value;
+      if (inputMode === 'json') {
+        value = JSON.parse(jsonValue);
+      } else {
+        // Raw mode - try to infer the data type
+        const trimmedValue = jsonValue.trim();
+        if (trimmedValue === 'true') {
+          value = true;
+        } else if (trimmedValue === 'false') {
+          value = false;
+        } else if (trimmedValue === 'null') {
+          value = null;
+        } else if (!isNaN(Number(trimmedValue)) && trimmedValue !== '') {
+          value = Number(trimmedValue);
+        } else {
+          value = trimmedValue; // String
+        }
+      }
+      
       await HybridAddrService.setItemAt({
         jobId,
         address,
-        value: parsedValue
+        value: value
       });
       
       toast({
@@ -184,15 +203,36 @@ export default function LtreeTesterPage() {
               </TabsList>
               
               <TabsContent value="write" className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Input Mode</Label>
+                  <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as 'json' | 'raw')}>
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="json">JSON</TabsTrigger>
+                      <TabsTrigger value="raw">Raw Value</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+                
                 <div>
-                  <Label htmlFor="jsonValue">JSON Value</Label>
+                  <Label htmlFor="jsonValue">
+                    {inputMode === 'json' ? 'JSON Value' : 'Raw Value'}
+                  </Label>
                   <Textarea
                     id="jsonValue"
                     value={jsonValue}
                     onChange={(e) => setJsonValue(e.target.value)}
-                    placeholder="Enter JSON value to write"
+                    placeholder={
+                      inputMode === 'json' 
+                        ? 'Enter JSON value to write (e.g., {"key": "value"})' 
+                        : 'Enter raw value (e.g., Hello World, 42, true, false, null)'
+                    }
                     className="font-mono min-h-[120px]"
                   />
+                  {inputMode === 'raw' && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Raw mode automatically converts: numbers → number, true/false → boolean, null → null, everything else → string
+                    </p>
+                  )}
                 </div>
                 <Button 
                   onClick={handleWrite}
