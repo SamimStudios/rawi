@@ -47,9 +47,9 @@ export class HybridAddrService {
    */
   static async getItemAt({ jobId, address }: HybridAddrOptions): Promise<any> {
     try {
-      const { data, error } = await (supabase as any).schema('app').rpc('get_item_at', {
-        _job_id: jobId,
-        _addr: address
+      const { data, error } = await (supabase as any).schema('app').rpc('json_resolve_by_path', {
+        p_job_id: jobId,
+        p_address: address
       });
 
       if (error) throw this.createRpcError(error);
@@ -65,10 +65,10 @@ export class HybridAddrService {
    */
   static async setItemAt({ jobId, address, value }: SetValueOptions): Promise<any> {
     try {
-      const { data, error } = await (supabase as any).schema('app').rpc('set_item_at', {
-        _job_id: jobId,
-        _addr: address,
-        _value: JSON.stringify(value)
+      const { data, error } = await (supabase as any).schema('app').rpc('json_set_by_path', {
+        p_job_id: jobId,
+        p_address: address,
+        p_value: JSON.stringify(value)
       });
 
       if (error) throw this.createRpcError(error);
