@@ -1,6 +1,20 @@
 /**
- * Modern Node Renderer with improved field isolation
- * Uses dedicated field manager for better state management
+ * NodeRenderer - Advanced form node rendering component with field isolation
+ * 
+ * This component renders job nodes with proper field-level state management using
+ * the ltree address system for unique field identification and storage.
+ * 
+ * Key Features:
+ * - Uses ltree addresses (job_id.node_path.field_ref) for field isolation
+ * - Batched field operations for performance optimization
+ * - Optimistic UI updates with proper error handling
+ * - Debounced auto-save to prevent excessive API calls
+ * - Field-level loading and error states
+ * - Supports nested sections and collection instances
+ * 
+ * Address System:
+ * Each field gets a unique ltree address: {job_id}.{node_path}.fields.{field_ref}
+ * This ensures complete isolation between fields across different nodes/jobs
  */
 import React, { useState, useCallback, useEffect } from 'react';
 import { format } from 'date-fns';
@@ -48,32 +62,38 @@ export default function NodeRenderer({
 }: NodeRendererProps) {
   const { toast } = useToast();
   
-  // Use dedicated field manager for better isolation
+  // Initialize field manager with ltree address system integration
+  // This handles all field-level operations using unique addresses: {job_id}.{node_path}.fields.{field_ref}
   const fieldManager = useNodeFieldManager({ node, onUpdate });
   
-  // Local state for UI
+  // Local UI state management
   const [internalMode, setInternalMode] = useState<'idle' | 'edit'>('idle');
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   
-  // Mode management
+  // Mode can be controlled externally or internally
   const mode = externalMode || internalMode;
   const setMode = onModeChange || setInternalMode;
-  // Get node content
+  
+  // Extract node content with fallbacks
   const nodeContent = node.content || {};
   
-  // Computed properties
+  // Computed properties for UI state
   const label = nodeContent?.label?.fallback || nodeContent?.label?.key || node.path;
   const description = nodeContent?.description?.fallback || '';
   const hasGenerateAction = Boolean(node.generate_n8n_id);
   const canEdit = node.node_type === 'form' && fieldManager.fieldRefs.length > 0;
   const isEmpty = isNodeEmpty();
   
-  // Check if node is empty
+  /**
+   * Check if node is empty by examining all field values through the address system
+   * This uses the field manager's ltree-based value resolution
+   */
   function isNodeEmpty(): boolean {
     if (node.node_type !== 'form') return false;
     
     return fieldManager.fieldRefs.every(ref => {
+      // Get field value using ltree address: {job_id}.{node_path}.fields.{field_ref}
       const value = fieldManager.getFieldValue(ref);
       return !value || 
              (typeof value === 'string' && value.trim() === '') ||
@@ -94,8 +114,18 @@ export default function NodeRenderer({
     setIsCollapsed(false);
   }, [setMode]);
   
+  /**
+   * Save edit handler - commits all field changes using ltree addresses
+   * 
+   * Process:
+   * 1. Field manager saves all dirty fields to their ltree addresses
+   * 2. Node content is updated with current field values
+   * 3. Database is updated with new node content
+   * 4. UI state is updated to reflect successful save
+   */
   const handleSaveEdit = useCallback(async () => {
     try {
+      // Save all changes through field manager (uses ltree addresses internally)
       await fieldManager.saveAllChanges();
       setMode('idle');
       setLastSaved(new Date());
@@ -113,11 +143,19 @@ export default function NodeRenderer({
     }
   }, [fieldManager, setMode, toast]);
   
+  /**
+   * Cancel edit handler - reverts to saved state
+   * Field manager handles reloading original values from ltree addresses
+   */
   const handleCancelEdit = useCallback(() => {
-    // Field manager handles reloading original values
+    // Field manager handles reloading original values from ltree
     setMode('idle');
   }, [setMode]);
   
+  /**
+   * Generate content handler - triggers n8n function execution
+   * Uses the node's generate_n8n_id to invoke the appropriate function
+   */
   const handleGenerate = useCallback(async () => {
     if (!onGenerate || !node.generate_n8n_id) return;
     
@@ -137,11 +175,25 @@ export default function NodeRenderer({
     }
   }, [onGenerate, node.id, node.generate_n8n_id, toast]);
   
-  // Render individual field using field manager
+  /**
+   * Render individual field item using the ltree address system
+   * 
+   * Each field is rendered with:
+   * - Unique ltree address for field isolation: {job_id}.{node_path}.fields.{field_ref}
+   * - Field registry entry from cache for field definition
+   * - Field state management (loading, error, dirty tracking)
+   * - Optimistic UI updates with backend synchronization
+   * 
+   * @param item - Field item configuration from node content
+   * @param index - Array index for React key fallback
+   */
   const renderFieldItem = (item: any, index: number) => {
+    // Get field definition from registry cache (batched loading)
     const fieldEntry = fieldManager.getFieldEntry(item.ref);
+    // Get current field state (value, loading, error, dirty status)
     const fieldState = fieldManager.getFieldState(item.ref);
     
+    // Handle missing field registry entries
     if (!fieldEntry) {
       return (
         <div key={item.ref || index} className="p-4 border border-dashed border-destructive/50 rounded-md">
@@ -155,16 +207,19 @@ export default function NodeRenderer({
     
     return (
       <div key={item.ref} className="space-y-2">
+        {/* Render field using systematic renderer with ltree-backed value */}
         <SystematicFieldRenderer
           field={fieldEntry}
-          value={fieldManager.getFieldValue(item.ref)}
+          value={fieldManager.getFieldValue(item.ref)} // Uses ltree address internally
           onChange={(newValue) => {
             console.log(`[UI] Field ${item.ref} changed to:`, newValue);
+            // Save to ltree address: {job_id}.{node_path}.fields.{field_ref}
             fieldManager.setFieldValue(item.ref, newValue);
           }}
           loading={fieldState.loading}
           error={fieldState.error}
         />
+        {/* Show unsaved changes indicator for dirty fields */}
         {fieldState.isDirty && mode === 'edit' && (
           <div className="text-xs text-muted-foreground flex items-center gap-1">
             <Clock className="h-3 w-3" />
@@ -336,7 +391,14 @@ export default function NodeRenderer({
               </div>
             )}
             
-            {/* Debug Panel - only show in development or when needed */}
+            {/* 
+              Debug Panel - Development monitoring for ltree address system
+              Shows:
+              - Batch queue stats for ltree operations
+              - Field registry cache hit rates
+              - Active field references using address system
+              - Performance metrics for optimization tracking
+            */}
             {process.env.NODE_ENV === 'development' && (
               <FieldManagerDebugPanel
                 getBatchStats={fieldManager.getBatchStats}
