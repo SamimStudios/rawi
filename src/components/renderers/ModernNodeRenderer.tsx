@@ -1,6 +1,6 @@
 /**
- * Modern Node Renderer with proper ltree field isolation
- * Replaces the old renderers with clean, working implementation
+ * Modern Node Renderer using existing ltree addressing system
+ * Uses LtreeAddresses and HybridAddrService for consistent data access
  */
 import React, { useState, useCallback, useEffect } from 'react';
 import { format } from 'date-fns';
@@ -22,7 +22,8 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { useNodeFieldData } from '@/hooks/useNodeFieldData';
+import { useLtreeResolver } from '@/hooks/useLtreeResolver';
+import { createLtreeAddresses } from '@/lib/ltree/addresses';
 import { useFields, type FieldEntry } from '@/hooks/useFields';
 import SystematicFieldRenderer from './SystematicFieldRenderer';
 import type { JobNode } from '@/hooks/useJobs';
@@ -48,36 +49,27 @@ export default function ModernNodeRenderer({
 }: ModernNodeRendererProps) {
   const { toast } = useToast();
   const { getEntry } = useFields();
+  const { resolveValue, setValue } = useLtreeResolver();
   
   // Local state
   const [internalMode, setInternalMode] = useState<'idle' | 'edit'>('idle');
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [fieldEntries, setFieldEntries] = useState<Record<string, FieldEntry | null>>({});
+  const [fieldValues, setFieldValues] = useState<Record<string, any>>({});
+  const [fieldStates, setFieldStates] = useState<Record<string, { loading?: boolean; error?: string; isDirty?: boolean }>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
   
   // Mode management
   const mode = externalMode || internalMode;
   const setMode = onModeChange || setInternalMode;
   
-  // Field data management with proper isolation
-  const {
-    nodeContent,
-    getFieldValue,
-    setFieldValue,
-    fieldStates,
-    fieldErrors,
-    hasUnsavedChanges,
-    isAutoSaving,
-    lastSaved,
-    saveAllChanges,
-    discardAllChanges,
-    validateStructure
-  } = useNodeFieldData({ 
-    node, 
-    onUpdate,
-    autoSave: mode === 'edit',
-    debounceMs: 500
-  });
+  // Ltree address builder
+  const addresses = createLtreeAddresses(node.job_id, node.path);
+  
+  // Get node content
+  const nodeContent = node.content || {};
   
   // Computed properties
   const label = nodeContent?.label?.fallback || nodeContent?.label?.key || node.path;
@@ -85,6 +77,51 @@ export default function ModernNodeRenderer({
   const hasGenerateAction = Boolean(node.generate_n8n_id);
   const canEdit = node.node_type === 'form' && hasEditableFields();
   const isEmpty = isNodeEmpty();
+  
+  // Get field value using ltree addressing
+  const getFieldValue = useCallback((fieldRef: string): any => {
+    return fieldValues[fieldRef];
+  }, [fieldValues]);
+  
+  // Set field value using ltree addressing
+  const setFieldValue = useCallback(async (fieldRef: string, value: any) => {
+    const address = addresses.fieldValue(fieldRef);
+    
+    try {
+      // Set loading state
+      setFieldStates(prev => ({
+        ...prev,
+        [fieldRef]: { ...prev[fieldRef], loading: true, error: undefined }
+      }));
+      
+      // Update via ltree
+      await setValue(node.job_id, address, value);
+      
+      // Update local state immediately
+      setFieldValues(prev => ({ ...prev, [fieldRef]: value }));
+      setFieldStates(prev => ({
+        ...prev,
+        [fieldRef]: { ...prev[fieldRef], loading: false, isDirty: true }
+      }));
+      
+      setHasUnsavedChanges(true);
+      
+      // Auto-save if in edit mode
+      if (mode === 'edit' && onUpdate) {
+        setTimeout(() => {
+          saveAllChanges();
+        }, 300);
+      }
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update field';
+      setFieldStates(prev => ({
+        ...prev,
+        [fieldRef]: { ...prev[fieldRef], loading: false, error: errorMessage }
+      }));
+      console.error(`Failed to update field ${fieldRef}:`, error);
+    }
+  }, [addresses, setValue, node.job_id, mode, onUpdate]);
   
   // Collect field references from the content structure
   function collectFieldRefs(items: any[]): string[] {
@@ -125,26 +162,36 @@ export default function ModernNodeRenderer({
     });
   }
   
-  // Load field entries from registry
+  // Load field entries and values from registry and ltree
   useEffect(() => {
-    const loadFieldEntries = async () => {
+    const loadFieldData = async () => {
       const fieldRefs = collectFieldRefs(nodeContent?.items || []);
       const entries: Record<string, FieldEntry | null> = {};
+      const values: Record<string, any> = {};
       
       for (const ref of fieldRefs) {
         try {
+          // Load field entry
           entries[ref] = await getEntry(ref);
+          
+          // Load current value via ltree
+          const address = addresses.fieldValue(ref);
+          const currentValue = await resolveValue(node.job_id, address);
+          values[ref] = currentValue;
+          
         } catch (error) {
-          console.error(`Failed to load field entry for ${ref}:`, error);
+          console.error(`Failed to load field data for ${ref}:`, error);
           entries[ref] = null;
+          values[ref] = undefined;
         }
       }
       
       setFieldEntries(entries);
+      setFieldValues(values);
     };
     
-    loadFieldEntries();
-  }, [nodeContent?.items, getEntry]);
+    loadFieldData();
+  }, [nodeContent?.items, getEntry, addresses, resolveValue, node.job_id]);
   
   // Auto-edit behavior for empty first nodes
   useEffect(() => {
@@ -159,10 +206,76 @@ export default function ModernNodeRenderer({
     setIsCollapsed(false);
   }, [setMode]);
   
+  // Save all changes to the database
+  const saveAllChanges = useCallback(async () => {
+    if (!hasUnsavedChanges || !onUpdate) return;
+    
+    try {
+      // Create updated content with current field values
+      const updatedContent = { ...nodeContent };
+      
+      // Update the content structure with current values
+      function updateItems(items: any[]) {
+        for (const item of items || []) {
+          if (item?.kind === 'FieldItem' && item.ref && fieldValues[item.ref] !== undefined) {
+            item.value = fieldValues[item.ref];
+          }
+          if (item?.children) updateItems(item.children);
+          if (item?.items) updateItems(item.items);
+          if (item?.instances) {
+            for (const instance of item.instances) {
+              if (instance?.children) updateItems(instance.children);
+            }
+          }
+        }
+      }
+      
+      updateItems(updatedContent?.items || []);
+      
+      await onUpdate(node.id, updatedContent);
+      
+      // Reset dirty states
+      setFieldStates(prev => {
+        const updated = { ...prev };
+        Object.keys(updated).forEach(key => {
+          updated[key] = { ...updated[key], isDirty: false };
+        });
+        return updated;
+      });
+      
+      setHasUnsavedChanges(false);
+      setLastSaved(new Date());
+      
+    } catch (error) {
+      console.error('Failed to save changes:', error);
+      throw error;
+    }
+  }, [hasUnsavedChanges, onUpdate, nodeContent, fieldValues, node.id]);
+  
   const handleCancelEdit = useCallback(() => {
-    discardAllChanges();
+    // Reset to original values by reloading from ltree
+    const loadOriginalValues = async () => {
+      const fieldRefs = collectFieldRefs(nodeContent?.items || []);
+      const values: Record<string, any> = {};
+      
+      for (const ref of fieldRefs) {
+        try {
+          const address = addresses.fieldValue(ref);
+          const originalValue = await resolveValue(node.job_id, address);
+          values[ref] = originalValue;
+        } catch (error) {
+          console.error(`Failed to reload field ${ref}:`, error);
+        }
+      }
+      
+      setFieldValues(values);
+      setFieldStates({});
+      setHasUnsavedChanges(false);
+    };
+    
+    loadOriginalValues();
     setMode('idle');
-  }, [discardAllChanges, setMode]);
+  }, [nodeContent?.items, addresses, resolveValue, node.job_id, setMode]);
   
   const handleSaveEdit = useCallback(async () => {
     try {
@@ -207,11 +320,11 @@ export default function ModernNodeRenderer({
     }
   }, [onGenerate, node.id, node.generate_n8n_id, toast]);
   
-  // Render individual field with proper isolation
+  // Render individual field using ltree addressing
   const renderFieldItem = (item: any, index: number) => {
     const fieldEntry = fieldEntries[item.ref];
     const fieldState = fieldStates[item.ref];
-    const fieldError = fieldErrors[item.ref];
+    const fieldError = fieldState?.error;
     
     if (!fieldEntry) {
       return (
@@ -319,7 +432,7 @@ export default function ModernNodeRenderer({
   
   // Status indicators
   const getStatusBadge = () => {
-    if (isAutoSaving) return <Badge variant="secondary"><Clock className="h-3 w-3 mr-1" />Saving...</Badge>;
+    if (isLoading) return <Badge variant="secondary"><Clock className="h-3 w-3 mr-1" />Saving...</Badge>;
     if (hasUnsavedChanges) return <Badge variant="outline">Unsaved</Badge>;
     if (mode === 'edit') return <Badge variant="default">Editing</Badge>;
     return null;
