@@ -95,11 +95,6 @@ export default function LtreeTesterPage() {
     }
   ];
 
-  // Pre-fill with real job ID from your database
-  const [jobId, setJobId] = useState('7d6e3fe9-5ed8-4e27-9a9c-eb3f80d9d0ce');
-  const [address, setAddress] = useState('');
-  const [jsonValue, setJsonValue] = useState('{\n  "example": "Test Value"\n}');
-
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center gap-2 mb-6">

@@ -89,6 +89,25 @@ const cleanSchema = (schema: any): any => {
   return cleaned;
 };
 
+// Helper to safely get error message
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return 'Unknown error';
+};
+
+// Helper to safely get error name
+const getErrorName = (error: unknown): string => {
+  if (error instanceof Error) return error.name;
+  return 'UnknownError';
+};
+
+// Helper to safely get error stack
+const getErrorStack = (error: unknown): string => {
+  if (error instanceof Error) return error.stack || '';
+  return '';
+};
+
 // Validate payload against schema
 const validatePayload = (schema: any, payload: any) => {
   try {
@@ -97,7 +116,7 @@ const validatePayload = (schema: any, payload: any) => {
     return validate(payload) ? null : validate.errors;
   } catch (error) {
     console.error('Schema compilation error:', error);
-    return [{ message: `Schema compilation failed: ${error.message}` }];
+    return [{ message: `Schema compilation failed: ${getErrorMessage(error)}` }];
   }
 };
 
@@ -109,7 +128,7 @@ const createEnvelope = (
   options: {
     data?: any;
     error?: {
-      type: N8NResponseEnvelope['error']['type'];
+      type: 'validation' | 'authentication' | 'authorization' | 'credits' | 'webhook_connectivity' | 'workflow_execution' | 'upstream_http' | 'rate_limited' | 'parsing' | 'internal';
       code: string;
       message: { en: string; ar: string } | string;
       details?: unknown;
@@ -385,7 +404,7 @@ serve(async (req) => {
         lastError = error;
         
         // Only retry timeout/network errors
-        if (attempt === 1 && (error.name === 'TimeoutError' || error.name === 'NetworkError')) {
+        if (attempt === 1 && (getErrorName(error) === 'TimeoutError' || getErrorName(error) === 'NetworkError')) {
           console.log('Retrying webhook call due to network/timeout error');
           continue;
         }
@@ -398,12 +417,12 @@ serve(async (req) => {
     if (!webhookResponse) {
       console.error('Webhook call completely failed:', lastError);
       
-      let errorType: N8NResponseEnvelope['error']['type'] = 'webhook_connectivity';
+      let errorType: 'validation' | 'authentication' | 'authorization' | 'credits' | 'webhook_connectivity' | 'workflow_execution' | 'upstream_http' | 'rate_limited' | 'parsing' | 'internal' = 'webhook_connectivity';
       let errorCode = 'WEBHOOK_TIMEOUT';
       
-      if (lastError?.name === 'TimeoutError') {
+      if (getErrorName(lastError) === 'TimeoutError') {
         errorCode = 'WEBHOOK_TIMEOUT';
-      } else if (lastError?.name === 'NetworkError') {
+      } else if (getErrorName(lastError) === 'NetworkError') {
         errorCode = 'WEBHOOK_UNREACHABLE';
       } else {
         errorType = 'internal';
@@ -414,15 +433,15 @@ serve(async (req) => {
         error: {
           type: errorType,
           code: errorCode,
-          message: bi(null, `Webhook call failed: ${lastError?.message}`, `فشل استدعاء webhook: ${lastError?.message}`),
+          message: bi(null, `Webhook call failed: ${getErrorMessage(lastError)}`, `فشل استدعاء webhook: ${getErrorMessage(lastError)}`),
           details: { 
-            error_name: lastError?.name, 
-            error_message: lastError?.message,
+            error_name: getErrorName(lastError), 
+            error_message: getErrorMessage(lastError),
             webhook_url: webhookUrl 
           },
           retryPossible: true
         },
-        httpStatus: webhookResponse?.status || 502
+        httpStatus: (webhookResponse as any)?.status || 502
       });
       
       return new Response(JSON.stringify(envelope), {
@@ -476,7 +495,7 @@ serve(async (req) => {
       }
       
       // Enhanced error classification for unparseable responses
-      let errorType: N8NResponseEnvelope['error']['type'] = 'upstream_http';
+      let errorType: 'validation' | 'authentication' | 'authorization' | 'credits' | 'webhook_connectivity' | 'workflow_execution' | 'upstream_http' | 'rate_limited' | 'parsing' | 'internal' = 'upstream_http';
       let errorCode = `UPSTREAM_${webhookResponse.status}`;
       let retryPossible = true;
       
@@ -643,7 +662,7 @@ serve(async (req) => {
         status = 'partial_success';
         warnings = [{
           type: 'schema_validation',
-          message: `Response validation error: ${schemaError.message}`
+          message: `Response validation error: ${getErrorMessage(schemaError)}`
         }];
       }
     } else {
@@ -693,8 +712,8 @@ serve(async (req) => {
       error: {
         type: 'internal',
         code: 'INTERNAL_SERVER_ERROR',
-        message: bi(null, error.message || 'Internal server error', error.message || 'خطأ خادم داخلي'),
-        details: { error_stack: error.stack },
+        message: bi(null, getErrorMessage(error) || 'Internal server error', getErrorMessage(error) || 'خطأ خادم داخلي'),
+        details: { error_stack: getErrorStack(error) },
         retryPossible: true
       },
       httpStatus: 500
