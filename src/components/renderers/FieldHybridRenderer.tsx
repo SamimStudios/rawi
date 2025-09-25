@@ -1,15 +1,19 @@
 /**
- * FieldHybridRenderer - Data connector for field rendering
+ * FieldHybridRenderer - SSOT compliant field renderer with registry integration
  * 
- * This component acts as a data layer that connects to the ltree address
- * system and delegates UI rendering to SystematicFieldRenderer.
+ * This component acts as a data connector that:
+ * 1. Uses proper node.addr addressing (not node.path)
+ * 2. Fetches field definitions from app.field_registry
+ * 3. Delegates UI rendering to SystematicFieldRenderer
  * 
  * Architecture:
- * - FieldHybridRenderer: Data connector using ltree addresses (this file)
+ * - FieldHybridRenderer: Data connector using hybrid addresses (this file)
  * - SystematicFieldRenderer: Final UI renderer
  */
 import React from 'react';
 import { useHybridValue } from '@/lib/ltree/hooks';
+import { useFieldRegistry } from '@/hooks/useFieldRegistry';
+import { NodeAddressing } from '@/lib/content-contracts';
 import SystematicFieldRenderer from './SystematicFieldRenderer';
 import type { JobNode } from '@/hooks/useJobs';
 
@@ -18,45 +22,80 @@ interface FieldHybridRendererProps {
   node: JobNode;
   /** Field reference identifier */
   fieldRef: string;
+  /** Optional section path for nested fields */
+  sectionPath?: string;
+  /** Optional instance number for collection fields */
+  instanceNum?: number;
   /** Optional callback when field value changes */
   onChange?: (value: any) => void;
   /** Display mode */
   mode?: 'idle' | 'edit';
+  /** Whether field is required */
+  required?: boolean;
+  /** Whether field is editable */
+  editable?: boolean;
 }
 
 /**
- * Renders a field using the hybrid address system for isolated state management.
- * Each field uses the ltree address format: {node.path}#{fieldRef}.value
+ * SSOT-compliant field renderer using proper addressing and field registry
  */
 export function FieldHybridRenderer({
   node,
   fieldRef,
+  sectionPath,
+  instanceNum,
   onChange,
-  mode = 'idle'
+  mode = 'idle',
+  required = false,
+  editable = true
 }: FieldHybridRendererProps) {
-  // Create proper ltree hybrid address: {node.path}#{fieldRef}.value
-  const address = `${node.path}#${fieldRef}.value`;
-  
+  console.log(`[FieldHybridRenderer] Rendering field ${fieldRef} for node ${node.addr}`);
+  console.log(`[FieldHybridRenderer] Section: ${sectionPath}, Instance: ${instanceNum}, Mode: ${mode}`);
+
+  const { getField, loading: registryLoading, error: registryError } = useFieldRegistry();
+
+  // Create proper SSOT hybrid address using node.addr
+  const address = React.useMemo(() => {
+    if (sectionPath && instanceNum !== undefined) {
+      return NodeAddressing.sectionInstanceFieldValue(node.addr, sectionPath, instanceNum, fieldRef);
+    } else if (sectionPath) {
+      return NodeAddressing.sectionFieldValue(node.addr, sectionPath, fieldRef);
+    } else if (instanceNum !== undefined) {
+      return NodeAddressing.instanceFieldValue(node.addr, fieldRef, instanceNum);
+    } else {
+      return NodeAddressing.fieldValue(node.addr, fieldRef);
+    }
+  }, [node.addr, fieldRef, sectionPath, instanceNum]);
+
+  console.log(`[FieldHybridRenderer] Using address: ${address}`);
+
   // Use hybrid address system for isolated field state
   const {
     value,
     setValue,
-    loading,
-    error
+    loading: valueLoading,
+    error: valueError
   } = useHybridValue(node.job_id, address);
+
+  // Get field definition from registry
+  const fieldDefinition = getField(fieldRef);
+
+  console.log(`[FieldHybridRenderer] Field definition:`, fieldDefinition);
 
   // Handle field value updates
   const handleValueChange = async (newValue: any) => {
     try {
+      console.log(`[FieldHybridRenderer] Updating field ${fieldRef} at ${address} with value:`, newValue);
       await setValue(newValue);
       onChange?.(newValue);
+      console.log(`[FieldHybridRenderer] Field updated successfully`);
     } catch (err) {
-      console.error(`Failed to update field ${fieldRef} at ${address}:`, err);
+      console.error(`[FieldHybridRenderer] Failed to update field ${fieldRef} at ${address}:`, err);
     }
   };
 
-  // Show loading state while field is being fetched/saved
-  if (loading && value === null) {
+  // Show loading state while fetching registry or field value
+  if (registryLoading || (valueLoading && value === null)) {
     return (
       <div className="animate-pulse">
         <div className="h-10 bg-muted rounded"></div>
@@ -64,35 +103,55 @@ export function FieldHybridRenderer({
     );
   }
 
-  // Show error state if field failed to load/save
-  if (error) {
+  // Show registry error
+  if (registryError) {
     return (
       <div className="text-destructive text-sm p-2 bg-destructive/10 rounded">
-        Error loading field {fieldRef}: {error}
+        Field Registry Error: {registryError}
+        <div className="text-xs mt-1">Field: {fieldRef}</div>
+      </div>
+    );
+  }
+
+  // Show field not found error
+  if (!fieldDefinition) {
+    return (
+      <div className="text-destructive text-sm p-2 bg-destructive/10 rounded">
+        Field definition not found: {fieldRef}
         <div className="text-xs mt-1">Address: {address}</div>
       </div>
     );
   }
 
+  // Show value error
+  if (valueError) {
+    return (
+      <div className="text-destructive text-sm p-2 bg-destructive/10 rounded">
+        Error loading field {fieldRef}: {valueError}
+        <div className="text-xs mt-1">Address: {address}</div>
+      </div>
+    );
+  }
+
+  // Render field with registry definition
   return (
     <SystematicFieldRenderer
       field={{
-        id: fieldRef,
-        datatype: 'string', // Default datatype
-        widget: 'text', // Default to text widget
-        options: null, // No options by default
-        ui: {
-          label: { fallback: fieldRef },
-          placeholder: { fallback: `Enter ${fieldRef}` }
-        },
-        rules: {},
-        default_value: ''
+        id: fieldDefinition.id,
+        datatype: fieldDefinition.datatype,
+        widget: fieldDefinition.widget,
+        options: fieldDefinition.options || null,
+        ui: fieldDefinition.ui || {},
+        rules: fieldDefinition.rules || {},
+        default_value: fieldDefinition.default_value || ''
       }}
-      value={value || ''}
+      value={value || fieldDefinition.default_value || ''}
       onChange={handleValueChange}
-      loading={loading}
-      error={error}
+      loading={valueLoading}
+      error={valueError}
       mode={mode}
+      disabled={!editable || mode === 'idle'}
+      required={required}
     />
   );
 }

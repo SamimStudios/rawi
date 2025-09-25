@@ -1,38 +1,24 @@
 /**
- * NodeRenderer - Renders job nodes using ltree hybrid address system
- * 
- * Key Features:
- * - Direct field rendering with ltree addresses: {node.path}#{fieldRef}.value
- * - No intermediate state management - fields manage their own state
- * - Simple field discovery from node content
- * - Proper mode handling (idle/edit)
+ * SSOT-compliant NodeRenderer with proper addressing and n8n integration
  */
-import React, { useState, useCallback, useEffect } from 'react';
-import { format } from 'date-fns';
-import { 
-  ChevronDown, 
-  Edit, 
-  Check, 
-  Play, 
-  CheckCircle, 
-  AlertCircle, 
-  Clock,
-  Save,
-  X
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
+import { ChevronDown, ChevronRight, Edit2, Save, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { FormItemRenderer } from './FormItemRenderer';
+import { ContentValidation, FormContent } from '@/lib/content-contracts';
+import { CreditsButton } from '@/components/ui/credits-button';
 import { useToast } from '@/hooks/use-toast';
-import { FieldHybridRenderer } from './FieldHybridRenderer';
+import { supabase } from '@/integrations/supabase/client';
 import type { JobNode } from '@/hooks/useJobs';
 
 interface NodeRendererProps {
   node: JobNode;
-  onUpdate: (node: JobNode) => Promise<void>; // Fixed signature
-  onGenerate?: (nodeId: string, n8nId: string) => Promise<void>;
+  onUpdate?: (nodeId: string, data: any) => Promise<void>;
+  onGenerate?: (nodeId: string) => Promise<void>;
   mode?: 'idle' | 'edit';
   onModeChange?: (mode: 'idle' | 'edit') => void;
   showPath?: boolean;
@@ -50,309 +36,171 @@ export default function NodeRenderer({
 }: NodeRendererProps) {
   const { toast } = useToast();
   
-  // Local UI state management
   const [internalMode, setInternalMode] = useState<'idle' | 'edit'>('idle');
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [validateCredits, setValidateCredits] = useState<number | undefined>();
+  const [generateCredits, setGenerateCredits] = useState<number | undefined>();
+  const [loading, setLoading] = useState(false);
   
-  // Mode can be controlled externally or internally
-  const mode = externalMode || internalMode;
-  const setMode = onModeChange || setInternalMode;
+  const effectiveMode = externalMode || internalMode;
+  const setEffectiveMode = onModeChange || setInternalMode;
   
-  // Extract node content with fallbacks
-  const nodeContent = node.content || {};
-  
-  // Computed properties for UI state
-  const label = nodeContent?.label?.fallback || nodeContent?.label?.key || node.path;
-  const description = nodeContent?.description?.fallback || '';
-  const hasGenerateAction = Boolean(node.generate_n8n_id);
-  
-  // Discover fields from node content
-  const fieldRefs = discoverFieldRefs(nodeContent);
-  const canEdit = node.node_type === 'form' && fieldRefs.length > 0;
-  
-  /**
-   * Recursively discover field references from node content
-   */
-  function discoverFieldRefs(content: any): string[] {
-    const refs: string[] = [];
-    
-    function traverse(obj: any) {
-      if (!obj || typeof obj !== 'object') return;
-      
-      if (obj.kind === 'FieldItem' && obj.ref) {
-        refs.push(obj.ref);
-      }
-      
-      // Traverse arrays and objects
-      Object.values(obj).forEach(value => {
-        if (Array.isArray(value)) {
-          value.forEach(traverse);
-        } else if (typeof value === 'object') {
-          traverse(value);
-        }
-      });
-    }
-    
-    traverse(content);
-    return refs;
-  }
-  
-  // Auto-edit behavior for empty first nodes
+  const label = node.content?.label?.fallback || `Node ${node.addr}`;
+  const description = node.content?.description?.fallback;
+  const hasValidateAction = node.validate_n8n_id;
+  const hasGenerateAction = node.generate_n8n_id;
+
+  // Mock credits for now (database tables not yet created)
   useEffect(() => {
-    if (node.idx === 1 && canEdit && mode === 'idle') {
-      setMode('edit');
-    }
-  }, [node.idx, canEdit, mode, setMode]);
-  
-  // Mode handlers
-  const handleStartEdit = useCallback(() => {
-    setMode('edit');
-    setIsCollapsed(false);
-  }, [setMode]);
-  
-  /**
-   * Save edit handler - node will be updated through field callbacks
-   */
-  const handleSaveEdit = useCallback(async () => {
-    try {
-      setMode('idle');
-      setLastSaved(new Date());
-      setHasUnsavedChanges(false);
-      
-      toast({
-        title: "Changes saved",
-        description: "Node content updated successfully",
-      });
-    } catch (error) {
-      toast({
-        title: "Save failed", 
-        description: "Failed to save changes. Please try again.",
-        variant: "destructive",
-      });
-    }
-  }, [setMode, toast]);
-  
-  /**
-   * Cancel edit handler - reverts to saved state
-   */
-  const handleCancelEdit = useCallback(() => {
-    setMode('idle');
+    setValidateCredits(5);
+    setGenerateCredits(10);
+  }, []);
+
+  const handleStartEdit = () => setEffectiveMode('edit');
+  const handleSaveEdit = () => {
+    setEffectiveMode('idle');
+    setLastSaved(new Date());
     setHasUnsavedChanges(false);
-  }, [setMode]);
-  
-  /**
-   * Generate content handler - triggers n8n function execution
-   * Uses the node's generate_n8n_id to invoke the appropriate function
-   */
-  const handleGenerate = useCallback(async () => {
-    if (!onGenerate || !node.generate_n8n_id) return;
-    
+  };
+  const handleCancelEdit = () => {
+    setEffectiveMode('idle');
+    setHasUnsavedChanges(false);
+  };
+
+  const handleValidate = async () => {
+    setLoading(true);
     try {
-      await onGenerate(node.id, node.generate_n8n_id);
-      
+      const { data } = await supabase.functions.invoke('validate-node-content', {
+        body: { nodeId: node.id, jobId: node.job_id, fieldValues: {} }
+      });
       toast({
-        title: "Generation completed", 
-        description: "Content generated successfully",
+        title: data.valid ? "Validation passed" : "Validation issues found",
+        description: data.suggestions?.general || (data.valid ? "All fields are valid." : "Please review inputs."),
+        variant: data.valid ? "default" : "destructive"
       });
     } catch (error) {
-      toast({
-        title: "Generation failed",
-        description: "Failed to generate content. Please try again.",
-        variant: "destructive",
-      });
+      toast({ title: "Validation failed", variant: "destructive" });
+    } finally {
+      setLoading(false);
     }
-  }, [onGenerate, node.id, node.generate_n8n_id, toast]);
-  
-  /**
-   * Render individual field item using the ltree address system
-   * Address format: {node.path}#{fieldRef}.value
-   */
-  const renderFieldItem = (item: any, index: number) => {
-    return (
-      <div key={item.ref} className="space-y-2">
-        <FieldHybridRenderer
-          node={node}
-          fieldRef={item.ref}
-          onChange={(value) => {
-            setHasUnsavedChanges(true);
-            // Field updates are handled by useHybridValue internally
-          }}
-          mode={mode}
-        />
-      </div>
-    );
   };
-  
-  // Recursive rendering of items
-  const renderItems = (items: any[]): React.ReactNode[] => {
-    return items.map((item: any, index: number) => {
-      if (item.kind === 'FieldItem') {
-        return renderFieldItem(item, index);
-      } else if (item.kind === 'SectionItem' || item.kind === 'Section') {
-        return renderSection(item, index);
-      } else if (item.kind === 'CollectionSectionItem') {
-        return renderCollectionSection(item, index);
+
+  const handleGenerate = async () => {
+    setLoading(true);
+    try {
+      const { data } = await supabase.functions.invoke('generate-node-content', {
+        body: { nodeId: node.id, jobId: node.job_id, context: {} }
+      });
+      if (data.success) {
+        toast({ title: "Content generated", description: "Node content generated successfully." });
+        onUpdate?.(node.id, data.generatedContent);
       }
-      return null;
-    });
+    } catch (error) {
+      toast({ title: "Generation failed", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
   };
-  
-  const renderSection = (item: any, index: number) => {
-    const [sectionCollapsed, setSectionCollapsed] = useState(false);
-    
-    return (
-      <div key={item.ref || index} className="border rounded-lg">
-        <Collapsible open={!sectionCollapsed} onOpenChange={setSectionCollapsed}>
-          <CollapsibleTrigger className="flex w-full items-center justify-between p-4 hover:bg-muted/50">
-            <div className="text-left">
-              <h4 className="font-medium">{item.label?.fallback || item.ref}</h4>
-              {item.description && (
-                <p className="text-sm text-muted-foreground">
-                  {item.description.fallback}
-                </p>
-              )}
-            </div>
-            <ChevronDown className="h-4 w-4" />
-          </CollapsibleTrigger>
-          <CollapsibleContent className="border-t">
-            <div className="p-4 space-y-4">
-              {renderItems(item.children || [])}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </div>
-    );
-  };
-  
-  const renderCollectionSection = (item: any, index: number) => {
-    return (
-      <div key={item.ref || index} className="border rounded-lg p-4">
-        <h4 className="font-medium mb-4">{item.label?.fallback || item.ref}</h4>
-        {item.instances?.map((instance: any, instanceIndex: number) => (
-          <div key={instance.instance_id || instanceIndex} className="border-l-2 pl-4 mb-4 space-y-4">
-            <h5 className="text-sm font-medium">Instance {instance.instance_id}</h5>
-            {renderItems(instance.children || [])}
-          </div>
-        ))}
-      </div>
-    );
-  };
+
+  const isFormContent = ContentValidation.isFormContent(node.content);
   
   const renderFormContent = () => {
-    if (!nodeContent?.items) {
+    if (!node.content) {
       return (
-        <div className="text-center p-8 text-muted-foreground">
-          <p>No form fields defined</p>
+        <div className="text-center py-8 text-muted-foreground">
+          <p>No content defined</p>
+          {hasGenerateAction && effectiveMode === 'idle' && (
+            <CreditsButton onClick={handleGenerate} credits={generateCredits} loading={loading} size="default">
+              Generate Content
+            </CreditsButton>
+          )}
         </div>
       );
     }
-    
-    return (
-      <div className="space-y-6">
-        {renderItems(nodeContent.items)}
-      </div>
-    );
+
+    if (isFormContent) {
+      const formContent = node.content as FormContent;
+      if (!formContent.items?.length) {
+        return <div className="text-center py-8 text-muted-foreground">No form items defined</div>;
+      }
+
+      return (
+        <div className="space-y-4">
+          {formContent.items.map((item) => (
+            <FormItemRenderer
+              key={`${item.kind}-${item.idx}`}
+              item={item}
+              node={node}
+              mode={effectiveMode}
+              onChange={() => setHasUnsavedChanges(true)}
+            />
+          ))}
+        </div>
+      );
+    }
+
+    return <div className="text-muted-foreground p-4 bg-muted/50 rounded">Content type not supported by SSOT renderer</div>;
   };
-  
-  // Status indicators
-  const getStatusBadge = () => {
-    if (hasUnsavedChanges) return <Badge variant="outline">Unsaved</Badge>;
-    if (mode === 'edit') return <Badge variant="default">Editing</Badge>;
-    return null;
-  };
-  
+
   return (
     <Card className={cn("w-full", className)}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <h3 className="font-semibold">{label}</h3>
-            {getStatusBadge()}
+            <Button variant="ghost" size="sm" onClick={() => setIsCollapsed(!isCollapsed)} className="p-1 h-6 w-6">
+              {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+            <div>
+              <h3 className="font-semibold text-foreground">{label}</h3>
+              {showPath && <div className="text-xs text-muted-foreground mt-1">Address: {node.addr}</div>}
+            </div>
+            <div className="flex gap-1">
+              {hasUnsavedChanges && <Badge variant="outline" className="text-xs">Unsaved</Badge>}
+              {effectiveMode === 'edit' && <Badge variant="default" className="text-xs">Editing</Badge>}
+            </div>
           </div>
           
           <div className="flex items-center gap-2">
-            {mode === 'edit' ? (
+            {effectiveMode === 'edit' && (
               <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleCancelEdit}
-                >
-                  <X className="h-4 w-4 mr-1" />
-                  Cancel
+                <Button size="sm" onClick={handleSaveEdit} disabled={loading}>
+                  <Save className="h-3 w-3 mr-1" />Save
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={handleSaveEdit}
-                  disabled={!hasUnsavedChanges}
-                >
-                  <Save className="h-4 w-4 mr-1" />
-                  Save
+                <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={loading}>
+                  <X className="h-3 w-3 mr-1" />Cancel
                 </Button>
-              </>
-            ) : (
-              <>
-                {canEdit && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleStartEdit}
-                  >
-                    <Edit className="h-4 w-4 mr-1" />
-                    Edit
-                  </Button>
+                {hasValidateAction && (
+                  <CreditsButton onClick={handleValidate} credits={validateCredits} loading={loading} size="sm">
+                    Validate
+                  </CreditsButton>
                 )}
+              </>
+            )}
+            {effectiveMode === 'idle' && (
+              <>
+                <Button variant="ghost" size="sm" onClick={handleStartEdit}>
+                  <Edit2 className="h-3 w-3 mr-1" />Edit
+                </Button>
                 {hasGenerateAction && (
-                  <Button
-                    size="sm"
-                    onClick={handleGenerate}
-                  >
-                    <Play className="h-4 w-4 mr-1" />
+                  <CreditsButton onClick={handleGenerate} credits={generateCredits} loading={loading} size="sm">
                     Generate
-                  </Button>
+                  </CreditsButton>
                 )}
               </>
             )}
           </div>
         </div>
         
-        {description && (
-          <p className="text-sm text-muted-foreground">{description}</p>
-        )}
-        
-        {showPath && (
-          <p className="text-xs font-mono text-muted-foreground">{node.path}</p>
-        )}
-        
-        {lastSaved && (
-          <p className="text-xs text-muted-foreground">
-            Last saved: {format(lastSaved, 'HH:mm:ss')}
-          </p>
-        )}
+        {description && <p className="text-sm text-muted-foreground mt-2">{description}</p>}
       </CardHeader>
-      
-      <Collapsible open={!isCollapsed || mode === 'edit'} onOpenChange={setIsCollapsed}>
+
+      <Collapsible open={!isCollapsed} onOpenChange={setIsCollapsed}>
         <CardContent className="pt-0">
           <CollapsibleContent>
             {node.node_type === 'form' ? renderFormContent() : (
-              <div className="text-center p-8 text-muted-foreground">
-                <p>Unsupported node type: {node.node_type}</p>
-              </div>
-            )}
-            
-            {/* Debug info for development */}
-            {process.env.NODE_ENV === 'development' && (
-              <div className="mt-4 p-3 bg-muted rounded text-xs">
-                <h5 className="font-medium mb-2">Node Debug</h5>
-                <div className="space-y-1">
-                  <div>Fields: {fieldRefs.length}</div>
-                  <div>Field Refs: {fieldRefs.join(', ')}</div>
-                  <div>Unsaved: {hasUnsavedChanges ? 'Yes' : 'No'}</div>
-                  <div>Mode: {mode}</div>
-                </div>
-              </div>
+              <div className="text-muted-foreground">Node type '{node.node_type}' not supported by SSOT renderer.</div>
             )}
           </CollapsibleContent>
         </CardContent>
