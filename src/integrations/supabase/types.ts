@@ -559,6 +559,13 @@ export type Database = {
         Args: { p_job_id: string; p_path: unknown } | { p_node_id: string }
         Returns: Json
       }
+      get_function_pricing: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          price_in_credits: number
+        }[]
+      }
       get_n8n_function_id: {
         Args: { id_or_name: string }
         Returns: string

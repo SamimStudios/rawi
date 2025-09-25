@@ -38,6 +38,7 @@ export default function NodeRenderer({
 }: NodeRendererProps) {
   const { toast } = useToast();
   const { credits: userCredits } = useUserCredits();
+  const { getPrice, loading: pricingLoading } = useFunctionPricing();
   
   const [internalMode, setInternalMode] = useState<'idle' | 'edit'>('idle');
   const [isCollapsed, setIsCollapsed] = useState(false);

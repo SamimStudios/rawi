@@ -83,9 +83,38 @@ serve(async (req) => {
 
         // Navigate through JSON keys if provided
         for (const key of jsonKeys) {
-          if (result && typeof result === 'object' && key in result) {
+          if (result === null || result === undefined) {
+            console.log(`[ltree-resolver] Result is null/undefined at key "${key}"`);
+            break;
+          }
+          
+          // Handle SSOT form content structure
+          if (typeof result === 'object' && result.kind === 'FormContent' && key !== 'kind' && key !== 'version' && key !== 'items') {
+            // This is a field reference in SSOT form content
+            // Look for the field in the items array
+            if (Array.isArray(result.items)) {
+              const fieldItem = result.items.find((item: any) => 
+                item.kind === 'FieldItem' && item.ref === key
+              );
+              
+              if (fieldItem) {
+                result = fieldItem;
+                console.log(`[ltree-resolver] Found SSOT field "${key}":`, result);
+                continue;
+              } else {
+                console.log(`[ltree-resolver] SSOT field "${key}" not found in items`);
+                result = null;
+                break;
+              }
+            }
+          }
+          
+          // Regular object property navigation
+          if (typeof result === 'object' && key in result) {
             result = result[key];
+            console.log(`[ltree-resolver] Navigated to key "${key}":`, result);
           } else {
+            console.log(`[ltree-resolver] Key "${key}" not found in:`, result);
             result = null;
             break;
           }
@@ -134,19 +163,46 @@ serve(async (req) => {
 
           let currentContent = existingData?.content || {};
 
-          // Navigate to the parent object and set the final key
-          let target = currentContent;
+          // Handle SSOT form content structure for setting values
+          let current = currentContent;
+          
+          // Navigate to the target location, handling SSOT form content
           for (let i = 0; i < jsonKeys.length - 1; i++) {
             const key = jsonKeys[i];
-            if (!(key in target) || typeof target[key] !== 'object') {
-              target[key] = {};
+            
+            // Handle SSOT form content structure
+            if (typeof current === 'object' && current.kind === 'FormContent' && key !== 'kind' && key !== 'version' && key !== 'items') {
+              // This is a field reference in SSOT form content
+              if (Array.isArray(current.items)) {
+                let fieldItem = current.items.find((item: any) => 
+                  item.kind === 'FieldItem' && item.ref === key
+                );
+                
+                if (!fieldItem) {
+                  // Create the field item if it doesn't exist
+                  fieldItem = {
+                    kind: 'FieldItem',
+                    ref: key,
+                    idx: current.items.length + 1
+                  };
+                  current.items.push(fieldItem);
+                }
+                
+                current = fieldItem;
+                continue;
+              }
             }
-            target = target[key];
+            
+            // Regular object navigation
+            if (!(key in current) || typeof current[key] !== 'object') {
+              current[key] = {};
+            }
+            current = current[key];
           }
-
+          
           // Set the final value
           const finalKey = jsonKeys[jsonKeys.length - 1];
-          target[finalKey] = value;
+          current[finalKey] = value;
 
           // Update the node with modified content
           const { error: setError } = await supabase
