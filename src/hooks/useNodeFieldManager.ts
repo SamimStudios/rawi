@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useLtreeResolver } from './useLtreeResolver';
+import { useBatchedLtreeResolver } from './useBatchedLtreeResolver';
+import { useFieldRegistryCache } from './useFieldRegistryCache';
 import { createLtreeAddresses } from '@/lib/ltree/addresses';
 import { useFields, type FieldEntry } from './useFields';
 import type { JobNode } from './useJobs';
@@ -18,8 +19,8 @@ interface UseNodeFieldManagerProps {
 }
 
 export function useNodeFieldManager({ node, onUpdate }: UseNodeFieldManagerProps) {
-  const { getEntry } = useFields();
-  const { resolveValue, setValue } = useLtreeResolver();
+  const fieldCache = useFieldRegistryCache();
+  const batchedResolver = useBatchedLtreeResolver();
   
   // Field states - keyed by fieldRef for isolation
   const [fieldStates, setFieldStates] = useState<Record<string, FieldState>>({});
@@ -55,54 +56,88 @@ export function useNodeFieldManager({ node, onUpdate }: UseNodeFieldManagerProps
     return Array.from(new Set(refs));
   }, []);
 
-  // Initialize field data
+  // Initialize field data with batching
   useEffect(() => {
     const initializeFields = async () => {
       const fieldRefs = collectFieldRefs(node.content?.items || []);
-      const newFieldStates: Record<string, FieldState> = {};
-      const newFieldEntries: Record<string, FieldEntry | null> = {};
       
-      console.log(`[FIELD MANAGER] Initializing ${fieldRefs.length} fields for node:`, node.path);
+      if (fieldRefs.length === 0) {
+        console.log(`[FIELD MANAGER] No fields to initialize for node: ${node.path}`);
+        return;
+      }
       
-      for (const fieldRef of fieldRefs) {
-        try {
-          // Load field entry from registry
-          const fieldEntry = await getEntry(fieldRef);
-          newFieldEntries[fieldRef] = fieldEntry;
-          
-          // Load current value via ltree with proper address isolation
+      console.log(`[FIELD MANAGER] Batch initializing ${fieldRefs.length} fields for node:`, node.path);
+      
+      try {
+        // Batch load field entries from cache
+        const entries = await fieldCache.getCachedEntries(fieldRefs);
+        setFieldEntries(entries);
+        
+        // Batch load field values from ltree
+        const fieldAddresses = fieldRefs.map(ref => addresses.fieldValue(ref));
+        const valuesByAddress = await batchedResolver.batchResolveMultiple(node.job_id, fieldAddresses);
+        
+        // Convert address-based results back to field-ref-based
+        const fieldValues: Record<string, any> = {};
+        const initialStates: Record<string, FieldState> = {};
+        
+        fieldRefs.forEach(fieldRef => {
           const address = addresses.fieldValue(fieldRef);
-          console.log(`[FIELD MANAGER] Loading ${fieldRef} from ${address}`);
+          const value = valuesByAddress[address];
           
-          const currentValue = await resolveValue(node.job_id, address);
-          
-          newFieldStates[fieldRef] = {
-            value: currentValue,
+          fieldValues[fieldRef] = value;
+          initialStates[fieldRef] = {
+            value,
             loading: false,
             isDirty: false,
             error: undefined
           };
           
-          console.log(`[FIELD MANAGER] Loaded ${fieldRef}:`, currentValue);
-          
-        } catch (error) {
-          console.error(`[FIELD MANAGER] Failed to initialize field ${fieldRef}:`, error);
-          newFieldEntries[fieldRef] = null;
-          newFieldStates[fieldRef] = {
-            value: undefined,
-            loading: false,
-            isDirty: false,
-            error: error instanceof Error ? error.message : 'Failed to load field'
-          };
+          console.log(`[FIELD MANAGER] Initialized ${fieldRef} with value:`, value);
+        });
+        
+        setFieldStates(initialStates);
+        
+      } catch (error) {
+        console.error(`[FIELD MANAGER] Batch initialization failed:`, error);
+        
+        // Fallback to individual loading
+        const fallbackEntries: Record<string, FieldEntry | null> = {};
+        const fallbackStates: Record<string, FieldState> = {};
+        
+        for (const fieldRef of fieldRefs) {
+          try {
+            const entry = await fieldCache.getCachedEntry(fieldRef);
+            fallbackEntries[fieldRef] = entry;
+            
+            const address = addresses.fieldValue(fieldRef);
+            const value = await batchedResolver.batchResolveValue(node.job_id, address);
+            
+            fallbackStates[fieldRef] = {
+              value,
+              loading: false,
+              isDirty: false,
+              error: undefined
+            };
+          } catch (fieldError) {
+            console.error(`[FIELD MANAGER] Failed to load field ${fieldRef}:`, fieldError);
+            fallbackEntries[fieldRef] = null;
+            fallbackStates[fieldRef] = {
+              value: undefined,
+              loading: false,
+              isDirty: false,
+              error: fieldError instanceof Error ? fieldError.message : 'Failed to load field'
+            };
+          }
         }
+        
+        setFieldEntries(fallbackEntries);
+        setFieldStates(fallbackStates);
       }
-      
-      setFieldEntries(newFieldEntries);
-      setFieldStates(newFieldStates);
     };
     
     initializeFields();
-  }, [node.content?.items, node.job_id, node.path, getEntry, addresses, resolveValue, collectFieldRefs]);
+  }, [node.content?.items, node.job_id, node.path, fieldCache, batchedResolver, collectFieldRefs]);
 
   // Get field value with proper isolation
   const getFieldValue = useCallback((fieldRef: string): any => {
@@ -111,12 +146,12 @@ export function useNodeFieldManager({ node, onUpdate }: UseNodeFieldManagerProps
     return state?.value;
   }, [fieldStates]);
 
-  // Set field value with proper isolation and debounced auto-save
+  // Set field value with batching and optimistic updates
   const setFieldValue = useCallback(async (fieldRef: string, value: any) => {
     const address = addresses.fieldValue(fieldRef);
     console.log(`[FIELD MANAGER] Setting ${fieldRef} to:`, value, 'Address:', address);
     
-    // Update local state immediately (optimistic update)
+    // Optimistic update - update UI immediately
     setFieldStates(prev => ({
       ...prev,
       [fieldRef]: {
@@ -129,8 +164,8 @@ export function useNodeFieldManager({ node, onUpdate }: UseNodeFieldManagerProps
     }));
     
     try {
-      // Save to ltree backend
-      await setValue(node.job_id, address, value);
+      // Save to ltree backend using batched resolver
+      await batchedResolver.batchSetValue(node.job_id, address, value);
       
       // Mark as successfully saved
       setFieldStates(prev => ({
@@ -155,10 +190,12 @@ export function useNodeFieldManager({ node, onUpdate }: UseNodeFieldManagerProps
           console.log(`[FIELD MANAGER] Auto-saving ${pendingChangesRef.current.size} changed fields`);
           saveToNodeContent();
         }
-      }, 1000); // 1 second debounce
+      }, 500); // Reduced debounce for better responsiveness
       
     } catch (error) {
       console.error(`[FIELD MANAGER] Failed to save field ${fieldRef}:`, error);
+      
+      // Revert optimistic update on error
       setFieldStates(prev => ({
         ...prev,
         [fieldRef]: {
@@ -168,7 +205,7 @@ export function useNodeFieldManager({ node, onUpdate }: UseNodeFieldManagerProps
         }
       }));
     }
-  }, [addresses, setValue, node.job_id, onUpdate]);
+  }, [addresses, batchedResolver, node.job_id, onUpdate]);
 
   // Save all dirty fields to node content structure
   const saveToNodeContent = useCallback(async () => {
@@ -268,8 +305,9 @@ export function useNodeFieldManager({ node, onUpdate }: UseNodeFieldManagerProps
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current);
       }
+      batchedResolver.cleanup();
     };
-  }, []);
+  }, [batchedResolver]);
 
   return {
     // Field data access
@@ -286,6 +324,10 @@ export function useNodeFieldManager({ node, onUpdate }: UseNodeFieldManagerProps
     isLoading,
     
     // Field refs for iteration
-    fieldRefs: collectFieldRefs(node.content?.items || [])
+    fieldRefs: collectFieldRefs(node.content?.items || []),
+    
+    // Performance debugging
+    getBatchStats: () => batchedResolver.getQueueStats(),
+    getCacheStats: () => fieldCache.getCacheStats()
   };
 }

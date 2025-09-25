@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useNodeFieldManager } from '@/hooks/useNodeFieldManager';
 import SystematicFieldRenderer from './SystematicFieldRenderer';
+import FieldManagerDebugPanel from '../FieldManagerDebugPanel';
 import type { JobNode } from '@/hooks/useJobs';
 
 interface NodeRendererProps {
@@ -333,6 +334,16 @@ export default function NodeRenderer({
               <div className="text-center p-8 text-muted-foreground">
                 <p>Unsupported node type: {node.node_type}</p>
               </div>
+            )}
+            
+            {/* Debug Panel - only show in development or when needed */}
+            {process.env.NODE_ENV === 'development' && (
+              <FieldManagerDebugPanel
+                getBatchStats={fieldManager.getBatchStats}
+                getCacheStats={fieldManager.getCacheStats}
+                fieldRefs={fieldManager.fieldRefs}
+                className="mt-4"
+              />
             )}
           </CollapsibleContent>
         </CardContent>
