@@ -35,7 +35,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import SystematicFieldRenderer from './SystematicFieldRenderer';
 import { useFields, type FieldEntry } from '@/hooks/useFields';
-import { useNodeState } from '@/hooks/useNodeState';
+import { useNodeData } from '@/hooks/useNodeData';
 import { useDependencies } from '@/hooks/useDependencies';
 import { JobNode } from '@/hooks/useJobs';
 
@@ -67,13 +67,17 @@ export default function SystematicNodeRenderer({
 
   const {
     nodeContent,
-    updateField,
+    setFieldValue,
     hasUnsavedChanges,
     isAutoSaving,
-    fieldErrors
-  } = useNodeState({ 
+    fieldErrors,
+    fieldStates,
+    validateAllFields,
+    addresses
+  } = useNodeData({ 
     node, 
-    onUpdate: async (content) => await onUpdate(node.id, content) 
+    onUpdate: async (nodeId: string, content: any) => await onUpdate(nodeId, content),
+    autoSave: true
   });
 
   const {
@@ -209,7 +213,9 @@ export default function SystematicNodeRenderer({
           key={item.ref || index}
           field={fieldEntry}
           value={item.value}
-          onChange={(newValue) => updateField(item.ref, newValue)}
+          onChange={(newValue) => setFieldValue(item.ref, newValue)}
+          loading={fieldStates[item.ref]?.loading}
+          error={fieldStates[item.ref]?.error || fieldErrors[item.ref]}
         />
       );
     };

@@ -14,7 +14,9 @@ import type { FieldEntry } from '@/hooks/useFields';
 interface SystematicFieldRendererProps {
   field: FieldEntry;
   value?: any;
-  onChange: (value: any) => void;
+  onChange: (value: any) => void | Promise<void>;
+  loading?: boolean;
+  error?: string;
   className?: string;
 }
 
@@ -22,10 +24,15 @@ export default function SystematicFieldRenderer({
   field, 
   value, 
   onChange, 
+  loading = false,
+  error: externalError,
   className 
 }: SystematicFieldRendererProps) {
-  const [error, setError] = useState<string | null>(null);
+  const [internalError, setInternalError] = useState<string | null>(null);
   const [charCount, setCharCount] = useState(0);
+
+  // Use external error if provided, otherwise use internal validation error
+  const error = externalError || internalError;
 
   // Extract field properties
   const label = field.ui?.label?.fallback || field.ui?.label?.key || field.id;
@@ -85,14 +92,20 @@ export default function SystematicFieldRenderer({
       }
     }
 
-    setError(errorMsg);
+    setInternalError(errorMsg);
     return !errorMsg;
   }, [field.rules, label]);
 
   // Handle value change with validation
-  const handleChange = useCallback((newValue: any) => {
-    onChange(newValue);
-    validateValue(newValue);
+  const handleChange = useCallback(async (newValue: any) => {
+    try {
+      await onChange(newValue);
+      validateValue(newValue);
+    } catch (error) {
+      // If onChange is async and fails, show the error
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update field';
+      setInternalError(errorMessage);
+    }
   }, [onChange, validateValue]);
 
   // Render different widgets based on field.widget
@@ -108,6 +121,7 @@ export default function SystematicFieldRenderer({
               onChange={(e) => handleChange(e.target.value)}
               placeholder={placeholder}
               className={cn(error && "border-destructive")}
+              disabled={loading}
             />
             {(field.rules?.maxLength || field.rules?.minLength) && (
               <div className="flex justify-between text-xs text-muted-foreground">
@@ -137,6 +151,7 @@ export default function SystematicFieldRenderer({
               onChange={(e) => handleChange(e.target.value)}
               placeholder={placeholder}
               className={cn(error && "border-destructive")}
+              disabled={loading}
               rows={4}
             />
             {field.rules?.maxLength && (
@@ -158,6 +173,7 @@ export default function SystematicFieldRenderer({
           <Select 
             value={currentValue || ''} 
             onValueChange={handleChange}
+            disabled={loading}
           >
             <SelectTrigger className={cn(error && "border-destructive")}>
               <SelectValue placeholder={placeholder || 'Select an option'} />
