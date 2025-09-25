@@ -82,6 +82,7 @@ export function FieldHybridRenderer({
       onChange={handleValueChange}
       loading={loading}
       error={error}
+      mode={mode}
     />
   );
 }

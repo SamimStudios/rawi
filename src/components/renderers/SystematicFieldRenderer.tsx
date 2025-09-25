@@ -18,6 +18,7 @@ interface SystematicFieldRendererProps {
   loading?: boolean;
   error?: string;
   className?: string;
+  mode?: 'idle' | 'edit';
 }
 
 export default function SystematicFieldRenderer({ 
@@ -26,7 +27,8 @@ export default function SystematicFieldRenderer({
   onChange, 
   loading = false,
   error: externalError,
-  className 
+  className,
+  mode = 'edit'
 }: SystematicFieldRendererProps) {
   const [internalError, setInternalError] = useState<string | null>(null);
   const [charCount, setCharCount] = useState(0);
@@ -111,18 +113,23 @@ export default function SystematicFieldRenderer({
   // Render different widgets based on field.widget
   const renderWidget = () => {
     const currentValue = value !== undefined ? value : defaultValue;
+    const isReadOnly = mode === 'idle';
 
     switch (field.widget) {
       case 'text':
         return (
           <div className="space-y-1">
-            <Input
-              value={currentValue || ''}
-              onChange={(e) => handleChange(e.target.value)}
-              placeholder={placeholder}
-              className={cn(error && "border-destructive")}
-              disabled={loading}
-            />
+            {isReadOnly ? (
+              <div className="px-3 py-2 text-sm">{currentValue || '-'}</div>
+            ) : (
+              <Input
+                value={currentValue || ''}
+                onChange={(e) => handleChange(e.target.value)}
+                placeholder={placeholder}
+                className={cn(error && "border-destructive")}
+                disabled={loading}
+              />
+            )}
             {(field.rules?.maxLength || field.rules?.minLength) && (
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>
@@ -146,14 +153,18 @@ export default function SystematicFieldRenderer({
       case 'textarea':
         return (
           <div className="space-y-1">
-            <Textarea
-              value={currentValue || ''}
-              onChange={(e) => handleChange(e.target.value)}
-              placeholder={placeholder}
-              className={cn(error && "border-destructive")}
-              disabled={loading}
-              rows={4}
-            />
+            {isReadOnly ? (
+              <div className="px-3 py-2 text-sm whitespace-pre-wrap">{currentValue || '-'}</div>
+            ) : (
+              <Textarea
+                value={currentValue || ''}
+                onChange={(e) => handleChange(e.target.value)}
+                placeholder={placeholder}
+                className={cn(error && "border-destructive")}
+                disabled={loading}
+                rows={4}
+              />
+            )}
             {field.rules?.maxLength && (
               <div className="flex justify-end text-xs text-muted-foreground">
                 <span className={cn(
@@ -169,6 +180,14 @@ export default function SystematicFieldRenderer({
 
       case 'select':
         const options = field.options?.values || [];
+        if (isReadOnly) {
+          const selectedOption = options.find((opt: any) => opt.value === currentValue);
+          return (
+            <div className="px-3 py-2 text-sm">
+              {selectedOption?.label?.fallback || selectedOption?.label || currentValue || '-'}
+            </div>
+          );
+        }
         return (
           <Select 
             value={currentValue || ''} 
@@ -210,12 +229,18 @@ export default function SystematicFieldRenderer({
       case 'checkbox':
         return (
           <div className={cn("flex items-center space-x-2", error && "text-destructive")}>
-            <Checkbox
-              checked={currentValue || false}
-              onCheckedChange={handleChange}
-              id={field.id}
-            />
-            <Label htmlFor={field.id}>{label}</Label>
+            {isReadOnly ? (
+              <div className="text-sm">{currentValue ? '✓ Yes' : '✗ No'}</div>
+            ) : (
+              <>
+                <Checkbox
+                  checked={currentValue || false}
+                  onCheckedChange={handleChange}
+                  id={field.id}
+                />
+                <Label htmlFor={field.id}>{label}</Label>
+              </>
+            )}
           </div>
         );
 
