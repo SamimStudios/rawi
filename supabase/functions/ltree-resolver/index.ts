@@ -59,7 +59,8 @@ serve(async (req) => {
       case 'resolve': {
         // Get data from ltree address using app.nodes table
         const { data: nodeData, error: nodeError } = await supabase
-          .from('app.nodes')
+          .schema('app')
+          .from('nodes')
           .select('content')
           .eq('job_id', job_id)
           .eq('addr', ltreePath)
@@ -106,7 +107,8 @@ serve(async (req) => {
         if (jsonKeys.length === 0) {
           // Direct ltree path update - update entire content
           const { error: setError } = await supabase
-            .from('app.nodes')
+            .schema('app')
+            .from('nodes')
             .upsert({
               job_id,
               addr: ltreePath,
@@ -123,7 +125,8 @@ serve(async (req) => {
         } else {
           // JSON path update - need to get existing content first
           const { data: existingData, error: getError } = await supabase
-            .from('app.nodes')
+            .schema('app')
+            .from('nodes')
             .select('content')
             .eq('job_id', job_id)
             .eq('addr', ltreePath)
@@ -147,7 +150,8 @@ serve(async (req) => {
 
           // Update the node with modified content
           const { error: setError } = await supabase
-            .from('app.nodes')
+            .schema('app')
+            .from('nodes')
             .upsert({
               job_id,
               addr: ltreePath,
@@ -175,7 +179,8 @@ serve(async (req) => {
 
       case 'exists': {
         const { data: existsData, error: existsError } = await supabase
-          .from('app.nodes')
+          .schema('app')
+          .from('nodes')
           .select('addr')
           .eq('job_id', job_id)
           .eq('addr', ltreePath)
@@ -191,7 +196,8 @@ serve(async (req) => {
         // If node exists and we have json keys, check if the json path exists
         if (nodeExists && jsonKeys.length > 0) {
           const { data: contentData } = await supabase
-            .from('app.nodes')
+            .schema('app')
+            .from('nodes')
             .select('content')
             .eq('job_id', job_id)
             .eq('addr', ltreePath)
@@ -221,7 +227,8 @@ serve(async (req) => {
       case 'list_children': {
         // List child nodes under the given ltree path
         const { data: childrenData, error: childrenError } = await supabase
-          .from('app.nodes')
+          .schema('app')
+          .from('nodes')
           .select('addr')
           .eq('job_id', job_id)
           .like('addr', `${ltreePath}.%`);

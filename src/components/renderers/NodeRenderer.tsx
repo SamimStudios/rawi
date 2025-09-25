@@ -12,6 +12,7 @@ import { FormItemRenderer } from './FormItemRenderer';
 import { ContentValidation, FormContent } from '@/lib/content-contracts';
 import { CreditsButton } from '@/components/ui/credits-button';
 import { useToast } from '@/hooks/use-toast';
+import { useUserCredits } from '@/hooks/useUserCredits';
 import { supabase } from '@/integrations/supabase/client';
 import type { JobNode } from '@/hooks/useJobs';
 
@@ -35,6 +36,7 @@ export default function NodeRenderer({
   className
 }: NodeRendererProps) {
   const { toast } = useToast();
+  const { credits: userCredits } = useUserCredits();
   
   const [internalMode, setInternalMode] = useState<'idle' | 'edit'>('idle');
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -51,11 +53,18 @@ export default function NodeRenderer({
   const description = node.content?.description?.fallback;
   const hasValidateAction = node.validate_n8n_id;
   const hasGenerateAction = node.generate_n8n_id;
+  
+  // Get current credit balance
+  const currentCredits = userCredits || 0;
+  
+  // Define credit costs for actions (could be made configurable later)
+  const validateCost = 5;
+  const generateCost = 10;
 
-  // Mock credits for now (database tables not yet created)
+  // Set credit costs for the CreditsButton components
   useEffect(() => {
-    setValidateCredits(5);
-    setGenerateCredits(10);
+    setValidateCredits(validateCost);
+    setGenerateCredits(generateCost);
   }, []);
 
   const handleStartEdit = () => setEffectiveMode('edit');
