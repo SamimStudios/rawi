@@ -13,9 +13,10 @@ import { useHybridValue, useAddressValidation, useAddressExists } from '@/lib/lt
 import { HybridAddrService } from '@/lib/ltree/service';
 
 export default function LtreeTesterPage() {
-  const [jobId, setJobId] = useState('');
+  // Pre-fill with real job ID from your database
+  const [jobId, setJobId] = useState('7d6e3fe9-5ed8-4e27-9a9c-eb3f80d9d0ce');
   const [address, setAddress] = useState('');
-  const [jsonValue, setJsonValue] = useState('{\n  "example": "value"\n}');
+  const [jsonValue, setJsonValue] = useState('{\n  "example": "Test Value"\n}');
   const [mode, setMode] = useState<'read' | 'write'>('read');
   const { toast } = useToast();
 
@@ -68,26 +69,36 @@ export default function LtreeTesterPage() {
 
   const exampleAddresses = [
     {
-      label: "User Input Field",
-      address: "root.user_input#preferences.size",
-      description: "Access a nested JSON field in user input node"
+      label: "User Input - Size Field",
+      address: "user_input#items.0.value",
+      description: "Access the size field value in user input"
     },
     {
-      label: "Scene Instance",
-      address: "root.scenes.s1.shots.instances.i3#vo_line",
-      description: "Access specific instance data in a collection"
+      label: "User Input - Character Name",
+      address: "user_input#items.4.children.0.children.0.value",
+      description: "Access lead character name in user input"
     },
     {
-      label: "Character Data",
-      address: "root.characters.lead",
-      description: "Pure ltree path (entire node content)"
+      label: "Movie Info - Title",
+      address: "movie_info#items.0.value",
+      description: "Access movie title field"
     },
     {
-      label: "Payload Slot",
-      address: "root.generation.output#payload.results",
-      description: "Standard payload output location"
+      label: "Movie Info Node (Full Content)",
+      address: "movie_info",
+      description: "Get entire movie_info node content"
+    },
+    {
+      label: "User Input Node (Full Content)", 
+      address: "user_input",
+      description: "Get entire user_input node content"
     }
   ];
+
+  // Pre-fill with real job ID from your database
+  const [jobId, setJobId] = useState('7d6e3fe9-5ed8-4e27-9a9c-eb3f80d9d0ce');
+  const [address, setAddress] = useState('');
+  const [jsonValue, setJsonValue] = useState('{\n  "example": "Test Value"\n}');
 
   return (
     <div className="container mx-auto p-6 space-y-6">
