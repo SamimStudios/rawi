@@ -47,14 +47,18 @@ export class HybridAddrService {
    */
   static async getItemAt({ jobId, address }: HybridAddrOptions): Promise<any> {
     try {
-      const { data, error } = await (supabase as any).schema('app').rpc('json_resolve_by_path', {
-        p_job_id: jobId,
-        p_address: address
+      const { data, error } = await supabase.functions.invoke('ltree-resolver', {
+        body: {
+          operation: 'resolve',
+          job_id: jobId,
+          address: address
+        }
       });
 
-      if (error) throw this.createRpcError(error);
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || 'LTree operation failed');
       
-      return data;
+      return data.data;
     } catch (error) {
       throw this.handleError(error, `getItemAt(${jobId}, ${address})`);
     }
@@ -65,15 +69,19 @@ export class HybridAddrService {
    */
   static async setItemAt({ jobId, address, value }: SetValueOptions): Promise<any> {
     try {
-      const { data, error } = await (supabase as any).schema('app').rpc('json_set_by_path', {
-        p_job_id: jobId,
-        p_address: address,
-        p_value: JSON.stringify(value)
+      const { data, error } = await supabase.functions.invoke('ltree-resolver', {
+        body: {
+          operation: 'set',
+          job_id: jobId,
+          address: address,
+          value: value
+        }
       });
 
-      if (error) throw this.createRpcError(error);
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || 'LTree operation failed');
       
-      return data;
+      return data.data;
     } catch (error) {
       throw this.handleError(error, `setItemAt(${jobId}, ${address})`);
     }
@@ -168,15 +176,20 @@ export class HybridAddrService {
    */
   static async addressExists(jobId: JobID, address: HybridAddr): Promise<boolean> {
     try {
-      await this.getItemAt({ jobId, address });
-      return true;
+      const { data, error } = await supabase.functions.invoke('ltree-resolver', {
+        body: {
+          operation: 'exists',
+          job_id: jobId,
+          address: address
+        }
+      });
+
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || 'LTree operation failed');
+      
+      return data.exists;
     } catch (error) {
-      // If it's a "not found" error, return false
-      if (error instanceof Error && error.message.includes('Node not found')) {
-        return false;
-      }
-      // Re-throw other errors
-      throw error;
+      throw this.handleError(error, `addressExists(${jobId}, ${address})`);
     }
   }
 
