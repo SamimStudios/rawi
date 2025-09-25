@@ -149,9 +149,7 @@ export function FieldHybridRenderer({
       onChange={handleValueChange}
       loading={valueLoading}
       error={valueError}
-      mode={mode}
-      disabled={!editable || mode === 'idle'}
-      required={required}
+      mode={!editable ? 'idle' : mode}
     />
   );
 }
