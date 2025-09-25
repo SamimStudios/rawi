@@ -1,3 +1,14 @@
+/**
+ * SystematicFieldRenderer - Final UI field renderer component
+ * 
+ * This is the main field rendering component that handles all widget types
+ * and UI presentation. It should be used through FieldHybridRenderer for
+ * data integration with the ltree address system.
+ * 
+ * Architecture:
+ * - SystematicFieldRenderer: Final UI renderer (this file)
+ * - FieldHybridRenderer: Data connector using ltree addresses
+ */
 import React, { useState, useCallback, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

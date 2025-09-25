@@ -1,3 +1,13 @@
+/**
+ * FieldHybridRenderer - Data connector for field rendering
+ * 
+ * This component acts as a data layer that connects to the ltree address
+ * system and delegates UI rendering to SystematicFieldRenderer.
+ * 
+ * Architecture:
+ * - FieldHybridRenderer: Data connector using ltree addresses (this file)
+ * - SystematicFieldRenderer: Final UI renderer
+ */
 import React from 'react';
 import { useHybridValue } from '@/lib/ltree/hooks';
 import SystematicFieldRenderer from './SystematicFieldRenderer';
