@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import ModernNodeRenderer from '@/components/renderers/ModernNodeRenderer';
+import NodeRenderer from '@/components/renderers/NodeRenderer';
 import { useNodeEditor } from '@/hooks/useNodeEditor';
 
 // Mock nodes for demonstration
@@ -36,7 +36,7 @@ export default function NodeRendererPage() {
       
       <div className="space-y-6">
         {nodes.map(node => (
-          <ModernNodeRenderer
+          <NodeRenderer
             key={node.id}
             node={node}
             onUpdate={async () => {}}

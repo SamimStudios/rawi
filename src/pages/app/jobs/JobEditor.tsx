@@ -148,9 +148,16 @@ export default function JobEditor() {
                 <NodeRenderer
                   key={node.id}
                   node={node}
-                  onUpdate={async (content) => await handleNodeUpdate(node.id, content)}
-                  editingNodeId={editingNodeId}
-                  onEditingNodeChange={setEditingNodeId}
+                  onUpdate={async (nodeId, content) => await handleNodeUpdate(nodeId, content)}
+                  mode={editingNodeId === node.id ? 'edit' : 'idle'}
+                  onModeChange={(mode) => {
+                    if (mode === 'edit') {
+                      setEditingNodeId(node.id);
+                    } else {
+                      setEditingNodeId(null);
+                    }
+                  }}
+                  showPath={true}
                 />
                 ))}
               </div>
