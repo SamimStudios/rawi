@@ -54,7 +54,7 @@ serve(async (req) => {
           .rpc('json_set_by_path', {
             p_job_id: job_id,
             p_address: address,
-            p_value: JSON.stringify(value)
+            p_value: value
           })
 
         if (error) throw error
