@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import NodeRenderer from '@/components/renderers/NodeRenderer';
+import ModernNodeRenderer from '@/components/renderers/ModernNodeRenderer';
 import { useNodeEditor } from '@/hooks/useNodeEditor';
 
 // Mock nodes for demonstration
@@ -17,7 +17,11 @@ const mockNodes = [
     },
     generate_n8n_id: 'gen-123',
     updated_at: new Date().toISOString(),
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
+    job_id: 'mock-job-id',
+    dependencies: [],
+    removable: true,
+    arrangeable: true
   }
 ];
 
@@ -32,12 +36,19 @@ export default function NodeRendererPage() {
       
       <div className="space-y-6">
         {nodes.map(node => (
-          <NodeRenderer
+          <ModernNodeRenderer
             key={node.id}
             node={node}
             onUpdate={async () => {}}
-            editingNodeId={editingNodeId}
-            onEditingNodeChange={setEditingNodeId}
+            mode={editingNodeId === node.id ? 'edit' : 'idle'}
+            onModeChange={(mode) => {
+              if (mode === 'edit') {
+                setEditingNodeId(node.id);
+              } else {
+                setEditingNodeId(null);
+              }
+            }}
+            showPath={true}
           />
         ))}
       </div>
