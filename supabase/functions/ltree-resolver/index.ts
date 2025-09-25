@@ -32,7 +32,7 @@ serve(async (req) => {
       case 'resolve': {
         const { data, error } = await supabaseClient
           .schema('app')
-          .rpc('json_resolve_strict', {
+          .rpc('json_resolve_by_path', {
             p_job_id: job_id,
             p_address: address
           })
@@ -49,42 +49,18 @@ serve(async (req) => {
       }
 
       case 'set': {
-        // For setting values, we'll need to use a custom function
-        // For now, let's use a direct update approach
-        const pathParts = address.split('.')
-        const nodePath = pathParts[0]
-        const jsonPath = pathParts.slice(1).join('.')
-
-        // Get the node first
-        const { data: node, error: nodeError } = await supabaseClient
+        const { data, error } = await supabaseClient
           .schema('app')
-          .from('nodes')
-          .select('id, content')
-          .eq('job_id', job_id)
-          .eq('path', nodePath)
-          .single()
-
-        if (nodeError) throw nodeError
-
-        // Build the jsonb_set path
-        const jsonbPath = '{' + jsonPath.split('.').join(',') + '}'
-        
-        const { error: updateError } = await supabaseClient
-          .schema('app')
-          .from('nodes')
-          .update({ 
-            content: supabaseClient.rpc('jsonb_set', {
-              target: node.content,
-              path: jsonbPath,
-              new_value: JSON.stringify(value)
-            })
+          .rpc('json_set_by_path', {
+            p_job_id: job_id,
+            p_address: address,
+            p_value: JSON.stringify(value)
           })
-          .eq('id', node.id)
 
-        if (updateError) throw updateError
+        if (error) throw error
 
         return new Response(
-          JSON.stringify({ success: true }),
+          JSON.stringify({ success: true, data }),
           { 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 200 
@@ -96,7 +72,7 @@ serve(async (req) => {
         try {
           const { data, error } = await supabaseClient
             .schema('app')
-            .rpc('json_resolve_strict', {
+            .rpc('json_resolve_by_path', {
               p_job_id: job_id,
               p_address: address
             })

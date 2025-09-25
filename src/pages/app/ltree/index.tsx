@@ -70,28 +70,33 @@ export default function LtreeTesterPage() {
   const exampleAddresses = [
     {
       label: "User Input - Size Field",
-      address: "user_input#items.0.value",
-      description: "Access the size field value in user input"
+      address: "user_input#size.value",
+      description: "Access the size field value using path-based addressing"
     },
     {
-      label: "User Input - Character Name",
-      address: "user_input#items.4.children.0.children.0.value",
-      description: "Access lead character name in user input"
+      label: "User Input - Lead Character Name",
+      address: "user_input#characters.lead.character_name.value",
+      description: "Access lead character name using path-based addressing"
     },
     {
-      label: "Movie Info - Title",
-      address: "movie_info#items.0.value",
-      description: "Access movie title field"
+      label: "User Input - Supporting Character Gender", 
+      address: "user_input#characters.supporting.character_gender.value",
+      description: "Access supporting character gender using path-based addressing"
     },
     {
-      label: "Movie Info Node (Full Content)",
-      address: "movie_info",
-      description: "Get entire movie_info node content"
+      label: "User Input - Language Field",
+      address: "user_input#language.value",
+      description: "Access the language field value"
     },
     {
       label: "User Input Node (Full Content)", 
       address: "user_input",
       description: "Get entire user_input node content"
+    },
+    {
+      label: "User Input - Characters Section",
+      address: "user_input#characters",
+      description: "Get the characters section content"
     }
   ];
 
