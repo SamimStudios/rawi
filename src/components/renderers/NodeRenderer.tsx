@@ -1,20 +1,11 @@
 /**
- * NodeRenderer - Advanced form node rendering component with field isolation
- * 
- * This component renders job nodes with proper field-level state management using
- * the ltree address system for unique field identification and storage.
+ * NodeRenderer - Renders job nodes using ltree hybrid address system
  * 
  * Key Features:
- * - Uses ltree addresses (job_id.node_path.field_ref) for field isolation
- * - Batched field operations for performance optimization
- * - Optimistic UI updates with proper error handling
- * - Debounced auto-save to prevent excessive API calls
- * - Field-level loading and error states
- * - Supports nested sections and collection instances
- * 
- * Address System:
- * Each field gets a unique ltree address: {job_id}.{node_path}.fields.{field_ref}
- * This ensures complete isolation between fields across different nodes/jobs
+ * - Direct field rendering with ltree addresses: {node.path}#{fieldRef}.value
+ * - No intermediate state management - fields manage their own state
+ * - Simple field discovery from node content
+ * - Proper mode handling (idle/edit)
  */
 import React, { useState, useCallback, useEffect } from 'react';
 import { format } from 'date-fns';
@@ -27,8 +18,7 @@ import {
   AlertCircle, 
   Clock,
   Save,
-  X,
-  RotateCcw
+  X
 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,10 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { useNodeFieldManager } from '@/hooks/useNodeFieldManager';
-import SystematicFieldRenderer from './SystematicFieldRenderer';
 import { FieldHybridRenderer } from './FieldHybridRenderer';
-import FieldManagerDebugPanel from '../FieldManagerDebugPanel';
 import type { JobNode } from '@/hooks/useJobs';
 
 interface NodeRendererProps {
@@ -63,14 +50,11 @@ export default function NodeRenderer({
 }: NodeRendererProps) {
   const { toast } = useToast();
   
-  // Initialize field manager with ltree address system integration
-  // This handles all field-level operations using unique addresses: {job_id}.{node_path}.fields.{field_ref}
-  const fieldManager = useNodeFieldManager({ node, onUpdate });
-  
   // Local UI state management
   const [internalMode, setInternalMode] = useState<'idle' | 'edit'>('idle');
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   
   // Mode can be controlled externally or internally
   const mode = externalMode || internalMode;
@@ -83,31 +67,44 @@ export default function NodeRenderer({
   const label = nodeContent?.label?.fallback || nodeContent?.label?.key || node.path;
   const description = nodeContent?.description?.fallback || '';
   const hasGenerateAction = Boolean(node.generate_n8n_id);
-  const canEdit = node.node_type === 'form' && fieldManager.fieldRefs.length > 0;
-  const isEmpty = isNodeEmpty();
+  
+  // Discover fields from node content
+  const fieldRefs = discoverFieldRefs(nodeContent);
+  const canEdit = node.node_type === 'form' && fieldRefs.length > 0;
   
   /**
-   * Check if node is empty by examining all field values through the address system
-   * This uses the field manager's ltree-based value resolution
+   * Recursively discover field references from node content
    */
-  function isNodeEmpty(): boolean {
-    if (node.node_type !== 'form') return false;
+  function discoverFieldRefs(content: any): string[] {
+    const refs: string[] = [];
     
-    return fieldManager.fieldRefs.every(ref => {
-      // Get field value using ltree address: {job_id}.{node_path}.fields.{field_ref}
-      const value = fieldManager.getFieldValue(ref);
-      return !value || 
-             (typeof value === 'string' && value.trim() === '') ||
-             (Array.isArray(value) && value.length === 0);
-    });
+    function traverse(obj: any) {
+      if (!obj || typeof obj !== 'object') return;
+      
+      if (obj.kind === 'FieldItem' && obj.ref) {
+        refs.push(obj.ref);
+      }
+      
+      // Traverse arrays and objects
+      Object.values(obj).forEach(value => {
+        if (Array.isArray(value)) {
+          value.forEach(traverse);
+        } else if (typeof value === 'object') {
+          traverse(value);
+        }
+      });
+    }
+    
+    traverse(content);
+    return refs;
   }
   
   // Auto-edit behavior for empty first nodes
   useEffect(() => {
-    if (node.idx === 1 && isEmpty && !hasGenerateAction && canEdit && mode === 'idle') {
+    if (node.idx === 1 && canEdit && mode === 'idle') {
       setMode('edit');
     }
-  }, [node.idx, isEmpty, hasGenerateAction, canEdit, mode, setMode]);
+  }, [node.idx, canEdit, mode, setMode]);
   
   // Mode handlers
   const handleStartEdit = useCallback(() => {
@@ -116,20 +113,13 @@ export default function NodeRenderer({
   }, [setMode]);
   
   /**
-   * Save edit handler - commits all field changes using ltree addresses
-   * 
-   * Process:
-   * 1. Field manager saves all dirty fields to their ltree addresses
-   * 2. Node content is updated with current field values
-   * 3. Database is updated with new node content
-   * 4. UI state is updated to reflect successful save
+   * Save edit handler - node will be updated through field callbacks
    */
   const handleSaveEdit = useCallback(async () => {
     try {
-      // Save all changes through field manager (uses ltree addresses internally)
-      await fieldManager.saveAllChanges();
       setMode('idle');
       setLastSaved(new Date());
+      setHasUnsavedChanges(false);
       
       toast({
         title: "Changes saved",
@@ -142,15 +132,14 @@ export default function NodeRenderer({
         variant: "destructive",
       });
     }
-  }, [fieldManager, setMode, toast]);
+  }, [setMode, toast]);
   
   /**
    * Cancel edit handler - reverts to saved state
-   * Field manager handles reloading original values from ltree addresses
    */
   const handleCancelEdit = useCallback(() => {
-    // Field manager handles reloading original values from ltree
     setMode('idle');
+    setHasUnsavedChanges(false);
   }, [setMode]);
   
   /**
@@ -178,44 +167,20 @@ export default function NodeRenderer({
   
   /**
    * Render individual field item using the ltree address system
-   * 
-   * Each field is rendered with:
-   * - Unique ltree address for field isolation: {job_id}.{node_path}.fields.{field_ref}
-   * - Field registry entry from cache for field definition
-   * - Field state management (loading, error, dirty tracking)
-   * - Optimistic UI updates with backend synchronization
-   * 
-   * @param item - Field item configuration from node content
-   * @param index - Array index for React key fallback
+   * Address format: {node.path}#{fieldRef}.value
    */
   const renderFieldItem = (item: any, index: number) => {
-    // Get current field state (value, loading, error, dirty status)
-    const fieldState = fieldManager.getFieldState(item.ref);
-    
-    // Get field address from field manager
-    const fieldAddress = fieldManager.getFieldAddress?.(item.ref);
-    if (!fieldAddress) {
-      console.warn(`No address found for field ${item.ref}`);
-      return null;
-    }
-
     return (
       <div key={item.ref} className="space-y-2">
-        {/* Render field using hybrid address system */}
         <FieldHybridRenderer
           node={node}
           fieldRef={item.ref}
-          address={fieldAddress}
-          onChange={(value) => fieldManager.setFieldValue(item.ref, value)}
+          onChange={(value) => {
+            setHasUnsavedChanges(true);
+            // Field updates are handled by useHybridValue internally
+          }}
           mode={mode}
         />
-        {/* Show unsaved changes indicator for dirty fields */}
-        {fieldState?.isDirty && mode === 'edit' && (
-          <div className="text-xs text-muted-foreground flex items-center gap-1">
-            <Clock className="h-3 w-3" />
-            Unsaved changes
-          </div>
-        )}
       </div>
     );
   };
@@ -293,8 +258,7 @@ export default function NodeRenderer({
   
   // Status indicators
   const getStatusBadge = () => {
-    if (fieldManager.isLoading) return <Badge variant="secondary"><Clock className="h-3 w-3 mr-1" />Saving...</Badge>;
-    if (fieldManager.hasUnsavedChanges) return <Badge variant="outline">Unsaved</Badge>;
+    if (hasUnsavedChanges) return <Badge variant="outline">Unsaved</Badge>;
     if (mode === 'edit') return <Badge variant="default">Editing</Badge>;
     return null;
   };
@@ -315,7 +279,6 @@ export default function NodeRenderer({
                   size="sm"
                   variant="outline"
                   onClick={handleCancelEdit}
-                    disabled={fieldManager.isLoading}
                 >
                   <X className="h-4 w-4 mr-1" />
                   Cancel
@@ -323,7 +286,7 @@ export default function NodeRenderer({
                 <Button
                   size="sm"
                   onClick={handleSaveEdit}
-                  disabled={fieldManager.isLoading || !fieldManager.hasUnsavedChanges}
+                  disabled={!hasUnsavedChanges}
                 >
                   <Save className="h-4 w-4 mr-1" />
                   Save
@@ -336,7 +299,6 @@ export default function NodeRenderer({
                     size="sm"
                     variant="outline"
                     onClick={handleStartEdit}
-                    disabled={fieldManager.isLoading}
                   >
                     <Edit className="h-4 w-4 mr-1" />
                     Edit
@@ -346,7 +308,6 @@ export default function NodeRenderer({
                   <Button
                     size="sm"
                     onClick={handleGenerate}
-                    disabled={fieldManager.isLoading}
                   >
                     <Play className="h-4 w-4 mr-1" />
                     Generate
@@ -381,16 +342,15 @@ export default function NodeRenderer({
               </div>
             )}
             
-            {/* 
-              Debug info for development - shows field addresses and state
-            */}
+            {/* Debug info for development */}
             {process.env.NODE_ENV === 'development' && (
               <div className="mt-4 p-3 bg-muted rounded text-xs">
-                <h5 className="font-medium mb-2">Field Manager Debug</h5>
+                <h5 className="font-medium mb-2">Node Debug</h5>
                 <div className="space-y-1">
-                  <div>Fields: {fieldManager.fieldRefs.length}</div>
-                  <div>Unsaved: {fieldManager.hasUnsavedChanges ? 'Yes' : 'No'}</div>
-                  <div>Loading: {fieldManager.isLoading ? 'Yes' : 'No'}</div>
+                  <div>Fields: {fieldRefs.length}</div>
+                  <div>Field Refs: {fieldRefs.join(', ')}</div>
+                  <div>Unsaved: {hasUnsavedChanges ? 'Yes' : 'No'}</div>
+                  <div>Mode: {mode}</div>
                 </div>
               </div>
             )}

@@ -8,10 +8,6 @@ interface FieldHybridRendererProps {
   node: JobNode;
   /** Field reference identifier */
   fieldRef: string;
-  /** Hybrid address for this field's value */
-  address: string;
-  /** Field registry entry for configuration */
-  fieldEntry?: any;
   /** Optional callback when field value changes */
   onChange?: (value: any) => void;
   /** Display mode */
@@ -20,16 +16,17 @@ interface FieldHybridRendererProps {
 
 /**
  * Renders a field using the hybrid address system for isolated state management.
- * Each field instance manages its own state via useHybridValue hook.
+ * Each field uses the ltree address format: {node.path}#{fieldRef}.value
  */
 export function FieldHybridRenderer({
   node,
   fieldRef,
-  address,
-  fieldEntry,
   onChange,
   mode = 'idle'
 }: FieldHybridRendererProps) {
+  // Create proper ltree hybrid address: {node.path}#{fieldRef}.value
+  const address = `${node.path}#${fieldRef}.value`;
+  
   // Use hybrid address system for isolated field state
   const {
     value,
@@ -44,7 +41,7 @@ export function FieldHybridRenderer({
       await setValue(newValue);
       onChange?.(newValue);
     } catch (err) {
-      console.error(`Failed to update field ${fieldRef}:`, err);
+      console.error(`Failed to update field ${fieldRef} at ${address}:`, err);
     }
   };
 
@@ -62,13 +59,25 @@ export function FieldHybridRenderer({
     return (
       <div className="text-destructive text-sm p-2 bg-destructive/10 rounded">
         Error loading field {fieldRef}: {error}
+        <div className="text-xs mt-1">Address: {address}</div>
       </div>
     );
   }
 
   return (
     <SystematicFieldRenderer
-      field={fieldEntry}
+      field={{
+        id: fieldRef,
+        datatype: 'string', // Default datatype
+        widget: 'text', // Default to text widget
+        options: null, // No options by default
+        ui: {
+          label: { fallback: fieldRef },
+          placeholder: { fallback: `Enter ${fieldRef}` }
+        },
+        rules: {},
+        default_value: ''
+      }}
       value={value || ''}
       onChange={handleValueChange}
       loading={loading}
