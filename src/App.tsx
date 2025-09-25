@@ -40,6 +40,7 @@ import AppTemplates from '@/pages/app/Templates';
 import JobRoutes from '@/pages/app/jobs';
 import FieldRendererPreview from '@/pages/app/renderers/field';
 import NodeRendererPreview from '@/pages/app/renderers/node';
+import LtreeTesterPage from '@/pages/app/ltree';
 import Wallet from '@/pages/user/Wallet';
 import Settings from '@/pages/user/Settings';
 import StyleGuideline from "./pages/StyleGuideline";
@@ -140,6 +141,13 @@ const MainApp = () => (
                     <div>
                       <Header />
                       <NodeRendererPreview />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/app/ltree" element={
+                    <div>
+                      <Header />
+                      <LtreeTesterPage />
                       <Footer />
                     </div>
                   } />
