@@ -13,6 +13,7 @@ import { ContentValidation, FormContent } from '@/lib/content-contracts';
 import { CreditsButton } from '@/components/ui/credits-button';
 import { useToast } from '@/hooks/use-toast';
 import { useUserCredits } from '@/hooks/useUserCredits';
+import { useFunctionPricing } from '@/hooks/useFunctionPricing';
 import { supabase } from '@/integrations/supabase/client';
 import type { JobNode } from '@/hooks/useJobs';
 
@@ -57,15 +58,17 @@ export default function NodeRenderer({
   // Get current credit balance
   const currentCredits = userCredits || 0;
   
-  // Define credit costs for actions (could be made configurable later)
-  const validateCost = 5;
-  const generateCost = 10;
+  // Get dynamic pricing from database
+  const validateCost = node.validate_n8n_id ? getPrice(node.validate_n8n_id) : 0;
+  const generateCost = node.generate_n8n_id ? getPrice(node.generate_n8n_id) : 0;
 
   // Set credit costs for the CreditsButton components
   useEffect(() => {
-    setValidateCredits(validateCost);
-    setGenerateCredits(generateCost);
-  }, []);
+    if (!pricingLoading) {
+      setValidateCredits(validateCost);
+      setGenerateCredits(generateCost);
+    }
+  }, [validateCost, generateCost, pricingLoading]);
 
   const handleStartEdit = () => setEffectiveMode('edit');
   const handleSaveEdit = () => {
