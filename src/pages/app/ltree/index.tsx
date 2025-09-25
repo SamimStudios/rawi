@@ -16,7 +16,7 @@ export default function LtreeTesterPage() {
   // Pre-fill with real job ID from your database
   const [jobId, setJobId] = useState('7d6e3fe9-5ed8-4e27-9a9c-eb3f80d9d0ce');
   const [address, setAddress] = useState('');
-  const [jsonValue, setJsonValue] = useState('{\n  "example": "Test Value"\n}');
+  const [jsonValue, setJsonValue] = useState('Hello World');
   const [mode, setMode] = useState<'read' | 'write'>('read');
   const { toast } = useToast();
 
@@ -27,6 +27,37 @@ export default function LtreeTesterPage() {
     jobId && mode === 'read' ? jobId : null, 
     address && mode === 'read' ? address : null
   );
+
+  const parseValue = (input: string): any => {
+    const trimmed = input.trim();
+    
+    // Empty string
+    if (trimmed === '') return '';
+    
+    // Try to parse as JSON first (for objects and arrays)
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
+        (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+      try {
+        return JSON.parse(trimmed);
+      } catch {
+        // If JSON parsing fails, treat as string
+        return trimmed;
+      }
+    }
+    
+    // Check for boolean
+    if (trimmed.toLowerCase() === 'true') return true;
+    if (trimmed.toLowerCase() === 'false') return false;
+    
+    // Check for number
+    if (!isNaN(Number(trimmed)) && trimmed !== '') {
+      const num = Number(trimmed);
+      return num;
+    }
+    
+    // Default to string
+    return trimmed;
+  };
 
   const handleWrite = async () => {
     if (!jobId || !address) {
@@ -39,7 +70,7 @@ export default function LtreeTesterPage() {
     }
 
     try {
-      const parsedValue = JSON.parse(jsonValue);
+      const parsedValue = parseValue(jsonValue);
       await HybridAddrService.setItemAt({
         jobId,
         address,
@@ -48,7 +79,7 @@ export default function LtreeTesterPage() {
       
       toast({
         title: "Success",
-        description: "Value written successfully",
+        description: `Value written successfully as ${typeof parsedValue}`,
       });
     } catch (error) {
       toast({
@@ -185,14 +216,17 @@ export default function LtreeTesterPage() {
               
               <TabsContent value="write" className="space-y-4">
                 <div>
-                  <Label htmlFor="jsonValue">JSON Value</Label>
+                  <Label htmlFor="jsonValue">Value</Label>
                   <Textarea
                     id="jsonValue"
                     value={jsonValue}
                     onChange={(e) => setJsonValue(e.target.value)}
-                    placeholder="Enter JSON value to write"
+                    placeholder={`Supports multiple formats:\n• Raw string: Hello World\n• Number: 42\n• Boolean: true\n• JSON: {"key": "value"}\n• Array: [1, 2, 3]`}
                     className="font-mono min-h-[120px]"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Enter any value type - strings, numbers, booleans, JSON objects, or arrays
+                  </p>
                 </div>
                 <Button 
                   onClick={handleWrite}
