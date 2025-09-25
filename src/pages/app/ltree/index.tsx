@@ -34,7 +34,13 @@ export default function LtreeTesterPage() {
     // Empty string
     if (trimmed === '') return '';
     
-    // Try to parse as JSON first (for objects and arrays)
+    // Handle quoted strings - remove quotes and treat as plain string
+    if ((trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length > 1) ||
+        (trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length > 1)) {
+      return trimmed.slice(1, -1);
+    }
+    
+    // Try to parse as JSON objects and arrays only
     if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
         (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
       try {
@@ -49,10 +55,10 @@ export default function LtreeTesterPage() {
     if (trimmed.toLowerCase() === 'true') return true;
     if (trimmed.toLowerCase() === 'false') return false;
     
-    // Check for number
-    if (!isNaN(Number(trimmed)) && trimmed !== '') {
-      const num = Number(trimmed);
-      return num;
+    // Check for number (but not if it starts with 0 and has more digits - could be a string)
+    if (!isNaN(Number(trimmed)) && trimmed !== '' && 
+        !(trimmed.startsWith('0') && trimmed.length > 1 && !trimmed.includes('.'))) {
+      return Number(trimmed);
     }
     
     // Default to string
@@ -221,7 +227,7 @@ export default function LtreeTesterPage() {
                     id="jsonValue"
                     value={jsonValue}
                     onChange={(e) => setJsonValue(e.target.value)}
-                    placeholder={`Supports multiple formats:\n• Raw string: Hello World\n• Number: 42\n• Boolean: true\n• JSON: {"key": "value"}\n• Array: [1, 2, 3]`}
+                    placeholder={`Supports multiple formats:\n• String: Hello World or "Hello World"\n• Number: 42\n• Boolean: true\n• JSON: {"key": "value"}\n• Array: [1, 2, 3]`}
                     className="font-mono min-h-[120px]"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
