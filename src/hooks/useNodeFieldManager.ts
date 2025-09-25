@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { createLtreeAddresses } from '@/lib/ltree/addresses';
 import { useHybridValue } from '@/lib/ltree/hooks';
-import type { JobNode } from './useJobs';
+import type { JobNode } from '@/hooks/useJobs';
 
 // Field state interface - simplified since useHybridValue handles most of this
 interface FieldState {
