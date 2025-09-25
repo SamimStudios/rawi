@@ -36,7 +36,12 @@ export function PayloadEditor({ label, value, onChange, placeholder, allowAllTyp
     // Empty string
     if (trimmed === '') return null;
     
-    // Try to parse as JSON first (for objects and arrays)
+    // Handle quoted strings - remove quotes and treat as plain string
+    if (allowAllTypes && trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length > 1) {
+      return trimmed.slice(1, -1);
+    }
+    
+    // Try to parse as JSON objects and arrays
     if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
         (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
       try {
