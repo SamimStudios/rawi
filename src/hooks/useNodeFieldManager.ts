@@ -1,39 +1,41 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useBatchedLtreeResolver } from './useBatchedLtreeResolver';
-import { useFieldRegistryCache } from './useFieldRegistryCache';
 import { createLtreeAddresses } from '@/lib/ltree/addresses';
-import { useFields, type FieldEntry } from './useFields';
+import { useHybridValue } from '@/lib/ltree/hooks';
 import type { JobNode } from './useJobs';
 
+// Field state interface - simplified since useHybridValue handles most of this
 interface FieldState {
   value: any;
   loading: boolean;
-  error?: string;
+  error: string | null;
   isDirty: boolean;
-  lastSaved?: Date;
+  address: string; // The hybrid address for this field
 }
 
 interface UseNodeFieldManagerProps {
   node: JobNode;
-  onUpdate?: (nodeId: string, content: any) => Promise<void>;
+  onUpdate?: (node: JobNode) => Promise<void>;
 }
 
+/**
+ * Node field manager that uses the hybrid address system for isolated field state
+ * Each field gets a unique ltree address: {node.path}#content.items.{fieldRef}.value
+ */
 export function useNodeFieldManager({ node, onUpdate }: UseNodeFieldManagerProps) {
-  const fieldCache = useFieldRegistryCache();
-  const batchedResolver = useBatchedLtreeResolver();
+  // Create address builder for this node
+  const addressBuilder = createLtreeAddresses(node.job_id, node.path);
   
-  // Field states - keyed by fieldRef for isolation
+  // Field tracking state
   const [fieldStates, setFieldStates] = useState<Record<string, FieldState>>({});
-  const [fieldEntries, setFieldEntries] = useState<Record<string, FieldEntry | null>>({});
-  
-  // Debounced auto-save
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const pendingChangesRef = useRef<Set<string>>(new Set());
-  
-  // Ltree address builder for this node
-  const addresses = createLtreeAddresses(node.job_id, node.path);
-  
-  // Collect field refs from node content
+  const [fieldRefs, setFieldRefs] = useState<string[]>([]);
+
+  // Auto-save debouncing
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const AUTOSAVE_DELAY_MS = 2000;
+
+  /**
+   * Recursively collect field references from node content items
+   */
   const collectFieldRefs = useCallback((items: any[]): string[] => {
     const refs: string[] = [];
     
@@ -56,278 +58,182 @@ export function useNodeFieldManager({ node, onUpdate }: UseNodeFieldManagerProps
     return Array.from(new Set(refs));
   }, []);
 
-  // Initialize field data with batching
+  /**
+   * Initialize field states from node content
+   */
   useEffect(() => {
-    const initializeFields = async () => {
-      const fieldRefs = collectFieldRefs(node.content?.items || []);
-      
-      if (fieldRefs.length === 0) {
-        console.log(`[FIELD MANAGER] No fields to initialize for node: ${node.path}`);
-        return;
-      }
-      
-      console.log(`[FIELD MANAGER] Batch initializing ${fieldRefs.length} fields for node:`, node.path);
-      
-      try {
-        // Batch load field entries from cache
-        const entries = await fieldCache.getCachedEntries(fieldRefs);
-        setFieldEntries(entries);
-        
-        // Batch load field values from ltree
-        const fieldAddresses = fieldRefs.map(ref => addresses.fieldValue(ref));
-        const valuesByAddress = await batchedResolver.batchResolveMultiple(node.job_id, fieldAddresses);
-        
-        // Convert address-based results back to field-ref-based
-        const fieldValues: Record<string, any> = {};
-        const initialStates: Record<string, FieldState> = {};
-        
-        fieldRefs.forEach(fieldRef => {
-          const address = addresses.fieldValue(fieldRef);
-          const value = valuesByAddress[address];
-          
-          fieldValues[fieldRef] = value;
-          initialStates[fieldRef] = {
-            value,
-            loading: false,
-            isDirty: false,
-            error: undefined
-          };
-          
-          console.log(`[FIELD MANAGER] Initialized ${fieldRef} with value:`, value);
-        });
-        
-        setFieldStates(initialStates);
-        
-      } catch (error) {
-        console.error(`[FIELD MANAGER] Batch initialization failed:`, error);
-        
-        // Fallback to individual loading
-        const fallbackEntries: Record<string, FieldEntry | null> = {};
-        const fallbackStates: Record<string, FieldState> = {};
-        
-        for (const fieldRef of fieldRefs) {
-          try {
-            const entry = await fieldCache.getCachedEntry(fieldRef);
-            fallbackEntries[fieldRef] = entry;
-            
-            const address = addresses.fieldValue(fieldRef);
-            const value = await batchedResolver.batchResolveValue(node.job_id, address);
-            
-            fallbackStates[fieldRef] = {
-              value,
-              loading: false,
-              isDirty: false,
-              error: undefined
-            };
-          } catch (fieldError) {
-            console.error(`[FIELD MANAGER] Failed to load field ${fieldRef}:`, fieldError);
-            fallbackEntries[fieldRef] = null;
-            fallbackStates[fieldRef] = {
-              value: undefined,
-              loading: false,
-              isDirty: false,
-              error: fieldError instanceof Error ? fieldError.message : 'Failed to load field'
-            };
-          }
-        }
-        
-        setFieldEntries(fallbackEntries);
-        setFieldStates(fallbackStates);
-      }
-    };
-    
-    initializeFields();
-  }, [node.content?.items, node.job_id, node.path, fieldCache, batchedResolver, collectFieldRefs]);
+    if (!node?.content?.items || !Array.isArray(node.content.items)) {
+      setFieldStates({});
+      setFieldRefs([]);
+      return;
+    }
 
-  // Get field value with proper isolation
+    // Collect all field references from the node content recursively
+    const refs = collectFieldRefs(node.content.items);
+    setFieldRefs(refs);
+
+    console.log(`[FieldManager] Collected ${refs.length} field refs:`, refs);
+
+    // Initialize field states with hybrid addresses
+    const initialStates: Record<string, FieldState> = {};
+    
+    refs.forEach(fieldRef => {
+      const address = addressBuilder.fieldValue(fieldRef);
+      initialStates[fieldRef] = {
+        value: null,
+        loading: false, // useHybridValue will handle loading
+        error: null,
+        isDirty: false,
+        address
+      };
+    });
+
+    setFieldStates(initialStates);
+  }, [node.content, addressBuilder]);
+
+  /**
+   * Get the current value of a field
+   */
   const getFieldValue = useCallback((fieldRef: string): any => {
-    const state = fieldStates[fieldRef];
-    console.log(`[FIELD MANAGER] Getting value for ${fieldRef}:`, state?.value);
-    return state?.value;
+    return fieldStates[fieldRef]?.value || '';
   }, [fieldStates]);
 
-  // Set field value with batching and optimistic updates
-  const setFieldValue = useCallback(async (fieldRef: string, value: any) => {
-    const address = addresses.fieldValue(fieldRef);
-    console.log(`[FIELD MANAGER] Setting ${fieldRef} to:`, value, 'Address:', address);
-    
-    // Optimistic update - update UI immediately
+  /**
+   * Update a field value - will be handled by individual useHybridValue hooks
+   * This is now just a stub that updates local state for UI consistency
+   */
+  const setFieldValue = useCallback(async (fieldRef: string, value: any): Promise<void> => {
+    console.log(`[FieldManager] Local state update for field ${fieldRef}:`, value);
+
+    // Update local state for immediate UI feedback
     setFieldStates(prev => ({
       ...prev,
       [fieldRef]: {
         ...prev[fieldRef],
         value,
-        isDirty: true,
-        loading: true,
-        error: undefined
+        isDirty: true
       }
     }));
-    
-    try {
-      // Save to ltree backend using batched resolver
-      await batchedResolver.batchSetValue(node.job_id, address, value);
-      
-      // Mark as successfully saved
-      setFieldStates(prev => ({
-        ...prev,
-        [fieldRef]: {
-          ...prev[fieldRef],
-          loading: false,
-          lastSaved: new Date()
-        }
-      }));
-      
-      // Add to pending changes for batch save
-      pendingChangesRef.current.add(fieldRef);
-      
-      // Trigger debounced auto-save to node content
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-      
-      autoSaveTimerRef.current = setTimeout(() => {
-        if (onUpdate && pendingChangesRef.current.size > 0) {
-          console.log(`[FIELD MANAGER] Auto-saving ${pendingChangesRef.current.size} changed fields`);
-          saveToNodeContent();
-        }
-      }, 500); // Reduced debounce for better responsiveness
-      
-    } catch (error) {
-      console.error(`[FIELD MANAGER] Failed to save field ${fieldRef}:`, error);
-      
-      // Revert optimistic update on error
-      setFieldStates(prev => ({
-        ...prev,
-        [fieldRef]: {
-          ...prev[fieldRef],
-          loading: false,
-          error: error instanceof Error ? error.message : 'Failed to save field'
-        }
-      }));
-    }
-  }, [addresses, batchedResolver, node.job_id, onUpdate]);
 
-  // Save all dirty fields to node content structure
-  const saveToNodeContent = useCallback(async () => {
-    if (!onUpdate || pendingChangesRef.current.size === 0) return;
+    // Trigger debounced auto-save to node content
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
     
-    try {
-      // Create updated content with current field values
-      const updatedContent = JSON.parse(JSON.stringify(node.content || {}));
-      
-      // Update field values in the content structure
-      function updateFieldsInItems(items: any[]) {
-        for (const item of items || []) {
-          if (item?.kind === 'FieldItem' && item.ref) {
-            const fieldState = fieldStates[item.ref];
-            if (fieldState && pendingChangesRef.current.has(item.ref)) {
-              item.value = fieldState.value;
-              console.log(`[FIELD MANAGER] Updated content field ${item.ref}:`, fieldState.value);
-            }
-          }
-          
-          if (item?.children) updateFieldsInItems(item.children);
-          if (item?.items) updateFieldsInItems(item.items);
-          if (item?.instances) {
-            for (const instance of item.instances) {
-              if (instance?.children) updateFieldsInItems(instance.children);
-            }
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      saveToNodeContent();
+    }, AUTOSAVE_DELAY_MS);
+  }, []);
+
+  /**
+   * Update field in content structure recursively
+   */
+  const updateFieldInContent = useCallback((content: any, fieldRef: string, value: any) => {
+    function updateInItems(items: any[]) {
+      for (const item of items || []) {
+        if (item?.kind === 'FieldItem' && item.ref === fieldRef) {
+          item.value = value;
+        }
+        if (item?.children) updateInItems(item.children);
+        if (item?.items) updateInItems(item.items);
+        if (item?.instances) {
+          for (const instance of item.instances) {
+            if (instance?.children) updateInItems(instance.children);
           }
         }
       }
+    }
+    
+    updateInItems(content?.items || []);
+  }, []);
+
+  /**
+   * Save all field changes to the node's content structure
+   */
+  const saveToNodeContent = useCallback(async (): Promise<void> => {
+    if (!onUpdate) return;
+
+    console.log('[FieldManager] Saving to node content...');
+
+    try {
+      // Create updated content with all field values
+      const updatedContent = { ...node.content };
       
-      updateFieldsInItems(updatedContent?.items || []);
-      
-      // Save to database
-      await onUpdate(node.id, updatedContent);
-      
-      // Clear dirty states
-      const clearedFields = Array.from(pendingChangesRef.current);
+      // Update each field in the content structure
+      fieldRefs.forEach(fieldRef => {
+        const fieldState = fieldStates[fieldRef];
+        if (fieldState?.isDirty) {
+          // Navigate to the field in the content structure and update its value
+          updateFieldInContent(updatedContent, fieldRef, fieldState.value);
+        }
+      });
+
+      // Update the node with new content
+      const updatedNode = { ...node, content: updatedContent };
+      await onUpdate(updatedNode);
+
+      // Mark all fields as clean
       setFieldStates(prev => {
         const updated = { ...prev };
-        for (const fieldRef of clearedFields) {
-          if (updated[fieldRef]) {
-            updated[fieldRef] = { 
-              ...updated[fieldRef], 
-              isDirty: false,
-              lastSaved: new Date()
+        Object.keys(updated).forEach(fieldRef => {
+          if (updated[fieldRef].isDirty) {
+            updated[fieldRef] = {
+              ...updated[fieldRef],
+              isDirty: false
             };
           }
-        }
+        });
         return updated;
       });
-      
-      pendingChangesRef.current.clear();
-      console.log(`[FIELD MANAGER] Successfully saved ${clearedFields.length} fields to node content`);
-      
+
+      console.log('[FieldManager] Successfully saved to node content');
     } catch (error) {
-      console.error('[FIELD MANAGER] Failed to save to node content:', error);
-      throw error;
+      console.error('[FieldManager] Failed to save to node content:', error);
     }
-  }, [onUpdate, node.content, node.id, fieldStates]);
+  }, [node, onUpdate, fieldRefs, fieldStates, updateFieldInContent]);
 
-  // Manual save all changes
-  const saveAllChanges = useCallback(async () => {
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-      autoSaveTimerRef.current = null;
+  /**
+   * Manually save all pending changes
+   */
+  const saveAllChanges = useCallback(async (): Promise<void> => {
+    // Clear any pending auto-save
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+      autoSaveTimeoutRef.current = null;
     }
-    
-    // Mark all dirty fields as pending
-    Object.keys(fieldStates).forEach(fieldRef => {
-      if (fieldStates[fieldRef]?.isDirty) {
-        pendingChangesRef.current.add(fieldRef);
-      }
-    });
-    
-    return saveToNodeContent();
-  }, [fieldStates, saveToNodeContent]);
 
-  // Check if there are unsaved changes
-  const hasUnsavedChanges = Object.values(fieldStates).some(state => state?.isDirty);
-  
-  // Check if any fields are loading
-  const isLoading = Object.values(fieldStates).some(state => state?.loading);
-  
-  // Get field state for UI
-  const getFieldState = useCallback((fieldRef: string) => {
-    return fieldStates[fieldRef] || { value: undefined, loading: false, isDirty: false };
-  }, [fieldStates]);
-  
-  // Get field entry for UI
-  const getFieldEntry = useCallback((fieldRef: string) => {
-    return fieldEntries[fieldRef];
-  }, [fieldEntries]);
+    await saveToNodeContent();
+  }, [saveToNodeContent]);
 
-  // Cleanup
+  // Cleanup effect
   useEffect(() => {
     return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
       }
-      batchedResolver.cleanup();
     };
-  }, [batchedResolver]);
+  }, []);
 
+  // Return the field manager interface
   return {
-    // Field data access
+    // Field value access
     getFieldValue,
     setFieldValue,
-    getFieldState,
-    getFieldEntry,
     
-    // Save operations
+    // Bulk operations
     saveAllChanges,
     
-    // Status
-    hasUnsavedChanges,
-    isLoading,
+    // State queries
+    hasUnsavedChanges: Object.values(fieldStates).some(state => state.isDirty),
+    isLoading: Object.values(fieldStates).some(state => state.loading),
     
-    // Field refs for iteration
-    fieldRefs: collectFieldRefs(node.content?.items || []),
+    // Field metadata access  
+    getFieldState: (fieldRef: string) => fieldStates[fieldRef],
     
-    // Performance debugging
-    getBatchStats: () => batchedResolver.getQueueStats(),
-    getCacheStats: () => fieldCache.getCacheStats()
+    // Field enumeration
+    fieldRefs,
+    
+    // Address access for debugging
+    getFieldAddress: (fieldRef: string) => fieldStates[fieldRef]?.address
   };
 }

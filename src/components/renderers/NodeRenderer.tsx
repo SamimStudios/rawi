@@ -38,12 +38,13 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useNodeFieldManager } from '@/hooks/useNodeFieldManager';
 import SystematicFieldRenderer from './SystematicFieldRenderer';
+import { FieldHybridRenderer } from './FieldHybridRenderer';
 import FieldManagerDebugPanel from '../FieldManagerDebugPanel';
 import type { JobNode } from '@/hooks/useJobs';
 
 interface NodeRendererProps {
   node: JobNode;
-  onUpdate: (nodeId: string, content: any) => Promise<void>;
+  onUpdate: (node: JobNode) => Promise<void>; // Fixed signature
   onGenerate?: (nodeId: string, n8nId: string) => Promise<void>;
   mode?: 'idle' | 'edit';
   onModeChange?: (mode: 'idle' | 'edit') => void;
@@ -188,39 +189,28 @@ export default function NodeRenderer({
    * @param index - Array index for React key fallback
    */
   const renderFieldItem = (item: any, index: number) => {
-    // Get field definition from registry cache (batched loading)
-    const fieldEntry = fieldManager.getFieldEntry(item.ref);
     // Get current field state (value, loading, error, dirty status)
     const fieldState = fieldManager.getFieldState(item.ref);
     
-    // Handle missing field registry entries
-    if (!fieldEntry) {
-      return (
-        <div key={item.ref || index} className="p-4 border border-dashed border-destructive/50 rounded-md">
-          <p className="text-destructive text-sm flex items-center gap-2">
-            <AlertCircle className="h-4 w-4" />
-            Field not found in registry: {item.ref}
-          </p>
-        </div>
-      );
+    // Get field address from field manager
+    const fieldAddress = fieldManager.getFieldAddress?.(item.ref);
+    if (!fieldAddress) {
+      console.warn(`No address found for field ${item.ref}`);
+      return null;
     }
-    
+
     return (
       <div key={item.ref} className="space-y-2">
-        {/* Render field using systematic renderer with ltree-backed value */}
-        <SystematicFieldRenderer
-          field={fieldEntry}
-          value={fieldManager.getFieldValue(item.ref)} // Uses ltree address internally
-          onChange={(newValue) => {
-            console.log(`[UI] Field ${item.ref} changed to:`, newValue);
-            // Save to ltree address: {job_id}.{node_path}.fields.{field_ref}
-            fieldManager.setFieldValue(item.ref, newValue);
-          }}
-          loading={fieldState.loading}
-          error={fieldState.error}
+        {/* Render field using hybrid address system */}
+        <FieldHybridRenderer
+          node={node}
+          fieldRef={item.ref}
+          address={fieldAddress}
+          onChange={(value) => fieldManager.setFieldValue(item.ref, value)}
+          mode={mode}
         />
         {/* Show unsaved changes indicator for dirty fields */}
-        {fieldState.isDirty && mode === 'edit' && (
+        {fieldState?.isDirty && mode === 'edit' && (
           <div className="text-xs text-muted-foreground flex items-center gap-1">
             <Clock className="h-3 w-3" />
             Unsaved changes
@@ -392,20 +382,17 @@ export default function NodeRenderer({
             )}
             
             {/* 
-              Debug Panel - Development monitoring for ltree address system
-              Shows:
-              - Batch queue stats for ltree operations
-              - Field registry cache hit rates
-              - Active field references using address system
-              - Performance metrics for optimization tracking
+              Debug info for development - shows field addresses and state
             */}
             {process.env.NODE_ENV === 'development' && (
-              <FieldManagerDebugPanel
-                getBatchStats={fieldManager.getBatchStats}
-                getCacheStats={fieldManager.getCacheStats}
-                fieldRefs={fieldManager.fieldRefs}
-                className="mt-4"
-              />
+              <div className="mt-4 p-3 bg-muted rounded text-xs">
+                <h5 className="font-medium mb-2">Field Manager Debug</h5>
+                <div className="space-y-1">
+                  <div>Fields: {fieldManager.fieldRefs.length}</div>
+                  <div>Unsaved: {fieldManager.hasUnsavedChanges ? 'Yes' : 'No'}</div>
+                  <div>Loading: {fieldManager.isLoading ? 'Yes' : 'No'}</div>
+                </div>
+              </div>
             )}
           </CollapsibleContent>
         </CardContent>
