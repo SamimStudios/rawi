@@ -36,14 +36,7 @@ export function PayloadEditor({ label, value, onChange, placeholder, allowAllTyp
     // Empty string
     if (trimmed === '') return null;
     
-    // Handle quoted strings - remove quotes and treat as plain string
-    if (allowAllTypes && 
-        ((trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length > 1) ||
-         (trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length > 1))) {
-      return trimmed.slice(1, -1);
-    }
-    
-    // Try to parse as JSON objects and arrays
+    // Try to parse as JSON first (for objects and arrays)
     if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
         (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
       try {
@@ -60,9 +53,8 @@ export function PayloadEditor({ label, value, onChange, placeholder, allowAllTyp
       if (trimmed.toLowerCase() === 'true') return true;
       if (trimmed.toLowerCase() === 'false') return false;
       
-      // Check for number (but not if it starts with 0 and has more digits - could be a string)
-      if (!isNaN(Number(trimmed)) && trimmed !== '' && 
-          !(trimmed.startsWith('0') && trimmed.length > 1 && !trimmed.includes('.'))) {
+      // Check for number
+      if (!isNaN(Number(trimmed)) && trimmed !== '') {
         return Number(trimmed);
       }
       
