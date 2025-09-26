@@ -137,20 +137,26 @@ export default function NodeRenderer({
     setLoading(true);
     try {
       const nodePrefix = `${node.addr}#`;
-      const draftsToSave = entries(nodePrefix); // [{address,value}]
-      nlog('save:drafts', draftsToSave);
-
-      if (draftsToSave.length > 0) {
+      
+      // 1) get drafts and normalize (undefined → null)
+      const rawDrafts = entries(nodePrefix); // [{address,value}]
+      const writes = toWritesArray(rawDrafts, node.addr);
+      nlog('save:writes', { count: writes.length, sample: writes.slice(0, 3) });
+      
+      if (writes.length > 0) {
         try {
-          await saveViaEdgeMany(node.job_id, draftsToSave);
+          await saveViaEdgeMany(node.job_id, writes);
         } catch (e) {
           console.warn('[NodeRenderer] write_many failed, falling back to per-set', e);
-          for (const d of draftsToSave) await saveViaEdgeSingle(node.job_id, d.address, d.value);
+          for (const w of writes) {
+            await saveViaEdgeSingle(node.job_id, w.address, w.value);
+          }
         }
         await reloadNode(node.job_id, node.id);
         clearDrafts(nodePrefix);
         toast({ title: 'Success', description: 'Changes saved successfully' });
       }
+
 
       setEffectiveMode('idle');
       setHasUnsavedChanges(false);
