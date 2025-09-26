@@ -22,6 +22,27 @@ import type { JobNode } from '@/hooks/useJobs';
 const DBG = true; // TEMP: always log on Lovable (no process.env)
 const dlog = (...a:any[]) => { if (DBG) console.debug('[RENDER:Field]', ...a); };
 
+// Build SSOT address for nested section paths (e.g. "characters.lead").
+// If instanceNum is provided, insert ".instances.iN" right after the FIRST section.
+function buildNestedSectionFieldAddr(
+  nodeAddr: string,
+  sectionPath: string,
+  fieldRef: string,
+  instanceNum?: number
+) {
+  const segs = sectionPath.split('.').filter(Boolean);
+  if (!segs.length) throw new Error('Empty sectionPath');
+
+  let json = `content.items.${segs[0]}`;
+  if (typeof instanceNum === 'number') {
+    json += `.instances.i${instanceNum}`;
+  }
+  for (let i = 1; i < segs.length; i++) {
+    json += `.children.${segs[i]}`;
+  }
+  json += `.children.${fieldRef}.value`;
+  return `${nodeAddr}#${json}`;
+}
 
 
 interface FieldHybridRendererProps {
