@@ -1,173 +1,256 @@
-/**
- * SectionRenderer - Renders form sections with proper SSOT addressing
- * Supports both single sections and repeatable collections
- */
-import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, Plus, Minus } from 'lucide-react';
-import { FormItemRenderer } from './FormItemRenderer';
-import { SectionItem } from '@/lib/content-contracts';
+// src/components/renderers/SectionRenderer.tsx
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { ChevronDown, ChevronRight, GripVertical, Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { JobNode } from '@/hooks/useJobs';
 
-interface SectionRendererProps {
-  /** The section item to render */
-  section: SectionItem;
-  /** Current job node for context */
+const DBG = typeof window !== 'undefined' && process.env.NEXT_PUBLIC_DEBUG_RENDER === '1';
+const dlog = (...a: any[]) => { if (DBG) console.debug('[RENDER:Section]', ...a); };
+const dwarn = (...a: any[]) => console.warn('[RENDER:Section]', ...a);
+
+export type SectionContract = {
+  path: string;                 // SSOT: section key
+  title?: string;
+  children: string[];           // field refs
+  // SSOT collection block (optional)
+  collection?: {
+    min?: number;
+    max?: number;
+    default_instances?: number; // if instances not present, fall back to this
+    allow_add?: boolean;
+    allow_remove?: boolean;
+    allow_reorder?: boolean;
+    label_template?: string;    // e.g., "Character #{i}"
+  };
+  // If your backend hydrates instances, you can pass their array to hint count
+  instances?: unknown[] | null;
+};
+
+type Props = {
   node: JobNode;
-  /** Parent section path (for nested addressing) */
-  parentPath?: string;
-  /** Instance number if this section is within a collection */
-  instanceNum?: number;
-  /** Display mode */
-  mode?: 'idle' | 'edit';
-  /** Callback when section content changes */
-  onChange?: (itemRef: string, value: any) => void;
-}
+  section: SectionContract;
+  /** Field renderer provided by parent (NodeRenderer / FormItemRenderer) */
+  renderField: (args: { fieldRef: string; sectionPath: string; instanceNum?: number }) => React.ReactNode;
+  /** Optional: Section-scoped Save (NodeRenderer can filter drafts by prefix) */
+  onSaveSection?: (sectionPath: string) => Promise<void>;
+  /** Optional: Section-scoped Reset (NodeRenderer can clear drafts by prefix) */
+  onResetSection?: (sectionPath: string) => Promise<void>;
+  /** Optional: hooks to persist instance structure (future DB migration) */
+  onAddInstance?: (sectionPath: string) => Promise<void> | void;
+  onRemoveInstance?: (sectionPath: string, index: number) => Promise<void> | void; // 1-based
+  onReorderInstance?: (sectionPath: string, from: number, to: number) => Promise<void> | void; // 1-based
+};
 
-/**
- * Renders sections as outlined blocks (not cards) following SSOT specification
- */
-export function SectionRenderer({
-  section,
+export default function SectionRenderer({
   node,
-  parentPath,
-  instanceNum,
-  mode = 'idle',
-  onChange
-}: SectionRendererProps) {
-  const [isCollapsed, setIsCollapsed] = useState(section.collapsed || false);
-  const [instances, setInstances] = useState<number[]>([1]); // Start with one instance
+  section,
+  renderField,
+  onSaveSection,
+  onResetSection,
+  onAddInstance,
+  onRemoveInstance,
+  onReorderInstance
+}: Props) {
+  const isCollection = !!section.collection;
+  const min = section.collection?.min ?? 0;
+  const max = section.collection?.max ?? Number.POSITIVE_INFINITY;
+  const allowAdd = section.collection?.allow_add ?? true;
+  const allowRemove = section.collection?.allow_remove ?? true;
+  const allowReorder = section.collection?.allow_reorder ?? true;
 
-  console.log(`[SectionRenderer] Rendering section ${section.path}:`, section);
+  // Server-hinted count: prefer actual instances array length, fallback to default_instances, then 1
+  const serverCount = useMemo(() => {
+    if (!isCollection) return 0;
+    if (Array.isArray(section.instances)) return section.instances.length;
+    const def = section.collection?.default_instances;
+    if (typeof def === 'number' && def > 0) return def;
+    return Math.max(0, min); // if min>0 ensure we show at least min
+  }, [isCollection, section.instances, section.collection?.default_instances, min]);
 
-  // Build current section path for addressing
-  const currentPath = parentPath ? `${parentPath}.${section.path}` : section.path;
-  
-  // Handle collection management
-  const isRepeatable = !!section.repeatable;
-  const minInstances = section.repeatable?.min || 1;
-  const maxInstances = section.repeatable?.max || 10;
-  const labelSingular = section.repeatable?.labelSingular || 'Item';
-  const labelPlural = section.repeatable?.labelPlural || 'Items';
+  // Local UI count mirrors serverCount, but lets user add/remove before persistence
+  const [uiCount, setUiCount] = useState<number>(serverCount);
+  useEffect(() => setUiCount(serverCount), [serverCount, section.path]);
 
-  const addInstance = () => {
-    if (instances.length < maxInstances) {
-      const newInstanceNum = Math.max(...instances) + 1;
-      setInstances([...instances, newInstanceNum]);
+  // Collapsible
+  const [open, setOpen] = useState(true);
+
+  useEffect(() => {
+    dlog('mount', {
+      node: node.addr,
+      sectionPath: section.path,
+      isCollection,
+      serverCount,
+      uiCount,
+      min,
+      max,
+      allowAdd,
+      allowRemove,
+      allowReorder
+    });
+  }, [node.addr, section.path, isCollection, serverCount, uiCount, min, max, allowAdd, allowRemove, allowReorder]);
+
+  // --- Instance actions (UI-first, optional persistence hooks) ---
+  const addInstance = useCallback(async () => {
+    if (!isCollection) return;
+    if (!allowAdd) return;
+    if (uiCount >= max) return;
+    const next = uiCount + 1;
+    dlog('instance:add', { sectionPath: section.path, before: uiCount, after: next });
+    setUiCount(next);
+    try {
+      await onAddInstance?.(section.path);
+    } catch (e) {
+      dwarn('onAddInstance failed; reverting UI count', e);
+      setUiCount(uiCount); // rollback
     }
-  };
+  }, [isCollection, allowAdd, uiCount, max, section.path, onAddInstance]);
 
-  const removeInstance = (instanceToRemove: number) => {
-    if (instances.length > minInstances) {
-      setInstances(instances.filter(i => i !== instanceToRemove));
+  const removeInstance = useCallback(async (i: number) => {
+    if (!isCollection) return;
+    if (!allowRemove) return;
+    if (uiCount <= min) return;
+    dlog('instance:remove', { sectionPath: section.path, index: i });
+    const next = Math.max(min, uiCount - 1);
+    setUiCount(next);
+    try {
+      await onRemoveInstance?.(section.path, i);
+    } catch (e) {
+      dwarn('onRemoveInstance failed; reverting UI count', e);
+      setUiCount(uiCount); // rollback
     }
-  };
+  }, [isCollection, allowRemove, uiCount, min, section.path, onRemoveInstance]);
 
-  const toggleCollapse = () => {
-    setIsCollapsed(!isCollapsed);
-  };
+  const reorderInstance = useCallback(async (from: number, to: number) => {
+    if (!isCollection) return;
+    if (!allowReorder) return;
+    if (from === to) return;
+    dlog('instance:reorder', { sectionPath: section.path, from, to });
+    try {
+      await onReorderInstance?.(section.path, from, to);
+    } catch (e) {
+      dwarn('onReorderInstance failed; ignoring for now', e);
+    }
+  }, [isCollection, allowReorder, section.path, onReorderInstance]);
 
-  // Render section header
-  const renderHeader = () => (
-    <div className="flex items-center justify-between mb-3">
-      <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={toggleCollapse}
-          className="p-1 h-6 w-6"
+  // --- Save / Reset per-section (NodeRenderer can filter drafts by prefix) ---
+  const handleSave = useCallback(async () => {
+    if (!onSaveSection) return;
+    dlog('save:start', { sectionPath: section.path });
+    await onSaveSection(section.path);
+    dlog('save:done', { sectionPath: section.path });
+  }, [onSaveSection, section.path]);
+
+  const handleReset = useCallback(async () => {
+    if (!onResetSection) return;
+    dlog('reset:start', { sectionPath: section.path });
+    await onResetSection(section.path);
+    // After reset, reflect any server changes
+    setUiCount(serverCount);
+    dlog('reset:done', { sectionPath: section.path, uiCount });
+  }, [onResetSection, section.path, serverCount, uiCount]);
+
+  // --- Render ---
+  return (
+    <div className="rounded-lg border p-3">
+      <div className="flex items-center justify-between">
+        <button
+          className="flex items-center gap-2 text-left"
+          onClick={() => setOpen(o => !o)}
+          type="button"
         >
-          {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </Button>
-        <h4 className="font-medium text-foreground">
-          {section.label.fallback}
-          {isRepeatable && instances.length > 1 && (
-            <span className="text-muted-foreground ml-2">
-              ({instances.length} {instances.length === 1 ? labelSingular : labelPlural})
-            </span>
-          )}
-        </h4>
-      </div>
-      
-      {isRepeatable && mode === 'edit' && (
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={addInstance}
-            disabled={instances.length >= maxInstances}
-            className="h-7 px-2"
-          >
-            <Plus className="h-3 w-3" />
+          {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          <span className="font-medium">{section.title ?? section.path}</span>
+        </button>
+
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" size="sm" onClick={handleReset}>
+            <RotateCcw className="w-4 h-4 mr-1" /> Reset
+          </Button>
+          <Button variant="default" size="sm" onClick={handleSave}>
+            <Save className="w-4 h-4 mr-1" /> Save
           </Button>
         </div>
-      )}
-    </div>
-  );
-
-  // Render section description
-  const renderDescription = () => {
-    if (!section.description) return null;
-    return (
-      <p className="text-sm text-muted-foreground mb-3">
-        {section.description.fallback}
-      </p>
-    );
-  };
-
-  // Render single instance of section content
-  const renderInstance = (instanceNumber?: number) => (
-    <div 
-      key={instanceNumber || 'single'} 
-      className={`space-y-3 ${instanceNumber ? 'border border-border rounded-lg p-3' : ''}`}
-    >
-      {instanceNumber && isRepeatable && (
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-muted-foreground">
-            {labelSingular} {instanceNumber}
-          </span>
-          {instances.length > minInstances && mode === 'edit' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => removeInstance(instanceNumber)}
-              className="h-6 w-6 p-0 text-destructive hover:text-destructive"
-            >
-              <Minus className="h-3 w-3" />
-            </Button>
-          )}
-        </div>
-      )}
-      
-      <div className="space-y-3">
-        {section.children.map((child) => (
-          <FormItemRenderer
-            key={`${child.idx}-${instanceNumber || 'single'}`}
-            item={child}
-            node={node}
-            parentPath={currentPath}
-            instanceNum={instanceNumber}
-            mode={mode}
-            onChange={onChange}
-          />
-        ))}
       </div>
-    </div>
-  );
 
-  return (
-    <div className="border-l-2 border-muted-foreground/20 pl-4 py-2">
-      {renderHeader()}
-      {!isCollapsed && (
+      {!open ? null : (
         <>
-          {renderDescription()}
-          <div className="space-y-3">
-            {isRepeatable ? (
-              instances.map(instanceNum => renderInstance(instanceNum))
-            ) : (
-              renderInstance()
-            )}
-          </div>
+          {/* Non-collection: simple children render */}
+          {!isCollection && (
+            <div className="mt-3 space-y-3">
+              {section.children?.map((fieldRef) => {
+                dlog('render:child', { node: node.addr, sectionPath: section.path, fieldRef });
+                return (
+                  <div key={fieldRef}>
+                    {renderField({ fieldRef, sectionPath: section.path })}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Collection: instances i1..iN — UI reflects uiCount (serverCount fallback) */}
+          {isCollection && (
+            <div className="mt-3 space-y-4">
+              <div className="flex items-center gap-2">
+                <Button size="sm" onClick={addInstance} disabled={!allowAdd || uiCount >= max}>
+                  <Plus className="w-4 h-4 mr-1" /> Add
+                </Button>
+                <div className="text-xs text-muted-foreground">
+                  Showing {uiCount} {uiCount === 1 ? 'instance' : 'instances'}{Number.isFinite(max) ? ` (max ${max})` : ''}
+                </div>
+              </div>
+
+              {Array.from({ length: uiCount }).map((_, idx) => {
+                const i = idx + 1; // 1-based for .instances.iN
+                const label =
+                  section.collection?.label_template
+                    ? section.collection.label_template.replace('#{i}', String(i))
+                    : `Instance ${i}`;
+
+                dlog('render:instance', { node: node.addr, sectionPath: section.path, i, label });
+
+                return (
+                  <div key={`inst-${i}`} className="rounded-md border p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm font-medium">{label}</div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="secondary"
+                          size="icon"
+                          title="Drag to reorder"
+                          disabled={!allowReorder}
+                          onClick={() => reorderInstance(i, i)} // hook placeholder
+                        >
+                          <GripVertical className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Remove"
+                          onClick={() => removeInstance(i)}
+                          disabled={!allowRemove || uiCount <= min}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      {section.children?.map((fieldRef) => {
+                        dlog('render:instance.field', { node: node.addr, sectionPath: section.path, i, fieldRef });
+                        return (
+                          <div key={`${i}:${fieldRef}`}>
+                            {renderField({ fieldRef, sectionPath: section.path, instanceNum: i })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </>
       )}
     </div>
