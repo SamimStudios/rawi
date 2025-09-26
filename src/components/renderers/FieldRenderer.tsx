@@ -9,7 +9,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useHybridValue } from '@/lib/ltree/hooks';
 import { useFieldRegistry } from '@/hooks/useFieldRegistry';
-import { FormAddr } from '@/lib/ltree/addresses';
 import { useDrafts } from '@/contexts/DraftsContext';
 import type { JobNode } from '@/hooks/useJobs';
 
