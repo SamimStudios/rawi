@@ -138,7 +138,17 @@ export function FieldHybridRenderer({
     );
   }
 
-  // Render field with registry definition
+  // In idle mode, show read-only value display
+  if (mode === 'idle') {
+    const displayValue = effectiveValue || fieldDefinition?.default_value || '';
+    return (
+      <div className="text-sm text-foreground py-1">
+        {displayValue || <span className="text-muted-foreground italic">No value</span>}
+      </div>
+    );
+  }
+
+  // In edit mode, render interactive field
   return (
     <SystematicFieldRenderer
       field={{
