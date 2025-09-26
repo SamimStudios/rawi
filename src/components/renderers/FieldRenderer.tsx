@@ -115,17 +115,13 @@ export function FieldRenderer({
     }
   }, [node.addr, fieldRef, sectionPath, instanceNum]);
 
-  if (!address) {
-    return (
-      <div className="text-destructive text-sm p-2 bg-destructive/10 rounded">
-        Failed to build address for {fieldRef}
-      </div>
-    );
-  }
+  // Always call hooks in the same order — even if address is null
+const { value: dbValue, loading: valueLoading, error: valueError } =
+  useHybridValue(node.job_id, address ?? null);
 
-  // --- Data ---
-  const { value: dbValue, loading: valueLoading, error: valueError } =
-    useHybridValue(node.job_id, address);
+// We’ll render an error box later if address is bad, but we do NOT early-return before hooks
+const addressError = !address ? `Failed to build address for ${fieldRef}` : null;
+
 
   const fieldDefinition = getField(fieldRef);
   const draftValue = getDraft(address);
