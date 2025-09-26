@@ -2,9 +2,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronRight, GripVertical, Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { FieldHybridRenderer } from '@/components/renderers/FieldHybridRenderer';
-// set logs always on for Lovable preview (no process.env in browser)
+
+// logging always on (Lovable preview — no process.env)
 const DBG = true;
 const dlog = (...a: any[]) => { if (DBG) console.debug('[RENDER:Section]', ...a); };
 const dwarn = (...a: any[]) => console.warn('[RENDER:Section]', ...a);
@@ -12,8 +12,7 @@ const dwarn = (...a: any[]) => console.warn('[RENDER:Section]', ...a);
 export type SectionContract = {
   path: string;                 // SSOT: section key
   title?: string;
-  children: string[];           // field refs (strings)
-  // SSOT collection config (optional)
+  children: any[];              // field refs (strings or objects — we'll normalize)
   collection?: {
     min?: number;
     max?: number;
@@ -28,10 +27,10 @@ export type SectionContract = {
 };
 
 type Props = {
-  node: any; // keep loose here to avoid type import mismatches
+  node: any; // keep loose to avoid type import mismatches
   section: SectionContract;
 
-  /** Optional custom field renderer from parent. If omitted, we fallback to FieldHybridRenderer. */
+  /** Optional custom field renderer. If omitted, we fallback to FieldHybridRenderer. */
   renderField?: (args: { fieldRef: string; sectionPath: string; instanceNum?: number }) => React.ReactNode;
 
   /** Optional: Section-scoped Save (parent filters drafts by prefix addr#content.items.<sectionPath>) */
@@ -45,6 +44,32 @@ type Props = {
   onRemoveInstance?: (sectionPath: string, index: number) => Promise<void> | void; // 1-based
   onReorderInstance?: (sectionPath: string, from: number, to: number) => Promise<void> | void; // 1-based
 };
+
+// Normalize whatever the section.children gives us into a fieldRef string
+function normalizeFieldRef(child: any, sectionPath?: string): string | null {
+  if (typeof child === 'string') return child;
+
+  if (!child || typeof child !== 'object') return null;
+
+  // most likely keys first
+  if (typeof child.ref === 'string') return child.ref;
+  if (typeof child.fieldRef === 'string') return child.fieldRef;
+  if (typeof child.field_ref === 'string') return child.field_ref;
+
+  // generic fallbacks
+  if (typeof child.key === 'string') return child.key;
+  if (typeof child.name === 'string') return child.name;
+  if (typeof child.id === 'string') return child.id;
+
+  // sometimes "path" contains something like "characters.name" or just "name"
+  if (typeof child.path === 'string') {
+    const segs = child.path.split('.').filter(Boolean);
+    const last = segs[segs.length - 1];
+    if (last && last !== sectionPath) return last;
+  }
+
+  return null;
+}
 
 export function SectionRenderer({
   node,
@@ -175,7 +200,7 @@ export function SectionRenderer({
           type="button"
         >
           {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          <span className="font-medium">{section.title ?? section.path}</span>
+        <span className="font-medium">{section.title ?? section.path}</span>
         </button>
 
         <div className="flex items-center gap-2">
@@ -193,7 +218,16 @@ export function SectionRenderer({
           {/* Non-collection: simple children render */}
           {!isCollection && (
             <div className="mt-3 space-y-3">
-              {section.children?.map((fieldRef) => {
+              {section.children?.map((child) => {
+                const fieldRef = normalizeFieldRef(child, section.path);
+                if (!fieldRef) {
+                  dlog('render:child:skip (cannot normalize fieldRef)', { node: node?.addr, sectionPath: section.path, child });
+                  return (
+                    <div key={JSON.stringify(child)} className="text-xs text-red-600 bg-red-50 p-2 rounded">
+                      Failed to resolve fieldRef for child in section “{section.path}”. Check SSOT/contract.
+                    </div>
+                  );
+                }
                 dlog('render:child', { node: node?.addr, sectionPath: section.path, fieldRef });
                 return (
                   <div key={fieldRef}>
@@ -252,7 +286,16 @@ export function SectionRenderer({
                     </div>
 
                     <div className="space-y-3">
-                      {section.children?.map((fieldRef) => {
+                      {section.children?.map((child) => {
+                        const fieldRef = normalizeFieldRef(child, section.path);
+                        if (!fieldRef) {
+                          dlog('render:instance.field:skip (cannot normalize fieldRef)', { node: node?.addr, sectionPath: section.path, i, child });
+                          return (
+                            <div key={JSON.stringify(child)} className="text-xs text-red-600 bg-red-50 p-2 rounded">
+                              Failed to resolve fieldRef for child in section “{section.path}” instance {i}.
+                            </div>
+                          );
+                        }
                         dlog('render:instance.field', { node: node?.addr, sectionPath: section.path, i, fieldRef });
                         return (
                           <div key={`${i}:${fieldRef}`}>
