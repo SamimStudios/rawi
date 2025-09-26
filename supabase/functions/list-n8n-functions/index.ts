@@ -16,69 +16,62 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
       {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
+        auth: { autoRefreshToken: false, persistSession: false }
       }
     );
 
     console.log('🔄 Fetching N8N functions from database...');
-    
-    // Try app schema first, then fall back to public
-    let data: any[] | null = null;
-    let error: any = null;
 
-    const fetchFromSchema = async (schema?: string) => {
-      const client = supabaseAdmin;
-      const query = schema ? client.schema(schema as any).from('n8n_functions') : client.from('n8n_functions');
-      return await query
-        .select('id, name, kind, active, price')
+    const selectAndNormalize = async (schema?: string) => {
+      const client = schema ? supabaseAdmin.schema(schema as any) : supabaseAdmin;
+      const { data, error } = await client
+        .from('n8n_functions')
+        .select('*')
         .eq('active', true)
         .order('name');
+      if (error) return { data: [], error };
+
+      const getPrice = (row: any) => {
+        const candidates = ['price', 'credit_price', 'credits_cost', 'cost', 'creditCost'];
+        for (const k of candidates) {
+          const v = row?.[k];
+          const num = typeof v === 'string' ? parseFloat(v) : v;
+          if (typeof num === 'number' && !Number.isNaN(num)) return num;
+        }
+        return 0;
+      };
+
+      const mapped = (data || []).map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        kind: r.kind,
+        active: r.active,
+        price: getPrice(r)
+      }));
+      return { data: mapped, error: null };
     };
 
-    let res = await fetchFromSchema('app');
+    // Try app schema first, then public
+    let res = await selectAndNormalize('app');
     if (res.error) {
       console.warn('⚠️ app.n8n_functions query failed, falling back to public:', res.error.message);
-      res = await fetchFromSchema();
+      res = await selectAndNormalize();
     }
 
-    data = res.data ?? [];
-    error = res.error;
+    if (res.error) throw res.error;
 
-    if (error) {
-      console.error('❌ Database error:', error);
-      throw error;
-    }
+    console.log('✅ Found N8N functions:', res.data.length);
 
-    console.log('✅ Found N8N functions:', data?.length || 0);
-    
     return new Response(
-      JSON.stringify({ data: data || [] }),
-      { 
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
-      }
+      JSON.stringify({ data: res.data }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
   } catch (error) {
     console.error('❌ Error in list-n8n-functions:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
-      JSON.stringify({ 
-        error: errorMessage,
-        data: []
-      }),
-      { 
-        status: 500,
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
-      }
+      JSON.stringify({ error: errorMessage, data: [] }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

@@ -13,13 +13,6 @@ interface LtreeOperation {
   value?: any;
 }
 
-interface LtreeResponse {
-  success: boolean;
-  data?: any;
-  exists?: boolean;
-  error?: string;
-}
-
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -44,11 +37,9 @@ serve(async (req) => {
       if (hashIndex === -1) {
         return { ltreePath: addr, jsonKeys: [] };
       }
-      
       const ltreePath = addr.substring(0, hashIndex);
       const jsonPath = addr.substring(hashIndex + 1);
-      const jsonKeys = jsonPath.split('.').filter(key => key.length > 0);
-      
+      const jsonKeys = jsonPath.split('.').filter((key) => key.length > 0);
       return { ltreePath, jsonKeys };
     };
 
@@ -57,7 +48,6 @@ serve(async (req) => {
 
     switch (operation) {
       case 'resolve': {
-        // Get data from ltree address using app.nodes table
         const { data: nodeData, error: nodeError } = await supabase
           .schema('app')
           .from('nodes')
@@ -67,91 +57,65 @@ serve(async (req) => {
           .single();
 
         if (nodeError) {
-          if (nodeError.code === 'PGRST116') {
-            // No data found - return null
-            return new Response(JSON.stringify({
-              success: true,
-              data: null
-            }), {
+          if ((nodeError as any).code === 'PGRST116') {
+            return new Response(JSON.stringify({ success: true, data: null }), {
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
           }
-          throw nodeError;
+          throw nodeError as any;
         }
 
-        let result = nodeData?.content;
-
-        // Navigate through JSON keys if provided
+        let result: any = nodeData?.content;
         for (const key of jsonKeys) {
-          if (result === null || result === undefined) {
-            console.log(`[ltree-resolver] Result is null/undefined at key "${key}"`);
-            break;
-          }
-          
-          // Handle SSOT form content structure
-          if (typeof result === 'object' && result.kind === 'FormContent' && key !== 'kind' && key !== 'version' && key !== 'items') {
-            // This is a field reference in SSOT form content
-            // Look for the field in the items array
-            if (Array.isArray(result.items)) {
-              const fieldItem = result.items.find((item: any) => 
-                item.kind === 'FieldItem' && item.ref === key
+          if (result === null || result === undefined) break;
+          if (
+            typeof result === 'object' &&
+            (result as any).kind === 'FormContent' &&
+            key !== 'kind' &&
+            key !== 'version' &&
+            key !== 'items'
+          ) {
+            if (Array.isArray((result as any).items)) {
+              const fieldItem = (result as any).items.find(
+                (item: any) => item.kind === 'FieldItem' && item.ref === key
               );
-              
               if (fieldItem) {
                 result = fieldItem;
-                console.log(`[ltree-resolver] Found SSOT field "${key}":`, result);
                 continue;
               } else {
-                console.log(`[ltree-resolver] SSOT field "${key}" not found in items`);
                 result = null;
                 break;
               }
             }
           }
-          
-          // Regular object property navigation
-          if (typeof result === 'object' && key in result) {
-            result = result[key];
-            console.log(`[ltree-resolver] Navigated to key "${key}":`, result);
+          if (typeof result === 'object' && key in (result as any)) {
+            result = (result as any)[key];
           } else {
-            console.log(`[ltree-resolver] Key "${key}" not found in:`, result);
             result = null;
             break;
           }
         }
 
-        console.log(`[ltree-resolver] Resolved value:`, result);
-
-        return new Response(JSON.stringify({
-          success: true,
-          data: result
-        }), {
+        return new Response(JSON.stringify({ success: true, data: result }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       case 'set': {
-        console.log(`[ltree-resolver] Setting value:`, value);
-
         if (jsonKeys.length === 0) {
-          // Direct ltree path update - update entire content
-          // Use update instead of upsert to avoid onConflict issues
-          const { error: setError } = await supabase
+          // Update entire content; require existing row
+          const { data: updated, error: setError } = await supabase
             .schema('app')
             .from('nodes')
-            .update({
-              content: value,
-              updated_at: new Date().toISOString()
-            })
+            .update({ content: value, updated_at: new Date().toISOString() })
             .eq('job_id', job_id)
-            .eq('addr', ltreePath);
+            .eq('addr', ltreePath)
+            .select('addr');
 
-          if (setError) {
-            console.error('[ltree-resolver] Direct set error:', setError);
-            throw setError;
-          }
+          if (setError) throw setError as any;
+          if (!updated || updated.length === 0) throw new Error('Node not found for update');
         } else {
-          // JSON path update - need to get existing content first
+          // JSON path update - get existing content first
           const { data: existingData, error: getError } = await supabase
             .schema('app')
             .from('nodes')
@@ -159,95 +123,67 @@ serve(async (req) => {
             .eq('job_id', job_id)
             .eq('addr', ltreePath)
             .single();
+          if (getError) throw getError as any;
 
-          let currentContent = existingData?.content || {};
-
-          // Handle SSOT form content structure for setting values
-          let current = currentContent;
-          
-          // Navigate to the target location, handling SSOT form content
+          let currentContent: any = existingData?.content || {};
+          let current: any = currentContent;
           for (let i = 0; i < jsonKeys.length - 1; i++) {
             const key = jsonKeys[i];
-            
-            // Handle SSOT form content structure
-            if (typeof current === 'object' && current.kind === 'FormContent' && key !== 'kind' && key !== 'version' && key !== 'items') {
-              // This is a field reference in SSOT form content
+            if (
+              typeof current === 'object' &&
+              current?.kind === 'FormContent' &&
+              key !== 'kind' &&
+              key !== 'version' &&
+              key !== 'items'
+            ) {
               if (Array.isArray(current.items)) {
-                let fieldItem = current.items.find((item: any) => 
-                  item.kind === 'FieldItem' && item.ref === key
+                let fieldItem = current.items.find(
+                  (item: any) => item.kind === 'FieldItem' && item.ref === key
                 );
-                
                 if (!fieldItem) {
-                  // Create the field item if it doesn't exist
-                  fieldItem = {
-                    kind: 'FieldItem',
-                    ref: key,
-                    idx: current.items.length + 1
-                  };
+                  fieldItem = { kind: 'FieldItem', ref: key, idx: current.items.length + 1 };
                   current.items.push(fieldItem);
                 }
-                
                 current = fieldItem;
                 continue;
               }
             }
-            
-            // Regular object navigation
             if (!(key in current) || typeof current[key] !== 'object') {
               current[key] = {};
             }
             current = current[key];
           }
-          
-          // Set the final value
           const finalKey = jsonKeys[jsonKeys.length - 1];
           current[finalKey] = value;
 
-          // Update the node with modified content
-          // Use update instead of upsert to avoid onConflict issues
-          const { error: setError } = await supabase
+          const { data: updated, error: setError } = await supabase
             .schema('app')
             .from('nodes')
-            .update({
-              content: currentContent,
-              updated_at: new Date().toISOString()
-            })
+            .update({ content: currentContent, updated_at: new Date().toISOString() })
             .eq('job_id', job_id)
-            .eq('addr', ltreePath);
+            .eq('addr', ltreePath)
+            .select('addr');
 
-          if (setError) {
-            console.error('[ltree-resolver] JSON path set error:', setError);
-            throw setError;
-          }
+          if (setError) throw setError as any;
+          if (!updated || updated.length === 0) throw new Error('Node not found for update');
         }
 
-        console.log(`[ltree-resolver] Value set successfully`);
-
-        return new Response(JSON.stringify({
-          success: true,
-          data: value
-        }), {
+        return new Response(JSON.stringify({ success: true, data: value }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       case 'exists': {
-        const { data: existsData, error: existsError } = await supabase
+        const { error: existsError } = await supabase
           .schema('app')
           .from('nodes')
           .select('addr')
           .eq('job_id', job_id)
           .eq('addr', ltreePath)
           .single();
-
-        if (existsError && existsError.code !== 'PGRST116') {
-          throw existsError;
-        }
-
         const nodeExists = !existsError;
         let pathExists = nodeExists;
 
-        // If node exists and we have json keys, check if the json path exists
         if (nodeExists && jsonKeys.length > 0) {
           const { data: contentData } = await supabase
             .schema('app')
@@ -256,8 +192,7 @@ serve(async (req) => {
             .eq('job_id', job_id)
             .eq('addr', ltreePath)
             .single();
-
-          let current = contentData?.content;
+          let current: any = contentData?.content;
           for (const key of jsonKeys) {
             if (current && typeof current === 'object' && key in current) {
               current = current[key];
@@ -268,36 +203,21 @@ serve(async (req) => {
           }
         }
 
-        console.log(`[ltree-resolver] Address exists: ${pathExists}`);
-
-        return new Response(JSON.stringify({
-          success: true,
-          exists: pathExists
-        }), {
+        return new Response(JSON.stringify({ success: true, exists: pathExists }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       case 'list_children': {
-        // List child nodes under the given ltree path
         const { data: childrenData, error: childrenError } = await supabase
           .schema('app')
           .from('nodes')
           .select('addr')
           .eq('job_id', job_id)
           .like('addr', `${ltreePath}.%`);
-
-        if (childrenError) {
-          throw childrenError;
-        }
-
-        const children = childrenData?.map(row => row.addr) || [];
-        console.log(`[ltree-resolver] Found ${children.length} children`);
-
-        return new Response(JSON.stringify({
-          success: true,
-          data: children
-        }), {
+        if (childrenError) throw childrenError as any;
+        const children = childrenData?.map((row: any) => row.addr) || [];
+        return new Response(JSON.stringify({ success: true, data: children }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
@@ -305,15 +225,11 @@ serve(async (req) => {
       default:
         throw new Error(`Unknown operation: ${operation}`);
     }
-
   } catch (error) {
     console.error('[ltree-resolver] Error:', error);
-    return new Response(JSON.stringify({ 
-      success: false,
-      error: error instanceof Error ? error.message : String(error)
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({ success: false, error: (error as any)?.message ?? String(error) }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 });

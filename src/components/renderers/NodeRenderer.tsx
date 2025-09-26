@@ -97,15 +97,38 @@ export default function NodeRenderer({
       console.log(`[NodeRenderer] Saving ${draftsToSave.length} drafts for node ${node.addr}:`, draftsToSave);
       
       if (draftsToSave.length > 0) {
-        // Use the atomic RPC to save all drafts at once
-        const { error } = await (supabase as any).rpc('addr_write_many', {
-          p_job_id: node.job_id,
-          p_writes: draftsToSave
-        });
-        
-        if (error) {
-          console.error('[NodeRenderer] RPC error:', error);
-          throw error;
+        // Try atomic RPC first
+        let rpcFailed = false;
+        try {
+          const { error } = await (supabase as any).rpc('addr_write_many', {
+            p_job_id: node.job_id,
+            p_writes: draftsToSave
+          });
+          if (error) {
+            rpcFailed = true;
+            console.warn('[NodeRenderer] addr_write_many RPC failed, falling back to ltree-resolver:', error);
+          }
+        } catch (e) {
+          rpcFailed = true;
+          console.warn('[NodeRenderer] addr_write_many RPC threw, falling back to ltree-resolver:', e);
+        }
+
+        if (rpcFailed) {
+          // Fallback: persist each draft via ltree-resolver edge function
+          for (const draft of draftsToSave) {
+            const { data: res, error: fnError } = await supabase.functions.invoke('ltree-resolver', {
+              body: {
+                operation: 'set',
+                job_id: node.job_id,
+                address: draft.address,
+                value: draft.value,
+              }
+            });
+            if (fnError || !res?.success) {
+              console.error('[NodeRenderer] ltree-resolver error:', fnError || res);
+              throw new Error(res?.error || 'ltree-resolver failed');
+            }
+          }
         }
         
         // Reload this node from DB to get fresh data
