@@ -68,13 +68,18 @@ export default function JobEditor() {
     const grouped: Record<string, JobNode[]> = {};
     
     nodes.forEach(node => {
-      const parts = node.path.split('.');
+      const parts = node.addr.split('.');
       const rootPath = parts[0];
       
       if (!grouped[rootPath]) {
         grouped[rootPath] = [];
       }
       grouped[rootPath].push(node);
+    });
+    
+    // Sort nodes within each group by address for consistent ordering
+    Object.keys(grouped).forEach(key => {
+      grouped[key].sort((a, b) => a.addr.localeCompare(b.addr));
     });
     
     return grouped;

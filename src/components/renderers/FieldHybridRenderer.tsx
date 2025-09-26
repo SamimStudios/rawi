@@ -84,9 +84,11 @@ export function FieldHybridRenderer({
 
   // Get effective value: draft ?? db ?? default
   const draftValue = getDraft(address);
-  const effectiveValue = draftValue !== undefined ? draftValue : 
-                        (dbValue !== undefined ? dbValue : 
-                         fieldDefinition?.default_value);
+  const effectiveValue = React.useMemo(() => {
+    return draftValue !== undefined ? draftValue : 
+           (dbValue !== undefined ? dbValue : 
+            fieldDefinition?.default_value);
+  }, [draftValue, dbValue, fieldDefinition?.default_value]);
 
   console.log(`[FieldHybridRenderer] Values - DB: ${dbValue}, Draft: ${draftValue}, Effective: ${effectiveValue}`);
 

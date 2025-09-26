@@ -46,7 +46,7 @@ export default function NodeRenderer({
   const { startEditing, stopEditing, isEditing, hasActiveEditor } = useNodeEditor();
   
   const [internalMode, setInternalMode] = useState<'idle' | 'edit'>('idle');
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [validateCredits, setValidateCredits] = useState<number | undefined>();
@@ -78,7 +78,12 @@ export default function NodeRenderer({
     }
   }, [validateCost, generateCost, pricingLoading]);
 
-  const handleStartEdit = () => setEffectiveMode('edit');
+  const handleStartEdit = () => {
+    if (startEditing(node.id)) {
+      setEffectiveMode('edit');
+      setIsCollapsed(false); // Auto-expand when entering edit mode
+    }
+  };
   const handleSaveEdit = async () => {
     if (!node.addr) return;
     
@@ -267,7 +272,10 @@ export default function NodeRenderer({
   };
 
   return (
-    <Card className={cn("w-full", className)}>
+    <Card className={cn("w-full transition-colors", 
+      effectiveMode === 'edit' && "border-primary bg-primary/5",
+      className
+    )}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -315,7 +323,21 @@ export default function NodeRenderer({
             )}
             {effectiveMode === 'idle' && (
               <>
-                <Button variant="ghost" size="sm" onClick={handleStartEdit}>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => {
+                    if (hasActiveEditor()) {
+                      toast({
+                        title: "Another node is being edited",
+                        description: "Please finish editing the current node first.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    handleStartEdit();
+                  }}
+                >
                   <Edit2 className="h-3 w-3 mr-1" />Edit
                 </Button>
                 {hasGenerateAction && (
