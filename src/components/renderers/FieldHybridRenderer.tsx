@@ -64,26 +64,47 @@ export function FieldHybridRenderer({
   // Create proper SSOT hybrid address using node.addr
 const address = React.useMemo(() => {
   try {
+    // SECTION FIELD (possibly nested)
     if (sectionPath) {
-      // section field (single or instance)
-      const addr = (typeof instanceNum === 'number')
-        ? FormAddr.sectionInstanceFieldValue(node.addr, sectionPath, instanceNum, fieldRef)
-        : FormAddr.sectionFieldValue(node.addr, sectionPath, fieldRef);
-      dlog('address (section)', { node: node.addr, sectionPath, instanceNum, fieldRef, addr });
+      const isNested = sectionPath.includes('.');
+      // with instance
+      if (typeof instanceNum === 'number') {
+        if (isNested) {
+          const addr = buildNestedSectionFieldAddr(node.addr, sectionPath, String(fieldRef), instanceNum);
+          dlog('address (section:nested+instance)', { addr, sectionPath, instanceNum, fieldRef: String(fieldRef) });
+          return addr;
+        }
+        // simple section + instance -> use helper
+        const addr = FormAddr.sectionInstanceFieldValue(node.addr, sectionPath, instanceNum, String(fieldRef));
+        dlog('address (section:instance)', { addr, sectionPath, instanceNum, fieldRef: String(fieldRef) });
+        return addr;
+      }
+      // no instance
+      if (isNested) {
+        const addr = buildNestedSectionFieldAddr(node.addr, sectionPath, String(fieldRef));
+        dlog('address (section:nested)', { addr, sectionPath, fieldRef: String(fieldRef) });
+        return addr;
+      }
+      const addr = FormAddr.sectionFieldValue(node.addr, sectionPath, String(fieldRef));
+      dlog('address (section)', { addr, sectionPath, fieldRef: String(fieldRef) });
       return addr;
     }
 
-    // top-level field (single or instance)
-    const addr = (typeof instanceNum === 'number')
-      ? FormAddr.fieldInstanceValue(node.addr, fieldRef, instanceNum)
-      : FormAddr.fieldValue(node.addr, fieldRef);
-    dlog('address (field)', { node: node.addr, instanceNum, fieldRef, addr });
+    // TOP-LEVEL FIELD (no section)
+    if (typeof instanceNum === 'number') {
+      const addr = FormAddr.fieldInstanceValue(node.addr, String(fieldRef), instanceNum);
+      dlog('address (field:instance)', { addr, fieldRef: String(fieldRef), instanceNum });
+      return addr;
+    }
+    const addr = FormAddr.fieldValue(node.addr, String(fieldRef));
+    dlog('address (field)', { addr, fieldRef: String(fieldRef) });
     return addr;
   } catch (e) {
     console.error('[RENDER:Field] address build error', e, { node: node.addr, sectionPath, instanceNum, fieldRef });
     return null;
   }
 }, [node.addr, fieldRef, sectionPath, instanceNum]);
+
 
   if (!address) {
   return (
