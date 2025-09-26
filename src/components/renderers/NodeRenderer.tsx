@@ -125,7 +125,7 @@ export default function NodeRenderer({
         <div className="text-center py-8 text-muted-foreground">
           <p>No content defined</p>
           {hasGenerateAction && effectiveMode === 'idle' && (
-            <CreditsButton onClick={handleGenerate} credits={generateCredits} loading={loading} size="default">
+            <CreditsButton onClick={handleGenerate} price={generateCredits} available={userCredits} loading={loading} size="default">
               Generate Content
             </CreditsButton>
           )}
@@ -185,7 +185,7 @@ export default function NodeRenderer({
                   <X className="h-3 w-3 mr-1" />Cancel
                 </Button>
                 {hasValidateAction && (
-                  <CreditsButton onClick={handleValidate} credits={validateCredits} loading={loading} size="sm">
+                  <CreditsButton onClick={handleValidate} price={validateCredits} available={userCredits} loading={loading} size="sm">
                     Validate
                   </CreditsButton>
                 )}
@@ -197,7 +197,7 @@ export default function NodeRenderer({
                   <Edit2 className="h-3 w-3 mr-1" />Edit
                 </Button>
                 {hasGenerateAction && (
-                  <CreditsButton onClick={handleGenerate} credits={generateCredits} loading={loading} size="sm">
+                  <CreditsButton onClick={handleGenerate} price={generateCredits} available={userCredits} loading={loading} size="sm">
                     Generate
                   </CreditsButton>
                 )}

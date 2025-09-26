@@ -44,6 +44,7 @@ export function useJobs() {
   const [jobNodes, setJobNodes] = useState<JobNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [nodeUpdatedAtMap, setNodeUpdatedAtMap] = useState<Map<string, string>>(new Map());
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -79,7 +80,17 @@ export function useJobs() {
         .order('path');
 
       if (error) throw error;
-      setJobNodes(data || []);
+      const nodes = data || [];
+      setJobNodes(nodes);
+      
+      // Update the nodeUpdatedAtMap for stale detection
+      const newMap = new Map<string, string>();
+      nodes.forEach(node => {
+        if (node.addr && node.updated_at) {
+          newMap.set(node.addr, node.updated_at);
+        }
+      });
+      setNodeUpdatedAtMap(newMap);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch job nodes';
       setError(errorMessage);
@@ -87,6 +98,35 @@ export function useJobs() {
       setLoading(false);
     }
   }, []);
+
+  const reloadNode = useCallback(async (jobId: string, nodeId: string) => {
+    try {
+      const { data, error } = await supabase
+        .schema('app' as any)
+        .from('nodes')
+        .select('*')
+        .eq('id', nodeId)
+        .single();
+
+      if (error) throw error;
+      
+      // Update the specific node in jobNodes
+      setJobNodes(prev => prev.map(node => 
+        node.id === nodeId ? data : node
+      ));
+      
+      // Update the nodeUpdatedAtMap for stale detection
+      if (data.addr && data.updated_at) {
+        setNodeUpdatedAtMap(prev => new Map(prev).set(data.addr, data.updated_at));
+      }
+    } catch (err) {
+      console.error('Error reloading node:', err);
+    }
+  }, []);
+
+  const getNodeUpdatedAt = useCallback((addr: string): string | undefined => {
+    return nodeUpdatedAtMap.get(addr);
+  }, [nodeUpdatedAtMap]);
 
   const getJob = useCallback(async (jobId: string): Promise<Job | null> => {
     try {
@@ -242,5 +282,7 @@ export function useJobs() {
     updateJobNode,
     checkJobReady,
     getJobGenerationInput,
+    reloadNode,
+    getNodeUpdatedAt,
   };
 }

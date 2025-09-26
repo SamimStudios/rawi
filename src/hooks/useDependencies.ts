@@ -6,11 +6,13 @@ interface UseDependenciesReturn {
   unmetDependencies: string[];
   canGenerate: boolean;
   canValidate: boolean;
+  stale: boolean;
 }
 
 export function useDependencies(
   node: JobNode,
-  allNodes?: JobNode[]
+  allNodes?: JobNode[],
+  getNodeUpdatedAt?: (addr: string) => string | undefined
 ): UseDependenciesReturn {
   return useMemo(() => {
     // Parse dependencies from node (simplified - assumes dependencies are node paths)
@@ -18,12 +20,20 @@ export function useDependencies(
       ? node.dependencies.map(dep => typeof dep === 'string' ? dep : (dep as any)?.path || dep)
       : [];
 
+    // Check if node is stale (any dependencies updated after this node)
+    const stale = getNodeUpdatedAt && node.addr && node.updated_at ? 
+      dependencies.some(depPath => {
+        const depUpdatedAt = getNodeUpdatedAt(depPath);
+        return depUpdatedAt && depUpdatedAt > node.updated_at!;
+      }) : false;
+
     if (dependencies.length === 0) {
       return {
         isBlocked: false,
         unmetDependencies: [],
         canGenerate: true,
-        canValidate: true
+        canValidate: true,
+        stale
       };
     }
 
@@ -52,9 +62,10 @@ export function useDependencies(
       isBlocked,
       unmetDependencies,
       canGenerate: !isBlocked,
-      canValidate: !isBlocked
+      canValidate: !isBlocked,
+      stale
     };
-  }, [node.dependencies, allNodes]);
+  }, [node.dependencies, node.addr, node.updated_at, allNodes, getNodeUpdatedAt]);
 }
 
 // Utility function to check if a node is complete
