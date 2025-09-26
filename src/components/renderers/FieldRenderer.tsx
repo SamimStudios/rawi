@@ -167,6 +167,15 @@ const addressError = !address ? `Failed to build address for ${fieldRef}` : null
     );
   }
 
+  if (addressError) {
+  return (
+    <div className="text-destructive text-sm p-2 bg-destructive/10 rounded">
+      {addressError}
+    </div>
+  );
+}
+
+
   // ---------- UI (merged from SystematicFieldRenderer) ----------
   const label = fieldDefinition.ui?.label?.fallback || fieldDefinition.ui?.label?.key || fieldDefinition.id;
   const placeholder = fieldDefinition.ui?.placeholder?.fallback || fieldDefinition.ui?.placeholder?.key || '';
