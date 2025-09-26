@@ -154,62 +154,54 @@ const saveViaEdgeSingle = async (jobId: string, address: string, value: any) => 
 
 
 
-  const handleSaveEdit = async () => {
-    if (!node.addr) return;
-    setLoading(true);
-    try {
-      const nodePrefix = `${node.addr}#`;
+  // in src/components/renderers/NodeRenderer.tsx
+const handleSaveEdit = async () => {
+  if (!node.addr) return;
+  setLoading(true);
+  try {
+    const nodePrefix = `${node.addr}#`;
 
-      // gather & clean
-      const rawDrafts = entries(nodePrefix); // [{ address, value }]
-      const writes = toWritesArray(rawDrafts, node.addr);
-      nlog('save:writes', { count: writes.length, sample: writes.slice(0, 3) });
-      
-      // sanity: if anything slips through with a wrong prefix, we’d catch it here
-      if (writes.some(w => !w.address.startsWith(nodePrefix))) {
-        console.warn('[NodeRenderer] writes contain wrong node prefix', { nodePrefix, writes });
-      }
-      
-      if (writes.length === 0) {
-        setEffectiveMode('idle');
-        stopEditing();
-        toast({ title: 'Nothing to save', description: 'No changes detected.' });
-        return;
-      }
-      
-      try {
-        await saveViaEdgeMany(node.job_id, writes);
-      } catch (e) {
-        console.warn('[NodeRenderer] write_many failed, falling back to per-set', e);
-        for (const w of writes) {
-          await saveViaEdgeSingle(node.job_id, w.address, w.value);
-        }
-      }
-      
-      await reloadNode(node.job_id, node.id);
-      clearDrafts(nodePrefix);
+    // gather & normalize drafts
+    const rawDrafts = entries(nodePrefix); // [{ address, value }]
+    const writes = toWritesArray(rawDrafts, node.addr);
+    nlog('save:writes', { count: writes.length, sample: writes.slice(0, 3) });
+
+    if (writes.length === 0) {
       setEffectiveMode('idle');
-      setHasUnsavedChanges(false);
       stopEditing();
-      toast({ title: 'Success', description: 'Changes saved successfully' });
-
-      }
-
-
-      setEffectiveMode('idle');
-      setHasUnsavedChanges(false);
-      stopEditing();
-    } catch (error) {
-      console.error('[NodeRenderer] Save failed:', error);
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to save changes',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
+      toast({ title: 'Nothing to save', description: 'No changes detected.' });
+      return;
     }
-  };
+
+    // write_many → fallback to per-set
+    try {
+      await saveViaEdgeMany(node.job_id, writes);
+    } catch (e) {
+      console.warn('[NodeRenderer] write_many failed, falling back to per-set', e);
+      for (const w of writes) {
+        await saveViaEdgeSingle(node.job_id, w.address, w.value);
+      }
+    }
+
+    // reload & cleanup
+    await reloadNode(node.job_id, node.id);
+    clearDrafts(nodePrefix);
+    setEffectiveMode('idle');
+    setHasUnsavedChanges(false);
+    stopEditing();
+    toast({ title: 'Success', description: 'Changes saved successfully' });
+  } catch (error) {
+    console.error('[NodeRenderer] Save failed:', error);
+    toast({
+      title: 'Error',
+      description: error instanceof Error ? error.message : 'Failed to save changes',
+      variant: 'destructive',
+    });
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const handleCancelEdit = () => {
     if (!node.addr) return;
