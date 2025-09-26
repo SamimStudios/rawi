@@ -30,14 +30,33 @@ export function useFunctionPricing(): UseFunctionPricingResult {
       setLoading(true);
       setError(null);
 
-      // For now, return static pricing since we need to wait for types to update
-      // TODO: Replace with actual database query once types are updated
-      const staticPricing: FunctionPricing = {
-        'generate_movie_info': 0.05,
-        'validate_edits': 0.05
-      };
+      let pricingMap: FunctionPricing = {};
 
-      setPricing(staticPricing);
+      // Use the list-n8n-functions edge function which includes price
+      try {
+        const { data: edgeFunctions, error: edgeError } = await supabase.functions.invoke('list-n8n-functions');
+        
+        if (edgeError) throw edgeError;
+        
+        edgeFunctions?.data?.forEach((func: any) => {
+          if (func.price !== null && func.price !== undefined) {
+            pricingMap[func.id] = func.price;
+            pricingMap[func.name] = func.price;
+          }
+        });
+        
+        console.log('Fetched pricing from edge function:', pricingMap);
+      } catch (edgeErr) {
+        console.error('Edge function failed, using fallback pricing:', edgeErr);
+        
+        // Fallback to hardcoded pricing for development
+        pricingMap = {
+          'generate_movie_info': 0.05,
+          'validate_edits': 0.05
+        };
+      }
+
+      setPricing(pricingMap);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch function pricing');
       console.error('Error fetching function pricing:', err);

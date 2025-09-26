@@ -135,17 +135,16 @@ serve(async (req) => {
 
         if (jsonKeys.length === 0) {
           // Direct ltree path update - update entire content
+          // Use update instead of upsert to avoid onConflict issues
           const { error: setError } = await supabase
             .schema('app')
             .from('nodes')
-            .upsert({
-              job_id,
-              addr: ltreePath,
+            .update({
               content: value,
               updated_at: new Date().toISOString()
-            }, {
-              onConflict: 'job_id,addr'
-            });
+            })
+            .eq('job_id', job_id)
+            .eq('addr', ltreePath);
 
           if (setError) {
             console.error('[ltree-resolver] Direct set error:', setError);
@@ -205,17 +204,16 @@ serve(async (req) => {
           current[finalKey] = value;
 
           // Update the node with modified content
+          // Use update instead of upsert to avoid onConflict issues
           const { error: setError } = await supabase
             .schema('app')
             .from('nodes')
-            .upsert({
-              job_id,
-              addr: ltreePath,
+            .update({
               content: currentContent,
               updated_at: new Date().toISOString()
-            }, {
-              onConflict: 'job_id,addr'
-            });
+            })
+            .eq('job_id', job_id)
+            .eq('addr', ltreePath);
 
           if (setError) {
             console.error('[ltree-resolver] JSON path set error:', setError);

@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
       const client = supabaseAdmin;
       const query = schema ? client.schema(schema as any).from('n8n_functions') : client.from('n8n_functions');
       return await query
-        .select('id, name, kind, active')
+        .select('id, name, kind, active, price')
         .eq('active', true)
         .order('name');
     };

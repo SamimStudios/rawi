@@ -97,13 +97,15 @@ export default function NodeRenderer({
       console.log(`[NodeRenderer] Saving ${draftsToSave.length} drafts for node ${node.addr}:`, draftsToSave);
       
       if (draftsToSave.length > 0) {
-        // Save each draft using the ltree service
-        for (const draft of draftsToSave) {
-          await HybridAddrService.setItemAt({
-            jobId: node.job_id,
-            address: draft.address,
-            value: draft.value
-          });
+        // Use the atomic RPC to save all drafts at once
+        const { error } = await (supabase as any).rpc('addr_write_many', {
+          p_job_id: node.job_id,
+          p_writes: draftsToSave
+        });
+        
+        if (error) {
+          console.error('[NodeRenderer] RPC error:', error);
+          throw error;
         }
         
         // Reload this node from DB to get fresh data

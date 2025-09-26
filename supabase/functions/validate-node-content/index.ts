@@ -37,9 +37,10 @@ serve(async (req) => {
     console.log(`[validate-node-content] Validating node ${nodeId} for job ${jobId}`);
     console.log(`[validate-node-content] Field values:`, fieldValues);
 
-    // Get node information
+    // Get node information using correct schema
     const { data: node, error: nodeError } = await supabase
-      .from('app.nodes')
+      .schema('app')
+      .from('nodes')
       .select('validate_n8n_id')
       .eq('id', nodeId)
       .single();
@@ -59,10 +60,11 @@ serve(async (req) => {
       });
     }
 
-    // Get n8n function details
+    // Get n8n function details using correct schema
     const { data: n8nFunction, error: functionError } = await supabase
-      .from('app.n8n_functions')
-      .select('*')
+      .schema('app')
+      .from('n8n_functions')
+      .select('id, name, kind, active, price')
       .eq('id', node.validate_n8n_id)
       .single();
 

@@ -37,9 +37,10 @@ serve(async (req) => {
     console.log(`[generate-node-content] Generating content for node ${nodeId} in job ${jobId}`);
     console.log(`[generate-node-content] Context:`, context);
 
-    // Get node information
+    // Get node information using correct schema
     const { data: node, error: nodeError } = await supabase
-      .from('app.nodes')
+      .schema('app')
+      .from('nodes')
       .select('generate_n8n_id, addr, content')
       .eq('id', nodeId)
       .single();
@@ -60,10 +61,11 @@ serve(async (req) => {
       });
     }
 
-    // Get n8n function details
+    // Get n8n function details using correct schema
     const { data: n8nFunction, error: functionError } = await supabase
-      .from('app.n8n_functions')
-      .select('*')
+      .schema('app')
+      .from('n8n_functions')
+      .select('id, name, kind, active, price')
       .eq('id', node.generate_n8n_id)
       .single();
 
