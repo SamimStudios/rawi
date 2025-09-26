@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight, GripVertical, Plus, RotateCcw, Save, Trash2 
 import { cn } from '@/lib/utils';
 import type { JobNode } from '@/hooks/useJobs';
 
-const DBG = typeof window !== 'undefined' && process.env.NEXT_PUBLIC_DEBUG_RENDER === '1';
+const DBG = true; // TEMP: always log on Lovable (no process.env)
 const dlog = (...a: any[]) => { if (DBG) console.debug('[RENDER:Section]', ...a); };
 const dwarn = (...a: any[]) => console.warn('[RENDER:Section]', ...a);
 
