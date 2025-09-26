@@ -5,6 +5,7 @@
  * 1. Uses proper node.addr addressing (not node.path)
  * 2. Fetches field definitions from app.field_registry
  * 3. Delegates UI rendering to SystematicFieldRenderer
+ * 4. Integrates with DraftsProvider for local-only changes until Save
  * 
  * Architecture:
  * - FieldHybridRenderer: Data connector using hybrid addresses (this file)
@@ -14,6 +15,7 @@ import React from 'react';
 import { useHybridValue } from '@/lib/ltree/hooks';
 import { useFieldRegistry } from '@/hooks/useFieldRegistry';
 import { NodeAddressing } from '@/lib/content-contracts';
+import { useDrafts } from '@/contexts/DraftsContext';
 import SystematicFieldRenderer from './SystematicFieldRenderer';
 import type { JobNode } from '@/hooks/useJobs';
 
@@ -53,6 +55,7 @@ export function FieldHybridRenderer({
   console.log(`[FieldHybridRenderer] Section: ${sectionPath}, Instance: ${instanceNum}, Mode: ${mode}`);
 
   const { getField, loading: registryLoading, error: registryError } = useFieldRegistry();
+  const { get: getDraft, set: setDraft } = useDrafts();
 
   // Create proper SSOT hybrid address using node.addr
   const address = React.useMemo(() => {
@@ -69,10 +72,9 @@ export function FieldHybridRenderer({
 
   console.log(`[FieldHybridRenderer] Using address: ${address}`);
 
-  // Use hybrid address system for isolated field state
+  // Use hybrid address system for DB field state (READ ONLY during edit)
   const {
-    value,
-    setValue,
+    value: dbValue,
     loading: valueLoading,
     error: valueError
   } = useHybridValue(node.job_id, address);
@@ -80,22 +82,23 @@ export function FieldHybridRenderer({
   // Get field definition from registry
   const fieldDefinition = getField(fieldRef);
 
-  console.log(`[FieldHybridRenderer] Field definition:`, fieldDefinition);
+  // Get effective value: draft ?? db ?? default
+  const draftValue = getDraft(address);
+  const effectiveValue = draftValue !== undefined ? draftValue : 
+                        (dbValue !== undefined ? dbValue : 
+                         fieldDefinition?.default_value);
 
-  // Handle field value updates
-  const handleValueChange = async (newValue: any) => {
-    try {
-      console.log(`[FieldHybridRenderer] Updating field ${fieldRef} at ${address} with value:`, newValue);
-      await setValue(newValue);
-      onChange?.(newValue);
-      console.log(`[FieldHybridRenderer] Field updated successfully`);
-    } catch (err) {
-      console.error(`[FieldHybridRenderer] Failed to update field ${fieldRef} at ${address}:`, err);
-    }
+  console.log(`[FieldHybridRenderer] Values - DB: ${dbValue}, Draft: ${draftValue}, Effective: ${effectiveValue}`);
+
+  // Handle field value updates - ONLY update drafts, never persist to DB
+  const handleValueChange = (newValue: any) => {
+    console.log(`[FieldHybridRenderer] Storing draft for field ${fieldRef} at ${address} with value:`, newValue);
+    setDraft(address, newValue);
+    onChange?.(newValue);
   };
 
   // Show loading state while fetching registry or field value
-  if (registryLoading || (valueLoading && value === null)) {
+  if (registryLoading || (valueLoading && dbValue === null)) {
     return (
       <div className="animate-pulse">
         <div className="h-10 bg-muted rounded"></div>
@@ -145,7 +148,7 @@ export function FieldHybridRenderer({
         rules: fieldDefinition.rules || {},
         default_value: fieldDefinition.default_value || ''
       }}
-      value={value || fieldDefinition.default_value || ''}
+      value={effectiveValue || ''}
       onChange={handleValueChange}
       loading={valueLoading}
       error={valueError}

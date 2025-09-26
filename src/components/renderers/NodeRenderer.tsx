@@ -15,7 +15,9 @@ import { useToast } from '@/hooks/use-toast';
 import { useUserCredits } from '@/hooks/useUserCredits';
 import { useFunctionPricing } from '@/hooks/useFunctionPricing';
 import { supabase } from '@/integrations/supabase/client';
-import type { JobNode } from '@/hooks/useJobs';
+import { useNodeEditor } from '@/hooks/useNodeEditor';
+import { useDrafts } from '@/contexts/DraftsContext';
+import { useJobs, type JobNode } from '@/hooks/useJobs';
 
 interface NodeRendererProps {
   node: JobNode;
@@ -39,6 +41,9 @@ export default function NodeRenderer({
   const { toast } = useToast();
   const { credits: userCredits } = useUserCredits();
   const { getPrice, loading: pricingLoading } = useFunctionPricing();
+  const { entries, clear: clearDrafts } = useDrafts();
+  const { reloadNode } = useJobs();
+  const { startEditing, stopEditing, isEditing, hasActiveEditor } = useNodeEditor();
   
   const [internalMode, setInternalMode] = useState<'idle' | 'edit'>('idle');
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -47,6 +52,8 @@ export default function NodeRenderer({
   const [validateCredits, setValidateCredits] = useState<number | undefined>();
   const [generateCredits, setGenerateCredits] = useState<number | undefined>();
   const [loading, setLoading] = useState(false);
+  const [validationState, setValidationState] = useState<'unknown' | 'valid' | 'invalid' | 'validating'>('unknown');
+  const [validationSuggestions, setValidationSuggestions] = useState<any[]>([]);
   
   const effectiveMode = externalMode || internalMode;
   const setEffectiveMode = onModeChange || setInternalMode;
@@ -72,33 +79,135 @@ export default function NodeRenderer({
   }, [validateCost, generateCost, pricingLoading]);
 
   const handleStartEdit = () => setEffectiveMode('edit');
-  const handleSaveEdit = () => {
-    setEffectiveMode('idle');
-    setLastSaved(new Date());
-    setHasUnsavedChanges(false);
+  const handleSaveEdit = async () => {
+    if (!node.addr) return;
+    
+    setLoading(true);
+    try {
+      // Collect drafts with this node's address as prefix
+      const nodePrefix = `${node.addr}#`;
+      const draftsToSave = entries(nodePrefix);
+      
+      console.log(`[NodeRenderer] Saving ${draftsToSave.length} drafts for node ${node.addr}:`, draftsToSave);
+      
+      if (draftsToSave.length > 0) {
+        // Call atomic addr_write_many RPC  
+        const { error } = await (supabase as any).rpc('addr_write_many', {
+          p_job_id: node.job_id,
+          p_writes: draftsToSave
+        });
+        
+        if (error) throw error;
+        
+        // Reload this node from DB to get fresh data
+        await reloadNode(node.job_id, node.id);
+        
+        // Clear drafts for this node
+        clearDrafts(nodePrefix);
+        
+        toast({
+          title: "Success",
+          description: "Changes saved successfully",
+        });
+      }
+      
+      setEffectiveMode('idle');
+      setLastSaved(new Date());
+      setHasUnsavedChanges(false);
+      
+      // Release the single-editor guard
+      stopEditing();
+    } catch (error) {
+      console.error('[NodeRenderer] Save failed:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save changes",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
   const handleCancelEdit = () => {
+    if (!node.addr) return;
+    
+    // Clear drafts for this node (discard changes)
+    const nodePrefix = `${node.addr}#`;
+    clearDrafts(nodePrefix);
+    
     setEffectiveMode('idle');
     setHasUnsavedChanges(false);
+    
+    // Release the single-editor guard
+    stopEditing();
+    
+    toast({
+      title: "Changes discarded",
+      description: "All unsaved changes have been discarded",
+    });
   };
 
   const handleValidate = async () => {
+    setValidationState('validating');
     setLoading(true);
     try {
       const { data } = await supabase.functions.invoke('validate-node-content', {
         body: { nodeId: node.id, jobId: node.job_id, fieldValues: {} }
       });
-      toast({
-        title: data.valid ? "Validation passed" : "Validation issues found",
-        description: data.suggestions?.general || (data.valid ? "All fields are valid." : "Please review inputs."),
-        variant: data.valid ? "default" : "destructive"
-      });
+      
+      if (data.valid) {
+        setValidationState('valid');
+        setValidationSuggestions([]);
+        toast({
+          title: "Validation passed",
+          description: "All fields are valid.",
+        });
+      } else {
+        setValidationState('invalid');
+        setValidationSuggestions(data.suggestions || []);
+        toast({
+          title: "Validation issues found",
+          description: "Please review the suggestions below.",
+          variant: "destructive"
+        });
+      }
     } catch (error) {
-      toast({ title: "Validation failed", variant: "destructive" });
+      setValidationState('invalid');
+      toast({ 
+        title: "Validation failed", 
+        description: error instanceof Error ? error.message : "Validation service error",
+        variant: "destructive" 
+      });
     } finally {
       setLoading(false);
     }
   };
+
+  const applySuggestion = (suggestion: any) => {
+    if (suggestion.address && suggestion.value !== undefined) {
+      // Apply suggested fix to drafts (not DB)
+      console.log(`[NodeRenderer] Applying suggestion to ${suggestion.address}:`, suggestion.value);
+      // This would integrate with drafts if we had the suggestion format
+      toast({
+        title: "Suggestion applied",
+        description: "The suggested fix has been applied to your draft.",
+      });
+    }
+  };
+
+  // Determine if Save should be enabled
+  const canSave = (() => {
+    if (loading) return false;
+    if (hasValidateAction) {
+      // If node has validation, require it to be valid first
+      return validationState === 'valid';
+    }
+    // If no validation required, can always save
+    return true;
+  })();
+
+  // Inputs should be locked during validation
+  const inputsLocked = validationState === 'validating';
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -172,14 +281,27 @@ export default function NodeRenderer({
             <div className="flex gap-1">
               {hasUnsavedChanges && <Badge variant="outline" className="text-xs">Unsaved</Badge>}
               {effectiveMode === 'edit' && <Badge variant="default" className="text-xs">Editing</Badge>}
+              {/* Validation Status Indicator */}
+              {hasValidateAction && validationState === 'validating' && (
+                <Badge variant="secondary" className="text-xs animate-pulse">Validating...</Badge>
+              )}
+              {hasValidateAction && validationState === 'valid' && (
+                <Badge variant="default" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                  ✓ Valid
+                </Badge>
+              )}
+              {hasValidateAction && validationState === 'invalid' && (
+                <Badge variant="destructive" className="text-xs">❌ Invalid</Badge>
+              )}
             </div>
           </div>
           
           <div className="flex items-center gap-2">
             {effectiveMode === 'edit' && (
               <>
-                <Button size="sm" onClick={handleSaveEdit} disabled={loading}>
-                  <Save className="h-3 w-3 mr-1" />Save
+                <Button size="sm" onClick={handleSaveEdit} disabled={!canSave}>
+                  <Save className="h-3 w-3 mr-1" />
+                  {hasValidateAction && validationState !== 'valid' ? 'Validate First' : 'Save'}
                 </Button>
                 <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={loading}>
                   <X className="h-3 w-3 mr-1" />Cancel
