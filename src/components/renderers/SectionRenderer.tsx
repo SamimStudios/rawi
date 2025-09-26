@@ -9,20 +9,42 @@ const DBG = true;
 const dlog = (...a: any[]) => { if (DBG) console.debug('[RENDER:Section]', ...a); };
 const dwarn = (...a: any[]) => console.warn('[RENDER:Section]', ...a);
 
-export type SectionContract = {
-  path: string;                 // SSOT: section key
+/** Field-like child (may come as string or object) */
+type FieldItemLike = string | {
+  kind?: string;            // 'FieldItem' (optional)
+  ref?: string;
+  fieldRef?: string;
+  field_ref?: string;
+  key?: string;
+  name?: string;
+  id?: string;
+  path?: string;            // sometimes "section.field"
+};
+
+/** Section-like child (subsection) */
+type SectionItemLike = {
+  kind?: string;            // 'SectionItem' (preferred)
+  path: string;             // subsection key (e.g., 'lead')
   title?: string;
-  children: any[];              // field refs (strings or objects — we'll normalize)
+  children?: Array<FieldItemLike | SectionItemLike>;
   collection?: {
     min?: number;
     max?: number;
-    default_instances?: number; // fallback visible count if no server instances
+    default_instances?: number;
     allow_add?: boolean;
     allow_remove?: boolean;
     allow_reorder?: boolean;
-    label_template?: string;    // e.g. "Character #{i}"
+    label_template?: string;
   };
-  // Optional server-hinted instances (for visible count only)
+  instances?: unknown[] | null;
+};
+
+export type SectionContract = {
+  path: string;                 // SSOT: section key, can be nested: "characters.lead"
+  title?: string;
+  /** children can be field refs OR nested sections */
+  children: Array<FieldItemLike | SectionItemLike>;
+  collection?: SectionItemLike['collection'];
   instances?: unknown[] | null;
 };
 
@@ -43,34 +65,47 @@ type Props = {
   onAddInstance?: (sectionPath: string) => Promise<void> | void;
   onRemoveInstance?: (sectionPath: string, index: number) => Promise<void> | void; // 1-based
   onReorderInstance?: (sectionPath: string, from: number, to: number) => Promise<void> | void; // 1-based
+
+  /** If this section is being rendered inside a parent collection instance, carry the instanceNum down */
+  inheritedInstanceNum?: number;
 };
 
-// Normalize whatever the section.children gives us into a fieldRef string
+// ----------------- helpers -----------------
+function isSectionLike(x: any): x is SectionItemLike {
+  return !!x && typeof x === 'object' && (
+    x.kind === 'SectionItem' ||
+    (typeof x.path === 'string' && Array.isArray(x.children))
+  );
+}
+
 function normalizeFieldRef(child: any, sectionPath?: string): string | null {
   if (typeof child === 'string') return child;
-
   if (!child || typeof child !== 'object') return null;
 
-  // most likely keys first
+  // Prefer explicit field keys
   if (typeof child.ref === 'string') return child.ref;
   if (typeof child.fieldRef === 'string') return child.fieldRef;
   if (typeof child.field_ref === 'string') return child.field_ref;
 
-  // generic fallbacks
+  // Generic fallbacks
   if (typeof child.key === 'string') return child.key;
   if (typeof child.name === 'string') return child.name;
   if (typeof child.id === 'string') return child.id;
 
-  // sometimes "path" contains something like "characters.name" or just "name"
+  // Last-resort: derive from "path"
   if (typeof child.path === 'string') {
     const segs = child.path.split('.').filter(Boolean);
     const last = segs[segs.length - 1];
     if (last && last !== sectionPath) return last;
   }
-
   return null;
 }
 
+function mergePath(parentPath: string, childPath: string) {
+  return parentPath ? `${parentPath}.${childPath}` : childPath;
+}
+
+// ----------------- component -----------------
 export function SectionRenderer({
   node,
   section,
@@ -79,7 +114,8 @@ export function SectionRenderer({
   onResetSection,
   onAddInstance,
   onRemoveInstance,
-  onReorderInstance
+  onReorderInstance,
+  inheritedInstanceNum
 }: Props) {
   const isCollection = !!section.collection;
   const min = section.collection?.min ?? 0;
@@ -115,9 +151,10 @@ export function SectionRenderer({
       max,
       allowAdd,
       allowRemove,
-      allowReorder
+      allowReorder,
+      inheritedInstanceNum
     });
-  }, [node?.addr, section.path, isCollection, serverCount, uiCount, min, max, allowAdd, allowRemove, allowReorder]);
+  }, [node?.addr, section.path, isCollection, serverCount, uiCount, min, max, allowAdd, allowRemove, allowReorder, inheritedInstanceNum]);
 
   // Safe fallback if parent didn't pass renderField
   const safeRenderField = React.useCallback(
@@ -137,6 +174,57 @@ export function SectionRenderer({
     },
     [renderField, node]
   );
+
+  // Render a list of children (fields and/or subsections) with an optional instance context
+  const renderChildren = useCallback((children: SectionContract['children'], sectionPath: string, instanceCtx?: number) => {
+    return children?.map((child, idx) => {
+      // Nested subsection: recurse
+      if (isSectionLike(child)) {
+        const nestedPath = mergePath(sectionPath, child.path);
+        const nestedSection: SectionContract = {
+          path: nestedPath,
+          title: child.title ?? child.path,
+          children: child.children ?? [],
+          collection: child.collection,
+          instances: child.instances ?? null
+        };
+        dlog('render:subsection', { node: node?.addr, sectionPath, nestedPath, instanceCtx });
+        return (
+          <div key={`subsec-${nestedPath}-${idx}`} className="mt-3">
+            <SectionRenderer
+              node={node}
+              section={nestedSection}
+              renderField={renderField}
+              onSaveSection={onSaveSection}
+              onResetSection={onResetSection}
+              onAddInstance={onAddInstance}
+              onRemoveInstance={onRemoveInstance}
+              onReorderInstance={onReorderInstance}
+              inheritedInstanceNum={instanceCtx}
+            />
+          </div>
+        );
+      }
+
+      // Field-like: normalize and render
+      const fieldRef = normalizeFieldRef(child, sectionPath);
+      if (!fieldRef) {
+        dlog('render:field:skip (cannot normalize fieldRef)', { node: node?.addr, sectionPath, child });
+        return (
+          <div key={`badfield-${idx}`} className="text-xs text-red-600 bg-red-50 p-2 rounded">
+            Failed to resolve fieldRef for child in section “{sectionPath}”. Check SSOT/contract.
+          </div>
+        );
+      }
+
+      dlog('render:field', { node: node?.addr, sectionPath, instanceCtx, fieldRef });
+      return (
+        <div key={`${sectionPath}:${instanceCtx ?? 0}:${fieldRef}`}>
+          {safeRenderField({ fieldRef, sectionPath, instanceNum: instanceCtx })}
+        </div>
+      );
+    });
+  }, [node, safeRenderField, renderField, onSaveSection, onResetSection, onAddInstance, onRemoveInstance, onReorderInstance]);
 
   // --- Instance actions (UI-first; optional persistence hooks) ---
   const addInstance = useCallback(async () => {
@@ -200,7 +288,7 @@ export function SectionRenderer({
           type="button"
         >
           {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-        <span className="font-medium">{section.title ?? section.path}</span>
+          <span className="font-medium">{section.title ?? section.path}</span>
         </button>
 
         <div className="flex items-center gap-2">
@@ -215,26 +303,10 @@ export function SectionRenderer({
 
       {!open ? null : (
         <>
-          {/* Non-collection: simple children render */}
+          {/* Non-collection: simple children render (with possible nested subsections) */}
           {!isCollection && (
             <div className="mt-3 space-y-3">
-              {section.children?.map((child) => {
-                const fieldRef = normalizeFieldRef(child, section.path);
-                if (!fieldRef) {
-                  dlog('render:child:skip (cannot normalize fieldRef)', { node: node?.addr, sectionPath: section.path, child });
-                  return (
-                    <div key={JSON.stringify(child)} className="text-xs text-red-600 bg-red-50 p-2 rounded">
-                      Failed to resolve fieldRef for child in section “{section.path}”. Check SSOT/contract.
-                    </div>
-                  );
-                }
-                dlog('render:child', { node: node?.addr, sectionPath: section.path, fieldRef });
-                return (
-                  <div key={fieldRef}>
-                    {safeRenderField({ fieldRef, sectionPath: section.path })}
-                  </div>
-                );
-              })}
+              {renderChildren(section.children, section.path, inheritedInstanceNum)}
             </div>
           )}
 
@@ -286,23 +358,7 @@ export function SectionRenderer({
                     </div>
 
                     <div className="space-y-3">
-                      {section.children?.map((child) => {
-                        const fieldRef = normalizeFieldRef(child, section.path);
-                        if (!fieldRef) {
-                          dlog('render:instance.field:skip (cannot normalize fieldRef)', { node: node?.addr, sectionPath: section.path, i, child });
-                          return (
-                            <div key={JSON.stringify(child)} className="text-xs text-red-600 bg-red-50 p-2 rounded">
-                              Failed to resolve fieldRef for child in section “{section.path}” instance {i}.
-                            </div>
-                          );
-                        }
-                        dlog('render:instance.field', { node: node?.addr, sectionPath: section.path, i, fieldRef });
-                        return (
-                          <div key={`${i}:${fieldRef}`}>
-                            {safeRenderField({ fieldRef, sectionPath: section.path, instanceNum: i })}
-                          </div>
-                        );
-                      })}
+                      {renderChildren(section.children, section.path, i)}
                     </div>
                   </div>
                 );
