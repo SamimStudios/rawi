@@ -28,25 +28,35 @@ const dlog = (...a:any[]) => { if (DBG) console.debug('[RENDER:Field]', ...a); }
 
 // Build SSOT address for nested section paths (e.g. "characters.lead").
 // If instanceNum is provided, insert ".instances.iN" right after the FIRST section.
-function buildNestedSectionFieldAddr(
+// Universal SSOT address builder (top-level, simple section, nested sections, with/without instances)
+function buildFieldAddress(
   nodeAddr: string,
-  sectionPath: string,
   fieldRef: string,
+  sectionPath?: string,
   instanceNum?: number
 ) {
-  const segs = sectionPath.split('.').filter(Boolean);
-  if (!segs.length) throw new Error('Empty sectionPath');
+  const segs = (sectionPath || '').split('.').filter(Boolean);
+  let json = 'content.items';
 
-  let json = `content.items.${segs[0]}`;
-  if (typeof instanceNum === 'number') {
-    json += `.instances.i${instanceNum}`;
+  if (segs.length === 0) {
+    // top-level field
+    json += `.${fieldRef}.value`;
+  } else {
+    // first section + optional instances
+    json += `.${segs[0]}`;
+    if (typeof instanceNum === 'number') {
+      json += `.instances.i${instanceNum}`;
+    }
+    // deeper nested sections
+    for (let i = 1; i < segs.length; i++) {
+      json += `.children.${segs[i]}`;
+    }
+    // target field
+    json += `.children.${fieldRef}.value`;
   }
-  for (let i = 1; i < segs.length; i++) {
-    json += `.children.${segs[i]}`;
-  }
-  json += `.children.${fieldRef}.value`;
   return `${nodeAddr}#${json}`;
 }
+
 
 type Mode = 'idle' | 'edit';
 
@@ -79,42 +89,16 @@ export function FieldRenderer({
   const { get: getDraft, set: setDraft } = useDrafts();
 
   const address = useMemo(() => {
-    try {
-      if (sectionPath) {
-        const isNested = sectionPath.includes('.');
-        if (typeof instanceNum === 'number') {
-          if (isNested) {
-            const addr = buildNestedSectionFieldAddr(node.addr, sectionPath, String(fieldRef), instanceNum);
-            dlog('address (section:nested+instance)', { addr });
-            return addr;
-          }
-          const addr = FormAddr.sectionInstanceFieldValue(node.addr, sectionPath, instanceNum, String(fieldRef));
-          dlog('address (section:instance)', { addr });
-          return addr;
-        }
-        if (isNested) {
-          const addr = buildNestedSectionFieldAddr(node.addr, sectionPath, String(fieldRef));
-          dlog('address (section:nested)', { addr });
-          return addr;
-        }
-        const addr = FormAddr.sectionFieldValue(node.addr, sectionPath, String(fieldRef));
-        dlog('address (section)', { addr });
-        return addr;
-      }
+  try {
+    const addr = buildFieldAddress(node.addr, String(fieldRef), sectionPath, instanceNum);
+    dlog('address (universal)', { addr, nodeAddr: node.addr, fieldRef, sectionPath, instanceNum });
+    return addr;
+  } catch (e) {
+    console.error('[RENDER:Field] address build error', e, { node: node.addr, sectionPath, instanceNum, fieldRef });
+    return null;
+  }
+}, [node.addr, fieldRef, sectionPath, instanceNum]);
 
-      if (typeof instanceNum === 'number') {
-        const addr = FormAddr.fieldInstanceValue(node.addr, String(fieldRef), instanceNum);
-        dlog('address (field:instance)', { addr });
-        return addr;
-      }
-      const addr = FormAddr.fieldValue(node.addr, String(fieldRef));
-      dlog('address (field)', { addr });
-      return addr;
-    } catch (e) {
-      console.error('[RENDER:Field] address build error', e, { node: node.addr, sectionPath, instanceNum, fieldRef });
-      return null;
-    }
-  }, [node.addr, fieldRef, sectionPath, instanceNum]);
 
   // Always call the value hook (pass null to no-op) — keeps hook order stable
   const { value: dbValue, loading: valueLoading, error: valueError } =
