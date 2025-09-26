@@ -57,7 +57,6 @@ export function FieldHybridRenderer({
   editable = true
 }: FieldHybridRendererProps) {
   dlog('render', { node: node.addr, fieldRef, sectionPath, instanceNum, mode, editable, required });
-  dlog('render', { node: node.addr, fieldRef, sectionPath, instanceNum, mode, editable, required });
 
   const { getField, loading: registryLoading, error: registryError } = useFieldRegistry();
   const { get: getDraft, set: setDraft } = useDrafts();
@@ -85,6 +84,15 @@ const address = React.useMemo(() => {
     return null;
   }
 }, [node.addr, fieldRef, sectionPath, instanceNum]);
+
+  if (!address) {
+  return (
+    <div className="text-destructive text-sm p-2 bg-destructive/10 rounded">
+      Failed to build address for {fieldRef}
+    </div>
+  );
+}
+
 
 
 dlog('address:using', address);
@@ -162,9 +170,9 @@ const handleValueChange = (newValue: any) => {
     let displayValue = effectiveValue;
     
     // Format different types for display
-    if (displayValue === null || displayValue === undefined) {
-      displayValue = fieldDefinition?.default_value || '';
-    }
+    if (displayValue == null) {
+    displayValue = fieldDefinition?.default_value || '';
+ }
     
     if (typeof displayValue === 'boolean') {
       displayValue = displayValue ? 'Yes' : 'No';
@@ -196,7 +204,7 @@ const handleValueChange = (newValue: any) => {
         rules: fieldDefinition.rules || {},
         default_value: fieldDefinition.default_value || ''
       }}
-      value={effectiveValue || ''}
+      value={effectiveValue ?? ''}
       onChange={handleValueChange}
       loading={valueLoading}
       error={valueError}
