@@ -3,8 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronRight, GripVertical, Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import FieldHybridRenderer from '@/components/renderers/FieldHybridRenderer';
-
+import { FieldHybridRenderer } from '@/components/renderers/FieldHybridRenderer';
 // set logs always on for Lovable preview (no process.env in browser)
 const DBG = true;
 const dlog = (...a: any[]) => { if (DBG) console.debug('[RENDER:Section]', ...a); };
