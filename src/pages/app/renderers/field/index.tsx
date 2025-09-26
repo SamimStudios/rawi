@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { RefreshCw, Search, Filter } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import SystematicFieldRenderer from '@/components/renderers/SystematicFieldRenderer';
+import { FieldRenderer } from '@/components/renderers/FieldRenderer';
 import { useFields, type FieldEntry } from '@/hooks/useFields';
 import { cn } from '@/lib/utils';
 
