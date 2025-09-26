@@ -138,12 +138,30 @@ export function FieldHybridRenderer({
     );
   }
 
-  // In idle mode, show read-only value display
+  // In idle mode, show key and value in read-only format
   if (mode === 'idle') {
-    const displayValue = effectiveValue || fieldDefinition?.default_value || '';
+    const label = fieldDefinition?.ui?.label?.fallback || fieldRef;
+    let displayValue = effectiveValue;
+    
+    // Format different types for display
+    if (displayValue === null || displayValue === undefined) {
+      displayValue = fieldDefinition?.default_value || '';
+    }
+    
+    if (typeof displayValue === 'boolean') {
+      displayValue = displayValue ? 'Yes' : 'No';
+    } else if (Array.isArray(displayValue)) {
+      displayValue = displayValue.join(', ');
+    } else if (typeof displayValue === 'object') {
+      displayValue = JSON.stringify(displayValue);
+    }
+    
     return (
-      <div className="text-sm text-foreground py-1">
-        {displayValue || <span className="text-muted-foreground italic">No value</span>}
+      <div className="flex justify-between items-center py-2 border-b border-border/30 last:border-b-0">
+        <span className="text-sm font-medium text-foreground">{label}:</span>
+        <span className="text-sm text-muted-foreground">
+          {displayValue || <span className="italic">No value</span>}
+        </span>
       </div>
     );
   }

@@ -17,6 +17,7 @@ import { useFunctionPricing } from '@/hooks/useFunctionPricing';
 import { supabase } from '@/integrations/supabase/client';
 import { useNodeEditor } from '@/hooks/useNodeEditor';
 import { useDrafts } from '@/contexts/DraftsContext';
+import { HybridAddrService } from '@/lib/ltree/service';
 import { useJobs, type JobNode } from '@/hooks/useJobs';
 
 interface NodeRendererProps {
@@ -96,13 +97,14 @@ export default function NodeRenderer({
       console.log(`[NodeRenderer] Saving ${draftsToSave.length} drafts for node ${node.addr}:`, draftsToSave);
       
       if (draftsToSave.length > 0) {
-        // Call atomic addr_write_many RPC  
-        const { error } = await (supabase as any).rpc('addr_write_many', {
-          p_job_id: node.job_id,
-          p_writes: draftsToSave
-        });
-        
-        if (error) throw error;
+        // Save each draft using the ltree service
+        for (const draft of draftsToSave) {
+          await HybridAddrService.setItemAt({
+            jobId: node.job_id,
+            address: draft.address,
+            value: draft.value
+          });
+        }
         
         // Reload this node from DB to get fresh data
         await reloadNode(node.job_id, node.id);
