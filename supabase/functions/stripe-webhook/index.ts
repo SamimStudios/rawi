@@ -43,34 +43,22 @@ serve(async (req) => {
 
     console.log("Processing webhook event:", event.type);
 
-    // Handle successful payment events
-    if (['checkout.session.completed', 'invoice.payment_succeeded', 'payment_intent.succeeded'].includes(event.type)) {
-      console.log(`Processing successful payment event: ${event.type}`);
+    // Handle checkout session completion
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object as Stripe.Checkout.Session;
+      console.log(`Processing checkout session completion: ${session.id}`);
       
-      let metadata, paymentId, amount, stripeInvoiceId;
-      
-      if (event.type === 'checkout.session.completed') {
-        metadata = event.data.object.metadata;
-        paymentId = event.data.object.id;
-        amount = event.data.object.amount_total;
-        stripeInvoiceId = event.data.object.invoice; // Stripe invoice ID
-      } else if (event.type === 'invoice.payment_succeeded') {
-        metadata = event.data.object.metadata;
-        paymentId = event.data.object.id;
-        amount = event.data.object.amount_paid;
-        stripeInvoiceId = event.data.object.id;
-      } else if (event.type === 'payment_intent.succeeded') {
-        metadata = event.data.object.metadata;
-        paymentId = event.data.object.id;
-        amount = event.data.object.amount;
-      }
-      
-      if (metadata && metadata.user_id) {
-        await processCreditsAddition(metadata, paymentId, amount, stripeInvoiceId);
+      if (session.metadata?.user_id) {
+        await processCreditsAddition(
+          session.metadata, 
+          session.id, 
+          session.amount_total, 
+          session.invoice as string
+        );
       }
     }
 
-    // Handle invoice.payment_succeeded (subscription renewals, invoice payments)
+    // Handle invoice payment success (subscription renewals, invoice payments)
     else if (event.type === "invoice.payment_succeeded") {
       const invoice = event.data.object as Stripe.Invoice;
       
@@ -97,17 +85,18 @@ serve(async (req) => {
               },
               invoice.id,
               invoice.amount_paid,
+              invoice.id,
               "subscription_renewal"
             );
           }
         }
       } else if (invoice.metadata?.user_id) {
         // Handle direct invoice payment
-        await processCreditsAddition(invoice.metadata, invoice.id, invoice.amount_paid);
+        await processCreditsAddition(invoice.metadata, invoice.id, invoice.amount_paid, invoice.id);
       }
     }
 
-    // Handle payment_intent.succeeded (direct payment intents)
+    // Handle payment intent success (direct payment intents)
     else if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
       
