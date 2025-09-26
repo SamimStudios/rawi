@@ -3,39 +3,44 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronRight, GripVertical, Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { JobNode } from '@/hooks/useJobs';
+import FieldHybridRenderer from '@/components/renderers/FieldHybridRenderer';
 
-const DBG = true; // TEMP: always log on Lovable (no process.env)
+// set logs always on for Lovable preview (no process.env in browser)
+const DBG = true;
 const dlog = (...a: any[]) => { if (DBG) console.debug('[RENDER:Section]', ...a); };
 const dwarn = (...a: any[]) => console.warn('[RENDER:Section]', ...a);
 
 export type SectionContract = {
   path: string;                 // SSOT: section key
   title?: string;
-  children: string[];           // field refs
-  // SSOT collection block (optional)
+  children: string[];           // field refs (strings)
+  // SSOT collection config (optional)
   collection?: {
     min?: number;
     max?: number;
-    default_instances?: number; // if instances not present, fall back to this
+    default_instances?: number; // fallback visible count if no server instances
     allow_add?: boolean;
     allow_remove?: boolean;
     allow_reorder?: boolean;
-    label_template?: string;    // e.g., "Character #{i}"
+    label_template?: string;    // e.g. "Character #{i}"
   };
-  // If your backend hydrates instances, you can pass their array to hint count
+  // Optional server-hinted instances (for visible count only)
   instances?: unknown[] | null;
 };
 
 type Props = {
-  node: JobNode;
+  node: any; // keep loose here to avoid type import mismatches
   section: SectionContract;
-  /** Field renderer provided by parent (NodeRenderer / FormItemRenderer) */
-  renderField: (args: { fieldRef: string; sectionPath: string; instanceNum?: number }) => React.ReactNode;
-  /** Optional: Section-scoped Save (NodeRenderer can filter drafts by prefix) */
+
+  /** Optional custom field renderer from parent. If omitted, we fallback to FieldHybridRenderer. */
+  renderField?: (args: { fieldRef: string; sectionPath: string; instanceNum?: number }) => React.ReactNode;
+
+  /** Optional: Section-scoped Save (parent filters drafts by prefix addr#content.items.<sectionPath>) */
   onSaveSection?: (sectionPath: string) => Promise<void>;
-  /** Optional: Section-scoped Reset (NodeRenderer can clear drafts by prefix) */
+
+  /** Optional: Section-scoped Reset (parent clears drafts by same prefix) */
   onResetSection?: (sectionPath: string) => Promise<void>;
+
   /** Optional: hooks to persist instance structure (future DB migration) */
   onAddInstance?: (sectionPath: string) => Promise<void> | void;
   onRemoveInstance?: (sectionPath: string, index: number) => Promise<void> | void; // 1-based
@@ -59,25 +64,25 @@ export function SectionRenderer({
   const allowRemove = section.collection?.allow_remove ?? true;
   const allowReorder = section.collection?.allow_reorder ?? true;
 
-  // Server-hinted count: prefer actual instances array length, fallback to default_instances, then 1
+  // Prefer server-provided instances length; else default_instances; else ensure >= min
   const serverCount = useMemo(() => {
     if (!isCollection) return 0;
     if (Array.isArray(section.instances)) return section.instances.length;
     const def = section.collection?.default_instances;
     if (typeof def === 'number' && def > 0) return def;
-    return Math.max(0, min); // if min>0 ensure we show at least min
+    return Math.max(0, min);
   }, [isCollection, section.instances, section.collection?.default_instances, min]);
 
-  // Local UI count mirrors serverCount, but lets user add/remove before persistence
+  // Local UI count (user can add/remove before persistence)
   const [uiCount, setUiCount] = useState<number>(serverCount);
   useEffect(() => setUiCount(serverCount), [serverCount, section.path]);
 
-  // Collapsible
+  // Collapse/expand
   const [open, setOpen] = useState(true);
 
   useEffect(() => {
     dlog('mount', {
-      node: node.addr,
+      node: node?.addr,
       sectionPath: section.path,
       isCollection,
       serverCount,
@@ -88,13 +93,30 @@ export function SectionRenderer({
       allowRemove,
       allowReorder
     });
-  }, [node.addr, section.path, isCollection, serverCount, uiCount, min, max, allowAdd, allowRemove, allowReorder]);
+  }, [node?.addr, section.path, isCollection, serverCount, uiCount, min, max, allowAdd, allowRemove, allowReorder]);
 
-  // --- Instance actions (UI-first, optional persistence hooks) ---
+  // Safe fallback if parent didn't pass renderField
+  const safeRenderField = React.useCallback(
+    (args: { fieldRef: string; sectionPath: string; instanceNum?: number }) => {
+      if (typeof renderField === 'function') return renderField(args);
+      dlog('fallback:renderField', { node: node?.addr, ...args });
+      return (
+        <FieldHybridRenderer
+          node={node}
+          fieldRef={args.fieldRef}
+          sectionPath={args.sectionPath}
+          instanceNum={args.instanceNum}
+          editable={true}
+          mode="edit"
+        />
+      );
+    },
+    [renderField, node]
+  );
+
+  // --- Instance actions (UI-first; optional persistence hooks) ---
   const addInstance = useCallback(async () => {
-    if (!isCollection) return;
-    if (!allowAdd) return;
-    if (uiCount >= max) return;
+    if (!isCollection || !allowAdd || uiCount >= max) return;
     const next = uiCount + 1;
     dlog('instance:add', { sectionPath: section.path, before: uiCount, after: next });
     setUiCount(next);
@@ -102,14 +124,12 @@ export function SectionRenderer({
       await onAddInstance?.(section.path);
     } catch (e) {
       dwarn('onAddInstance failed; reverting UI count', e);
-      setUiCount(uiCount); // rollback
+      setUiCount(uiCount);
     }
   }, [isCollection, allowAdd, uiCount, max, section.path, onAddInstance]);
 
   const removeInstance = useCallback(async (i: number) => {
-    if (!isCollection) return;
-    if (!allowRemove) return;
-    if (uiCount <= min) return;
+    if (!isCollection || !allowRemove || uiCount <= min) return;
     dlog('instance:remove', { sectionPath: section.path, index: i });
     const next = Math.max(min, uiCount - 1);
     setUiCount(next);
@@ -117,14 +137,12 @@ export function SectionRenderer({
       await onRemoveInstance?.(section.path, i);
     } catch (e) {
       dwarn('onRemoveInstance failed; reverting UI count', e);
-      setUiCount(uiCount); // rollback
+      setUiCount(uiCount);
     }
   }, [isCollection, allowRemove, uiCount, min, section.path, onRemoveInstance]);
 
   const reorderInstance = useCallback(async (from: number, to: number) => {
-    if (!isCollection) return;
-    if (!allowReorder) return;
-    if (from === to) return;
+    if (!isCollection || !allowReorder || from === to) return;
     dlog('instance:reorder', { sectionPath: section.path, from, to });
     try {
       await onReorderInstance?.(section.path, from, to);
@@ -133,7 +151,7 @@ export function SectionRenderer({
     }
   }, [isCollection, allowReorder, section.path, onReorderInstance]);
 
-  // --- Save / Reset per-section (NodeRenderer can filter drafts by prefix) ---
+  // --- Save / Reset per-section (parent wires the draft filtering by prefix) ---
   const handleSave = useCallback(async () => {
     if (!onSaveSection) return;
     dlog('save:start', { sectionPath: section.path });
@@ -145,12 +163,10 @@ export function SectionRenderer({
     if (!onResetSection) return;
     dlog('reset:start', { sectionPath: section.path });
     await onResetSection(section.path);
-    // After reset, reflect any server changes
-    setUiCount(serverCount);
-    dlog('reset:done', { sectionPath: section.path, uiCount });
-  }, [onResetSection, section.path, serverCount, uiCount]);
+    setUiCount(serverCount); // reflect server after reset
+    dlog('reset:done', { sectionPath: section.path, uiCount: serverCount });
+  }, [onResetSection, section.path, serverCount]);
 
-  // --- Render ---
   return (
     <div className="rounded-lg border p-3">
       <div className="flex items-center justify-between">
@@ -179,10 +195,10 @@ export function SectionRenderer({
           {!isCollection && (
             <div className="mt-3 space-y-3">
               {section.children?.map((fieldRef) => {
-                dlog('render:child', { node: node.addr, sectionPath: section.path, fieldRef });
+                dlog('render:child', { node: node?.addr, sectionPath: section.path, fieldRef });
                 return (
                   <div key={fieldRef}>
-                    {renderField({ fieldRef, sectionPath: section.path })}
+                    {safeRenderField({ fieldRef, sectionPath: section.path })}
                   </div>
                 );
               })}
@@ -208,7 +224,7 @@ export function SectionRenderer({
                     ? section.collection.label_template.replace('#{i}', String(i))
                     : `Instance ${i}`;
 
-                dlog('render:instance', { node: node.addr, sectionPath: section.path, i, label });
+                dlog('render:instance', { node: node?.addr, sectionPath: section.path, i, label });
 
                 return (
                   <div key={`inst-${i}`} className="rounded-md border p-3">
@@ -220,7 +236,7 @@ export function SectionRenderer({
                           size="icon"
                           title="Drag to reorder"
                           disabled={!allowReorder}
-                          onClick={() => reorderInstance(i, i)} // hook placeholder
+                          onClick={() => reorderInstance(i, i)} // placeholder (wire real DnD later)
                         >
                           <GripVertical className="w-4 h-4" />
                         </Button>
@@ -238,10 +254,10 @@ export function SectionRenderer({
 
                     <div className="space-y-3">
                       {section.children?.map((fieldRef) => {
-                        dlog('render:instance.field', { node: node.addr, sectionPath: section.path, i, fieldRef });
+                        dlog('render:instance.field', { node: node?.addr, sectionPath: section.path, i, fieldRef });
                         return (
                           <div key={`${i}:${fieldRef}`}>
-                            {renderField({ fieldRef, sectionPath: section.path, instanceNum: i })}
+                            {safeRenderField({ fieldRef, sectionPath: section.path, instanceNum: i })}
                           </div>
                         );
                       })}
@@ -256,5 +272,5 @@ export function SectionRenderer({
     </div>
   );
 }
-export default SectionRenderer;
 
+export default SectionRenderer;
