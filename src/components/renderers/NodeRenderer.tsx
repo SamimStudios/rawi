@@ -27,6 +27,18 @@ import { useJobs, type JobNode } from '@/hooks/useJobs';
 const DBG = true;
 const nlog = (...a:any[]) => { if (DBG) console.debug('[NodeRenderer]', ...a); };
 
+// normalize writes: ensure `value` is JSON-serializable and never `undefined`
+function toWritesArray(entries: Array<{ address: string; value: any }>, nodeAddr: string) {
+  const prefix = `${nodeAddr}#`;
+  return entries
+    .filter(e => typeof e?.address === 'string' && e.address.startsWith(prefix))
+    .map(e => ({
+      address: e.address,
+      value: e.value === undefined ? null : e.value // undefined → null
+    }));
+}
+
+
 interface NodeRendererProps {
   node: JobNode;
   onUpdate?: (nodeId: string, data: any) => Promise<void>;
