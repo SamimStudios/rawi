@@ -34,9 +34,11 @@ function toWritesArray(entries: Array<{ address: string; value: any }>, nodeAddr
     .filter(e => typeof e?.address === 'string' && e.address.startsWith(prefix))
     .map(e => ({
       address: e.address,
-      value: e.value === undefined ? null : e.value // undefined → null
+      // strip functions/symbols and turn undefined → null to keep JSON clean
+      value: e.value === undefined ? null : JSON.parse(JSON.stringify(e.value, (_k, v) => (v === undefined ? null : v)))
     }));
 }
+
 
 
 interface NodeRendererProps {
@@ -91,17 +93,37 @@ export default function NodeRenderer({
     }
   };
 
-  const saveViaEdgeMany = async (jobId: string, writes: Array<{ address: string; value: any }>) => {
+  // Read and print the Edge Function error body if present
+async function logFunctionsError(where: string, err: any) {
+  const resp = (err as any)?.context;
+  let bodyText: string | null = null;
+  try {
+    if (resp && typeof resp.text === 'function') {
+      bodyText = await resp.text();
+    }
+  } catch {}
+  console.error(`[NodeRenderer] ${where}:error`, {
+    message: (err as any)?.message,
+    name: (err as any)?.name,
+    status: (resp as any)?.status,
+    body: bodyText
+  });
+}
+
+const saveViaEdgeMany = async (jobId: string, writes: Array<{ address: string; value: any }>) => {
   nlog('write_many:start', { jobId, count: writes.length, sample: writes.slice(0, 3) });
   const { data, error } = await supabase.functions.invoke('ltree-resolver', {
-    body: { operation: 'write_many', job_id: jobId, writes }
+    body: {
+      operation: 'write_many',
+      job_id: jobId,
+      writes,
+      create_missing: true,   // ← important: let the server create missing json path keys
+      strict: false           // ← optional: server may accept this to skip invalid paths
+    }
   });
+
   if (error) {
-    console.error('[NodeRenderer] write_many:error', {
-      message: error.message,
-      name: (error as any).name,
-      context: (error as any).context, // ← this often contains the Edge Function body/stack
-    });
+    await logFunctionsError('write_many', error);
     throw error;
   }
   if (!data?.success) {
@@ -111,18 +133,17 @@ export default function NodeRenderer({
   nlog('write_many:ok', data);
 };
 
-
-  const saveViaEdgeSingle = async (jobId: string, address: string, value: any) => {
+const saveViaEdgeSingle = async (jobId: string, address: string, value: any) => {
   const body = {
     operation: 'set',
     job_id: jobId,
     address,
     value: value === undefined ? null : value,
-    create_missing: true, // ← let server create any missing json path keys
+    create_missing: true,
   };
   const { data, error } = await supabase.functions.invoke('ltree-resolver', { body });
   if (error) {
-    console.error('[NodeRenderer] set:error', { address, error });
+    await logFunctionsError('set', error);
     throw error;
   }
   if (!data?.success) {
@@ -132,29 +153,46 @@ export default function NodeRenderer({
 };
 
 
+
   const handleSaveEdit = async () => {
     if (!node.addr) return;
     setLoading(true);
     try {
       const nodePrefix = `${node.addr}#`;
-      
-      // 1) get drafts and normalize (undefined → null)
-      const rawDrafts = entries(nodePrefix); // [{address,value}]
+
+      // gather & clean
+      const rawDrafts = entries(nodePrefix); // [{ address, value }]
       const writes = toWritesArray(rawDrafts, node.addr);
       nlog('save:writes', { count: writes.length, sample: writes.slice(0, 3) });
       
-      if (writes.length > 0) {
-        try {
-          await saveViaEdgeMany(node.job_id, writes);
-        } catch (e) {
-          console.warn('[NodeRenderer] write_many failed, falling back to per-set', e);
-          for (const w of writes) {
-            await saveViaEdgeSingle(node.job_id, w.address, w.value);
-          }
+      // sanity: if anything slips through with a wrong prefix, we’d catch it here
+      if (writes.some(w => !w.address.startsWith(nodePrefix))) {
+        console.warn('[NodeRenderer] writes contain wrong node prefix', { nodePrefix, writes });
+      }
+      
+      if (writes.length === 0) {
+        setEffectiveMode('idle');
+        stopEditing();
+        toast({ title: 'Nothing to save', description: 'No changes detected.' });
+        return;
+      }
+      
+      try {
+        await saveViaEdgeMany(node.job_id, writes);
+      } catch (e) {
+        console.warn('[NodeRenderer] write_many failed, falling back to per-set', e);
+        for (const w of writes) {
+          await saveViaEdgeSingle(node.job_id, w.address, w.value);
         }
-        await reloadNode(node.job_id, node.id);
-        clearDrafts(nodePrefix);
-        toast({ title: 'Success', description: 'Changes saved successfully' });
+      }
+      
+      await reloadNode(node.job_id, node.id);
+      clearDrafts(nodePrefix);
+      setEffectiveMode('idle');
+      setHasUnsavedChanges(false);
+      stopEditing();
+      toast({ title: 'Success', description: 'Changes saved successfully' });
+
       }
 
 
