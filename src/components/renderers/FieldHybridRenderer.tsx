@@ -19,7 +19,7 @@ import { useDrafts } from '@/contexts/DraftsContext';
 import SystematicFieldRenderer from './SystematicFieldRenderer';
 import type { JobNode } from '@/hooks/useJobs';
 
-const DBG = typeof window !== 'undefined' && process.env.NEXT_PUBLIC_DEBUG_RENDER === '1';
+const DBG = typeof window !== 'undefined' && env.NEXT_PUBLIC_DEBUG_RENDER === '1';
 const dlog = (...a:any[]) => { if (DBG) console.debug('[RENDER:Field]', ...a); };
 
 
