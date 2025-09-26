@@ -14,10 +14,15 @@
 import React from 'react';
 import { useHybridValue } from '@/lib/ltree/hooks';
 import { useFieldRegistry } from '@/hooks/useFieldRegistry';
-import { NodeAddressing } from '@/lib/content-contracts';
+import { FormAddr } from '@/lib/ltree/addresses';
 import { useDrafts } from '@/contexts/DraftsContext';
 import SystematicFieldRenderer from './SystematicFieldRenderer';
 import type { JobNode } from '@/hooks/useJobs';
+
+const DBG = typeof window !== 'undefined' && process.env.NEXT_PUBLIC_DEBUG_RENDER === '1';
+const dlog = (...a:any[]) => { if (DBG) console.debug('[RENDER:Field]', ...a); };
+
+
 
 interface FieldHybridRendererProps {
   /** Current job node for context */
@@ -51,26 +56,38 @@ export function FieldHybridRenderer({
   required = false,
   editable = true
 }: FieldHybridRendererProps) {
-  console.log(`[FieldHybridRenderer] Rendering field ${fieldRef} for node ${node.addr}`);
-  console.log(`[FieldHybridRenderer] Section: ${sectionPath}, Instance: ${instanceNum}, Mode: ${mode}`);
+  dlog('render', { node: node.addr, fieldRef, sectionPath, instanceNum, mode, editable, required });
+  dlog('render', { node: node.addr, fieldRef, sectionPath, instanceNum, mode, editable, required });
 
   const { getField, loading: registryLoading, error: registryError } = useFieldRegistry();
   const { get: getDraft, set: setDraft } = useDrafts();
 
   // Create proper SSOT hybrid address using node.addr
-  const address = React.useMemo(() => {
-    if (sectionPath && instanceNum !== undefined) {
-      return NodeAddressing.sectionInstanceFieldValue(node.addr, sectionPath, instanceNum, fieldRef);
-    } else if (sectionPath) {
-      return NodeAddressing.sectionFieldValue(node.addr, sectionPath, fieldRef);
-    } else if (instanceNum !== undefined) {
-      return NodeAddressing.instanceFieldValue(node.addr, fieldRef, instanceNum);
-    } else {
-      return NodeAddressing.fieldValue(node.addr, fieldRef);
+const address = React.useMemo(() => {
+  try {
+    if (sectionPath) {
+      // section field (single or instance)
+      const addr = (typeof instanceNum === 'number')
+        ? FormAddr.sectionInstanceFieldValue(node.addr, sectionPath, instanceNum, fieldRef)
+        : FormAddr.sectionFieldValue(node.addr, sectionPath, fieldRef);
+      dlog('address (section)', { node: node.addr, sectionPath, instanceNum, fieldRef, addr });
+      return addr;
     }
-  }, [node.addr, fieldRef, sectionPath, instanceNum]);
 
-  console.log(`[FieldHybridRenderer] Using address: ${address}`);
+    // top-level field (single or instance)
+    const addr = (typeof instanceNum === 'number')
+      ? FormAddr.fieldInstanceValue(node.addr, fieldRef, instanceNum)
+      : FormAddr.fieldValue(node.addr, fieldRef);
+    dlog('address (field)', { node: node.addr, instanceNum, fieldRef, addr });
+    return addr;
+  } catch (e) {
+    console.error('[RENDER:Field] address build error', e, { node: node.addr, sectionPath, instanceNum, fieldRef });
+    return null;
+  }
+}, [node.addr, fieldRef, sectionPath, instanceNum]);
+
+
+dlog('address:using', address);
 
   // Use hybrid address system for DB field state (READ ONLY during edit)
   const {
@@ -93,11 +110,12 @@ export function FieldHybridRenderer({
   console.log(`[FieldHybridRenderer] Values - DB: ${dbValue}, Draft: ${draftValue}, Effective: ${effectiveValue}`);
 
   // Handle field value updates - ONLY update drafts, never persist to DB
-  const handleValueChange = (newValue: any) => {
-    console.log(`[FieldHybridRenderer] Storing draft for field ${fieldRef} at ${address} with value:`, newValue);
-    setDraft(address, newValue);
-    onChange?.(newValue);
-  };
+const handleValueChange = (newValue: any) => {
+  dlog('onChange→draft', { address, newValue });
+  setDraft(address, newValue);
+  onChange?.(newValue);
+};
+
 
   // Show loading state while fetching registry or field value
   if (registryLoading || (valueLoading && dbValue === null)) {
