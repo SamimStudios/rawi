@@ -1,32 +1,12 @@
 // src/components/renderers/SectionRenderer.tsx
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronRight, GripVertical, Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, GripVertical, Plus, Trash2 } from 'lucide-react';
 import { FieldHybridRenderer } from '@/components/renderers/FieldHybridRenderer';
 
-// logging always on (Lovable preview — no process.env)
+// logging always on for Lovable
 const DBG = true;
 const dlog = (...a: any[]) => { if (DBG) console.debug('[RENDER:Section]', ...a); };
 const dwarn = (...a: any[]) => console.warn('[RENDER:Section]', ...a);
-
-// Build SSOT address for section paths that can be nested (e.g. "characters.lead")
-// If instanceNum is provided, insert ".instances.iN" right after the **first** section.
-function buildNestedSectionFieldAddr(nodeAddr: string, sectionPath: string, fieldRef: string, instanceNum?: number) {
-  const segs = sectionPath.split('.').filter(Boolean);
-  if (!segs.length) throw new Error('Empty sectionPath');
-
-  let json = `content.items.${segs[0]}`;
-  if (typeof instanceNum === 'number') {
-    json += `.instances.i${instanceNum}`;
-  }
-  // chain nested children: .children.lead.children.supporting...
-  for (let i = 1; i < segs.length; i++) {
-    json += `.children.${segs[i]}`;
-  }
-  json += `.children.${fieldRef}.value`;
-  return `${nodeAddr}#${json}`;
-}
-
 
 /** Field-like child (may come as string or object) */
 type FieldItemLike = string | {
@@ -42,7 +22,7 @@ type FieldItemLike = string | {
 
 /** Section-like child (subsection) */
 type SectionItemLike = {
-  kind?: string;            // 'SectionItem' (preferred)
+  kind?: string;            // 'SectionItem'
   path: string;             // subsection key (e.g., 'lead')
   title?: string;
   children?: Array<FieldItemLike | SectionItemLike>;
@@ -61,35 +41,35 @@ type SectionItemLike = {
 export type SectionContract = {
   path: string;                 // SSOT: section key, can be nested: "characters.lead"
   title?: string;
-  /** children can be field refs OR nested sections */
   children: Array<FieldItemLike | SectionItemLike>;
   collection?: SectionItemLike['collection'];
   instances?: unknown[] | null;
 };
 
 type Props = {
-  node: any; // keep loose to avoid type import mismatches
+  node: any;
   section: SectionContract;
 
-  /** Optional custom field renderer. If omitted, we fallback to FieldHybridRenderer. */
-  renderField?: (args: { fieldRef: string; sectionPath: string; instanceNum?: number }) => React.ReactNode;
+  /** 'idle' = read-only key:value; 'edit' = editable inputs */
+  mode: 'idle' | 'edit';
 
-  /** Optional: Section-scoped Save (parent filters drafts by prefix addr#content.items.<sectionPath>) */
-  onSaveSection?: (sectionPath: string) => Promise<void>;
+  /** Optional custom field renderer. If omitted, fallback to FieldHybridRenderer. */
+  renderField?: (args: {
+    fieldRef: string;
+    sectionPath: string;
+    instanceNum?: number;
+    mode: 'idle' | 'edit';
+  }) => React.ReactNode;
 
-  /** Optional: Section-scoped Reset (parent clears drafts by same prefix) */
-  onResetSection?: (sectionPath: string) => Promise<void>;
-
-  /** Optional: hooks to persist instance structure (future DB migration) */
+  /** Optional: hooks to persist instance structure (future) */
   onAddInstance?: (sectionPath: string) => Promise<void> | void;
   onRemoveInstance?: (sectionPath: string, index: number) => Promise<void> | void; // 1-based
   onReorderInstance?: (sectionPath: string, from: number, to: number) => Promise<void> | void; // 1-based
 
-  /** If this section is being rendered inside a parent collection instance, carry the instanceNum down */
+  /** If this section is inside a parent collection instance, carry the instanceNum down */
   inheritedInstanceNum?: number;
 };
 
-// ----------------- helpers -----------------
 function isSectionLike(x: any): x is SectionItemLike {
   return !!x && typeof x === 'object' && (
     x.kind === 'SectionItem' ||
@@ -101,17 +81,13 @@ function normalizeFieldRef(child: any, sectionPath?: string): string | null {
   if (typeof child === 'string') return child;
   if (!child || typeof child !== 'object') return null;
 
-  // Prefer explicit field keys
   if (typeof child.ref === 'string') return child.ref;
   if (typeof child.fieldRef === 'string') return child.fieldRef;
   if (typeof child.field_ref === 'string') return child.field_ref;
-
-  // Generic fallbacks
   if (typeof child.key === 'string') return child.key;
   if (typeof child.name === 'string') return child.name;
   if (typeof child.id === 'string') return child.id;
 
-  // Last-resort: derive from "path"
   if (typeof child.path === 'string') {
     const segs = child.path.split('.').filter(Boolean);
     const last = segs[segs.length - 1];
@@ -124,13 +100,11 @@ function mergePath(parentPath: string, childPath: string) {
   return parentPath ? `${parentPath}.${childPath}` : childPath;
 }
 
-// ----------------- component -----------------
 export function SectionRenderer({
   node,
   section,
+  mode,
   renderField,
-  onSaveSection,
-  onResetSection,
   onAddInstance,
   onRemoveInstance,
   onReorderInstance,
@@ -139,9 +113,9 @@ export function SectionRenderer({
   const isCollection = !!section.collection;
   const min = section.collection?.min ?? 0;
   const max = section.collection?.max ?? Number.POSITIVE_INFINITY;
-  const allowAdd = section.collection?.allow_add ?? true;
-  const allowRemove = section.collection?.allow_remove ?? true;
-  const allowReorder = section.collection?.allow_reorder ?? true;
+  const allowAdd = mode === 'edit' && (section.collection?.allow_add ?? true);
+  const allowRemove = mode === 'edit' && (section.collection?.allow_remove ?? true);
+  const allowReorder = mode === 'edit' && (section.collection?.allow_reorder ?? true);
 
   // Prefer server-provided instances length; else default_instances; else ensure >= min
   const serverCount = useMemo(() => {
@@ -152,7 +126,7 @@ export function SectionRenderer({
     return Math.max(0, min);
   }, [isCollection, section.instances, section.collection?.default_instances, min]);
 
-  // Local UI count (user can add/remove before persistence)
+  // Local UI count (user can add/remove before persistence). In idle, just mirror server.
   const [uiCount, setUiCount] = useState<number>(serverCount);
   useEffect(() => setUiCount(serverCount), [serverCount, section.path]);
 
@@ -168,16 +142,17 @@ export function SectionRenderer({
       uiCount,
       min,
       max,
+      mode,
       allowAdd,
       allowRemove,
       allowReorder,
       inheritedInstanceNum
     });
-  }, [node?.addr, section.path, isCollection, serverCount, uiCount, min, max, allowAdd, allowRemove, allowReorder, inheritedInstanceNum]);
+  }, [node?.addr, section.path, isCollection, serverCount, uiCount, min, max, mode, allowAdd, allowRemove, allowReorder, inheritedInstanceNum]);
 
   // Safe fallback if parent didn't pass renderField
   const safeRenderField = React.useCallback(
-    (args: { fieldRef: string; sectionPath: string; instanceNum?: number }) => {
+    (args: { fieldRef: string; sectionPath: string; instanceNum?: number; mode: 'idle'|'edit' }) => {
       if (typeof renderField === 'function') return renderField(args);
       dlog('fallback:renderField', { node: node?.addr, ...args });
       return (
@@ -186,8 +161,8 @@ export function SectionRenderer({
           fieldRef={args.fieldRef}
           sectionPath={args.sectionPath}
           instanceNum={args.instanceNum}
-          editable={true}
-          mode="edit"
+          editable={args.mode === 'edit'}
+          mode={args.mode}
         />
       );
     },
@@ -207,15 +182,14 @@ export function SectionRenderer({
           collection: child.collection,
           instances: child.instances ?? null
         };
-        dlog('render:subsection', { node: node?.addr, sectionPath, nestedPath, instanceCtx });
+        dlog('render:subsection', { node: node?.addr, sectionPath, nestedPath, instanceCtx, mode });
         return (
           <div key={`subsec-${nestedPath}-${idx}`} className="mt-3">
             <SectionRenderer
               node={node}
               section={nestedSection}
+              mode={mode}
               renderField={renderField}
-              onSaveSection={onSaveSection}
-              onResetSection={onResetSection}
               onAddInstance={onAddInstance}
               onRemoveInstance={onRemoveInstance}
               onReorderInstance={onReorderInstance}
@@ -236,16 +210,16 @@ export function SectionRenderer({
         );
       }
 
-      dlog('render:field', { node: node?.addr, sectionPath, instanceCtx, fieldRef });
+      dlog('render:field', { node: node?.addr, sectionPath, instanceCtx, fieldRef, mode });
       return (
         <div key={`${sectionPath}:${instanceCtx ?? 0}:${fieldRef}`}>
-          {safeRenderField({ fieldRef, sectionPath, instanceNum: instanceCtx })}
+          {safeRenderField({ fieldRef, sectionPath, instanceNum: instanceCtx, mode })}
         </div>
       );
     });
-  }, [node, safeRenderField, renderField, onSaveSection, onResetSection, onAddInstance, onRemoveInstance, onReorderInstance]);
+  }, [node, safeRenderField, renderField, onAddInstance, onRemoveInstance, onReorderInstance, mode]);
 
-  // --- Instance actions (UI-first; optional persistence hooks) ---
+  // --- Instance actions (UI-first; optional persistence hooks). Hidden in idle. ---
   const addInstance = useCallback(async () => {
     if (!isCollection || !allowAdd || uiCount >= max) return;
     const next = uiCount + 1;
@@ -282,21 +256,7 @@ export function SectionRenderer({
     }
   }, [isCollection, allowReorder, section.path, onReorderInstance]);
 
-  // --- Save / Reset per-section (parent wires the draft filtering by prefix) ---
-  const handleSave = useCallback(async () => {
-    if (!onSaveSection) return;
-    dlog('save:start', { sectionPath: section.path });
-    await onSaveSection(section.path);
-    dlog('save:done', { sectionPath: section.path });
-  }, [onSaveSection, section.path]);
-
-  const handleReset = useCallback(async () => {
-    if (!onResetSection) return;
-    dlog('reset:start', { sectionPath: section.path });
-    await onResetSection(section.path);
-    setUiCount(serverCount); // reflect server after reset
-    dlog('reset:done', { sectionPath: section.path, uiCount: serverCount });
-  }, [onResetSection, section.path, serverCount]);
+  const [open, setOpen] = useState(true);
 
   return (
     <div className="rounded-lg border p-3">
@@ -310,14 +270,7 @@ export function SectionRenderer({
           <span className="font-medium">{section.title ?? section.path}</span>
         </button>
 
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" onClick={handleReset}>
-            <RotateCcw className="w-4 h-4 mr-1" /> Reset
-          </Button>
-          <Button variant="default" size="sm" onClick={handleSave}>
-            <Save className="w-4 h-4 mr-1" /> Save
-          </Button>
-        </div>
+        {/* No section-level Save/Reset. Node-level only. */}
       </div>
 
       {!open ? null : (
@@ -332,14 +285,20 @@ export function SectionRenderer({
           {/* Collection: instances i1..iN — UI reflects uiCount (serverCount fallback) */}
           {isCollection && (
             <div className="mt-3 space-y-4">
-              <div className="flex items-center gap-2">
-                <Button size="sm" onClick={addInstance} disabled={!allowAdd || uiCount >= max}>
-                  <Plus className="w-4 h-4 mr-1" /> Add
-                </Button>
-                <div className="text-xs text-muted-foreground">
-                  Showing {uiCount} {uiCount === 1 ? 'instance' : 'instances'}{Number.isFinite(max) ? ` (max ${max})` : ''}
+              {mode === 'edit' && (
+                <div className="flex items-center gap-2">
+                  <button
+                    className="inline-flex items-center gap-2 text-sm px-2.5 py-1.5 rounded-md border"
+                    onClick={addInstance}
+                    disabled={!allowAdd || uiCount >= max}
+                  >
+                    <Plus className="w-4 h-4" /> Add
+                  </button>
+                  <div className="text-xs text-muted-foreground">
+                    Showing {uiCount} {uiCount === 1 ? 'instance' : 'instances'}{Number.isFinite(max) ? ` (max ${max})` : ''}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {Array.from({ length: uiCount }).map((_, idx) => {
                 const i = idx + 1; // 1-based for .instances.iN
@@ -348,32 +307,32 @@ export function SectionRenderer({
                     ? section.collection.label_template.replace('#{i}', String(i))
                     : `Instance ${i}`;
 
-                dlog('render:instance', { node: node?.addr, sectionPath: section.path, i, label });
+                dlog('render:instance', { node: node?.addr, sectionPath: section.path, i, label, mode });
 
                 return (
                   <div key={`inst-${i}`} className="rounded-md border p-3">
                     <div className="flex items-center justify-between mb-2">
                       <div className="text-sm font-medium">{label}</div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="secondary"
-                          size="icon"
-                          title="Drag to reorder"
-                          disabled={!allowReorder}
-                          onClick={() => reorderInstance(i, i)} // placeholder (wire real DnD later)
-                        >
-                          <GripVertical className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Remove"
-                          onClick={() => removeInstance(i)}
-                          disabled={!allowRemove || uiCount <= min}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+                      {mode === 'edit' && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            className="inline-flex items-center justify-center rounded-md border px-2 py-1 text-xs"
+                            title="Drag to reorder"
+                            disabled={!allowReorder}
+                            onClick={() => reorderInstance(i, i)} // placeholder (wire real DnD later)
+                          >
+                            <GripVertical className="w-4 h-4" />
+                          </button>
+                          <button
+                            className="inline-flex items-center justify-center rounded-md px-2 py-1 text-xs"
+                            title="Remove"
+                            onClick={() => removeInstance(i)}
+                            disabled={!allowRemove || uiCount <= min}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-3">
