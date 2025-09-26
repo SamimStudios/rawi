@@ -42,7 +42,7 @@ type Props = {
   onReorderInstance?: (sectionPath: string, from: number, to: number) => Promise<void> | void; // 1-based
 };
 
-export default function SectionRenderer({
+export function SectionRenderer({
   node,
   section,
   renderField,
@@ -256,3 +256,5 @@ export default function SectionRenderer({
     </div>
   );
 }
+export default SectionRenderer;
+
