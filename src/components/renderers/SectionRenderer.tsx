@@ -9,6 +9,25 @@ const DBG = true;
 const dlog = (...a: any[]) => { if (DBG) console.debug('[RENDER:Section]', ...a); };
 const dwarn = (...a: any[]) => console.warn('[RENDER:Section]', ...a);
 
+// Build SSOT address for section paths that can be nested (e.g. "characters.lead")
+// If instanceNum is provided, insert ".instances.iN" right after the **first** section.
+function buildNestedSectionFieldAddr(nodeAddr: string, sectionPath: string, fieldRef: string, instanceNum?: number) {
+  const segs = sectionPath.split('.').filter(Boolean);
+  if (!segs.length) throw new Error('Empty sectionPath');
+
+  let json = `content.items.${segs[0]}`;
+  if (typeof instanceNum === 'number') {
+    json += `.instances.i${instanceNum}`;
+  }
+  // chain nested children: .children.lead.children.supporting...
+  for (let i = 1; i < segs.length; i++) {
+    json += `.children.${segs[i]}`;
+  }
+  json += `.children.${fieldRef}.value`;
+  return `${nodeAddr}#${json}`;
+}
+
+
 /** Field-like child (may come as string or object) */
 type FieldItemLike = string | {
   kind?: string;            // 'FieldItem' (optional)
