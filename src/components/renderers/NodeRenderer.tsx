@@ -12,7 +12,8 @@ import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { ChevronDown, ChevronRight, Edit2, Save, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { FieldRenderer } from './FieldRenderer';
+// at top
+import { FieldRenderer } from '@/components/renderers/FieldRenderer'; // ✅
 import { ContentValidation, FormContent, FormItem, FieldItem, SectionItem } from '@/lib/content-contracts';
 import { CreditsButton } from '@/components/ui/credits-button';
 import { useToast } from '@/hooks/use-toast';
