@@ -27,6 +27,24 @@ import { useJobs, type JobNode } from '@/hooks/useJobs';
 const DBG = true;
 const nlog = (...a:any[]) => { if (DBG) console.debug('[NodeRenderer]', ...a); };
 
+const saveViaRpc = async (jobId: string, writes: Array<{ address: string; value: any }>) => {
+  nlog('rpc:addr_write_many:start', { jobId, count: writes.length, sample: writes.slice(0, 3) });
+  const { data, error } = await supabase.rpc('addr_write_many', {
+    p_job_id: jobId,
+    p_writes: writes
+  });
+  if (error) {
+    console.error('[NodeRenderer] rpc:addr_write_many:error', error);
+    throw error;
+  }
+  if (!data?.success) {
+    console.error('[NodeRenderer] rpc:addr_write_many:failed', data);
+    throw new Error(data?.error || 'addr_write_many failed');
+  }
+  nlog('rpc:addr_write_many:ok', data);
+};
+
+
 // normalize writes: ensure `value` is JSON-serializable and never `undefined`
 function toWritesArray(entries: Array<{ address: string; value: any }>, nodeAddr: string) {
   const prefix = `${nodeAddr}#`;
@@ -34,10 +52,10 @@ function toWritesArray(entries: Array<{ address: string; value: any }>, nodeAddr
     .filter(e => typeof e?.address === 'string' && e.address.startsWith(prefix))
     .map(e => ({
       address: e.address,
-      // strip functions/symbols and turn undefined → null to keep JSON clean
       value: e.value === undefined ? null : JSON.parse(JSON.stringify(e.value, (_k, v) => (v === undefined ? null : v)))
     }));
 }
+
 
 
 
@@ -93,64 +111,10 @@ export default function NodeRenderer({
     }
   };
 
-  // Read and print the Edge Function error body if present
-async function logFunctionsError(where: string, err: any) {
-  const resp = (err as any)?.context;
-  let bodyText: string | null = null;
-  try {
-    if (resp && typeof resp.text === 'function') {
-      bodyText = await resp.text();
-    }
-  } catch {}
-  console.error(`[NodeRenderer] ${where}:error`, {
-    message: (err as any)?.message,
-    name: (err as any)?.name,
-    status: (resp as any)?.status,
-    body: bodyText
-  });
-}
 
-const saveViaEdgeMany = async (jobId: string, writes: Array<{ address: string; value: any }>) => {
-  nlog('write_many:start', { jobId, count: writes.length, sample: writes.slice(0, 3) });
-  const { data, error } = await supabase.functions.invoke('ltree-resolver', {
-    body: {
-      operation: 'write_many',
-      job_id: jobId,
-      writes,
-      create_missing: true,   // ← important: let the server create missing json path keys
-      strict: false           // ← optional: server may accept this to skip invalid paths
-    }
-  });
 
-  if (error) {
-    await logFunctionsError('write_many', error);
-    throw error;
-  }
-  if (!data?.success) {
-    console.error('[NodeRenderer] write_many:failed', data);
-    throw new Error(data?.error || 'ltree-resolver write_many failed');
-  }
-  nlog('write_many:ok', data);
-};
 
-const saveViaEdgeSingle = async (jobId: string, address: string, value: any) => {
-  const body = {
-    operation: 'set',
-    job_id: jobId,
-    address,
-    value: value === undefined ? null : value,
-    create_missing: true,
-  };
-  const { data, error } = await supabase.functions.invoke('ltree-resolver', { body });
-  if (error) {
-    await logFunctionsError('set', error);
-    throw error;
-  }
-  if (!data?.success) {
-    console.error('[NodeRenderer] set:failed', { address, data });
-    throw new Error(data?.error || 'ltree-resolver set failed');
-  }
-};
+
 
 
 
@@ -173,15 +137,8 @@ const handleSaveEdit = async () => {
       return;
     }
 
-    // write_many → fallback to per-set
-    try {
-      await saveViaEdgeMany(node.job_id, writes);
-    } catch (e) {
-      console.warn('[NodeRenderer] write_many failed, falling back to per-set', e);
-      for (const w of writes) {
-        await saveViaEdgeSingle(node.job_id, w.address, w.value);
-      }
-    }
+    // single RPC handles 1..N writes atomically
+    await saveViaRpc(node.job_id, writes);
 
     // reload & cleanup
     await reloadNode(node.job_id, node.id);
@@ -201,6 +158,7 @@ const handleSaveEdit = async () => {
     setLoading(false);
   }
 };
+
 
 
   const handleCancelEdit = () => {
