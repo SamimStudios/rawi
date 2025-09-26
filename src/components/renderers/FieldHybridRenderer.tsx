@@ -157,7 +157,7 @@ dlog('address:using', address);
             fieldDefinition?.default_value);
   }, [draftValue, dbValue, fieldDefinition?.default_value]);
 
-  console.log(`[FieldHybridRenderer] Values - DB: ${dbValue}, Draft: ${draftValue}, Effective: ${effectiveValue}`);
+  dlog('values', { dbValue, draftValue, effectiveValue });
 
   // Handle field value updates - ONLY update drafts, never persist to DB
 const handleValueChange = (newValue: any) => {
