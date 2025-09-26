@@ -91,22 +91,46 @@ export default function NodeRenderer({
     }
   };
 
-  const saveViaEdgeMany = async (jobId: string, writes: Array<{address:string; value:any}>) => {
-    nlog('write_many:start', { jobId, count: writes.length, writes });
-    const { data, error } = await supabase.functions.invoke('ltree-resolver', {
-      body: { operation: 'write_many', job_id: jobId, writes }
+  const saveViaEdgeMany = async (jobId: string, writes: Array<{ address: string; value: any }>) => {
+  nlog('write_many:start', { jobId, count: writes.length, sample: writes.slice(0, 3) });
+  const { data, error } = await supabase.functions.invoke('ltree-resolver', {
+    body: { operation: 'write_many', job_id: jobId, writes }
+  });
+  if (error) {
+    console.error('[NodeRenderer] write_many:error', {
+      message: error.message,
+      name: (error as any).name,
+      context: (error as any).context, // ← this often contains the Edge Function body/stack
     });
-    if (error) throw error;
-    if (!data?.success) throw new Error(data?.error || 'ltree-resolver write_many failed');
-    nlog('write_many:ok', data);
-  };
+    throw error;
+  }
+  if (!data?.success) {
+    console.error('[NodeRenderer] write_many:failed', data);
+    throw new Error(data?.error || 'ltree-resolver write_many failed');
+  }
+  nlog('write_many:ok', data);
+};
+
 
   const saveViaEdgeSingle = async (jobId: string, address: string, value: any) => {
-    const { data, error } = await supabase.functions.invoke('ltree-resolver', {
-      body: { operation: 'set', job_id: jobId, address, value }
-    });
-    if (error || !data?.success) throw new Error(data?.error || (error as any)?.message || 'ltree-resolver set failed');
+  const body = {
+    operation: 'set',
+    job_id: jobId,
+    address,
+    value: value === undefined ? null : value,
+    create_missing: true, // ← let server create any missing json path keys
   };
+  const { data, error } = await supabase.functions.invoke('ltree-resolver', { body });
+  if (error) {
+    console.error('[NodeRenderer] set:error', { address, error });
+    throw error;
+  }
+  if (!data?.success) {
+    console.error('[NodeRenderer] set:failed', { address, data });
+    throw new Error(data?.error || 'ltree-resolver set failed');
+  }
+};
+
 
   const handleSaveEdit = async () => {
     if (!node.addr) return;
