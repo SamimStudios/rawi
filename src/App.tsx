@@ -38,7 +38,6 @@ import NodeLibraryRoutes from '@/pages/app/build/node';
 import TemplateRoutes from '@/pages/app/build/template';
 import AppTemplates from '@/pages/app/Templates';
 import JobRoutes from '@/pages/app/jobs';
-import FieldRendererPreview from '@/pages/app/renderers/field';
 import NodeRendererPreview from '@/pages/app/renderers/node';
 import LtreeTesterPage from '@/pages/app/ltree';
 import Wallet from '@/pages/user/Wallet';
@@ -127,13 +126,6 @@ const MainApp = () => (
                     <div>
                       <Header />
                       <JobRoutes />
-                      <Footer />
-                    </div>
-                  } />
-                  <Route path="/app/renderers/field" element={
-                    <div>
-                      <Header />
-                      <FieldRendererPreview />
                       <Footer />
                     </div>
                   } />
