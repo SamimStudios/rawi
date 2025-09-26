@@ -1,15 +1,19 @@
+// src/components/renderers/NodeRenderer.tsx
 /**
- * SSOT-compliant NodeRenderer with proper addressing and n8n integration
+ * NodeRenderer — SSOT-compliant, now the only orchestrator.
+ * - Renders form tree (sections, nesting, collections) recursively
+ * - Uses FieldRenderer for all fields
+ * - Node-level Edit/Save only
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Fragment } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { ChevronDown, ChevronRight, Edit2, Save, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { FormItemRenderer } from './FormItemRenderer';
-import { ContentValidation, FormContent } from '@/lib/content-contracts';
+import { FieldRenderer } from './FieldRenderer';
+import { ContentValidation, FormContent, FormItem, FieldItem, SectionItem } from '@/lib/content-contracts';
 import { CreditsButton } from '@/components/ui/credits-button';
 import { useToast } from '@/hooks/use-toast';
 import { useUserCredits } from '@/hooks/useUserCredits';
@@ -17,8 +21,10 @@ import { useFunctionPricing } from '@/hooks/useFunctionPricing';
 import { supabase } from '@/integrations/supabase/client';
 import { useNodeEditor } from '@/hooks/useNodeEditor';
 import { useDrafts } from '@/contexts/DraftsContext';
-import { HybridAddrService } from '@/lib/ltree/service';
 import { useJobs, type JobNode } from '@/hooks/useJobs';
+
+const DBG = true;
+const nlog = (...a:any[]) => { if (DBG) console.debug('[NodeRenderer]', ...a); };
 
 interface NodeRendererProps {
   node: JobNode;
@@ -45,201 +51,93 @@ export default function NodeRenderer({
   const { entries, clear: clearDrafts } = useDrafts();
   const { reloadNode } = useJobs();
   const { startEditing, stopEditing, isEditing, hasActiveEditor } = useNodeEditor();
-  
+
   const [internalMode, setInternalMode] = useState<'idle' | 'edit'>('idle');
   const [isCollapsed, setIsCollapsed] = useState(true);
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [validateCredits, setValidateCredits] = useState<number | undefined>();
-  const [generateCredits, setGenerateCredits] = useState<number | undefined>();
-  const [loading, setLoading] = useState(false);
   const [validationState, setValidationState] = useState<'unknown' | 'valid' | 'invalid' | 'validating'>('unknown');
-  const [validationSuggestions, setValidationSuggestions] = useState<any[]>([]);
-  
+  const [loading, setLoading] = useState(false);
+
   const effectiveMode = externalMode || internalMode;
   const setEffectiveMode = onModeChange || setInternalMode;
-  
+
   const label = node.content?.label?.fallback || `Node ${node.addr}`;
   const description = node.content?.description?.fallback;
   const hasValidateAction = node.validate_n8n_id;
   const hasGenerateAction = node.generate_n8n_id;
-  
-  // Get current credit balance
-  const currentCredits = userCredits || 0;
-  
-  // Get dynamic pricing from database
+
+  // Pricing
   const validateCost = node.validate_n8n_id ? getPrice(node.validate_n8n_id) : 0;
   const generateCost = node.generate_n8n_id ? getPrice(node.generate_n8n_id) : 0;
-
-  // Set credit costs for the CreditsButton components
-  useEffect(() => {
-    if (!pricingLoading) {
-      setValidateCredits(validateCost);
-      setGenerateCredits(generateCost);
-    }
-  }, [validateCost, generateCost, pricingLoading]);
+  useEffect(() => {}, [validateCost, generateCost, pricingLoading]);
 
   const handleStartEdit = () => {
     if (startEditing(node.id)) {
       setEffectiveMode('edit');
-      setIsCollapsed(false); // Auto-expand when entering edit mode
+      setIsCollapsed(false);
     }
   };
+
+  const saveViaEdgeMany = async (jobId: string, writes: Array<{address:string; value:any}>) => {
+    nlog('write_many:start', { jobId, count: writes.length, writes });
+    const { data, error } = await supabase.functions.invoke('ltree-resolver', {
+      body: { operation: 'write_many', job_id: jobId, writes }
+    });
+    if (error) throw error;
+    if (!data?.success) throw new Error(data?.error || 'ltree-resolver write_many failed');
+    nlog('write_many:ok', data);
+  };
+
+  const saveViaEdgeSingle = async (jobId: string, address: string, value: any) => {
+    const { data, error } = await supabase.functions.invoke('ltree-resolver', {
+      body: { operation: 'set', job_id: jobId, address, value }
+    });
+    if (error || !data?.success) throw new Error(data?.error || (error as any)?.message || 'ltree-resolver set failed');
+  };
+
   const handleSaveEdit = async () => {
     if (!node.addr) return;
-    
     setLoading(true);
     try {
-      // Collect drafts with this node's address as prefix
       const nodePrefix = `${node.addr}#`;
-      const draftsToSave = entries(nodePrefix);
-      
-      console.log(`[NodeRenderer] Saving ${draftsToSave.length} drafts for node ${node.addr}:`, draftsToSave);
-      
-      if (draftsToSave.length > 0) {
-        // Try atomic RPC first
-        let rpcFailed = false;
-        try {
-          const { error } = await (supabase as any).rpc('addr_write_many', {
-            p_job_id: node.job_id,
-            p_writes: draftsToSave
-          });
-          if (error) {
-            rpcFailed = true;
-            console.warn('[NodeRenderer] addr_write_many RPC failed, falling back to ltree-resolver:', error);
-          }
-        } catch (e) {
-          rpcFailed = true;
-          console.warn('[NodeRenderer] addr_write_many RPC threw, falling back to ltree-resolver:', e);
-        }
+      const draftsToSave = entries(nodePrefix); // [{address,value}]
+      nlog('save:drafts', draftsToSave);
 
-        if (rpcFailed) {
-          // Fallback: persist each draft via ltree-resolver edge function
-          for (const draft of draftsToSave) {
-            const { data: res, error: fnError } = await supabase.functions.invoke('ltree-resolver', {
-              body: {
-                operation: 'set',
-                job_id: node.job_id,
-                address: draft.address,
-                value: draft.value,
-              }
-            });
-            if (fnError || !res?.success) {
-              console.error('[NodeRenderer] ltree-resolver error:', fnError || res);
-              throw new Error(res?.error || 'ltree-resolver failed');
-            }
-          }
+      if (draftsToSave.length > 0) {
+        try {
+          await saveViaEdgeMany(node.job_id, draftsToSave);
+        } catch (e) {
+          console.warn('[NodeRenderer] write_many failed, falling back to per-set', e);
+          for (const d of draftsToSave) await saveViaEdgeSingle(node.job_id, d.address, d.value);
         }
-        
-        // Reload this node from DB to get fresh data
         await reloadNode(node.job_id, node.id);
-        
-        // Clear drafts for this node
         clearDrafts(nodePrefix);
-        
-        toast({
-          title: "Success",
-          description: "Changes saved successfully",
-        });
+        toast({ title: 'Success', description: 'Changes saved successfully' });
       }
-      
+
       setEffectiveMode('idle');
-      setLastSaved(new Date());
       setHasUnsavedChanges(false);
-      
-      // Release the single-editor guard
       stopEditing();
     } catch (error) {
       console.error('[NodeRenderer] Save failed:', error);
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to save changes",
-        variant: "destructive",
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to save changes',
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
   };
+
   const handleCancelEdit = () => {
     if (!node.addr) return;
-    
-    // Clear drafts for this node (discard changes)
-    const nodePrefix = `${node.addr}#`;
-    clearDrafts(nodePrefix);
-    
+    clearDrafts(`${node.addr}#`);
     setEffectiveMode('idle');
     setHasUnsavedChanges(false);
-    
-    // Release the single-editor guard
     stopEditing();
-    
-    toast({
-      title: "Changes discarded",
-      description: "All unsaved changes have been discarded",
-    });
+    toast({ title: 'Changes discarded', description: 'All unsaved changes have been discarded' });
   };
-
-  const handleValidate = async () => {
-    setValidationState('validating');
-    setLoading(true);
-    try {
-      const { data } = await supabase.functions.invoke('validate-node-content', {
-        body: { nodeId: node.id, jobId: node.job_id, fieldValues: {} }
-      });
-      
-      if (data.valid) {
-        setValidationState('valid');
-        setValidationSuggestions([]);
-        toast({
-          title: "Validation passed",
-          description: "All fields are valid.",
-        });
-      } else {
-        setValidationState('invalid');
-        setValidationSuggestions(data.suggestions || []);
-        toast({
-          title: "Validation issues found",
-          description: "Please review the suggestions below.",
-          variant: "destructive"
-        });
-      }
-    } catch (error) {
-      setValidationState('invalid');
-      toast({ 
-        title: "Validation failed", 
-        description: error instanceof Error ? error.message : "Validation service error",
-        variant: "destructive" 
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const applySuggestion = (suggestion: any) => {
-    if (suggestion.address && suggestion.value !== undefined) {
-      // Apply suggested fix to drafts (not DB)
-      console.log(`[NodeRenderer] Applying suggestion to ${suggestion.address}:`, suggestion.value);
-      // This would integrate with drafts if we had the suggestion format
-      toast({
-        title: "Suggestion applied",
-        description: "The suggested fix has been applied to your draft.",
-      });
-    }
-  };
-
-  // Determine if Save should be enabled
-  const canSave = (() => {
-    if (loading) return false;
-    if (hasValidateAction) {
-      // If node has validation, require it to be valid first
-      return validationState === 'valid';
-    }
-    // If no validation required, can always save
-    return true;
-  })();
-
-  // Inputs should be locked during validation
-  const inputsLocked = validationState === 'validating';
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -247,62 +145,108 @@ export default function NodeRenderer({
       const { data } = await supabase.functions.invoke('generate-node-content', {
         body: { nodeId: node.id, jobId: node.job_id, context: {} }
       });
-      if (data.success) {
-        toast({ title: "Content generated", description: "Node content generated successfully." });
+      if (data?.success) {
+        toast({ title: 'Content generated', description: 'Node content generated successfully.' });
         onUpdate?.(node.id, data.generatedContent);
       }
-    } catch (error) {
-      toast({ title: "Generation failed", variant: "destructive" });
+    } catch {
+      toast({ title: 'Generation failed', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
   };
 
-  const isFormContent = ContentValidation.isFormContent(node.content);
-  
+  // --------- Tree rendering (no extra renderers) ---------
+  const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number) => (
+    <FieldRenderer
+      key={`field:${parentPath || ''}:${instanceNum || 0}:${field.ref}`}
+      node={node}
+      fieldRef={field.ref}
+      sectionPath={parentPath}
+      instanceNum={instanceNum}
+      mode={effectiveMode}
+      required={field.required}
+      editable={field.editable !== false}
+      onChange={() => setHasUnsavedChanges(true)}
+    />
+  );
+
+  const renderSection = (section: SectionItem, parentPath?: string, inheritedInstance?: number) => {
+    const sectionPath = parentPath ? `${parentPath}.${section.path}` : section.path;
+    const title = section.title ?? section.path;
+    const isCollection = !!section.collection;
+
+    // Instance count: prefer explicit instances length, else default_instances, else min, else 0
+    const explicit = Array.isArray((section as any).instances) ? (section as any).instances.length : undefined;
+    const defCount = section.collection?.default_instances;
+    const min = section.collection?.min ?? 0;
+    const count = isCollection
+      ? (explicit ?? (typeof defCount === 'number' && defCount > 0 ? defCount : Math.max(0, min)))
+      : 0;
+
+    return (
+      <div key={`sec:${sectionPath}`} className="rounded-lg border p-3">
+        <div className="font-medium">{title}</div>
+
+        {!isCollection && (
+          <div className="mt-3 space-y-3">
+            {section.children?.map((child) => (
+              ContentValidation.isFieldItem(child)
+                ? renderField(child as FieldItem, sectionPath, inheritedInstance)
+                : renderSection(child as SectionItem, sectionPath, inheritedInstance)
+            ))}
+          </div>
+        )}
+
+        {isCollection && (
+          <div className="mt-3 space-y-4">
+            {Array.from({ length: count }).map((_, idx) => {
+              const i = idx + 1; // instances.i1...
+              const label =
+                section.collection?.label_template
+                  ? section.collection.label_template.replace('#{i}', String(i))
+                  : `Instance ${i}`;
+
+              return (
+                <div key={`inst:${sectionPath}:i${i}`} className="rounded-md border p-3">
+                  <div className="text-sm font-medium mb-2">{label}</div>
+                  <div className="space-y-3">
+                    {section.children?.map((child) => (
+                      ContentValidation.isFieldItem(child)
+                        ? renderField(child as FieldItem, sectionPath, i)
+                        : renderSection(child as SectionItem, sectionPath, i)
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderFormContent = () => {
-    if (!node.content) {
-      return (
-        <div className="text-center py-8 text-muted-foreground">
-          <p>No content defined</p>
-          {hasGenerateAction && effectiveMode === 'idle' && (
-            <CreditsButton onClick={handleGenerate} price={generateCredits} available={userCredits} loading={loading} size="default">
-              Generate Content
-            </CreditsButton>
-          )}
-        </div>
-      );
+    if (!node.content) return <div className="text-center py-8 text-muted-foreground">No content defined</div>;
+    if (!ContentValidation.isFormContent(node.content)) {
+      return <div className="text-muted-foreground p-4 bg-muted/50 rounded">Content type not supported by SSOT renderer</div>;
     }
+    const form = node.content as FormContent;
+    if (!form.items?.length) return <div className="text-center py-8 text-muted-foreground">No form items defined</div>;
 
-    if (isFormContent) {
-      const formContent = node.content as FormContent;
-      if (!formContent.items?.length) {
-        return <div className="text-center py-8 text-muted-foreground">No form items defined</div>;
-      }
-
-      return (
-        <div className="space-y-4">
-          {formContent.items.map((item) => (
-            <FormItemRenderer
-              key={`${item.kind}-${item.idx}`}
-              item={item}
-              node={node}
-              mode={effectiveMode}
-              onChange={() => setHasUnsavedChanges(true)}
-            />
-          ))}
-        </div>
-      );
-    }
-
-    return <div className="text-muted-foreground p-4 bg-muted/50 rounded">Content type not supported by SSOT renderer</div>;
+    return (
+      <div className="space-y-4">
+        {form.items.map((item: FormItem) => (
+          ContentValidation.isFieldItem(item)
+            ? renderField(item as FieldItem, undefined, undefined)
+            : renderSection(item as SectionItem, undefined, undefined)
+        ))}
+      </div>
+    );
   };
 
   return (
-    <Card className={cn("w-full transition-colors", 
-      effectiveMode === 'edit' && "border-primary bg-primary/5",
-      className
-    )}>
+    <Card className={cn("w-full transition-colors", effectiveMode === 'edit' && "border-primary bg-primary/5", className)}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -316,43 +260,24 @@ export default function NodeRenderer({
             <div className="flex gap-1">
               {hasUnsavedChanges && <Badge variant="outline" className="text-xs">Unsaved</Badge>}
               {effectiveMode === 'edit' && <Badge variant="default" className="text-xs">Editing</Badge>}
-              {/* Validation Status Indicator */}
-              {hasValidateAction && validationState === 'validating' && (
-                <Badge variant="secondary" className="text-xs animate-pulse">Validating...</Badge>
-              )}
-              {hasValidateAction && validationState === 'valid' && (
-                <Badge variant="default" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                  ✓ Valid
-                </Badge>
-              )}
-              {hasValidateAction && validationState === 'invalid' && (
-                <Badge variant="destructive" className="text-xs">❌ Invalid</Badge>
-              )}
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2">
-            {effectiveMode === 'edit' && (
+            {effectiveMode === 'edit' ? (
               <>
-                <Button size="sm" onClick={handleSaveEdit} disabled={!canSave}>
-                  <Save className="h-3 w-3 mr-1" />
-                  {hasValidateAction && validationState !== 'valid' ? 'Validate First' : 'Save'}
+                <Button size="sm" onClick={handleSaveEdit} disabled={loading}>
+                  <Save className="h-3 w-3 mr-1" /> Save
                 </Button>
                 <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={loading}>
-                  <X className="h-3 w-3 mr-1" />Cancel
+                  <X className="h-3 w-3 mr-1" /> Cancel
                 </Button>
-                {hasValidateAction && (
-                  <CreditsButton onClick={handleValidate} price={validateCredits} available={userCredits} loading={loading} size="sm">
-                    Validate
-                  </CreditsButton>
-                )}
               </>
-            )}
-            {effectiveMode === 'idle' && (
+            ) : (
               <>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     if (hasActiveEditor()) {
                       toast({
@@ -365,10 +290,10 @@ export default function NodeRenderer({
                     handleStartEdit();
                   }}
                 >
-                  <Edit2 className="h-3 w-3 mr-1" />Edit
+                  <Edit2 className="h-3 w-3 mr-1" /> Edit
                 </Button>
                 {hasGenerateAction && (
-                  <CreditsButton onClick={handleGenerate} price={generateCredits} available={userCredits} loading={loading} size="sm">
+                  <CreditsButton onClick={handleGenerate} price={generateCost} available={userCredits} loading={loading} size="sm">
                     Generate
                   </CreditsButton>
                 )}
@@ -376,7 +301,6 @@ export default function NodeRenderer({
             )}
           </div>
         </div>
-        
         {description && <p className="text-sm text-muted-foreground mt-2">{description}</p>}
       </CardHeader>
 
