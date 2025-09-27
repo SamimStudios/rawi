@@ -54,7 +54,7 @@ interface Props {
 }
 
 /* ===================== Helpers ===================== */
-type LibNode = { id: string; node_type: string; title?: string | null; active?: boolean | null; version?: number | null };
+type LibNode = { id: string; node_type: string };
 const uniq = <T,>(xs: T[]) => Array.from(new Set(xs));
 
 function normalize(raw: any): GroupContent {
@@ -115,39 +115,37 @@ function LibraryPicker({
 }) {
   const [schema, setSchema] = useState<'app' | 'public'>('app');
   const [typeFilter, setTypeFilter] = useState<'all' | 'form' | 'group' | 'media'>('all');
-  const [activeOnly, setActiveOnly] = useState<boolean>(true);
   const [rows, setRows] = useState<LibNode[]>([]);
   const [pickId, setPickId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const fetchLib = useCallback(async () => {
-    setLoading(true);
-    setErr(null);
-    try {
-      // note: keeping per-call schema to avoid changing global client (you said you also use public)
-      let query = supabase
-        // @ts-ignore
-        .schema(schema as any)
-        .from('node_library')
-        .select('id, node_type, title, active, version')
-        .order('title', { ascending: true })
-        .limit(500);
+  setLoading(true);
+  setErr(null);
+  try {
+    let query = supabase
+      // @ts-ignore
+      .schema(schema as any)
+      .from('node_library')
+      .select('id, node_type')            // ← only id + node_type
+      .order('id', { ascending: true })   // ← order by id (title doesn't exist)
+      .limit(500);
 
-      if (activeOnly) query = query.eq('active', true);
-      if (typeFilter !== 'all') query = query.eq('node_type', typeFilter);
+    if (typeFilter !== 'all') query = query.eq('node_type', typeFilter);
 
-      const { data, error } = await query;
-      if (error) throw error;
-      setRows((data ?? []) as any);
-    } catch (e: any) {
-      console.error('Library fetch error:', e);
-      setRows([]);
-      setErr(typeof e?.message === 'string' ? e.message : 'Failed to load node library');
-    } finally {
-      setLoading(false);
-    }
-  }, [schema, typeFilter, activeOnly]);
+    const { data, error } = await query;
+    if (error) throw error;
+    setRows((data ?? []) as any);
+  } catch (e: any) {
+    console.error('Library fetch error:', e);
+    setRows([]);
+    setErr(typeof e?.message === 'string' ? e.message : 'Failed to load node library');
+  } finally {
+    setLoading(false);
+  }
+}, [schema, typeFilter]);
+
 
   useEffect(() => { fetchLib(); }, [fetchLib]);
 
@@ -193,10 +191,7 @@ function LibraryPicker({
             </Select>
 
             {/* active only */}
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">active</span>
-              <Switch checked={activeOnly} onCheckedChange={setActiveOnly} />
-            </div>
+
 
             <Button variant="outline" size="sm" onClick={fetchLib} disabled={loading}>
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -219,8 +214,9 @@ function LibraryPicker({
             <SelectContent className="max-h-80">
               {rows.map((r) => (
                 <SelectItem key={r.id} value={r.id}>
-                  {(r.title || r.id.slice(0, 12))} — {r.node_type}{r.version != null ? ` v${r.version}` : ''}{r.active === false ? ' (inactive)' : ''}
+                  {r.id} — {r.node_type}
                 </SelectItem>
+
               ))}
             </SelectContent>
           </Select>
@@ -238,10 +234,11 @@ function LibraryPicker({
             {(selected ?? []).map((id) => {
               const r = map.get(id);
               return (
-                <Badge key={id} variant="secondary" className="gap-2">
-                  {(r?.title || id.slice(0, 10))} — {r?.node_type || 'node'}
+               <Badge key={id} variant="secondary" className="gap-2">
+                  {id} — {map.get(id)?.node_type || 'node'}
                   <button onClick={() => remove(id)} className="text-destructive">×</button>
                 </Badge>
+
               );
             })}
           </div>
