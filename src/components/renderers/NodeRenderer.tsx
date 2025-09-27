@@ -5,7 +5,8 @@
  * - Uses FieldRenderer for all fields
  * - Node-level Edit/Save only
  */
-import React, { useState, useEffect, Fragment, useRef } from 'react';
+
+import React, { useState, useEffect, Fragment, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -91,8 +92,9 @@ export default function NodeRenderer({
   const [validationState, setValidationState] = useState<'unknown' | 'valid' | 'invalid' | 'validating'>('unknown');
   const [loading, setLoading] = useState(false);
   const [refreshSeq, setRefreshSeq] = useState(0);
-const waitingRealtimeRef = useRef(false);                 // track if we’re waiting for realtime
-const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const [contentSnapshot, setContentSnapshot] = useState<any>(node.content); // NEW
+  const waitingRealtimeRef = useRef(false);                   // NEW
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null); // NEW
 
 
 
@@ -116,7 +118,50 @@ const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
     }
   };
 
+// keep snapshot in sync when parent actually provides new content
+useEffect(() => {
+  setContentSnapshot(node.content);
+}, [node.id, node.content]);
 
+  // convenience: the object we pass to fields
+const nodeForRender = useMemo(() => ({ ...node, content: contentSnapshot }), [node, contentSnapshot]);
+
+  
+// realtime subscription for this node id
+useEffect(() => {
+  if (!node?.id) return;
+
+  if (channelRef.current) {
+    supabase.removeChannel(channelRef.current);
+    channelRef.current = null;
+  }
+
+  const ch = supabase
+    .channel(`nodes:${node.id}`)
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'app', table: 'nodes', filter: `id=eq.${node.id}` },
+      async (_payload) => {
+        // fetch fresh content (payload.new may not include full JSON depending on replica identity)
+        const { data, error } = await supabase.rpc('get_node_content', { p_node_id: node.id });
+        if (!error && data) {
+          setContentSnapshot(data);
+          setRefreshSeq((s) => s + 1);
+        } else {
+          console.warn('[NodeRenderer] realtime fetch failed', error);
+        }
+        waitingRealtimeRef.current = false;
+      }
+    )
+    .subscribe((status) => console.debug('[NodeRenderer] realtime:sub', status));
+
+  channelRef.current = ch;
+
+  return () => {
+    if (channelRef.current) supabase.removeChannel(channelRef.current);
+    channelRef.current = null;
+  };
+}, [node.id]);
 
 useEffect(() => {
   if (!node?.id) return;
@@ -189,15 +234,21 @@ const handleSaveEdit = async () => {
     // signal that we’re expecting a realtime UPDATE
     waitingRealtimeRef.current = true;
     
-    // fallback: if realtime doesn’t arrive quickly, do a manual reload once
+    // expect a realtime UPDATE; if it doesn't arrive quickly, do a one-shot RPC fetch
+    waitingRealtimeRef.current = true;
     setTimeout(async () => {
       if (!waitingRealtimeRef.current) return; // realtime already handled it
-      console.debug('[NodeRenderer] realtime:timeout → manual reload');
-      await reloadNode(node.job_id, node.id);
-      setRefreshSeq((s) => s + 1);
+      console.debug('[NodeRenderer] realtime:timeout → manual RPC fetch');
+      const { data, error } = await supabase.rpc('get_node_content', { p_node_id: node.id });
+      if (!error && data) {
+        setContentSnapshot(data);
+        setRefreshSeq((s) => s + 1);
+      } else {
+        console.warn('[NodeRenderer] manual fetch failed', error);
+      }
       waitingRealtimeRef.current = false;
-    }, 30000);
-    
+    }, 1500); // a small, deterministic delay is enough now
+        
 
 
   } catch (error) {
