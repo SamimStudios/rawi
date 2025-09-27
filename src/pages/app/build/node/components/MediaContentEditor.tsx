@@ -143,6 +143,24 @@ function reindexVersions(versions: MediaVersion[]): MediaVersion[] {
 
 export function MediaContentEditor({ content, onChange }: MediaContentEditorProps) {
   const [state, setState] = useState<MediaContent>(() => normalizeToSSOT(content || {}));
+
+  // after the existing `const [state, setState] = useState(...);`
+  useEffect(() => {
+    // push a sanitized baseline so the parent never has {}
+    const cleanVersions = reindexVersions(state.versions ?? []);
+    const sel = cleanVersions.length
+      ? Math.min(Math.max(1, state.selected_version_idx || 1), cleanVersions.length)
+      : 1;
+    onChange({
+      ...state,
+      kind: 'MediaContent',
+      path: state.path || 'media',
+      versions: cleanVersions,
+      selected_version_idx: sel,
+    } as unknown as Record<string, any>);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Recompute when parent passes new content
   useEffect(() => {
     setState(prev => {
