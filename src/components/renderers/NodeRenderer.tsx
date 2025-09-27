@@ -101,8 +101,8 @@ export default function NodeRenderer({
   const effectiveMode = externalMode || internalMode;
   const setEffectiveMode = onModeChange || setInternalMode;
 
-  const label = node.content?.label?.fallback || `Node ${node.addr}`;
-  const description = node.content?.description?.fallback;
+  const label = nodeForRender.content?.label?.fallback || `Node ${node.addr}`;
+  const description = nodeForRender.content?.description?.fallback;
   const hasValidateAction = node.validate_n8n_id;
   const hasGenerateAction = node.generate_n8n_id;
 
@@ -163,37 +163,7 @@ useEffect(() => {
   };
 }, [node.id]);
 
-useEffect(() => {
-  if (!node?.id) return;
 
-  // clean any previous channel
-  if (channelRef.current) {
-    supabase.removeChannel(channelRef.current);
-    channelRef.current = null;
-  }
-
-  const ch = supabase
-    .channel(`nodes:${node.id}`)
-    .on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'app', table: 'nodes', filter: `id=eq.${node.id}` },
-      async (payload) => {
-        console.debug('[NodeRenderer] realtime:update', { id: payload.new?.id, at: payload.new?.updated_at });
-        // pull fresh row after DB has committed
-        await reloadNode(node.job_id, node.id);
-        setRefreshSeq((s) => s + 1);
-        waitingRealtimeRef.current = false; // got it
-      }
-    )
-    .subscribe((status) => console.debug('[NodeRenderer] realtime:sub', status));
-
-  channelRef.current = ch;
-
-  return () => {
-    if (channelRef.current) supabase.removeChannel(channelRef.current);
-    channelRef.current = null;
-  };
-}, [node.id]); // re-subscribe if node changes
 
 
 
