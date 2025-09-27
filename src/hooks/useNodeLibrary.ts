@@ -1,66 +1,101 @@
-import { useState, useCallback } from 'react';
+// src/pages/app/build/node/hooks/useNodeLibrary.ts
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 
-/** ===== 3C validators: LIBRARY is template-only (no `instances[]`) ===== **/
+/** ---------- Types ---------- */
+export type NodeType = 'media' | 'group' | 'form' | string;
+
+export interface NodeLibraryEntry {
+  id: string;                 // should start with lib_
+  node_type: NodeType;
+  version?: number;           // table often has NOT NULL
+  active?: boolean;           // table often has NOT NULL
+  content: any;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+/** ---------- Validators (LIBRARY = template-only) ---------- */
+
+function isValidMediaContentTemplate(c: any): boolean {
+  if (!c || c.kind !== 'MediaContent') return false;
+  if (typeof c.path !== 'string' || !c.path.length) return false;
+  if (!['image', 'video', 'audio', 'file'].includes(String(c.type))) return false;
+
+  if (c.selected_version_idx != null && typeof c.selected_version_idx !== 'number') return false;
+
+  if (c.versions != null) {
+    if (!Array.isArray(c.versions)) return false;
+    for (const v of c.versions) {
+      if (!v || v.kind !== 'MediaVersion') return false;
+      if (typeof v.idx !== 'number' || v.idx < 1) return false;
+      if (v.uri != null && typeof v.uri !== 'string') return false;
+    }
+  }
+  return true; // zero versions allowed
+}
 
 function isValidGroupContentTemplate(c: any): boolean {
   if (!c || c.kind !== 'GroupContent') return false;
   if (typeof c.path !== 'string' || !c.path.length) return false;
-  if (!Array.isArray(c.children)) return false;     // template children required
-  if ('instances' in c) return false;               // runtime-only
+  if (!Array.isArray(c.children)) return false;    // template children list
+  if ('instances' in c) return false;              // runtime-only
+
   if (c.collection) {
     const col = c.collection;
     if (col.default_instances != null && typeof col.default_instances !== 'number') return false;
     if (col.min != null && typeof col.min !== 'number') return false;
     if (col.max != null && typeof col.max !== 'number') return false;
+    if (col.allow_add != null && typeof col.allow_add !== 'boolean') return false;
+    if (col.allow_remove != null && typeof col.allow_remove !== 'boolean') return false;
+    if (col.allow_reorder != null && typeof col.allow_reorder !== 'boolean') return false;
+    if (col.label_template != null && typeof col.label_template !== 'string') return false;
   }
+
   return c.children.every((id: any) => typeof id === 'string' && id.length > 0);
 }
 
+/** RELAXED: only require items[], not exact version string */
 function isValidFormContentTemplate(c: any): boolean {
-  if (!c || c.kind !== 'FormContent' || c.version !== 'v2-items') return false;
+  if (!c || c.kind !== 'FormContent') return false;
   if (!Array.isArray(c.items)) return false;
 
-  const checkItems = (items: any[]): boolean => (items || []).every((it: any) => {
-    if (it.kind === 'FieldItem') {
-      return typeof it.path === 'string' && typeof it.ref === 'string';
-    }
-    if (it.kind === 'SectionItem') {
-      return typeof it.path === 'string' && Array.isArray(it.children) && checkItems(it.children);
-    }
-    if (it.kind === 'CollectionFieldItem') {
-      // template-only: no instances in library
-      if ('instances' in it) return false;
-      return typeof it.path === 'string'
-        && typeof it.ref === 'string'
-        && typeof it.default_instances === 'number';
-    }
-    if (it.kind === 'CollectionSection') {
-      // template-only: no instances in library
-      if ('instances' in it) return false;
-      return typeof it.path === 'string'
-        && Array.isArray(it.children)
-        && checkItems(it.children)
-        && typeof it.default_instances === 'number';
-    }
-    return false;
-  });
+  const checkItems = (items: any[]): boolean =>
+    (items || []).every((it: any) => {
+      if (it.kind === 'FieldItem') {
+        return typeof it.path === 'string' && typeof it.ref === 'string';
+      }
+      if (it.kind === 'SectionItem') {
+        return typeof it.path === 'string' && Array.isArray(it.children) && checkItems(it.children);
+      }
+      if (it.kind === 'CollectionFieldItem') {
+        if ('instances' in it) return false; // library must not store instances
+        return typeof it.path === 'string'
+          && typeof it.ref === 'string'
+          && typeof it.default_instances === 'number';
+      }
+      if (it.kind === 'CollectionSection') {
+        if ('instances' in it) return false; // library must not store instances
+        return typeof it.path === 'string'
+          && Array.isArray(it.children)
+          && checkItems(it.children)
+          && typeof it.default_instances === 'number';
+      }
+      return false;
+    });
 
   return checkItems(c.items);
 }
 
-/** Defensive: drop any runtime `instances[]` from content before saving to library */
+/** Drop any runtime instances before saving to LIBRARY; normalize Form version string */
 function stripRuntimeInstancesForLibrary(nodeType: string, content: any): any {
   if (!content) return content;
 
   if (nodeType === 'group') {
-    if (content && typeof content === 'object') {
-      const c = { ...content };
-      if ('instances' in c) delete c.instances;
-      return c;
-    }
-    return content;
+    const c = { ...content };
+    if ('instances' in c) delete c.instances;
+    return c;
   }
 
   if (nodeType === 'form') {
@@ -81,259 +116,183 @@ function stripRuntimeInstancesForLibrary(nodeType: string, content: any): any {
       });
 
     if (content.kind === 'FormContent') {
-      return { ...content, items: cleanseItems(content.items || []) };
+      // normalize to 'v2-items' to keep a single canonical value
+      const version = 'v2-items';
+      return { ...content, version, items: cleanseItems(content.items || []) };
     }
   }
 
   return content;
 }
 
-
-
-
-function isValidGroupContent(c: any): boolean {
-  if (!c || c.kind !== 'GroupContent') return false;
-  if (typeof c.path !== 'string' || !c.path.length) return false;
-
-  const hasChildren = Array.isArray(c.children);
-  const hasCollection = !!c.collection || Array.isArray(c.instances);
-
-  // Must be one or the other (or empty allowed)
-  if (hasChildren && hasCollection) return false;
-
-  // Regular group
-  if (hasChildren) {
-    return c.children.every((id: any) => typeof id === 'string' && id.length > 0);
-  }
-
-  // Collection group
-  if (hasCollection) {
-    if (!Array.isArray(c.instances)) return false;
-    for (const inst of c.instances) {
-      if (!inst || typeof inst.i !== 'number' || inst.i < 1) return false;
-      if (typeof inst.idx !== 'number' || inst.idx < 1) return false;
-      if (!Array.isArray(inst.children)) return false;
-      if (!inst.children.every((id: any) => typeof id === 'string' && id.length > 0)) return false;
-    }
-  }
-
-  // Allow an empty group (no children/instances) as a placeholder
-  return true;
+/** Library validator dispatcher */
+function validateLibraryNodeContent(nodeType: string, content: any): boolean {
+  if (nodeType === 'group') return isValidGroupContentTemplate(content);
+  if (nodeType === 'form') return isValidFormContentTemplate(content);
+  if (nodeType === 'media') return isValidMediaContentTemplate(content);
+  return true; // permissive for other types
 }
 
-function isValidMediaContentTemplate(c: any): boolean {
-  if (!c || c.kind !== 'MediaContent') return false;
-  if (typeof c.path !== 'string' || !c.path.length) return false;
-  if (!['image','video','audio','file'].includes(String(c.type))) return false;
-
-  if (c.selected_version_idx != null && typeof c.selected_version_idx !== 'number') return false;
-
-  if (c.versions != null) {
-    if (!Array.isArray(c.versions)) return false;
-    for (const v of c.versions) {
-      if (!v || v.kind !== 'MediaVersion') return false;
-      if (typeof v.idx !== 'number' || v.idx < 1) return false;
-      if (v.uri != null && typeof v.uri !== 'string') return false;
-    }
-  }
-  return true; // zero versions is allowed
-}
-
-
-
-
-// --- SSOT validator for MediaContent ---
-function isValidMediaContent(c: any): boolean {
-  // root shape
-  if (!c || c.kind !== 'MediaContent') return false;
-  if (typeof c.path !== 'string' || !c.path.length) return false;
-  if (!['image','video','audio'].includes(c.type)) return false;
-  if (!Array.isArray(c.versions)) return false;
-  if (typeof c.selected_version_idx !== 'number') return false;
-
-  // zero versions: allowed
-  if (c.versions.length === 0) return true;
-
-  // versions present → each must be a MediaVersion with a MediaItem
-  let maxIdx = 0;
-  for (const v of c.versions) {
-    if (!v || v.kind !== 'MediaVersion') return false;
-    if (typeof v.idx !== 'number' || v.idx < 1) return false;
-    maxIdx = Math.max(maxIdx, v.idx);
-
-    const it = v.item;
-    if (!it || typeof it !== 'object') return false;
-
-    // item kind must match type
-    if (c.type === 'image' && it.kind !== 'ImageItem') return false;
-    if (c.type === 'video' && it.kind !== 'VideoItem') return false;
-    if (c.type === 'audio' && it.kind !== 'AudioItem') return false;
-
-    // uri must be a string (allow empty if you want to save a stub)
-    if (typeof it.uri !== 'string') return false;
-  }
-
-  // selected_version_idx must be within range when versions exist
-  if (c.selected_version_idx < 1 || c.selected_version_idx > maxIdx) return false;
-  return true;
-}
-
-
-export interface NodeLibraryEntry {
-  id: string;
-  node_type: 'form' | 'media' | 'group';
-  content: Record<string, any>;
-  payload_validate?: Record<string, any> | null;
-  payload_generate?: Record<string, any> | null;
-  validate_n8n_id?: string | null;
-  generate_n8n_id?: string | null;
-  active: boolean;
-  version: number;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface N8NFunction {
-  id: string;
-  name: string;
-  kind: string;
-  active: boolean;
-}
-
+/** ---------- Hook ---------- */
 export function useNodeLibrary() {
+  const { toast } = useToast();
   const [entries, setEntries] = useState<NodeLibraryEntry[]>([]);
-  const [n8nFunctions, setN8NFunctions] = useState<N8NFunction[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
 
+  /** Read all entries */
   const fetchEntries = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const { data, error } = await supabase
+        // @ts-ignore
         .schema('app' as any)
         .from('node_library')
-        .select('*')
-        .order('updated_at', { ascending: false });
+        .select('id, node_type, version, active, content')
+        .order('id', { ascending: true });
 
       if (error) throw error;
-      setEntries(data || []);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch node library';
-      setError(errorMessage);
+      setEntries((data ?? []) as any);
+    } catch (e: any) {
+      console.error('fetchEntries error:', e);
+      setError(e?.message || 'Failed to fetch node library entries');
+      toast({ title: 'Error', description: 'Failed to fetch node library entries', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
+  }, [toast]);
+
+  /** Read single entry by id */
+  const fetchEntry = useCallback(async (id: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error } = await supabase
+        // @ts-ignore
+        .schema('app' as any)
+        .from('node_library')
+        .select('id, node_type, version, active, content')
+        .eq('id', id)
+        .single();
+      if (error) throw error;
+      return data as NodeLibraryEntry;
+    } catch (e: any) {
+      console.error('fetchEntry error:', e);
+      setError(e?.message || 'Failed to fetch node library entry');
+      toast({ title: 'Error', description: 'Failed to fetch node library entry', variant: 'destructive' });
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  /** Validate entry (template-only) */
+  const validateEntry = useCallback(async (entry: any) => {
+    try {
+      if (!entry?.id || typeof entry.id !== 'string') return false;
+      if (!entry?.node_type || typeof entry.node_type !== 'string') return false;
+      if (!entry?.content || typeof entry.content !== 'object') return false;
+      return validateLibraryNodeContent(entry.node_type, entry.content);
+    } catch {
+      return false;
+    }
   }, []);
 
-  const fetchN8NFunctions = useCallback(async () => {
+  /** Upsert entry to app.node_library (TEMPLATE ONLY) */
+  const saveEntry = useCallback(async (entry: Omit<NodeLibraryEntry, 'created_at' | 'updated_at'>) => {
+    setLoading(true);
+    setError(null);
+
     try {
-      console.log('🔄 Fetching N8N functions...');
-      
-      const { data, error } = await supabase.functions.invoke('list-n8n-functions');
-      
+      // Sanitize content for library (drop instances, normalize form version)
+      const sanitizedContent = stripRuntimeInstancesForLibrary(entry.node_type, entry.content);
+
+      // Validate sanitized payload
+      const tempEntry = { ...entry, content: sanitizedContent };
+      const isValid = await validateEntry(tempEntry);
+      if (!isValid) throw new Error('Invalid content structure for node type');
+
+      // Enforce lib_ prefix (many schemas enforce this)
+      const id = entry.id.startsWith('lib_') ? entry.id : `lib_${entry.id}`;
+
+      // Minimal, DB-safe payload (avoid 400 Bad Request)
+      const payload: any = {
+        id,
+        node_type: entry.node_type,
+        content: sanitizedContent,
+        // include defaults in case table has NOT NULL constraints
+        version: (entry as any).version ?? 1,
+        active: (entry as any).active ?? true,
+      };
+
+      const { error } = await supabase
+        // @ts-ignore
+        .schema('app' as any)
+        .from('node_library')
+        .upsert(payload, { onConflict: 'id' });
+
       if (error) {
-        console.error('❌ Edge function error:', error);
+        console.error('node_library upsert error:', error);
         throw error;
       }
 
-      console.log('📊 N8N functions response:', data);
-      
-      setN8NFunctions(data?.data || []);
-      console.log('✅ N8N functions loaded:', data?.data?.length || 0);
-    } catch (err) {
-      console.error('❌ Error fetching n8n functions:', err);
-      setN8NFunctions([]);
+      toast({ title: 'Success', description: 'Node library entry saved successfully' });
+      await fetchEntries();
+      return true;
+    } catch (e: any) {
+      const msg = e?.message || 'Failed to save node library entry';
+      console.error('saveEntry error:', e);
+      setError(msg);
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+      return false;
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  }, [fetchEntries, toast, validateEntry]);
 
-const validateEntry = useCallback(async (entry: any) => {
-  try {
-    if (!entry?.id || typeof entry.id !== 'string') return false;
-    if (!entry?.node_type || typeof entry.node_type !== 'string') return false;
-    if (!entry?.content || typeof entry.content !== 'object') return false;
+  /** Delete entry */
+  const deleteEntry = useCallback(async (id: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const libId = id.startsWith('lib_') ? id : `lib_${id}`;
+      const { error } = await supabase
+        // @ts-ignore
+        .schema('app' as any)
+        .from('node_library')
+        .delete()
+        .eq('id', libId);
+      if (error) throw error;
 
-    switch (entry.node_type) {
-      case 'group':
-        return isValidGroupContentTemplate(entry.content);   // template-only, no instances[]
-      case 'form':
-        return isValidFormContentTemplate(entry.content);    // template-only, no instances[]
-      case 'media':
-        return isValidMediaContentTemplate(entry.content);   // allows zero versions
-      default:
-        return true; // other node types: permissive
+      toast({ title: 'Deleted', description: `Library node "${libId}" deleted.` });
+      await fetchEntries();
+      return true;
+    } catch (e: any) {
+      console.error('deleteEntry error:', e);
+      setError(e?.message || 'Failed to delete node library entry');
+      toast({ title: 'Error', description: 'Failed to delete node library entry', variant: 'destructive' });
+      return false;
+    } finally {
+      setLoading(false);
     }
-  } catch {
-    return false;
-  }
-}, []);
+  }, [fetchEntries, toast]);
 
-
-
-    const saveEntry = useCallback(async (entry: Omit<NodeLibraryEntry, 'created_at' | 'updated_at'>) => {
-      setLoading(true);
-      setError(null);
-    
-      try {
-        // Strip any runtime instances before validating/saving to LIBRARY
-        const sanitizedContent = stripRuntimeInstancesForLibrary(entry.node_type, entry.content);
-        const sanitizedEntry = { ...entry, content: sanitizedContent };
-    
-        // Validate (template-only)
-        const isValid = await validateEntry(sanitizedEntry);
-        if (!isValid) {
-          throw new Error('Invalid content structure for node type');
-        }
-    
-        // 🔴 IMPORTANT: Only send columns that exist in app.node_library
-        const payload = {
-          id: sanitizedEntry.id,
-          node_type: sanitizedEntry.node_type,
-          content: sanitizedEntry.content,
-          // include these ONLY if your table actually has them:
-          // version: (sanitizedEntry as any).version,
-          // active: (sanitizedEntry as any).active,
-        };
-    
-        const { error } = await supabase
-          // @ts-ignore
-          .schema('app' as any)
-          .from('node_library')
-          .upsert(payload, { onConflict: 'id' });
-    
-        if (error) throw error;
-    
-        toast({
-          title: 'Success',
-          description: 'Node library entry saved successfully',
-        });
-    
-        await fetchEntries();
-        return true;
-      } catch (err: any) {
-        const msg = err?.message || 'Failed to save node library entry';
-        console.error('saveEntry error:', err);
-        setError(msg);
-        toast({ title: 'Error', description: msg, variant: 'destructive' });
-        return false;
-      } finally {
-        setLoading(false);
-      }
-    }, [fetchEntries, toast, validateEntry]);
-
-
-
+  useEffect(() => {
+    // initial load
+    fetchEntries();
+  }, [fetchEntries]);
 
   return {
     entries,
-    n8nFunctions,
     loading,
     error,
     fetchEntries,
-    fetchN8NFunctions,
+    fetchEntry,
+    validateEntry,
     saveEntry,
     deleteEntry,
-    validateEntry,
   };
 }
+
+export default useNodeLibrary;
