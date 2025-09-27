@@ -53,24 +53,34 @@ function toWritesArray(entries: Array<{ address: string; value: any }>, nodeAddr
 // inside NodeRenderer.tsx (near other helpers)
 function getSelectedMediaVersion(content: any) {
   const versions = Array.isArray(content?.versions) ? content.versions : [];
+  if (versions.length === 0) return { versions, selectedIdx: null, selected: null };
   const sel = Number.isInteger(content?.selected_version_idx) ? content.selected_version_idx : 1;
   const selected = versions.find((v: any) => v?.idx === sel) ?? versions[0];
   return { versions, selectedIdx: selected?.idx ?? 1, selected };
 }
 
+
+
+
 function renderMediaContent(
   node: any,
   isEditing: boolean,
   draftContent: any,
-  setDraftContent: (c:any)=>void
+  setDraftContent: (c:any)=>void,
+  nodeAddr: string,
+  setDraft: (address: string, value: any) => void,
+  markDirty: () => void
 ) {
   const content = draftContent ?? node.content ?? {};
   const type = content?.type; // "image" | "video" | "audio"
   const { versions, selectedIdx, selected } = getSelectedMediaVersion(content);
 
-  if (!selected?.item) {
-    return <div className="text-muted-foreground text-sm">No media yet.</div>;
-  }
+ if (!selected?.item) {
+  return <div className="text-sm text-muted-foreground">
+    No media yet. Use <strong>Generate</strong> to create the first version.
+  </div>;
+}
+
   const it = selected.item; // SSOT: versions[].item (single item)
   const src = it?.uri ?? it?.url ?? '';
   const poster = it?.poster;
@@ -466,7 +476,14 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
                   <Edit2 className="h-3 w-3 mr-1" /> Edit
                 </Button>
                 {hasGenerateAction && (
-                  <CreditsButton onClick={handleGenerate} price={generateCost} available={userCredits} loading={loading} size="sm">
+                  <CreditsButton
+                    onClick={handleGenerate}
+                    price={generateCost}
+                    available={userCredits}
+                    loading={loading}
+                    size="sm"
+                    variant="secondary"
+                  >
                     Generate
                   </CreditsButton>
                 )}
