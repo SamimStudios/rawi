@@ -25,6 +25,8 @@ import { useNodeEditor } from '@/hooks/useNodeEditor';
 import { useDrafts } from '@/contexts/DraftsContext';
 import { useJobs, type JobNode } from '@/hooks/useJobs';
 
+
+
 const DBG = true;
 const nlog = (...a:any[]) => { if (DBG) console.debug('[NodeRenderer]', ...a); };
 
@@ -101,8 +103,16 @@ export default function NodeRenderer({
   const effectiveMode = externalMode || internalMode;
   const setEffectiveMode = onModeChange || setInternalMode;
 
+  // convenience: snapshot-based node passed to fields and header
+  const nodeForRender = useMemo(
+    () => ({ ...node, content: contentSnapshot }),
+    [node, contentSnapshot]
+  );
+  
+
   const label = nodeForRender.content?.label?.fallback || `Node ${node.addr}`;
   const description = nodeForRender.content?.description?.fallback;
+
   const hasValidateAction = node.validate_n8n_id;
   const hasGenerateAction = node.generate_n8n_id;
 
