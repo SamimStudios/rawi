@@ -5,7 +5,7 @@
  * - Uses FieldRenderer for all fields
  * - Node-level Edit/Save only
  */
-import React, { useState, useEffect, Fragment } from 'react';
+import React, { useState, useEffect, Fragment, useRef } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -91,6 +91,9 @@ export default function NodeRenderer({
   const [validationState, setValidationState] = useState<'unknown' | 'valid' | 'invalid' | 'validating'>('unknown');
   const [loading, setLoading] = useState(false);
   const [refreshSeq, setRefreshSeq] = useState(0);
+const waitingRealtimeRef = useRef(false);                 // track if we’re waiting for realtime
+const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
 
 
   const effectiveMode = externalMode || internalMode;
@@ -115,6 +118,37 @@ export default function NodeRenderer({
 
 
 
+useEffect(() => {
+  if (!node?.id) return;
+
+  // clean any previous channel
+  if (channelRef.current) {
+    supabase.removeChannel(channelRef.current);
+    channelRef.current = null;
+  }
+
+  const ch = supabase
+    .channel(`nodes:${node.id}`)
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'app', table: 'nodes', filter: `id=eq.${node.id}` },
+      async (payload) => {
+        console.debug('[NodeRenderer] realtime:update', { id: payload.new?.id, at: payload.new?.updated_at });
+        // pull fresh row after DB has committed
+        await reloadNode(node.job_id, node.id);
+        setRefreshSeq((s) => s + 1);
+        waitingRealtimeRef.current = false; // got it
+      }
+    )
+    .subscribe((status) => console.debug('[NodeRenderer] realtime:sub', status));
+
+  channelRef.current = ch;
+
+  return () => {
+    if (channelRef.current) supabase.removeChannel(channelRef.current);
+    channelRef.current = null;
+  };
+}, [node.id]); // re-subscribe if node changes
 
 
 
@@ -142,14 +176,31 @@ const handleSaveEdit = async () => {
     // single RPC handles 1..N writes atomically
     await saveViaRpc(node.job_id, writes);
 
-    // reload & cleanup
-    await reloadNode(node.job_id, node.id);
+    // after: await saveViaRpc(node.job_id, writes);
+
+    const nodePrefix = `${node.addr}#`;
     clearDrafts(nodePrefix);
-    setRefreshSeq(s => s + 1);   // <- force fields to recompute/remount
+    
+    // flip UI back to idle
     setEffectiveMode('idle');
     setHasUnsavedChanges(false);
     stopEditing();
     toast({ title: 'Success', description: 'Changes saved successfully' });
+    
+    // signal that we’re expecting a realtime UPDATE
+    waitingRealtimeRef.current = true;
+    
+    // fallback: if realtime doesn’t arrive quickly, do a manual reload once
+    setTimeout(async () => {
+      if (!waitingRealtimeRef.current) return; // realtime already handled it
+      console.debug('[NodeRenderer] realtime:timeout → manual reload');
+      await reloadNode(node.job_id, node.id);
+      setRefreshSeq((s) => s + 1);
+      waitingRealtimeRef.current = false;
+    }, 1200);
+    
+
+
   } catch (error) {
     console.error('[NodeRenderer] Save failed:', error);
     toast({
