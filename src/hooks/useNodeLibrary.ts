@@ -2,6 +2,94 @@ import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+/** ===== 3C validators: LIBRARY is template-only (no `instances[]`) ===== **/
+
+function isValidGroupContentTemplate(c: any): boolean {
+  if (!c || c.kind !== 'GroupContent') return false;
+  if (typeof c.path !== 'string' || !c.path.length) return false;
+  if (!Array.isArray(c.children)) return false;     // template children required
+  if ('instances' in c) return false;               // runtime-only
+  if (c.collection) {
+    const col = c.collection;
+    if (col.default_instances != null && typeof col.default_instances !== 'number') return false;
+    if (col.min != null && typeof col.min !== 'number') return false;
+    if (col.max != null && typeof col.max !== 'number') return false;
+  }
+  return c.children.every((id: any) => typeof id === 'string' && id.length > 0);
+}
+
+function isValidFormContentTemplate(c: any): boolean {
+  if (!c || c.kind !== 'FormContent' || c.version !== 'v2-items') return false;
+  if (!Array.isArray(c.items)) return false;
+
+  const checkItems = (items: any[]): boolean => (items || []).every((it: any) => {
+    if (it.kind === 'FieldItem') {
+      return typeof it.path === 'string' && typeof it.ref === 'string';
+    }
+    if (it.kind === 'SectionItem') {
+      return typeof it.path === 'string' && Array.isArray(it.children) && checkItems(it.children);
+    }
+    if (it.kind === 'CollectionFieldItem') {
+      // template-only: no instances in library
+      if ('instances' in it) return false;
+      return typeof it.path === 'string'
+        && typeof it.ref === 'string'
+        && typeof it.default_instances === 'number';
+    }
+    if (it.kind === 'CollectionSection') {
+      // template-only: no instances in library
+      if ('instances' in it) return false;
+      return typeof it.path === 'string'
+        && Array.isArray(it.children)
+        && checkItems(it.children)
+        && typeof it.default_instances === 'number';
+    }
+    return false;
+  });
+
+  return checkItems(c.items);
+}
+
+/** Defensive: drop any runtime `instances[]` from content before saving to library */
+function stripRuntimeInstancesForLibrary(nodeType: string, content: any): any {
+  if (!content) return content;
+
+  if (nodeType === 'group') {
+    if (content && typeof content === 'object') {
+      const c = { ...content };
+      if ('instances' in c) delete c.instances;
+      return c;
+    }
+    return content;
+  }
+
+  if (nodeType === 'form') {
+    const cleanseItems = (items: any[]): any[] =>
+      (items || []).map((it: any) => {
+        if (it?.kind === 'CollectionFieldItem') {
+          const { instances, ...rest } = it || {};
+          return { ...rest };
+        }
+        if (it?.kind === 'CollectionSection') {
+          const { instances, children = [], ...rest } = it || {};
+          return { ...rest, children: cleanseItems(children) };
+        }
+        if (it?.kind === 'SectionItem') {
+          return { ...it, children: cleanseItems(it.children || []) };
+        }
+        return it;
+      });
+
+    if (content.kind === 'FormContent') {
+      return { ...content, items: cleanseItems(content.items || []) };
+    }
+  }
+
+  return content;
+}
+
+
+
 
 function isValidGroupContent(c: any): boolean {
   if (!c || c.kind !== 'GroupContent') return false;
@@ -153,10 +241,14 @@ export function useNodeLibrary() {
         break;
   
       // Keep your other types as-is; if you don’t have validators for them yet, default-allow:
-      case 'form':
       case 'group':
-        ok = isValidGroupContent(entry?.content);
+        ok = isValidGroupContentTemplate(entry?.content);
         break;
+      
+      case 'form':
+        ok = isValidFormContentTemplate(entry?.content);
+        break;
+
       default:
         ok = true;
     }
