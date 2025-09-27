@@ -38,6 +38,15 @@ const saveViaRpc = async (jobId: string, writes: Array<{ address: string; value:
   nlog('saveViaRpc:ok', { count: writes.length });
 };
 
+function isRuntimeOk(nodeType: string, content: any): boolean {
+  if (!content || typeof content !== 'object') return false;
+  if (nodeType === 'group') return content.kind === 'GroupContent'; // allow instances[]
+  if (nodeType === 'form')  return content.kind === 'FormContent';  // allow instances[]
+  // media & others: be permissive
+  return true;
+}
+
+
 
 // normalize writes: ensure `value` is JSON-serializable and never `undefined`
 function toWritesArray(entries: Array<{ address: string; value: any }>, nodeAddr: string) {
