@@ -15,10 +15,11 @@ import {
   ArrowDown,
   FolderTree,
   Layers,
-  Search,
+  RefreshCw,
+  Dot
 } from 'lucide-react';
 
-// ---- SSOT-aligned minimal contracts ----
+/* ===================== SSOT contracts ===================== */
 type I18nText = { fallback: string; key?: string };
 type GroupCollection = {
   min?: number;
@@ -27,24 +28,22 @@ type GroupCollection = {
   allow_add?: boolean;
   allow_remove?: boolean;
   allow_reorder?: boolean;
-  label_template?: string; // e.g., "Instance #{i}"
+  label_template?: string;
 };
 type GroupInstance = {
-  i: number;                // instance number (1..N)
-  idx: number;              // order index (1..N)
+  i: number;
+  idx: number;
   label?: string;
-  children: string[];       // library node ids
+  children: string[]; // library node ids
 };
 type GroupContent = {
-  kind: 'GroupContent';     // SSOT
-  path: string;             // addressing path (e.g., "group")
+  kind: 'GroupContent';
+  path: string;
   label?: I18nText;
   description?: I18nText;
-
-  // Regular group:
-  children?: string[];      // library node ids
-
-  // Collection:
+  // regular
+  children?: string[];
+  // collection
   collection?: GroupCollection;
   instances?: GroupInstance[];
 };
@@ -54,113 +53,10 @@ interface Props {
   onChange: (content: Record<string, any>) => void;
 }
 
-/* ---------------- Library Picker (multi-select, nested groups allowed) ---------------- */
-type LibNode = { id: string; node_type: string; title: string };
-function uniq<T>(arr: T[]): T[] {
-  return Array.from(new Set(arr));
-}
+/* ===================== Helpers ===================== */
+type LibNode = { id: string; node_type: string; title?: string | null; active?: boolean | null; version?: number | null };
+const uniq = <T,>(xs: T[]) => Array.from(new Set(xs));
 
-function LibraryPicker({
-  selected,
-  onChange,
-  label = 'Children',
-  hint,
-}: {
-  selected: string[];
-  onChange: (ids: string[]) => void;
-  label?: string;
-  hint?: string;
-}) {
-  const [rows, setRows] = useState<LibNode[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [pickId, setPickId] = useState<string>('');
-
-  const fetchLib = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        // force app schema so PostgREST doesn’t 400
-        // @ts-ignore
-        .schema('app' as any)
-        .from('node_library')
-        .select('id, node_type, title')
-        .order('title', { ascending: true })
-        .limit(200);
-  
-      if (error) throw error;
-      setRows((data ?? []) as any);
-    } catch (e) {
-      console.error('Library fetch error:', e);
-      setRows([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-
-
-  useEffect(() => {
-    fetchLib();
-  }, [fetchLib]);
-
-  const addPick = () => {
-    if (!pickId) return;
-    onChange(uniq([...(selected ?? []), pickId]));
-    // keep the pick open for fast adding or reset it—UX preference:
-    setPickId('');
-  };
-
-  const remove = (id: string) => onChange((selected ?? []).filter(x => x !== id));
-
-  return (
-    <Card className="border-dashed">
-      <CardHeader className="py-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <FolderTree className="w-4 h-4" />
-            <div className="text-sm font-medium">{label}</div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Select value={pickId} onValueChange={(v) => setPickId(v)}>
-              <SelectTrigger className="w-80">
-                <SelectValue placeholder={loading ? 'Loading…' : 'Choose a node'} />
-              </SelectTrigger>
-              <SelectContent className="max-h-80">
-                {rows.map((r) => (
-                  <SelectItem key={r.id} value={r.id}>
-                    {r.title || r.id.slice(0, 8)} — {r.node_type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button type="button" onClick={addPick} disabled={!pickId || loading}>
-              Add
-            </Button>
-          </div>
-        </div>
-        {hint && <p className="text-xs text-muted-foreground mt-1">{hint}</p>}
-      </CardHeader>
-
-      <CardContent className="space-y-2">
-        {(selected ?? []).length === 0 ? (
-          <div className="text-xs text-muted-foreground">No children selected yet.</div>
-        ) : (
-          <div className="flex gap-2 flex-wrap">
-            {(selected ?? []).map((id) => (
-              <Badge key={id} variant="secondary" className="gap-2">
-                {rows.find(r => r.id === id)?.title || id.slice(0, 8)} — {rows.find(r => r.id === id)?.node_type || 'node'}
-                <button onClick={() => remove(id)} className="text-destructive">×</button>
-              </Badge>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-
-/* ---------------- Normalize + sanitize ---------------- */
 function normalize(raw: any): GroupContent {
   const isCollection = !!raw?.collection || Array.isArray(raw?.instances);
   const content: GroupContent = {
@@ -186,12 +82,9 @@ function normalize(raw: any): GroupContent {
 
 function sanitize(c: GroupContent): GroupContent {
   const out = { ...c, kind: 'GroupContent', path: c.path || 'group' } as GroupContent;
-
-  // Mutually exclusive shapes
   const collectionOn = !!out.collection || (out.instances && out.instances.length > 0);
   if (collectionOn) {
     delete (out as any).children;
-    // Reindex instances + uniq children
     const inst = (out.instances ?? []).map((x, i) => ({
       ...x,
       i: i + 1,
@@ -200,29 +93,170 @@ function sanitize(c: GroupContent): GroupContent {
     }));
     out.instances = inst;
     out.collection = out.collection ?? {};
-    // Clamp by min/max if both present (soft, UI-only)
-    const { min, max } = out.collection;
-    if (typeof min === 'number' && inst.length < min) {
-      // no-op, allow save; the renderer can still handle fewer
-    }
-    if (typeof max === 'number' && inst.length > max) {
-      out.instances = inst.slice(0, max);
-    }
   } else {
     delete (out as any).collection;
     delete (out as any).instances;
     out.children = uniq(out.children ?? []);
   }
-
   return out;
 }
 
-/* ---------------- Main Component ---------------- */
+/* ===================== Library Picker ===================== */
+function LibraryPicker({
+  selected,
+  onChange,
+  label = 'Children',
+  hint,
+}: {
+  selected: string[];
+  onChange: (ids: string[]) => void;
+  label?: string;
+  hint?: string;
+}) {
+  const [schema, setSchema] = useState<'app' | 'public'>('app');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'form' | 'group' | 'media'>('all');
+  const [activeOnly, setActiveOnly] = useState<boolean>(true);
+  const [rows, setRows] = useState<LibNode[]>([]);
+  const [pickId, setPickId] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const fetchLib = useCallback(async () => {
+    setLoading(true);
+    setErr(null);
+    try {
+      // note: keeping per-call schema to avoid changing global client (you said you also use public)
+      let query = supabase
+        // @ts-ignore
+        .schema(schema as any)
+        .from('node_library')
+        .select('id, node_type, title, active, version')
+        .order('title', { ascending: true })
+        .limit(500);
+
+      if (activeOnly) query = query.eq('active', true);
+      if (typeFilter !== 'all') query = query.eq('node_type', typeFilter);
+
+      const { data, error } = await query;
+      if (error) throw error;
+      setRows((data ?? []) as any);
+    } catch (e: any) {
+      console.error('Library fetch error:', e);
+      setRows([]);
+      setErr(typeof e?.message === 'string' ? e.message : 'Failed to load node library');
+    } finally {
+      setLoading(false);
+    }
+  }, [schema, typeFilter, activeOnly]);
+
+  useEffect(() => { fetchLib(); }, [fetchLib]);
+
+  const addPick = () => {
+    if (!pickId) return;
+    onChange(uniq([...(selected ?? []), pickId]));
+    setPickId(''); // reset for next add
+  };
+
+  const remove = (id: string) => onChange((selected ?? []).filter(x => x !== id));
+
+  // map for quick label lookup
+  const map = useMemo(() => new Map(rows.map(r => [r.id, r])), [rows]);
+
+  return (
+    <Card className="border-dashed">
+      <CardHeader className="py-3 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <FolderTree className="w-4 h-4" />
+            <div className="text-sm font-medium">{label}</div>
+            <Badge variant="outline" className="ml-2">{rows.length}</Badge>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* schema toggle */}
+            <Select value={schema} onValueChange={(v: any) => setSchema(v)}>
+              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="app">app</SelectItem>
+                <SelectItem value="public">public</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* type filter */}
+            <Select value={typeFilter} onValueChange={(v: any) => setTypeFilter(v)}>
+              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">all types</SelectItem>
+                <SelectItem value="form">form</SelectItem>
+                <SelectItem value="group">group</SelectItem>
+                <SelectItem value="media">media</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* active only */}
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">active</span>
+              <Switch checked={activeOnly} onCheckedChange={setActiveOnly} />
+            </div>
+
+            <Button variant="outline" size="sm" onClick={fetchLib} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+        </div>
+
+        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+        {err && (
+          <div className="text-xs text-destructive flex items-center gap-1">
+            <Dot className="w-4 h-4" /> {err}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <Select value={pickId} onValueChange={(v) => setPickId(v)}>
+            <SelectTrigger className="w-[32rem]">
+              <SelectValue placeholder={loading ? 'Loading…' : 'Choose a node'} />
+            </SelectTrigger>
+            <SelectContent className="max-h-80">
+              {rows.map((r) => (
+                <SelectItem key={r.id} value={r.id}>
+                  {(r.title || r.id.slice(0, 12))} — {r.node_type}{r.version != null ? ` v${r.version}` : ''}{r.active === false ? ' (inactive)' : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button type="button" onClick={addPick} disabled={!pickId || loading}>
+            Add
+          </Button>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-2">
+        {(selected ?? []).length === 0 ? (
+          <div className="text-xs text-muted-foreground">No children selected yet.</div>
+        ) : (
+          <div className="flex gap-2 flex-wrap">
+            {(selected ?? []).map((id) => {
+              const r = map.get(id);
+              return (
+                <Badge key={id} variant="secondary" className="gap-2">
+                  {(r?.title || id.slice(0, 10))} — {r?.node_type || 'node'}
+                  <button onClick={() => remove(id)} className="text-destructive">×</button>
+                </Badge>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ===================== Main ===================== */
 export function GroupContentEditor({ content, onChange }: Props) {
   const [state, setState] = useState<GroupContent>(() => normalize(content || {}));
   const [isCollection, setIsCollection] = useState<boolean>(() => !!(content?.collection || content?.instances));
 
-  // push baseline up on mount
+  // push baseline on mount
   useEffect(() => {
     onChange(sanitize(state) as any);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -243,17 +277,24 @@ export function GroupContentEditor({ content, onChange }: Props) {
     });
   };
 
-  // Regular children handlers
-  const setChildren = (ids: string[]) => commit(prev => ({ ...prev, children: ids, collection: undefined, instances: undefined }));
+  // regular children handlers
+  const setChildren = (ids: string[]) =>
+    commit(prev => ({ ...prev, children: ids, collection: undefined, instances: undefined }));
 
-  // Collection handlers
+  // collection handlers
   const setCollectionOnOff = (on: boolean) => {
     setIsCollection(on);
     if (on) {
       commit(prev => ({
         ...prev,
         children: undefined,
-        collection: { allow_add: true, allow_remove: true, allow_reorder: true, default_instances: 1, label_template: 'Instance #{i}' },
+        collection: {
+          allow_add: true,
+          allow_remove: true,
+          allow_reorder: true,
+          default_instances: 1,
+          label_template: 'Instance #{i}',
+        },
         instances: [{ i: 1, idx: 1, children: [] }],
       }));
     } else {
@@ -286,7 +327,6 @@ export function GroupContentEditor({ content, onChange }: Props) {
       const tmp = arr[idx];
       arr[idx] = arr[ni];
       arr[ni] = tmp;
-      // reindex
       return { ...prev, instances: arr.map((x, i) => ({ ...x, i: i + 1, idx: i + 1 })) };
     });
 
@@ -311,7 +351,7 @@ export function GroupContentEditor({ content, onChange }: Props) {
         </p>
       </div>
 
-      {/* Top properties */}
+      {/* properties */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Group Properties</CardTitle>
@@ -359,7 +399,7 @@ export function GroupContentEditor({ content, onChange }: Props) {
         />
       )}
 
-      {/* Collection Config */}
+      {/* Collection */}
       {isCollection && (
         <Card>
           <CardHeader className="flex items-center justify-between">
@@ -415,27 +455,15 @@ export function GroupContentEditor({ content, onChange }: Props) {
                 <Label>Controls</Label>
                 <div className="flex items-center gap-3 text-sm">
                   <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={!!state.collection?.allow_add}
-                      onChange={(e) => setCollectionField('allow_add', e.target.checked)}
-                    />
+                    <input type="checkbox" checked={!!state.collection?.allow_add} onChange={(e) => setCollectionField('allow_add', e.target.checked)} />
                     add
                   </label>
                   <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={!!state.collection?.allow_remove}
-                      onChange={(e) => setCollectionField('allow_remove', e.target.checked)}
-                    />
+                    <input type="checkbox" checked={!!state.collection?.allow_remove} onChange={(e) => setCollectionField('allow_remove', e.target.checked)} />
                     remove
                   </label>
                   <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={!!state.collection?.allow_reorder}
-                      onChange={(e) => setCollectionField('allow_reorder', e.target.checked)}
-                    />
+                    <input type="checkbox" checked={!!state.collection?.allow_reorder} onChange={(e) => setCollectionField('allow_reorder', e.target.checked)} />
                     reorder
                   </label>
                 </div>
@@ -493,4 +521,5 @@ export function GroupContentEditor({ content, onChange }: Props) {
     </div>
   );
 }
+
 export default GroupContentEditor;
