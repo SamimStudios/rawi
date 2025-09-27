@@ -231,11 +231,8 @@ const handleSaveEdit = async () => {
     stopEditing();
     toast({ title: 'Success', description: 'Changes saved successfully' });
     
-    // signal that we’re expecting a realtime UPDATE
-    waitingRealtimeRef.current = true;
-    
-    // expect a realtime UPDATE; if it doesn't arrive quickly, do a one-shot RPC fetch
-    waitingRealtimeRef.current = true;
+    waitingRealtimeRef.current = true; // single set
+
     setTimeout(async () => {
       if (!waitingRealtimeRef.current) return; // realtime already handled it
       console.debug('[NodeRenderer] realtime:timeout → manual RPC fetch');
