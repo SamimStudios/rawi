@@ -7,30 +7,43 @@ import { useToast } from '@/components/ui/use-toast';
 export type NodeType = 'media' | 'group' | 'form' | string;
 
 export interface NodeLibraryEntry {
-  id: string;                 // should start with lib_
+  id: string;                 // prefer lib_*
   node_type: NodeType;
-  version?: number;           // if your table has NOT NULL, we default it
-  active?: boolean;           // if your table has NOT NULL, we default it
+  version?: number;
+  active?: boolean;
   content: any;
   created_at?: string | null;
   updated_at?: string | null;
 }
 
-/** ---------- Helpers ---------- */
+/** ---------- Utils ---------- */
+const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x ?? null));
 const normalizeDash = (s?: string) =>
-  (s ?? '').replace(/[\u2010-\u2015\u2212]/g, '-'); // normalize en/em/figure dashes → '-'
+  (s ?? '').replace(/[\u2010-\u2015\u2212]/g, '-'); // en/em/figure/minus → '-'
 
-/** Remove any runtime instances before LIBRARY save; normalize Form version string */
+function logGroup(title: string, obj: any) {
+  try {
+    // safer stringify to avoid functions/BigInt errors
+    const json = JSON.stringify(obj, (k, v) => (typeof v === 'function' ? `[Function ${v.name||'fn'}]` : v), 2);
+    // eslint-disable-next-line no-console
+    console.log(title, json);
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.log(title, obj);
+  }
+}
+
+/** ---------- Sanitizers (LIBRARY) ---------- */
 function stripRuntimeInstancesForLibrary(nodeType: string, content: any): any {
   if (!content) return content;
 
-  if (nodeType === 'group') {
+  if (nodeType === 'group' && content?.kind === 'GroupContent') {
     const c = { ...content };
     if ('instances' in c) delete c.instances;
     return c;
   }
 
-  if (nodeType === 'form') {
+  if (nodeType === 'form' && content?.kind === 'FormContent') {
     const cleanseItems = (items: any[]): any[] =>
       (items || []).map((it: any) => {
         if (it?.kind === 'CollectionFieldItem') {
@@ -47,93 +60,107 @@ function stripRuntimeInstancesForLibrary(nodeType: string, content: any): any {
         return it;
       });
 
-    if (content.kind === 'FormContent') {
-      // normalize to canonical version label
-      const version = 'v2-items';
-      return { ...content, version, items: cleanseItems(content.items || []) };
-    }
+    const version = 'v2-items'; // canonical
+    return { ...content, version, items: cleanseItems(content.items || []) };
   }
 
   return content;
 }
 
-/** ---------- Validators (LIBRARY = template-only) ---------- */
-
-function isValidMediaContentTemplate(c: any): boolean {
-  if (!c || c.kind !== 'MediaContent') return false;
-  if (typeof c.path !== 'string' || !c.path.length) return false;
-  if (!['image', 'video', 'audio', 'file'].includes(String(c.type))) return false;
-
-  if (c.selected_version_idx != null && typeof c.selected_version_idx !== 'number') return false;
-
-  if (c.versions != null) {
-    if (!Array.isArray(c.versions)) return false;
-    for (const v of c.versions) {
-      if (!v || v.kind !== 'MediaVersion') return false;
-      if (typeof v.idx !== 'number' || v.idx < 1) return false;
-      if (v.uri != null && typeof v.uri !== 'string') return false;
-    }
-  }
-  return true; // zero versions allowed
-}
-
-function isValidGroupContentTemplate(c: any): boolean {
-  if (!c || c.kind !== 'GroupContent') return false;
-  if (typeof c.path !== 'string' || !c.path.length) return false;
-  if (!Array.isArray(c.children)) return false;    // template children list
-  if ('instances' in c) return false;              // runtime-only
+/** ---------- Validators (LIBRARY = template-only) with explanations ---------- */
+function explainGroupTemplate(c: any): { ok: boolean; why?: string } {
+  if (!c || c.kind !== 'GroupContent') return { ok: false, why: 'kind must be "GroupContent"' };
+  if (typeof c.path !== 'string' || !c.path.length) return { ok: false, why: 'path must be non-empty string' };
+  if (!Array.isArray(c.children)) return { ok: false, why: 'children must be string[] (library node ids)' };
+  if ('instances' in c) return { ok: false, why: 'instances[] is runtime-only; strip before saving' };
 
   if (c.collection) {
     const col = c.collection;
-    if (col.default_instances != null && typeof col.default_instances !== 'number') return false;
-    if (col.min != null && typeof col.min !== 'number') return false;
-    if (col.max != null && typeof col.max !== 'number') return false;
-    if (col.allow_add != null && typeof col.allow_add !== 'boolean') return false;
-    if (col.allow_remove != null && typeof col.allow_remove !== 'boolean') return false;
-    if (col.allow_reorder != null && typeof col.allow_reorder !== 'boolean') return false;
-    if (col.label_template != null && typeof col.label_template !== 'string') return false;
+    if (col.default_instances != null && typeof col.default_instances !== 'number') return { ok: false, why: 'collection.default_instances must be number' };
+    if (col.min != null && typeof col.min !== 'number') return { ok: false, why: 'collection.min must be number' };
+    if (col.max != null && typeof col.max !== 'number') return { ok: false, why: 'collection.max must be number' };
+    if (col.allow_add != null && typeof col.allow_add !== 'boolean') return { ok: false, why: 'collection.allow_add must be boolean' };
+    if (col.allow_remove != null && typeof col.allow_remove !== 'boolean') return { ok: false, why: 'collection.allow_remove must be boolean' };
+    if (col.allow_reorder != null && typeof col.allow_reorder !== 'boolean') return { ok: false, why: 'collection.allow_reorder must be boolean' };
+    if (col.label_template != null && typeof col.label_template !== 'string') return { ok: false, why: 'collection.label_template must be string' };
   }
 
-  return c.children.every((id: any) => typeof id === 'string' && id.length > 0);
+  const badChild = (c.children || []).find((id: any) => typeof id !== 'string' || !id.length);
+  if (badChild) return { ok: false, why: 'children[] must be non-empty strings' };
+  return { ok: true };
 }
 
-/** RELAXED: only require items[], not exact version string */
-function isValidFormContentTemplate(c: any): boolean {
-  if (!c || c.kind !== 'FormContent') return false;
-  if (!Array.isArray(c.items)) return false;
+function explainFormTemplate(c: any): { ok: boolean; why?: string } {
+  if (!c || c.kind !== 'FormContent') return { ok: false, why: 'kind must be "FormContent"' };
+  if (!Array.isArray(c.items)) return { ok: false, why: 'items must be an array' };
 
-  const checkItems = (items: any[]): boolean =>
-    (items || []).every((it: any) => {
+  const checkItems = (items: any[], path = 'items'): { ok: boolean; why?: string } => {
+    for (let i = 0; i < (items || []).length; i++) {
+      const it = items[i];
+      const here = `${path}[${i}]`;
+      if (!it?.kind) return { ok: false, why: `${here}.kind missing` };
+
       if (it.kind === 'FieldItem') {
-        return typeof it.path === 'string' && typeof it.ref === 'string';
+        if (typeof it.path !== 'string' || typeof it.ref !== 'string') return { ok: false, why: `${here} FieldItem requires path/ref` };
+        continue;
       }
+
       if (it.kind === 'SectionItem') {
-        return typeof it.path === 'string' && Array.isArray(it.children) && checkItems(it.children);
+        if (typeof it.path !== 'string') return { ok: false, why: `${here} SectionItem requires path` };
+        if (!Array.isArray(it.children)) return { ok: false, why: `${here} SectionItem children[] missing` };
+        const r = checkItems(it.children, `${here}.children`);
+        if (!r.ok) return r;
+        continue;
       }
+
       if (it.kind === 'CollectionFieldItem') {
-        if ('instances' in it) return false; // library must not store instances
-        return typeof it.path === 'string'
-          && typeof it.ref === 'string'
-          && typeof it.default_instances === 'number';
+        if ('instances' in it) return { ok: false, why: `${here} CollectionFieldItem instances[] is runtime-only` };
+        if (typeof it.path !== 'string' || typeof it.ref !== 'string') return { ok: false, why: `${here} CollectionFieldItem requires path/ref` };
+        if (typeof it.default_instances !== 'number') return { ok: false, why: `${here} default_instances must be number` };
+        continue;
       }
+
       if (it.kind === 'CollectionSection') {
-        if ('instances' in it) return false; // library must not store instances
-        return typeof it.path === 'string'
-          && Array.isArray(it.children)
-          && checkItems(it.children)
-          && typeof it.default_instances === 'number';
+        if ('instances' in it) return { ok: false, why: `${here} CollectionSection instances[] is runtime-only` };
+        if (typeof it.path !== 'string') return { ok: false, why: `${here} CollectionSection requires path` };
+        if (!Array.isArray(it.children)) return { ok: false, why: `${here} CollectionSection children[] missing` };
+        if (typeof it.default_instances !== 'number') return { ok: false, why: `${here} default_instances must be number` };
+        const r = checkItems(it.children, `${here}.children`);
+        if (!r.ok) return r;
+        continue;
       }
-      return false;
-    });
+
+      return { ok: false, why: `${here}.kind "${it.kind}" not allowed` };
+    }
+    return { ok: true };
+  };
 
   return checkItems(c.items);
 }
 
-function validateLibraryNodeContent(nodeType: string, content: any): boolean {
-  if (nodeType === 'group') return isValidGroupContentTemplate(content);
-  if (nodeType === 'form') return isValidFormContentTemplate(content);
-  if (nodeType === 'media') return isValidMediaContentTemplate(content);
-  return true; // permissive for other types
+function explainMediaTemplate(c: any): { ok: boolean; why?: string } {
+  if (!c || c.kind !== 'MediaContent') return { ok: false, why: 'kind must be "MediaContent"' };
+  if (typeof c.path !== 'string' || !c.path.length) return { ok: false, why: 'path must be non-empty string' };
+  const t = String(c.type);
+  if (!['image', 'video', 'audio', 'file'].includes(t)) return { ok: false, why: 'type must be image|video|audio|file' };
+  if (c.selected_version_idx != null && typeof c.selected_version_idx !== 'number') return { ok: false, why: 'selected_version_idx must be number' };
+  if (c.versions != null) {
+    if (!Array.isArray(c.versions)) return { ok: false, why: 'versions must be array' };
+    for (let i = 0; i < c.versions.length; i++) {
+      const v = c.versions[i];
+      if (!v || v.kind !== 'MediaVersion') return { ok: false, why: `versions[${i}].kind must be "MediaVersion"` };
+      if (typeof v.idx !== 'number' || v.idx < 1) return { ok: false, why: `versions[${i}].idx must be >=1` };
+      if (v.uri != null && typeof v.uri !== 'string') return { ok: false, why: `versions[${i}].uri must be string` };
+    }
+  }
+  return { ok: true };
+}
+
+function validateLibraryNodeContent(nodeType: string, content: any): { ok: boolean; why?: string } {
+  if (nodeType === 'group') return explainGroupTemplate(content);
+  if (nodeType === 'form') return explainFormTemplate(content);
+  if (nodeType === 'media') return explainMediaTemplate(content);
+  return { ok: true };
 }
 
 /** ---------- Hook ---------- */
@@ -190,75 +217,112 @@ export function useNodeLibrary() {
     }
   }, [toast]);
 
-  /** Validate entry (sanitize first) */
+  /** Validate entry (sanitize first) — with logging */
   const validateEntry = useCallback(async (entry: any) => {
     try {
-      if (!entry?.id || typeof entry.id !== 'string') return false;
-      if (!entry?.node_type || typeof entry.node_type !== 'string') return false;
-      if (!entry?.content || typeof entry.content !== 'object') return false;
+      console.groupCollapsed('%cValidating node entry', 'color:#888');
+      console.log('Node type:', entry?.node_type);
 
-      // Normalize common gotchas before validating
-      let content = entry.content;
+      if (!entry?.id || typeof entry.id !== 'string') { console.log('id invalid'); return false; }
+      if (!entry?.node_type || typeof entry.node_type !== 'string') { console.log('node_type invalid'); return false; }
+      if (!entry?.content || typeof entry.content !== 'object') { console.log('content invalid'); return false; }
+
+      // Normalize dashes in any string-y version; sanitize first
+      let content = clone(entry.content);
       if (entry.node_type === 'form' && content?.kind === 'FormContent') {
         const v = normalizeDash(String(content.version ?? ''));
-        if (v !== 'v2-items') {
-          content = { ...content, version: 'v2-items' };
-        }
+        if (v !== 'v2-items') content.version = 'v2-items';
       }
-      // Drop any accidental runtime instances prior to library validation
       content = stripRuntimeInstancesForLibrary(entry.node_type, content);
 
-      return validateLibraryNodeContent(entry.node_type, content);
-    } catch {
+      logGroup('Content structure:', content);
+
+      const res = validateLibraryNodeContent(entry.node_type, content);
+      console.log('Validation result:', res.ok, res.why ? `— ${res.why}` : '');
+      console.groupEnd();
+
+      return !!res.ok;
+    } catch (e) {
+      console.groupEnd();
       return false;
     }
   }, []);
 
-  /** Upsert entry to app.node_library (TEMPLATE ONLY) */
+  /** Upsert entry (adaptive) */
   const saveEntry = useCallback(async (entry: Omit<NodeLibraryEntry, 'created_at' | 'updated_at'>) => {
     setLoading(true);
     setError(null);
 
     try {
-      // Sanitize content for library (drop instances, normalize form version & dash)
+      // SANITIZE
       let sanitizedContent = stripRuntimeInstancesForLibrary(entry.node_type, entry.content);
       if (entry.node_type === 'form' && sanitizedContent?.kind === 'FormContent') {
         const v = normalizeDash(String(sanitizedContent.version ?? ''));
         if (v !== 'v2-items') sanitizedContent = { ...sanitizedContent, version: 'v2-items' };
       }
 
-      // Validate the sanitized (template-only) shape
+      // VALIDATE
       const tempEntry = { ...entry, content: sanitizedContent };
       const isValid = await validateEntry(tempEntry);
       if (!isValid) throw new Error('Invalid content structure for node type');
 
-      // Enforce lib_ prefix (many schemas enforce this)
+      // ID prefix
       const id = entry.id.startsWith('lib_') ? entry.id : `lib_${entry.id}`;
 
-      // Minimal, DB-safe payload (avoid 400 Bad Request)
-      const payload: any = {
-        id,
-        node_type: entry.node_type,
-        content: sanitizedContent,
-        // include defaults in case table has NOT NULL constraints
-        version: (entry as any).version ?? 1,
-        active: (entry as any).active ?? true,
-      };
+      // Try minimal payload first
+      const payloadBase: any = { id, node_type: entry.node_type, content: sanitizedContent };
 
-      const { error } = await supabase
+      console.groupCollapsed('%cLibrary upsert (attempt 1: minimal payload)', 'color:#888');
+      logGroup('Payload:', payloadBase);
+
+      let { error: err1 } = await supabase
         // @ts-ignore
         .schema('app' as any)
         .from('node_library')
-        .upsert(payload, { onConflict: 'id' });
+        .upsert(payloadBase, { onConflict: 'id' });
 
-      if (error) {
-        console.error('node_library upsert error:', error);
-        throw error;
+      console.groupEnd();
+
+      if (!err1) {
+        toast({ title: 'Success', description: 'Node library entry saved successfully' });
+        await fetchEntries();
+        return true;
       }
 
-      toast({ title: 'Success', description: 'Node library entry saved successfully' });
-      await fetchEntries();
-      return true;
+      // If DB complains about NOT NULL columns (version/active), retry with defaults
+      const msg = String(err1?.message || '');
+      const needsVersion = /null value in column "version"/i.test(msg);
+      const needsActive  = /null value in column "active"/i.test(msg);
+
+      const payloadRetry: any = { ...payloadBase };
+      if (needsVersion) payloadRetry.version = (entry as any).version ?? 1;
+      if (needsActive)  payloadRetry.active  = (entry as any).active ?? true;
+
+      if (needsVersion || needsActive) {
+        console.groupCollapsed('%cLibrary upsert (attempt 2: with defaults)', 'color:#888');
+        logGroup('Payload:', payloadRetry);
+
+        const { error: err2 } = await supabase
+          // @ts-ignore
+          .schema('app' as any)
+          .from('node_library')
+          .upsert(payloadRetry, { onConflict: 'id' });
+
+        console.groupEnd();
+
+        if (!err2) {
+          toast({ title: 'Success', description: 'Node library entry saved successfully' });
+          await fetchEntries();
+          return true;
+        }
+
+        console.error('node_library upsert error (attempt 2):', err2);
+        throw err2;
+      }
+
+      // Not a NOT NULL issue — surface the exact error
+      console.error('node_library upsert error (attempt 1):', err1);
+      throw err1;
     } catch (e: any) {
       const msg = e?.message || 'Failed to save node library entry';
       console.error('saveEntry error:', e);
@@ -298,7 +362,6 @@ export function useNodeLibrary() {
   }, [fetchEntries, toast]);
 
   useEffect(() => {
-    // initial load
     fetchEntries();
   }, [fetchEntries]);
 
