@@ -30,13 +30,72 @@ import { useJobs, type JobNode } from '@/hooks/useJobs';
 const DBG = true;
 const nlog = (...a:any[]) => { if (DBG) console.debug('[NodeRenderer]', ...a); };
 
-const saveViaRpc = async (jobId: string, writes: Array<{ address: string; value: any }>) => {
-  nlog('saveViaRpc:start', { jobId, count: writes.length, sample: writes.slice(0, 3) });
-  // TODO: Implement proper RPC call or use edge function
-  // For now, log the writes that would be made
-  console.log('Would save writes:', writes);
-  nlog('saveViaRpc:ok', { count: writes.length });
-};
+// apply writes to a deep-cloned content object using SSOT addressing `${node.addr}#path.to.key`
+function applyWritesToContent(base: any, writes: Array<{ address: string; value: any }>, nodeAddr: string) {
+  const out = JSON.parse(JSON.stringify(base ?? {}));
+
+  const setByPath = (obj: any, path: string, value: any) => {
+    const segs = path.split('.').filter(Boolean);
+    let cur = obj;
+    for (let i = 0; i < segs.length; i++) {
+      const seg = segs[i];
+      const isLast = i === segs.length - 1;
+
+      // numeric segment → array index
+      const idx = /^[0-9]+$/.test(seg) ? parseInt(seg, 10) : null;
+
+      if (idx !== null) {
+        if (!Array.isArray(cur)) cur = (cur = []);
+        if (!cur[idx]) cur[idx] = {};
+        if (isLast) cur[idx] = value;
+        else cur = cur[idx];
+      } else {
+        if (typeof cur[seg] === 'undefined') cur[seg] = {};
+        if (isLast) cur[seg] = value;
+        else cur = cur[seg];
+      }
+    }
+  };
+
+  for (const w of writes) {
+    const prefix = `${nodeAddr}#`;
+    if (!w?.address?.startsWith(prefix)) continue;
+    const path = w.address.slice(prefix.length); // e.g. "selected_version_idx" or "items.section_1.field_x.value"
+    setByPath(out, path, w.value);
+  }
+
+  return out;
+}
+
+// Runtime save: merge writes → update app.nodes.content
+async function saveViaRpc(
+  nodeId: string,
+  nodeType: string,
+  nodeAddr: string,
+  baseContent: any,
+  writes: Array<{ address: string; value: any }>
+) {
+  nlog('saveViaRpc:merge', { nodeId, count: writes.length });
+
+  const nextContent = applyWritesToContent(baseContent, writes, nodeAddr);
+
+  // runtime guard (instances[] allowed)
+  if (!isRuntimeOk(nodeType, nextContent)) {
+    throw new Error('Invalid runtime content shape for app.nodes');
+  }
+
+  const { error } = await supabase
+    // @ts-ignore
+    .schema('app' as any)
+    .from('nodes')
+    .update({ content: nextContent, updated_at: new Date().toISOString() })
+    .eq('id', nodeId);
+
+  if (error) throw error;
+
+  nlog('saveViaRpc:ok', { nodeId });
+}
+
 
 function isRuntimeOk(nodeType: string, content: any): boolean {
   if (!content || typeof content !== 'object') return false;
@@ -272,9 +331,9 @@ const handleSaveEdit = async () => {
     }
 
     // single RPC handles 1..N writes atomically
-    await saveViaRpc(node.job_id, writes);
+    await saveViaRpc(node.id, node.node_type, node.addr, contentSnapshot, writes);
 
-    // after: await saveViaRpc(node.job_id, writes);
+
 
     clearDrafts(nodePrefix);
     
