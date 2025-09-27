@@ -78,14 +78,47 @@ function buildContentTokens(fieldRef: string, sectionPath?: string, instanceNum?
 }
 
 /** Safe getter from JSON by tokens; returns undefined if any segment is missing */
-function getByTokens(json: any, tokens: string[]) {
-  let cur = json;
+/** Walk JSON by tokens, resolving arrays by ref/path/id (and i1/i2… for instances) */
+function getByTokensSmart(json: any, tokens: string[]) {
+  let cur: any = json;
+
   for (const t of tokens) {
-    if (cur == null || typeof cur !== 'object') return undefined;
-    cur = cur[t as keyof typeof cur];
+    if (cur == null) return undefined;
+
+    if (Array.isArray(cur)) {
+      // try to find element where element.ref|path|id === token
+      let idx = cur.findIndex(
+        (el) =>
+          el &&
+          typeof el === 'object' &&
+          (el.ref === t || el.path === t || el.id === t)
+      );
+
+      // support numeric or iN tokens as fallback
+      if (idx === -1) {
+        if (/^\d+$/.test(t)) idx = parseInt(t, 10);
+        else if (/^i\d+$/.test(t)) {
+          idx = cur.findIndex((el) => el && typeof el === 'object' && el.id === t);
+          if (idx === -1) idx = parseInt(t.slice(1), 10) - 1; // i3 -> index 2
+        }
+      }
+
+      if (idx < 0 || idx >= cur.length) return undefined;
+      cur = cur[idx];
+      continue;
+    }
+
+    if (typeof cur === 'object') {
+      cur = (cur as any)[t];
+      continue;
+    }
+
+    return undefined;
   }
+
   return cur;
 }
+
 
 export function FieldRenderer({
   node,
@@ -114,11 +147,12 @@ export function FieldRenderer({
     [fieldRef, sectionPath, instanceNum]
   );
 
-  const dbValue = useMemo(() => {
-    const v = getByTokens(node.content ?? {}, contentTokens);
-    dlog('dbValue(from node.content)', { tokens: contentTokens.join('.'), v });
-    return v === undefined ? null : v;
-  }, [node.content, contentTokens]);
+const dbValue = useMemo(() => {
+  const v = getByTokensSmart(node.content ?? {}, contentTokens);
+  dlog('dbValue(from node.content)', { tokens: contentTokens.join('.'), v });
+  return v === undefined ? null : v;
+}, [node.content, contentTokens]);
+
 
   const [internalError, setInternalError] = useState<string | null>(null);
   const [charCount, setCharCount] = useState(0);
