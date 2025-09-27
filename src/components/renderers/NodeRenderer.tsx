@@ -58,7 +58,12 @@ function getSelectedMediaVersion(content: any) {
   return { versions, selectedIdx: selected?.idx ?? 1, selected };
 }
 
-function renderMediaContent(node: any, isEditing: boolean, draftContent: any, setDraftContent: (c:any)=>void) {
+function renderMediaContent(
+  node: any,
+  isEditing: boolean,
+  draftContent: any,
+  setDraftContent: (c:any)=>void
+) {
   const content = draftContent ?? node.content ?? {};
   const type = content?.type; // "image" | "video" | "audio"
   const { versions, selectedIdx, selected } = getSelectedMediaVersion(content);
@@ -86,7 +91,13 @@ function renderMediaContent(node: any, isEditing: boolean, draftContent: any, se
                 key={v.idx}
                 type="button"
                 className={`px-2 py-1 rounded border ${v.idx===selectedIdx ? 'border-primary' : 'border-muted-foreground/30'}`}
-                onClick={() => setDraftContent({ ...content, selected_version_idx: v.idx })}
+                onClick={() => {
+                // SSOT address for the selected version index (root of MediaContent)
+                setDraft(`${nodeAddr}#selected_version_idx`, v.idx);
+                // reflect immediately in UI
+                setDraftContent({ ...content, selected_version_idx: v.idx });
+                markDirty();
+              }}
               >
                 v{v.idx}
               </button>
@@ -123,7 +134,7 @@ export default function NodeRenderer({
   const { toast } = useToast();
   const { credits: userCredits } = useUserCredits();
   const { getPrice, loading: pricingLoading } = useFunctionPricing();
-  const { entries, clear: clearDrafts } = useDrafts();
+  const { entries, set: setDraft, clear: clearDrafts } = useDrafts();
   const { reloadNode } = useJobs();
   const { startEditing, stopEditing, isEditing, hasActiveEditor } = useNodeEditor();
 
@@ -469,9 +480,25 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
       <Collapsible open={!isCollapsed} onOpenChange={setIsCollapsed}>
         <CardContent className="pt-0">
           <CollapsibleContent>
-            {node.node_type === 'form' ? renderFormContent() : (
-              <div className="text-muted-foreground">Node type '{node.node_type}' not supported by SSOT renderer.</div>
-            )}
+            {node.node_type === 'form'
+              ? renderFormContent()
+              : node.node_type === 'media'
+              ? renderMediaContent(
+                  node,
+                  effectiveMode === 'edit',
+                  contentSnapshot,
+                  (next: any) => setContentSnapshot(next),
+                  node.addr,
+                  setDraft,
+                  () => setHasUnsavedChanges(true)
+                )
+              : (
+                <div className="text-muted-foreground">
+                  Node type '{node.node_type}' not supported by SSOT renderer.
+                </div>
+              )
+            }
+
           </CollapsibleContent>
         </CardContent>
       </Collapsible>
