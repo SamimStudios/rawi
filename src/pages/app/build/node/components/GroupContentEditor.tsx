@@ -242,7 +242,7 @@ function sanitize(c: GroupContent): GroupContent {
 }
 
 /* ---------------- Main Component ---------------- */
-export default function GroupContentEditor({ content, onChange }: Props) {
+export function GroupContentEditor({ content, onChange }: Props) {
   const [state, setState] = useState<GroupContent>(() => normalize(content || {}));
   const [isCollection, setIsCollection] = useState<boolean>(() => !!(content?.collection || content?.instances));
 
@@ -517,3 +517,4 @@ export default function GroupContentEditor({ content, onChange }: Props) {
     </div>
   );
 }
+export default GroupContentEditor;
