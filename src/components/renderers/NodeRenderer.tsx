@@ -90,6 +90,8 @@ export default function NodeRenderer({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [validationState, setValidationState] = useState<'unknown' | 'valid' | 'invalid' | 'validating'>('unknown');
   const [loading, setLoading] = useState(false);
+  const [refreshSeq, setRefreshSeq] = useState(0);
+
 
   const effectiveMode = externalMode || internalMode;
   const setEffectiveMode = onModeChange || setInternalMode;
@@ -143,6 +145,7 @@ const handleSaveEdit = async () => {
     // reload & cleanup
     await reloadNode(node.job_id, node.id);
     clearDrafts(nodePrefix);
+    setRefreshSeq(s => s + 1);   // <- force fields to recompute/remount
     setEffectiveMode('idle');
     setHasUnsavedChanges(false);
     stopEditing();
@@ -188,19 +191,21 @@ const handleSaveEdit = async () => {
   };
 
   // --------- Tree rendering (no extra renderers) ---------
-  const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number) => (
-    <FieldRenderer
-      key={`field:${parentPath || ''}:${instanceNum || 0}:${field.ref}`}
-      node={node}
-      fieldRef={field.ref}
-      sectionPath={parentPath}
-      instanceNum={instanceNum}
-      mode={effectiveMode}
-      required={field.required}
-      editable={field.editable !== false}
-      onChange={() => setHasUnsavedChanges(true)}
-    />
-  );
+const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number) => (
+  <FieldRenderer
+    key={`field:${node.id}:${parentPath || ''}:${instanceNum ?? 0}:${field.ref}:${refreshSeq}`}
+    node={node}
+    fieldRef={field.ref}
+    sectionPath={parentPath}
+    instanceNum={instanceNum}
+    mode={effectiveMode}
+    required={field.required}
+    editable={field.editable !== false}
+    onChange={() => setHasUnsavedChanges(true)}
+    refreshSeq={refreshSeq}   // <-- new
+  />
+);
+
 
   const renderSection = (section: SectionItem, parentPath?: string, inheritedInstance?: number) => {
     const sectionPath = parentPath ? `${parentPath}.${section.path}` : section.path;
