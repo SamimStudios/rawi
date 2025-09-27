@@ -121,6 +121,25 @@ function isValidGroupContent(c: any): boolean {
   return true;
 }
 
+function isValidMediaContentTemplate(c: any): boolean {
+  if (!c || c.kind !== 'MediaContent') return false;
+  if (typeof c.path !== 'string' || !c.path.length) return false;
+  if (!['image','video','audio','file'].includes(String(c.type))) return false;
+
+  if (c.selected_version_idx != null && typeof c.selected_version_idx !== 'number') return false;
+
+  if (c.versions != null) {
+    if (!Array.isArray(c.versions)) return false;
+    for (const v of c.versions) {
+      if (!v || v.kind !== 'MediaVersion') return false;
+      if (typeof v.idx !== 'number' || v.idx < 1) return false;
+      if (v.uri != null && typeof v.uri !== 'string') return false;
+    }
+  }
+  return true; // zero versions is allowed
+}
+
+
 
 
 // --- SSOT validator for MediaContent ---
@@ -229,36 +248,27 @@ export function useNodeLibrary() {
     }
   }, []);
 
-    const validateEntry = useCallback(async (entry: NodeLibraryEntry) => {
-    console.group('🧪 Validating node entry');
-    console.log('Node type:', entry?.node_type);
-    console.log('Content structure:', entry?.content);
-  
-    let ok = true;
-    switch (entry?.node_type) {
-      case 'media':
-        ok = isValidMediaContent(entry?.content);
-        break;
-  
-      // Keep your other types as-is; if you don’t have validators for them yet, default-allow:
-      case 'group':
-        ok = isValidGroupContentTemplate(entry?.content);
-        break;
-      
-      case 'form':
-        ok = isValidFormContentTemplate(entry?.content);
-        break;
+const validateEntry = useCallback(async (entry: any) => {
+  try {
+    if (!entry?.id || typeof entry.id !== 'string') return false;
+    if (!entry?.node_type || typeof entry.node_type !== 'string') return false;
+    if (!entry?.content || typeof entry.content !== 'object') return false;
 
+    switch (entry.node_type) {
+      case 'group':
+        return isValidGroupContentTemplate(entry.content);   // template-only, no instances[]
+      case 'form':
+        return isValidFormContentTemplate(entry.content);    // template-only, no instances[]
+      case 'media':
+        return isValidMediaContentTemplate(entry.content);   // allows zero versions
       default:
-        ok = true;
+        return true; // other node types: permissive
     }
-  
-    console.log('✅ Validation result:', ok);
-    console.groupEnd();
-  
-    if (!ok) throw new Error('Invalid content structure for node type');
-    return ok;
-  }, []);
+  } catch {
+    return false;
+  }
+}, []);
+
 
 
     const saveEntry = useCallback(async (entry: Omit<NodeLibraryEntry, 'created_at' | 'updated_at'>) => {
@@ -266,45 +276,52 @@ export function useNodeLibrary() {
       setError(null);
     
       try {
-        // 3C — enforce template-only at LIBRARY save time
+        // Strip any runtime instances before validating/saving to LIBRARY
         const sanitizedContent = stripRuntimeInstancesForLibrary(entry.node_type, entry.content);
         const sanitizedEntry = { ...entry, content: sanitizedContent };
     
-        // Validate the sanitized (template-only) shape
+        // Validate (template-only)
         const isValid = await validateEntry(sanitizedEntry);
         if (!isValid) {
-          throw new Error('Invalid content for library (template-only required)');
+          throw new Error('Invalid content structure for node type');
         }
+    
+        // 🔴 IMPORTANT: Only send columns that exist in app.node_library
+        const payload = {
+          id: sanitizedEntry.id,
+          node_type: sanitizedEntry.node_type,
+          content: sanitizedEntry.content,
+          // include these ONLY if your table actually has them:
+          // version: (sanitizedEntry as any).version,
+          // active: (sanitizedEntry as any).active,
+        };
     
         const { error } = await supabase
           // @ts-ignore
           .schema('app' as any)
           .from('node_library')
-          .upsert(sanitizedEntry, { onConflict: 'id' });
+          .upsert(payload, { onConflict: 'id' });
     
         if (error) throw error;
     
         toast({
-          title: "Success",
-          description: "Node library entry saved successfully",
+          title: 'Success',
+          description: 'Node library entry saved successfully',
         });
     
-        // Refresh the entries
         await fetchEntries();
         return true;
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to save node library entry';
-        setError(errorMessage);
-        toast({
-          title: "Error",
-          description: errorMessage,
-          variant: "destructive",
-        });
+      } catch (err: any) {
+        const msg = err?.message || 'Failed to save node library entry';
+        console.error('saveEntry error:', err);
+        setError(msg);
+        toast({ title: 'Error', description: msg, variant: 'destructive' });
         return false;
       } finally {
         setLoading(false);
       }
     }, [fetchEntries, toast, validateEntry]);
+
 
 
 
