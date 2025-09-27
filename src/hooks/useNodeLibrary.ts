@@ -3,6 +3,38 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 
+function isValidGroupContent(c: any): boolean {
+  if (!c || c.kind !== 'GroupContent') return false;
+  if (typeof c.path !== 'string' || !c.path.length) return false;
+
+  const hasChildren = Array.isArray(c.children);
+  const hasCollection = !!c.collection || Array.isArray(c.instances);
+
+  // Must be one or the other (or empty allowed)
+  if (hasChildren && hasCollection) return false;
+
+  // Regular group
+  if (hasChildren) {
+    return c.children.every((id: any) => typeof id === 'string' && id.length > 0);
+  }
+
+  // Collection group
+  if (hasCollection) {
+    if (!Array.isArray(c.instances)) return false;
+    for (const inst of c.instances) {
+      if (!inst || typeof inst.i !== 'number' || inst.i < 1) return false;
+      if (typeof inst.idx !== 'number' || inst.idx < 1) return false;
+      if (!Array.isArray(inst.children)) return false;
+      if (!inst.children.every((id: any) => typeof id === 'string' && id.length > 0)) return false;
+    }
+  }
+
+  // Allow an empty group (no children/instances) as a placeholder
+  return true;
+}
+
+
+
 // --- SSOT validator for MediaContent ---
 function isValidMediaContent(c: any): boolean {
   // root shape
@@ -123,6 +155,8 @@ export function useNodeLibrary() {
       // Keep your other types as-is; if you don’t have validators for them yet, default-allow:
       case 'form':
       case 'group':
+        ok = isValidGroupContent(entry?.content);
+        break;
       default:
         ok = true;
     }
