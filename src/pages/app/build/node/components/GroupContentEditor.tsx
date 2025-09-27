@@ -8,44 +8,28 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import {
-  Plus,
-  Trash2,
-  ArrowUp,
-  ArrowDown,
-  FolderTree,
-  Layers,
-  RefreshCw,
-  Dot
-} from 'lucide-react';
+import { FolderTree, RefreshCw } from 'lucide-react';
 
 /* ===================== SSOT contracts ===================== */
 type I18nText = { fallback: string; key?: string };
 type GroupCollection = {
   min?: number;
   max?: number;
-  default_instances?: number;
+  default_instances?: number;   // how many clones to materialize at job time
   allow_add?: boolean;
   allow_remove?: boolean;
   allow_reorder?: boolean;
   label_template?: string;
-};
-type GroupInstance = {
-  i: number;
-  idx: number;
-  label?: string;
-  children: string[]; // library node ids
 };
 type GroupContent = {
   kind: 'GroupContent';
   path: string;
   label?: I18nText;
   description?: I18nText;
-  // regular
-  children?: string[];
-  // collection
+  // template children (library node ids) — used for both regular & collection
+  children: string[];
+  // collection config (no instances in library)
   collection?: GroupCollection;
-  instances?: GroupInstance[];
 };
 
 interface Props {
@@ -58,50 +42,43 @@ type LibNode = { id: string; node_type: string };
 const uniq = <T,>(xs: T[]) => Array.from(new Set(xs));
 
 function normalize(raw: any): GroupContent {
-  const isCollection = !!raw?.collection || Array.isArray(raw?.instances);
-  const content: GroupContent = {
+  const out: GroupContent = {
     kind: 'GroupContent',
     path: typeof raw?.path === 'string' && raw.path.length ? raw.path : 'group',
     label: raw?.label,
     description: raw?.description,
-    children: !isCollection ? (Array.isArray(raw?.children) ? raw.children : []) : undefined,
-    collection: isCollection ? (raw?.collection ?? {}) : undefined,
-    instances: isCollection
-      ? (Array.isArray(raw?.instances)
-          ? raw.instances.map((x: any, i: number) => ({
-              i: typeof x?.i === 'number' ? x.i : i + 1,
-              idx: typeof x?.idx === 'number' ? x.idx : i + 1,
-              label: x?.label,
-              children: Array.isArray(x?.children) ? x.children : [],
-            }))
-          : [])
-      : undefined,
+    children: Array.isArray(raw?.children) ? raw.children : [],
+    collection: raw?.collection ? { ...raw.collection } : undefined,
   };
-  return sanitize(content);
+
+  // NEVER keep instances in the library shape
+  if ('instances' in (raw || {})) {
+    // ignore at library level
+  }
+
+  return sanitize(out);
 }
 
 function sanitize(c: GroupContent): GroupContent {
-  const out = { ...c, kind: 'GroupContent', path: c.path || 'group' } as GroupContent;
-  const collectionOn = !!out.collection || (out.instances && out.instances.length > 0);
-  if (collectionOn) {
-    delete (out as any).children;
-    const inst = (out.instances ?? []).map((x, i) => ({
-      ...x,
-      i: i + 1,
-      idx: i + 1,
-      children: uniq(x.children ?? []),
-    }));
-    out.instances = inst;
-    out.collection = out.collection ?? {};
-  } else {
-    delete (out as any).collection;
-    delete (out as any).instances;
-    out.children = uniq(out.children ?? []);
+  const out: GroupContent = {
+    kind: 'GroupContent',
+    path: c.path || 'group',
+    label: c.label,
+    description: c.description,
+    children: uniq(c.children ?? []),
+    collection: c.collection ? { ...c.collection } : undefined,
+  };
+
+  // ensure defaults but do NOT add instances
+  if (out.collection) {
+    if (out.collection.default_instances == null) out.collection.default_instances = 1;
+    if (!out.collection.label_template) out.collection.label_template = 'Instance #{i}';
   }
+
   return out;
 }
 
-/* ===================== Library Picker ===================== */
+/* ===================== Library Picker (dropdown, no search) ===================== */
 function LibraryPicker({
   selected,
   onChange,
@@ -121,43 +98,41 @@ function LibraryPicker({
   const [err, setErr] = useState<string | null>(null);
 
   const fetchLib = useCallback(async () => {
-  setLoading(true);
-  setErr(null);
-  try {
-    let query = supabase
-      // @ts-ignore
-      .schema(schema as any)
-      .from('node_library')
-      .select('id, node_type')            // ← only id + node_type
-      .order('id', { ascending: true })   // ← order by id (title doesn't exist)
-      .limit(500);
+    setLoading(true);
+    setErr(null);
+    try {
+      let query = supabase
+        // @ts-ignore
+        .schema(schema as any)
+        .from('node_library')
+        .select('id, node_type')
+        .order('id', { ascending: true })
+        .limit(500);
 
-    if (typeFilter !== 'all') query = query.eq('node_type', typeFilter);
+      if (typeFilter !== 'all') query = query.eq('node_type', typeFilter);
 
-    const { data, error } = await query;
-    if (error) throw error;
-    setRows((data ?? []) as any);
-  } catch (e: any) {
-    console.error('Library fetch error:', e);
-    setRows([]);
-    setErr(typeof e?.message === 'string' ? e.message : 'Failed to load node library');
-  } finally {
-    setLoading(false);
-  }
-}, [schema, typeFilter]);
-
+      const { data, error } = await query;
+      if (error) throw error;
+      setRows((data ?? []) as any);
+    } catch (e: any) {
+      console.error('Library fetch error:', e);
+      setRows([]);
+      setErr(typeof e?.message === 'string' ? e.message : 'Failed to load node library');
+    } finally {
+      setLoading(false);
+    }
+  }, [schema, typeFilter]);
 
   useEffect(() => { fetchLib(); }, [fetchLib]);
 
   const addPick = () => {
     if (!pickId) return;
     onChange(uniq([...(selected ?? []), pickId]));
-    setPickId(''); // reset for next add
+    setPickId('');
   };
 
   const remove = (id: string) => onChange((selected ?? []).filter(x => x !== id));
 
-  // map for quick label lookup
   const map = useMemo(() => new Map(rows.map(r => [r.id, r])), [rows]);
 
   return (
@@ -190,9 +165,6 @@ function LibraryPicker({
               </SelectContent>
             </Select>
 
-            {/* active only */}
-
-
             <Button variant="outline" size="sm" onClick={fetchLib} disabled={loading}>
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
@@ -200,11 +172,7 @@ function LibraryPicker({
         </div>
 
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-        {err && (
-          <div className="text-xs text-destructive flex items-center gap-1">
-            <Dot className="w-4 h-4" /> {err}
-          </div>
-        )}
+        {err && <div className="text-xs text-destructive">{err}</div>}
 
         <div className="flex items-center gap-2">
           <Select value={pickId} onValueChange={(v) => setPickId(v)}>
@@ -216,7 +184,6 @@ function LibraryPicker({
                 <SelectItem key={r.id} value={r.id}>
                   {r.id} — {r.node_type}
                 </SelectItem>
-
               ))}
             </SelectContent>
           </Select>
@@ -234,11 +201,10 @@ function LibraryPicker({
             {(selected ?? []).map((id) => {
               const r = map.get(id);
               return (
-               <Badge key={id} variant="secondary" className="gap-2">
-                  {id} — {map.get(id)?.node_type || 'node'}
+                <Badge key={id} variant="secondary" className="gap-2">
+                  {id} — {r?.node_type || 'node'}
                   <button onClick={() => remove(id)} className="text-destructive">×</button>
                 </Badge>
-
               );
             })}
           </div>
@@ -251,7 +217,7 @@ function LibraryPicker({
 /* ===================== Main ===================== */
 export function GroupContentEditor({ content, onChange }: Props) {
   const [state, setState] = useState<GroupContent>(() => normalize(content || {}));
-  const [isCollection, setIsCollection] = useState<boolean>(() => !!(content?.collection || content?.instances));
+  const [isCollection, setIsCollection] = useState<boolean>(() => !!content?.collection);
 
   // push baseline on mount
   useEffect(() => {
@@ -263,7 +229,7 @@ export function GroupContentEditor({ content, onChange }: Props) {
   useEffect(() => {
     const next = normalize(content || {});
     setState(prev => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
-    setIsCollection(!!(content?.collection || content?.instances));
+    setIsCollection(!!content?.collection);
   }, [content]);
 
   const commit = (updater: (prev: GroupContent) => GroupContent) => {
@@ -274,77 +240,43 @@ export function GroupContentEditor({ content, onChange }: Props) {
     });
   };
 
-  // regular children handlers
   const setChildren = (ids: string[]) =>
-    commit(prev => ({ ...prev, children: ids, collection: undefined, instances: undefined }));
+    commit(prev => ({ ...prev, children: ids }));
 
-  // collection handlers
   const setCollectionOnOff = (on: boolean) => {
     setIsCollection(on);
     if (on) {
+      // turn ON: keep children (template), attach a default collection config
       commit(prev => ({
         ...prev,
-        children: undefined,
         collection: {
-          allow_add: true,
-          allow_remove: true,
-          allow_reorder: true,
-          default_instances: 1,
-          label_template: 'Instance #{i}',
+          ...(prev.collection ?? {}),
+          default_instances: prev.collection?.default_instances ?? 1,
+          allow_add: prev.collection?.allow_add ?? true,
+          allow_remove: prev.collection?.allow_remove ?? true,
+          allow_reorder: prev.collection?.allow_reorder ?? true,
+          label_template: prev.collection?.label_template ?? 'Instance #{i}',
         },
-        instances: [{ i: 1, idx: 1, children: [] }],
       }));
     } else {
-      commit(prev => ({ ...prev, collection: undefined, instances: undefined, children: [] }));
+      // turn OFF: remove collection config, keep children as regular group
+      commit(prev => {
+        const clone = { ...prev };
+        delete (clone as any).collection;
+        return clone;
+      });
     }
   };
 
   const setCollectionField = <K extends keyof GroupCollection>(k: K, v: GroupCollection[K]) =>
     commit(prev => ({ ...prev, collection: { ...(prev.collection ?? {}), [k]: v } }));
 
-  const addInstance = () =>
-    commit(prev => ({
-      ...prev,
-      instances: [ ...(prev.instances ?? []), { i: (prev.instances?.length ?? 0) + 1, idx: (prev.instances?.length ?? 0) + 1, children: [] } ],
-    }));
-
-  const removeInstance = (iNum: number) =>
-    commit(prev => ({
-      ...prev,
-      instances: (prev.instances ?? []).filter(x => x.i !== iNum).map((x, idx) => ({ ...x, i: idx + 1, idx: idx + 1 })),
-    }));
-
-  const moveInstance = (iNum: number, dir: -1 | 1) =>
-    commit(prev => {
-      const arr = [...(prev.instances ?? [])];
-      const idx = arr.findIndex(x => x.i === iNum);
-      if (idx < 0) return prev;
-      const ni = idx + dir;
-      if (ni < 0 || ni >= arr.length) return prev;
-      const tmp = arr[idx];
-      arr[idx] = arr[ni];
-      arr[ni] = tmp;
-      return { ...prev, instances: arr.map((x, i) => ({ ...x, i: i + 1, idx: i + 1 })) };
-    });
-
-  const setInstanceChildren = (iNum: number, ids: string[]) =>
-    commit(prev => ({
-      ...prev,
-      instances: (prev.instances ?? []).map(x => (x.i === iNum ? { ...x, children: ids } : x)),
-    }));
-
-  const setInstanceLabel = (iNum: number, label: string) =>
-    commit(prev => ({
-      ...prev,
-      instances: (prev.instances ?? []).map(x => (x.i === iNum ? { ...x, label: label || undefined } : x)),
-    }));
-
   return (
     <div className="space-y-6">
       <div>
         <h3 className="text-lg font-medium">Group Node Configuration</h3>
         <p className="text-sm text-muted-foreground">
-          Build a regular group (single children list) or a <strong>collection</strong> with multiple instances. You can nest other <em>groups</em> from the library.
+          Build a regular group (single children list) or a <strong>collection</strong> template that will be duplicated at job time.
         </p>
       </div>
 
@@ -369,9 +301,9 @@ export function GroupContentEditor({ content, onChange }: Props) {
               <Label>Use Collection</Label>
               <div className="flex items-center gap-3">
                 <Switch checked={isCollection} onCheckedChange={setCollectionOnOff} />
-                <span className="text-sm">{isCollection ? 'Collection' : 'Regular group'}</span>
+                <span className="text-sm">{isCollection ? 'Collection (template only)' : 'Regular group'}</span>
               </div>
-              <p className="text-xs text-muted-foreground">Toggle between one list of children or instances with their own children.</p>
+              <p className="text-xs text-muted-foreground">When ON, these children form the template duplicated at job time.</p>
             </div>
 
             <div className="space-y-2">
@@ -386,30 +318,19 @@ export function GroupContentEditor({ content, onChange }: Props) {
         </CardContent>
       </Card>
 
-      {/* Regular Group */}
-      {!isCollection && (
-        <LibraryPicker
-          selected={state.children ?? []}
-          onChange={setChildren}
-          label="Children (library nodes)"
-          hint="Pick any node types, including other groups. Order will be preserved."
-        />
-      )}
+      {/* Template children — ALWAYS visible */}
+      <LibraryPicker
+        selected={state.children ?? []}
+        onChange={setChildren}
+        label={isCollection ? 'Template Children (library nodes)' : 'Children (library nodes)'}
+        hint={isCollection ? 'These nodes will be duplicated per instance at job time.' : 'Pick any node types, including other groups.'}
+      />
 
-      {/* Collection */}
+      {/* Collection settings (only when ON) */}
       {isCollection && (
         <Card>
-          <CardHeader className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Layers className="w-4 h-4" />
-              Collection Settings
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              <Button type="button" onClick={addInstance}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add instance
-              </Button>
-            </div>
+          <CardHeader>
+            <CardTitle className="text-base">Collection Settings</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -435,16 +356,16 @@ export function GroupContentEditor({ content, onChange }: Props) {
                 <Label>Default Instances</Label>
                 <Input
                   type="number"
-                  value={state.collection?.default_instances ?? ''}
-                  onChange={(e) => setCollectionField('default_instances', e.target.value === '' ? undefined : Number(e.target.value))}
+                  value={state.collection?.default_instances ?? 1}
+                  onChange={(e) => setCollectionField('default_instances', e.target.value === '' ? 1 : Number(e.target.value))}
                   placeholder="1"
                 />
               </div>
               <div className="space-y-2">
                 <Label>Label Template</Label>
                 <Input
-                  value={state.collection?.label_template ?? ''}
-                  onChange={(e) => setCollectionField('label_template', e.target.value || undefined)}
+                  value={state.collection?.label_template ?? 'Instance #{i}'}
+                  onChange={(e) => setCollectionField('label_template', e.target.value || 'Instance #{i}')}
                   placeholder="Instance #{i}"
                 />
               </div>
@@ -452,66 +373,35 @@ export function GroupContentEditor({ content, onChange }: Props) {
                 <Label>Controls</Label>
                 <div className="flex items-center gap-3 text-sm">
                   <label className="flex items-center gap-2">
-                    <input type="checkbox" checked={!!state.collection?.allow_add} onChange={(e) => setCollectionField('allow_add', e.target.checked)} />
+                    <input
+                      type="checkbox"
+                      checked={!!state.collection?.allow_add}
+                      onChange={(e) => setCollectionField('allow_add', e.target.checked)}
+                    />
                     add
                   </label>
                   <label className="flex items-center gap-2">
-                    <input type="checkbox" checked={!!state.collection?.allow_remove} onChange={(e) => setCollectionField('allow_remove', e.target.checked)} />
+                    <input
+                      type="checkbox"
+                      checked={!!state.collection?.allow_remove}
+                      onChange={(e) => setCollectionField('allow_remove', e.target.checked)}
+                    />
                     remove
                   </label>
                   <label className="flex items-center gap-2">
-                    <input type="checkbox" checked={!!state.collection?.allow_reorder} onChange={(e) => setCollectionField('allow_reorder', e.target.checked)} />
+                    <input
+                      type="checkbox"
+                      checked={!!state.collection?.allow_reorder}
+                      onChange={(e) => setCollectionField('allow_reorder', e.target.checked)}
+                    />
                     reorder
                   </label>
                 </div>
               </div>
             </div>
-
-            {/* Instances */}
-            {(state.instances ?? []).length === 0 ? (
-              <Card className="border-dashed">
-                <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                  No instances yet. Click <strong>Add instance</strong>.
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {(state.instances ?? []).map((inst) => (
-                  <Card key={inst.i}>
-                    <CardHeader className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Badge variant="outline">Instance #{inst.i}</Badge>
-                        <Input
-                          className="w-64"
-                          placeholder="Optional label"
-                          value={inst.label ?? ''}
-                          onChange={(e) => setInstanceLabel(inst.i, e.target.value)}
-                        />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => moveInstance(inst.i, -1)}>
-                          <ArrowUp className="w-4 h-4" />
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => moveInstance(inst.i, +1)}>
-                          <ArrowDown className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => removeInstance(inst.i)}>
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <LibraryPicker
-                        selected={inst.children}
-                        onChange={(ids) => setInstanceChildren(inst.i, ids)}
-                        label="Instance children (library nodes)"
-                        hint="Pick any node types, including other groups."
-                      />
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
+            <div className="text-xs text-muted-foreground">
+              Instances are created when the node is materialized for a job (using <code>default_instances</code>). No instances are stored in the library.
+            </div>
           </CardContent>
         </Card>
       )}
