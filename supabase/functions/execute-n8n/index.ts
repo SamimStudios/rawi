@@ -267,7 +267,7 @@ serve(async (request) => {
     } catch (fetchError) {
       clearTimeout(timeoutId);
       
-      if (fetchError.name === 'AbortError') {
+      if (fetchError && (fetchError as Error).name === 'AbortError') {
         throw new Error('Webhook request timed out');
       }
       
@@ -280,7 +280,7 @@ serve(async (request) => {
 
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
+      error: (error as Error)?.message || String(error),
     }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

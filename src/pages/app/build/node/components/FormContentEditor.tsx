@@ -538,7 +538,7 @@ export function FormContentEditor({ content, onChange }: Props) {
     item, onPatch, onRemove, isCollection,
   }: {
     item: SectionItem | CollectionSection;
-    onPatch: (p: Partial<SectionItem & CollectionSection>) => void;
+    onPatch: (p: any) => void;
     onRemove: () => void;
     isCollection?: boolean;
   }) => (

@@ -174,6 +174,6 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
   } catch (e) {
     console.error(e);
-    return new Response(JSON.stringify({ ok: false, error: String(e?.message || e) }), { status: 500 });
+    return new Response(JSON.stringify({ ok: false, error: String((e as any)?.message || e) }), { status: 500 });
   }
 });

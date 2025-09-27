@@ -32,3 +32,9 @@ verify_jwt = false
 
 [functions.list-n8n-functions]
 verify_jwt = false
+
+[functions.materialize_collections]
+verify_jwt = false
+
+[functions.execute-n8n]
+verify_jwt = true

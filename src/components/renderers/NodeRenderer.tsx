@@ -482,7 +482,6 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
                     available={userCredits}
                     loading={loading}
                     size="sm"
-                    variant="secondary"
                   >
                     Generate
                   </CreditsButton>
