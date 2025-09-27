@@ -196,7 +196,7 @@ const handleSaveEdit = async () => {
       await reloadNode(node.job_id, node.id);
       setRefreshSeq((s) => s + 1);
       waitingRealtimeRef.current = false;
-    }, 1200);
+    }, 3000);
     
 
 
