@@ -9,11 +9,52 @@ export type NodeType = 'media' | 'group' | 'form' | string;
 export interface NodeLibraryEntry {
   id: string;                 // should start with lib_
   node_type: NodeType;
-  version?: number;           // table often has NOT NULL
-  active?: boolean;           // table often has NOT NULL
+  version?: number;           // if your table has NOT NULL, we default it
+  active?: boolean;           // if your table has NOT NULL, we default it
   content: any;
   created_at?: string | null;
   updated_at?: string | null;
+}
+
+/** ---------- Helpers ---------- */
+const normalizeDash = (s?: string) =>
+  (s ?? '').replace(/[\u2010-\u2015\u2212]/g, '-'); // normalize en/em/figure dashes → '-'
+
+/** Remove any runtime instances before LIBRARY save; normalize Form version string */
+function stripRuntimeInstancesForLibrary(nodeType: string, content: any): any {
+  if (!content) return content;
+
+  if (nodeType === 'group') {
+    const c = { ...content };
+    if ('instances' in c) delete c.instances;
+    return c;
+  }
+
+  if (nodeType === 'form') {
+    const cleanseItems = (items: any[]): any[] =>
+      (items || []).map((it: any) => {
+        if (it?.kind === 'CollectionFieldItem') {
+          const { instances, ...rest } = it || {};
+          return { ...rest };
+        }
+        if (it?.kind === 'CollectionSection') {
+          const { instances, children = [], ...rest } = it || {};
+          return { ...rest, children: cleanseItems(children) };
+        }
+        if (it?.kind === 'SectionItem') {
+          return { ...it, children: cleanseItems(it.children || []) };
+        }
+        return it;
+      });
+
+    if (content.kind === 'FormContent') {
+      // normalize to canonical version label
+      const version = 'v2-items';
+      return { ...content, version, items: cleanseItems(content.items || []) };
+    }
+  }
+
+  return content;
 }
 
 /** ---------- Validators (LIBRARY = template-only) ---------- */
@@ -88,44 +129,6 @@ function isValidFormContentTemplate(c: any): boolean {
   return checkItems(c.items);
 }
 
-/** Drop any runtime instances before saving to LIBRARY; normalize Form version string */
-function stripRuntimeInstancesForLibrary(nodeType: string, content: any): any {
-  if (!content) return content;
-
-  if (nodeType === 'group') {
-    const c = { ...content };
-    if ('instances' in c) delete c.instances;
-    return c;
-  }
-
-  if (nodeType === 'form') {
-    const cleanseItems = (items: any[]): any[] =>
-      (items || []).map((it: any) => {
-        if (it?.kind === 'CollectionFieldItem') {
-          const { instances, ...rest } = it || {};
-          return { ...rest };
-        }
-        if (it?.kind === 'CollectionSection') {
-          const { instances, children = [], ...rest } = it || {};
-          return { ...rest, children: cleanseItems(children) };
-        }
-        if (it?.kind === 'SectionItem') {
-          return { ...it, children: cleanseItems(it.children || []) };
-        }
-        return it;
-      });
-
-    if (content.kind === 'FormContent') {
-      // normalize to 'v2-items' to keep a single canonical value
-      const version = 'v2-items';
-      return { ...content, version, items: cleanseItems(content.items || []) };
-    }
-  }
-
-  return content;
-}
-
-/** Library validator dispatcher */
 function validateLibraryNodeContent(nodeType: string, content: any): boolean {
   if (nodeType === 'group') return isValidGroupContentTemplate(content);
   if (nodeType === 'form') return isValidFormContentTemplate(content);
@@ -187,13 +190,25 @@ export function useNodeLibrary() {
     }
   }, [toast]);
 
-  /** Validate entry (template-only) */
+  /** Validate entry (sanitize first) */
   const validateEntry = useCallback(async (entry: any) => {
     try {
       if (!entry?.id || typeof entry.id !== 'string') return false;
       if (!entry?.node_type || typeof entry.node_type !== 'string') return false;
       if (!entry?.content || typeof entry.content !== 'object') return false;
-      return validateLibraryNodeContent(entry.node_type, entry.content);
+
+      // Normalize common gotchas before validating
+      let content = entry.content;
+      if (entry.node_type === 'form' && content?.kind === 'FormContent') {
+        const v = normalizeDash(String(content.version ?? ''));
+        if (v !== 'v2-items') {
+          content = { ...content, version: 'v2-items' };
+        }
+      }
+      // Drop any accidental runtime instances prior to library validation
+      content = stripRuntimeInstancesForLibrary(entry.node_type, content);
+
+      return validateLibraryNodeContent(entry.node_type, content);
     } catch {
       return false;
     }
@@ -205,10 +220,14 @@ export function useNodeLibrary() {
     setError(null);
 
     try {
-      // Sanitize content for library (drop instances, normalize form version)
-      const sanitizedContent = stripRuntimeInstancesForLibrary(entry.node_type, entry.content);
+      // Sanitize content for library (drop instances, normalize form version & dash)
+      let sanitizedContent = stripRuntimeInstancesForLibrary(entry.node_type, entry.content);
+      if (entry.node_type === 'form' && sanitizedContent?.kind === 'FormContent') {
+        const v = normalizeDash(String(sanitizedContent.version ?? ''));
+        if (v !== 'v2-items') sanitizedContent = { ...sanitizedContent, version: 'v2-items' };
+      }
 
-      // Validate sanitized payload
+      // Validate the sanitized (template-only) shape
       const tempEntry = { ...entry, content: sanitizedContent };
       const isValid = await validateEntry(tempEntry);
       if (!isValid) throw new Error('Invalid content structure for node type');
