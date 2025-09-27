@@ -133,8 +133,7 @@ useEffect(() => {
   setContentSnapshot(node.content);
 }, [node.id, node.content]);
 
-  // convenience: the object we pass to fields
-const nodeForRender = useMemo(() => ({ ...node, content: contentSnapshot }), [node, contentSnapshot]);
+
 
   
 // realtime subscription for this node id
