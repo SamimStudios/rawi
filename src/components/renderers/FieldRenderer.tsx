@@ -35,6 +35,8 @@ interface FieldRendererProps {
   mode?: Mode;
   required?: boolean;
   editable?: boolean;
+  refreshSeq?: number;   // <-- new
+
 }
 
 /** Build universal SSOT address "nodeAddr#content.items....<field>.value" */
@@ -128,6 +130,8 @@ export function FieldRenderer({
   onChange,
   mode = 'idle',
   required = false,
+    refreshSeq = 0,    // <-- new
+
   editable = true
 }: FieldRendererProps) {
   dlog('render', { node: node.addr, fieldRef, sectionPath, instanceNum, mode, editable, required });
@@ -147,11 +151,11 @@ export function FieldRenderer({
     [fieldRef, sectionPath, instanceNum]
   );
 
-const dbValue = useMemo(() => {
+  const dbValue = useMemo(() => {
   const v = getByTokensSmart(node.content ?? {}, contentTokens);
-  dlog('dbValue(from node.content)', { tokens: contentTokens.join('.'), v });
+   dlog('dbValue(from node.content)', { tokens: contentTokens.join('.'), v });
   return v === undefined ? null : v;
-}, [node.content, contentTokens]);
+  }, [node.content, contentTokens, refreshSeq]);   // <-- added refreshSeq
 
 
   const [internalError, setInternalError] = useState<string | null>(null);
