@@ -364,11 +364,11 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
   };
 
   const renderFormContent = () => {
-    if (!node.content) return <div className="text-center py-8 text-muted-foreground">No content defined</div>;
-    if (!ContentValidation.isFormContent(node.content)) {
+    if (!nodeForRender.content) return <div className="text-center py-8 text-muted-foreground">No content defined</div>;
+    if (!ContentValidation.isFormContent(nodeForRender.content)) {
       return <div className="text-muted-foreground p-4 bg-muted/50 rounded">Content type not supported by SSOT renderer</div>;
     }
-    const form = node.content as FormContent;
+    const form = nodeForRender.content as FormContent;
     if (!form.items?.length) return <div className="text-center py-8 text-muted-foreground">No form items defined</div>;
 
     return (
