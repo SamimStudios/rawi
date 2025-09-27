@@ -77,21 +77,26 @@ function LibraryPicker({
 
   const fetchLib = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      // @ts-ignore schema
-      .schema('app' as any)
-      .from('node_library')
-      .select('id, node_type, title')
-      .order('title', { ascending: true })
-      .limit(200); // simple dropdown: grab first 200; adjust if needed
-    setLoading(false);
-    if (error) {
-      console.error('Library fetch error:', error);
+    try {
+      const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/node_library?select=id,node_type,title&order=title.asc&limit=200`;
+      const res = await fetch(url, {
+        headers: {
+          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+          'Accept-Profile': 'app',        // 👈 tell PostgREST to use app schema
+        },
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setRows(data as any);
+    } catch (e) {
+      console.error('Library fetch error:', e);
       setRows([]);
-      return;
+    } finally {
+      setLoading(false);
     }
-    setRows((data ?? []) as any);
   }, []);
+
 
   useEffect(() => {
     fetchLib();
