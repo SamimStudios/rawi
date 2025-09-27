@@ -1,5 +1,9 @@
 // src/pages/app/build/node/components/MediaContentEditor.tsx
 import React, { useState, useEffect, useMemo } from 'react';
+// --- local edit buffer to avoid fighting validator on every keystroke ---
+type EditBuf = Record<string, string>;
+const makeKey = (idx: number, field: string) => `${idx}:${field}`;
+
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -143,6 +147,27 @@ function reindexVersions(versions: MediaVersion[]): MediaVersion[] {
 
 export function MediaContentEditor({ content, onChange }: MediaContentEditorProps) {
   const [state, setState] = useState<MediaContent>(() => normalizeToSSOT(content || {}));
+  const [buf, setBuf] = useState<EditBuf>({});
+const getBuf = (idx: number, field: string, fallback: string) =>
+  buf[makeKey(idx, field)] ?? fallback;
+
+const setBufVal = (idx: number, field: string, val: string) =>
+  setBuf(prev => ({ ...prev, [makeKey(idx, field)]: val }));
+
+const commitBuf = (
+  idx: number,
+  field: string,
+  parse: (s: string) => any = (s) => s
+) => {
+  const k = makeKey(idx, field);
+  if (!(k in buf)) return;
+  const raw = buf[k];
+  const value = parse(raw);
+  // uses your existing commit/setItemField pipeline
+  setItemField(idx, field, value);
+  setBuf(({ [k]: _removed, ...rest }) => rest);
+};
+
 
   // after the existing `const [state, setState] = useState(...);`
   useEffect(() => {
@@ -393,17 +418,29 @@ export function MediaContentEditor({ content, onChange }: MediaContentEditorProp
                         <div className="space-y-2">
                           <Label>Version Label (path)</Label>
                           <Input
-                            value={v.path ?? ''}
-                            onChange={e => setVersionPath(v.idx, e.target.value)}
+                            value={getBuf(v.idx, 'path', v.path ?? '')}
+                            onChange={e => setBufVal(v.idx, 'path', e.target.value)}
+                            onBlur={() => {
+                              const k = makeKey(v.idx, 'path');
+                              if (!(k in buf)) return;
+                              const raw = buf[k];
+                              commit(prev => ({
+                                ...prev,
+                                versions: prev.versions.map(x => (x.idx === v.idx ? { ...x, path: raw || undefined } : x)),
+                              }));
+                              setBuf(({ [k]: _removed, ...rest }) => rest);
+                            }}
                             placeholder={`v${v.idx}`}
                           />
+
                         </div>
                         <div className="space-y-2">
                           <Label>URI</Label>
                           <Input
-                            value={v.item.uri ?? ''}
-                            onChange={e => setItemField(v.idx, 'uri', e.target.value)}
-                            placeholder="https://... or storage path"
+                            value={getBuf(v.idx, 'uri', v.item.uri ?? '')}
+                            onChange={e => setBufVal(v.idx, 'uri', e.target.value)}
+                            onBlur={() => commitBuf(v.idx, 'uri')}
+                            placeholder="https://… or storage path"
                           />
                         </div>
                       </div>
@@ -412,20 +449,20 @@ export function MediaContentEditor({ content, onChange }: MediaContentEditorProp
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label>Width</Label>
-                            <Input
-                              type="number"
-                              value={(v.item as any).width ?? ''}
-                              onChange={e => setItemField(v.idx, 'width', e.target.value ? Number(e.target.value) : undefined)}
-                              placeholder="e.g., 1920"
-                            />
+                           <Input
+                            type="number"
+                            value={getBuf(v.idx, 'width', (v.item as any).width?.toString() ?? '')}
+                            onChange={e => setBufVal(v.idx, 'width', e.target.value)}
+                            onBlur={() => commitBuf(v.idx, 'width', s => s === '' ? undefined : Number(s))}
+                          />
                           </div>
                           <div className="space-y-2">
                             <Label>Height</Label>
                             <Input
                               type="number"
-                              value={(v.item as any).height ?? ''}
-                              onChange={e => setItemField(v.idx, 'height', e.target.value ? Number(e.target.value) : undefined)}
-                              placeholder="e.g., 1080"
+                              value={getBuf(v.idx, 'height', (v.item as any).height?.toString() ?? '')}
+                              onChange={e => setBufVal(v.idx, 'height', e.target.value)}
+                              onBlur={() => commitBuf(v.idx, 'height', s => s === '' ? undefined : Number(s))}
                             />
                           </div>
                         </div>
@@ -437,9 +474,9 @@ export function MediaContentEditor({ content, onChange }: MediaContentEditorProp
                             <Input
                               type="number"
                               step="0.01"
-                              value={(v.item as any).duration ?? ''}
-                              onChange={e => setItemField(v.idx, 'duration', e.target.value ? Number(e.target.value) : undefined)}
-                              placeholder="e.g., 30.5"
+                              value={getBuf(v.idx, 'duration', (v.item as any).duration?.toString() ?? '')}
+                              onChange={e => setBufVal(v.idx, 'duration', e.target.value)}
+                              onBlur={() => commitBuf(v.idx, 'duration', s => s === '' ? undefined : Number(s))}
                             />
                           </div>
                           <div className="space-y-2">
@@ -447,16 +484,17 @@ export function MediaContentEditor({ content, onChange }: MediaContentEditorProp
                             <Input
                               type="number"
                               step="1"
-                              value={(v.item as any).fps ?? ''}
-                              onChange={e => setItemField(v.idx, 'fps', e.target.value ? Number(e.target.value) : undefined)}
-                              placeholder="e.g., 24"
+                              value={getBuf(v.idx, 'fps', (v.item as any).fps?.toString() ?? '')}
+                              onChange={e => setBufVal(v.idx, 'fps', e.target.value)}
+                              onBlur={() => commitBuf(v.idx, 'fps', s => s === '' ? undefined : Number(s))}
                             />
                           </div>
                           <div className="space-y-2">
                             <Label>Poster (URL)</Label>
                             <Input
-                              value={(v.item as any).poster ?? ''}
-                              onChange={e => setItemField(v.idx, 'poster', e.target.value || undefined)}
+                              value={getBuf(v.idx, 'poster', (v.item as any).poster ?? '')}
+                              onChange={e => setBufVal(v.idx, 'poster', e.target.value)}
+                              onBlur={() => commitBuf(v.idx, 'poster', s => s || undefined)}
                               placeholder="Optional poster frame URL"
                             />
                           </div>
@@ -479,9 +517,9 @@ export function MediaContentEditor({ content, onChange }: MediaContentEditorProp
                             <Input
                               type="number"
                               step="1"
-                              value={(v.item as any).bitrate ?? ''}
-                              onChange={e => setItemField(v.idx, 'bitrate', e.target.value ? Number(e.target.value) : undefined)}
-                              placeholder="e.g., 192"
+                              value={getBuf(v.idx, 'bitrate', (v.item as any).bitrate?.toString() ?? '')}
+                              onChange={e => setBufVal(v.idx, 'bitrate', e.target.value)}
+                              onBlur={() => commitBuf(v.idx, 'bitrate', s => s === '' ? undefined : Number(s))}
                             />
                           </div>
                         </div>
@@ -489,9 +527,10 @@ export function MediaContentEditor({ content, onChange }: MediaContentEditorProp
                       <div className="space-y-2">
                         <Label>Format</Label>
                         <Input
-                          value={v.item.format ?? ''}
-                          onChange={e => setItemField(v.idx, 'format', e.target.value || undefined)}
-                          placeholder="png, mp4, wav..."
+                          value={getBuf(v.idx, 'format', v.item.format ?? '')}
+                          onChange={e => setBufVal(v.idx, 'format', e.target.value)}
+                          onBlur={() => commitBuf(v.idx, 'format', s => s || undefined)}
+                          placeholder="png, mp4, wav…"
                         />
                       </div>
                     </CardContent>
