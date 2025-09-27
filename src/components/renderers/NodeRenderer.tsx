@@ -178,7 +178,6 @@ const handleSaveEdit = async () => {
 
     // after: await saveViaRpc(node.job_id, writes);
 
-    const nodePrefix = `${node.addr}#`;
     clearDrafts(nodePrefix);
     
     // flip UI back to idle
