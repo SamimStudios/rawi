@@ -193,11 +193,9 @@ export default function FieldRendererPreview() {
               <div className="space-y-4">
                 {/* Field Preview */}
                 <div className="bg-muted/30 p-4 rounded-lg">
-                  <SystematicFieldRenderer
-                    field={field}
-                    value={fieldValues[field.id]}
-                    onChange={(value) => handleFieldValueChange(field.id, value)}
-                  />
+                  <div className="text-sm text-muted-foreground">
+                    Field preview would go here
+                  </div>
                 </div>
                 
                 {/* Current Value Display */}

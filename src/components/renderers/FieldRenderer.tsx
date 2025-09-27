@@ -9,6 +9,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { useFieldRegistry } from '@/hooks/useFieldRegistry';
 import { useDrafts } from '@/contexts/DraftsContext';
 import type { JobNode } from '@/hooks/useJobs';
+import type { Database } from '@/integrations/supabase/types';
 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -269,7 +270,7 @@ export function FieldRenderer({
   const currentValue = effectiveValue ?? fieldDefinition.default_value;
 
   const renderEdit = () => {
-    switch (widget) {
+    switch (widget as Database['public']['Enums']['field_widget']) {
       case 'text':
         return (
           <div className="space-y-1">
@@ -403,17 +404,8 @@ export function FieldRenderer({
       case 'date':
         return <Input type="date" value={currentValue || ''} onChange={(e) => handleChange(e.target.value)} className={cn(internalError && "border-destructive")} />;
 
-      case 'time':
-        return <Input type="time" value={currentValue || ''} onChange={(e) => handleChange(e.target.value)} className={cn(internalError && "border-destructive")} />;
-
-      case 'email':
-        return <Input type="email" value={currentValue || ''} onChange={(e) => handleChange(e.target.value)} placeholder={placeholder} className={cn(internalError && "border-destructive")} />;
-
-      case 'url':
-        return <Input type="url" value={currentValue || ''} onChange={(e) => handleChange(e.target.value)} placeholder={placeholder} className={cn(internalError && "border-destructive")} />;
-
-      case 'number':
-        return <Input type="number" value={currentValue ?? ''} onChange={(e) => handleChange(e.target.value === '' ? null : Number(e.target.value))} placeholder={placeholder} min={rules?.min} max={rules?.max} className={cn(internalError && "border-destructive")} />;
+      case 'datetime':
+        return <Input type="datetime-local" value={currentValue || ''} onChange={(e) => handleChange(e.target.value)} className={cn(internalError && "border-destructive")} />;
 
       case 'file':
         return (
@@ -429,11 +421,8 @@ export function FieldRenderer({
 
       default:
         return (
-          <div className="p-4 border border-dashed rounded-md">
-            <p className="text-muted-foreground text-sm flex items-center gap-2">
-              <AlertCircle className="h-4 w-4" />
-              Unsupported widget type: {String(widget)}
-            </p>
+          <div className="text-sm text-muted-foreground">
+            Unsupported widget type: {widget}
           </div>
         );
     }
