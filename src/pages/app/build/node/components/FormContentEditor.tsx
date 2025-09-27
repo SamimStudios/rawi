@@ -4,18 +4,16 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, GripVertical, ChevronDown, ChevronRight, ArrowUp, ArrowDown, CopyPlus } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
-/* ===================== Types (SSOT-aligned) ===================== */
-interface I18nText {
-  fallback: string;
-  key?: string;
-}
+/* ===================== SSOT-aligned types (Library: template-only) ===================== */
+type Importance = 'low' | 'normal' | 'high';
+
+interface I18nText { fallback: string; key?: string }
 
 interface UIBlock {
   kind: 'UIBlock';
@@ -29,12 +27,12 @@ interface FieldItem {
   kind: 'FieldItem';
   idx: number;
   path: string;
-  ref: string;
+  ref: string;        // references field_registry.id
   editable: boolean;
   required: boolean;
-  importance: 'low' | 'normal' | 'high';
+  importance: Importance;
   ui: UIBlock;
-  value: any;
+  value?: any;        // library can omit; kept for compatibility
 }
 
 interface SectionItem {
@@ -49,14 +47,7 @@ interface SectionItem {
   children: ContentItem[];
 }
 
-/** Collection primitives */
-interface CollectionInstance {
-  instance_id: number;   // 1..N
-  path: string;          // e.g. `${item.path}.inst_${instance_id}`
-  children?: ContentItem[];  // For CollectionSection
-  value?: any;               // For CollectionFieldItem
-}
-
+/** Collection primitives (TEMPLATE ONLY in library) */
 interface CollectionSection {
   kind: 'CollectionSection';
   idx: number;
@@ -66,10 +57,10 @@ interface CollectionSection {
   required: boolean;
   hidden: boolean;
   collapsed: boolean;
-
   min_instances: number;
   max_instances: number;
-  instances: CollectionInstance[];
+  default_instances: number;  // how many to materialize at job time
+  children: ContentItem[];    // TEMPLATE children, no instances[] in library
 }
 
 interface CollectionFieldItem {
@@ -79,12 +70,11 @@ interface CollectionFieldItem {
   ref: string;
   editable: boolean;
   required: boolean;
-  importance: 'low' | 'normal' | 'high';
+  importance: Importance;
   ui: UIBlock;
-
   min_instances: number;
   max_instances: number;
-  instances: CollectionInstance[];
+  default_instances: number;  // how many to materialize at job time
 }
 
 type ContentItem = FieldItem | SectionItem | CollectionSection | CollectionFieldItem;
@@ -95,279 +85,203 @@ interface FormContent {
   items: ContentItem[];
 }
 
-interface FormContentEditorProps {
+interface Props {
   content: Record<string, any>;
   onChange: (content: Record<string, any>) => void;
 }
 
-/* ===================== Helpers ===================== */
+/* ===================== helpers ===================== */
 const nextIdx = (arr: Array<{ idx: number }>) => Math.max(0, ...arr.map(x => Number(x?.idx) || 0)) + 1;
-
-const reindexChildren = (children: ContentItem[]) =>
-  children.map((c, i) => ({ ...c, idx: i + 1 })) as ContentItem[];
-
-const reindexInstances = (instances: CollectionInstance[], basePath: string) =>
-  instances.map((inst, i) => ({
-    ...inst,
-    instance_id: i + 1,
-    path: `${basePath}.inst_${i + 1}`,
-  }));
-
-const isSection = (x: ContentItem): x is SectionItem => x?.kind === 'SectionItem';
 const isField = (x: ContentItem): x is FieldItem => x?.kind === 'FieldItem';
-const isCSection = (x: ContentItem): x is CollectionSection => x?.kind === 'CollectionSection';
+const isSection = (x: ContentItem): x is SectionItem => x?.kind === 'SectionItem';
 const isCField = (x: ContentItem): x is CollectionFieldItem => x?.kind === 'CollectionFieldItem';
+const isCSection = (x: ContentItem): x is CollectionSection => x?.kind === 'CollectionSection';
+const reindex = <T extends { idx: number }>(xs: T[]) => xs.map((x, i) => ({ ...x, idx: i + 1 }));
 
-/* ===================== Component ===================== */
-export function FormContentEditor({ content, onChange }: FormContentEditorProps) {
-  const [formContent, setFormContent] = useState<FormContent>({
+function sanitizeTemplateOnly(content: any): FormContent {
+  const base: FormContent = {
     kind: 'FormContent',
     version: 'v2-items',
-    items: [],
-  });
-  const [availableFields, setAvailableFields] = useState<Array<{ id: string; ui: any }>>([]);
+    items: Array.isArray(content?.items) ? content.items : [],
+  };
 
-  /* -------- Load initial ---------- */
-  useEffect(() => {
-    if (!content) return;
-
-    // Already v2
-    if (Array.isArray(content?.items)) {
-      setFormContent({
-        kind: content.kind || 'FormContent',
-        version: content.version || 'v2-items',
-        items: content.items || [],
-      });
-      return;
-    }
-
-    // Legacy: sections[] → convert to v2 SectionItem/FieldItem
-    if (Array.isArray(content?.sections)) {
-      const converted: ContentItem[] = content.sections.map((section: any, idx: number) => ({
-        kind: 'SectionItem',
-        idx: idx + 1,
-        path: section.key || `section_${idx + 1}`,
-        label: section.title || { fallback: `Section ${idx + 1}` },
-        description: section.ui?.help,
-        required: false,
-        hidden: false,
-        collapsed: false,
-        children: (section.fields || []).map((field: any, fieldIdx: number) => ({
+  // Drop any instances[] if present from previous versions; keep only template
+  const scrub = (items: any[]): ContentItem[] =>
+    (items || []).map((it: any, i: number) => {
+      if (it?.kind === 'FieldItem') {
+        return {
           kind: 'FieldItem',
-          idx: fieldIdx + 1,
-          path: field.field_ref || `field_${fieldIdx + 1}`,
-          ref: field.field_ref || '',
-          editable: true,
-          required: field.required || false,
-          importance: field.importance || 'normal',
+          idx: i + 1,
+          path: it.path || `field_${i + 1}`,
+          ref: it.ref || '',
+          editable: !!it.editable,
+          required: !!it.required,
+          importance: (it.importance as Importance) || 'normal',
           ui: {
             kind: 'UIBlock',
-            label: field.ui?.label || { fallback: field.field_ref || 'Field' },
-            help: field.ui?.help,
-            placeholder: field.ui?.placeholder,
-            override: false,
+            label: it.ui?.label || { fallback: it.ref || `Field ${i + 1}` },
+            help: it.ui?.help,
+            placeholder: it.ui?.placeholder,
+            override: !!it.ui?.override,
           },
-          value: null,
-        })),
-      }));
-      setFormContent({
-        kind: 'FormContent',
-        version: 'v2-items',
-        items: converted,
-      });
-    }
-  }, [JSON.stringify(content)]);
+        } as FieldItem;
+      }
 
-  /* -------- Field registry -------- */
+      if (it?.kind === 'CollectionFieldItem') {
+        return {
+          kind: 'CollectionFieldItem',
+          idx: i + 1,
+          path: it.path || `cfield_${i + 1}`,
+          ref: it.ref || '',
+          editable: !!it.editable,
+          required: !!it.required,
+          importance: (it.importance as Importance) || 'normal',
+          ui: {
+            kind: 'UIBlock',
+            label: it.ui?.label || { fallback: it.ref || `Collection Field ${i + 1}` },
+            help: it.ui?.help,
+            placeholder: it.ui?.placeholder,
+            override: !!it.ui?.override,
+          },
+          min_instances: Number(it.min_instances ?? 0),
+          max_instances: Number(it.max_instances ?? 10),
+          default_instances: Number(it.default_instances ?? 1),
+        } as CollectionFieldItem;
+      }
+
+      if (it?.kind === 'CollectionSection') {
+        // treat children as TEMPLATE; remove instances[]
+        return {
+          kind: 'CollectionSection',
+          idx: i + 1,
+          path: it.path || `csection_${i + 1}`,
+          label: it.label || { fallback: `Collection Section ${i + 1}` },
+          description: it.description,
+          required: !!it.required,
+          hidden: !!it.hidden,
+          collapsed: !!it.collapsed,
+          min_instances: Number(it.min_instances ?? 0),
+          max_instances: Number(it.max_instances ?? 10),
+          default_instances: Number(it.default_instances ?? 1),
+          children: scrub(it.children || []),
+        } as CollectionSection;
+      }
+
+      if (it?.kind === 'SectionItem') {
+        return {
+          kind: 'SectionItem',
+          idx: i + 1,
+          path: it.path || `section_${i + 1}`,
+          label: it.label || { fallback: `Section ${i + 1}` },
+          description: it.description,
+          required: !!it.required,
+          hidden: !!it.hidden,
+          collapsed: !!it.collapsed,
+          children: scrub(it.children || []),
+        } as SectionItem;
+      }
+
+      // unknown -> coerce to Field
+      return {
+        kind: 'FieldItem',
+        idx: i + 1,
+        path: `field_${i + 1}`,
+        ref: '',
+        editable: true,
+        required: false,
+        importance: 'normal',
+        ui: { kind: 'UIBlock', label: { fallback: `Field ${i + 1}` }, override: false },
+      } as FieldItem;
+    });
+
+  base.items = scrub(base.items);
+  return base;
+}
+
+/* ===================== Component ===================== */
+export function FormContentEditor({ content, onChange }: Props) {
+  const [state, setState] = useState<FormContent>(() => sanitizeTemplateOnly(content || {}));
+  const [availableFields, setAvailableFields] = useState<Array<{ id: string }>>([]);
+
+  // push baseline on mount
+  useEffect(() => { onChange(state as any); /* eslint-disable-next-line */ }, []);
+  // sync if parent changes
   useEffect(() => {
-    const fetchFields = async () => {
+    const next = sanitizeTemplateOnly(content || {});
+    setState(prev => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+  }, [content]);
+
+  // fetch field registry (id only)
+  useEffect(() => {
+    (async () => {
       try {
         const { data, error } = await supabase
           // @ts-ignore
           .schema('app' as any)
           .from('field_registry')
-          .select('id, ui, datatype, widget')
+          .select('id')
           .order('id');
-
         if (error) throw error;
-        setAvailableFields(data || []);
-      } catch (error) {
-        console.error('Failed to fetch field registry:', error);
+        setAvailableFields((data ?? []) as any);
+      } catch (e) {
+        console.error('field_registry fetch failed:', e);
       }
-    };
-    fetchFields();
+    })();
   }, []);
 
-  /* -------- Emit to parent (only when meaningful) -------- */
-  const handleContentChange = useCallback(() => {
-    onChange(formContent);
-  }, [formContent, onChange]);
-
-  useEffect(() => {
-    if (formContent.items.length > 0 || Object.keys(content || {}).length === 0) {
-      handleContentChange();
-    }
-  }, [handleContentChange]);
-
-  /* ===================== Top-level adders ===================== */
-  const addTopLevelField = () => {
-    const newIdx = nextIdx(formContent.items as any);
-    const item: FieldItem = {
-      kind: 'FieldItem',
-      idx: newIdx,
-      path: `field_${newIdx}`,
-      ref: '',
-      editable: true,
-      required: false,
-      importance: 'normal',
-      ui: { kind: 'UIBlock', label: { fallback: 'New Field' }, override: false },
-      value: null,
-    };
-    setFormContent(prev => ({ ...prev, items: [...prev.items, item] }));
-  };
-
-  const addTopLevelSection = () => {
-    const newIdx = nextIdx(formContent.items as any);
-    const item: SectionItem = {
-      kind: 'SectionItem',
-      idx: newIdx,
-      path: `section_${newIdx}`,
-      label: { fallback: 'New Section' },
-      required: false,
-      hidden: false,
-      collapsed: false,
-      children: [],
-    };
-    setFormContent(prev => ({ ...prev, items: [...prev.items, item] }));
-  };
-
-  const addTopLevelCollectionField = () => {
-    const newIdx = nextIdx(formContent.items as any);
-    const item: CollectionFieldItem = {
-      kind: 'CollectionFieldItem',
-      idx: newIdx,
-      path: `cfield_${newIdx}`,
-      ref: '',
-      editable: true,
-      required: false,
-      importance: 'normal',
-      ui: { kind: 'UIBlock', label: { fallback: 'Collection Field' }, override: false },
-      min_instances: 0,
-      max_instances: 10,
-      instances: [],
-    };
-    setFormContent(prev => ({ ...prev, items: [...prev.items, item] }));
-  };
-
-  const addTopLevelCollectionSection = () => {
-    const newIdx = nextIdx(formContent.items as any);
-    const item: CollectionSection = {
-      kind: 'CollectionSection',
-      idx: newIdx,
-      path: `csection_${newIdx}`,
-      label: { fallback: 'Collection Section' },
-      required: false,
-      hidden: false,
-      collapsed: false,
-      min_instances: 0,
-      max_instances: 10,
-      instances: [],
-    };
-    setFormContent(prev => ({ ...prev, items: [...prev.items, item] }));
-  };
-
-  /* ===================== Generic item ops ===================== */
-  const updateItem = (index: number, updates: Partial<ContentItem>) => {
-    setFormContent(prev => ({
-      ...prev,
-      items: prev.items.map((item, i) => (i === index ? ({ ...item, ...updates } as ContentItem) : item)),
-    }));
-  };
-
-  const removeItem = (index: number) => {
-    setFormContent(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }));
-  };
-
-  /* ===================== Section ops (by index path) ===================== */
-  // path example: [topSectionIndex, nestedIndex, deeperIndex, ...] targeting SectionItem nodes
-  const updateSectionWith = (path: number[], updater: (section: SectionItem) => SectionItem) => {
-    setFormContent(prev => {
-      const newItems = [...prev.items];
-      const apply = (sect: SectionItem, rest: number[]): SectionItem => {
-        if (rest.length === 0) return updater(sect);
-        const [i, ...r] = rest;
-        const child = sect.children[i] as SectionItem;
-        if (!child || child.kind !== 'SectionItem') return sect;
-        const updatedChild = apply(child, r);
-        const newChildren = sect.children.map((c, idx) => (idx === i ? updatedChild : c));
-        return { ...sect, children: newChildren };
-      };
-
-      const [topIndex, ...rest] = path;
-      const top = newItems[topIndex];
-      if (!top || top.kind !== 'SectionItem') return prev;
-      const updatedTop = apply(top, rest);
-      newItems[topIndex] = updatedTop;
-      return { ...prev, items: newItems };
+  const commit = (updater: (p: FormContent) => FormContent) => {
+    setState(prev => {
+      const next = updater(prev);
+      // reindex top-level
+      next.items = reindex(next.items);
+      onChange(next as any);
+      return next;
     });
   };
 
-  const updateSectionAtPath = (path: number[], updates: Partial<SectionItem>) =>
-    updateSectionWith(path, s => ({ ...s, ...updates }));
-
-  const updateChildAt = (path: number[], childPath: string, updates: Partial<ContentItem>) =>
-    updateSectionWith(path, s => {
-      const updated = s.children.map((c: any) => (c?.path === childPath ? ({ ...c, ...updates } as ContentItem) : c));
-      return { ...s, children: updated };
-    });
-
-  const removeChildAt = (path: number[], childPath: string) =>
-    updateSectionWith(path, s => {
-      const updated = s.children.filter((c: any) => c?.path !== childPath);
-      return { ...s, children: updated };
-    });
-
-  const addFieldAt = (path: number[], parentPath: string) =>
-    updateSectionWith(path, s => {
-      const idx = nextIdx(s.children as any);
-      const item: FieldItem = {
+  /* ---------------- Top-level adders ---------------- */
+  const addField = () => commit(prev => ({
+    ...prev,
+    items: [
+      ...prev.items,
+      {
         kind: 'FieldItem',
-        idx,
-        path: `${parentPath}.field_${idx}`,
+        idx: nextIdx(prev.items as any),
+        path: `field_${nextIdx(prev.items as any)}`,
         ref: '',
         editable: true,
         required: false,
         importance: 'normal',
         ui: { kind: 'UIBlock', label: { fallback: 'New Field' }, override: false },
-        value: null,
-      };
-      return { ...s, children: reindexChildren([...s.children, item]) };
-    });
+      } as FieldItem,
+    ],
+  }));
 
-  const addSubsectionAt = (path: number[], parentPath: string) =>
-    updateSectionWith(path, s => {
-      const idx = nextIdx(s.children as any);
-      const item: SectionItem = {
+  const addSection = () => commit(prev => ({
+    ...prev,
+    items: [
+      ...prev.items,
+      {
         kind: 'SectionItem',
-        idx,
-        path: `${parentPath}.section_${idx}`,
-        label: { fallback: 'New Subsection' },
+        idx: nextIdx(prev.items as any),
+        path: `section_${nextIdx(prev.items as any)}`,
+        label: { fallback: 'New Section' },
         required: false,
         hidden: false,
         collapsed: false,
         children: [],
-      };
-      return { ...s, children: reindexChildren([...s.children, item]) };
-    });
+      } as SectionItem,
+    ],
+  }));
 
-  /* ===== NEW: Collection adders inside sections ===== */
-  const addCollectionFieldAt = (path: number[], parentPath: string) =>
-    updateSectionWith(path, s => {
-      const idx = nextIdx(s.children as any);
-      const item: CollectionFieldItem = {
+  const addCField = () => commit(prev => ({
+    ...prev,
+    items: [
+      ...prev.items,
+      {
         kind: 'CollectionFieldItem',
-        idx,
-        path: `${parentPath}.cfield_${idx}`,
+        idx: nextIdx(prev.items as any),
+        path: `cfield_${nextIdx(prev.items as any)}`,
         ref: '',
         editable: true,
         required: false,
@@ -375,658 +289,372 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
         ui: { kind: 'UIBlock', label: { fallback: 'Collection Field' }, override: false },
         min_instances: 0,
         max_instances: 10,
-        instances: [],
-      };
-      return { ...s, children: reindexChildren([...s.children, item]) };
-    });
+        default_instances: 1,
+      } as CollectionFieldItem,
+    ],
+  }));
 
-  const addCollectionSectionAt = (path: number[], parentPath: string) =>
-    updateSectionWith(path, s => {
-      const idx = nextIdx(s.children as any);
-      const item: CollectionSection = {
+  const addCSection = () => commit(prev => ({
+    ...prev,
+    items: [
+      ...prev.items,
+      {
         kind: 'CollectionSection',
-        idx,
-        path: `${parentPath}.csection_${idx}`,
+        idx: nextIdx(prev.items as any),
+        path: `csection_${nextIdx(prev.items as any)}`,
         label: { fallback: 'Collection Section' },
         required: false,
         hidden: false,
         collapsed: false,
         min_instances: 0,
         max_instances: 10,
-        instances: [],
+        default_instances: 1,
+        children: [],
+      } as CollectionSection,
+    ],
+  }));
+
+  /* ---------------- Generic update/remove ---------------- */
+  const updateItem = (index: number, patch: Partial<ContentItem>) =>
+    commit(prev => ({ ...prev, items: prev.items.map((it, i) => (i === index ? ({ ...it, ...patch } as ContentItem) : it)) }));
+
+  const removeItem = (index: number) =>
+    commit(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }));
+
+  /* ---------------- Section-like children ops ---------------- */
+  const addChildToSection = (owner: SectionItem | CollectionSection, kind: ContentItem['kind']) => {
+    const nextIndex = nextIdx(owner.children as any);
+    const base = owner.path;
+    let child: ContentItem;
+
+    if (kind === 'FieldItem') {
+      child = {
+        kind: 'FieldItem',
+        idx: nextIndex,
+        path: `${base}.field_${nextIndex}`,
+        ref: '',
+        editable: true,
+        required: false,
+        importance: 'normal',
+        ui: { kind: 'UIBlock', label: { fallback: 'New Field' }, override: false },
       };
-      return { ...s, children: reindexChildren([...s.children, item]) };
-    });
+    } else if (kind === 'SectionItem') {
+      child = {
+        kind: 'SectionItem',
+        idx: nextIndex,
+        path: `${base}.section_${nextIndex}`,
+        label: { fallback: 'New Subsection' },
+        required: false,
+        hidden: false,
+        collapsed: false,
+        children: [],
+      };
+    } else if (kind === 'CollectionFieldItem') {
+      child = {
+        kind: 'CollectionFieldItem',
+        idx: nextIndex,
+        path: `${base}.cfield_${nextIndex}`,
+        ref: '',
+        editable: true,
+        required: false,
+        importance: 'normal',
+        ui: { kind: 'UIBlock', label: { fallback: 'Collection Field' }, override: false },
+        min_instances: 0,
+        max_instances: 10,
+        default_instances: 1,
+      };
+    } else {
+      // CollectionSection
+      child = {
+        kind: 'CollectionSection',
+        idx: nextIndex,
+        path: `${base}.csection_${nextIndex}`,
+        label: { fallback: 'Collection Section' },
+        required: false,
+        hidden: false,
+        collapsed: false,
+        min_instances: 0,
+        max_instances: 10,
+        default_instances: 1,
+        children: [],
+      };
+    }
 
-  /* ===================== Editors ===================== */
-  const renderFieldEditor = (field: FieldItem, onUpdate: (updates: Partial<FieldItem>) => void, onRemove: () => void) => (
+    return reindex([...(owner.children || []), child]);
+  };
+
+  const replaceChildInSection = (
+    owner: SectionItem | CollectionSection,
+    childPath: string,
+    patch: Partial<ContentItem>
+  ) => reindex(owner.children.map(c => (c.path === childPath ? ({ ...(c as any), ...patch } as ContentItem) : c)));
+
+  const removeChildInSection = (owner: SectionItem | CollectionSection, childPath: string) =>
+    (owner.children || []).filter(c => c.path !== childPath);
+
+  /* ---------------- Editors ---------------- */
+  const FieldEditor = ({ item, onPatch, onRemove }: { item: FieldItem; onPatch: (p: Partial<FieldItem>) => void; onRemove: () => void }) => (
     <Card className="p-4">
-      <div className="flex items-start gap-4">
-        <GripVertical className="w-4 h-4 text-muted-foreground mt-2 flex-shrink-0" />
-        <div className="flex-1 space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Field Reference</Label>
-              <Select value={field.ref || undefined} onValueChange={(value) => onUpdate({ ref: value, path: value })}>
-                <SelectTrigger id={`field-ref-${field.idx}`}><SelectValue placeholder="Select field" /></SelectTrigger>
-                <SelectContent>
-                  {availableFields.map(af => (<SelectItem key={af.id} value={af.id}>{af.id}</SelectItem>))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Importance</Label>
-              <Select value={field.importance} onValueChange={(value: 'low'|'normal'|'high') => onUpdate({ importance: value })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="normal">Normal</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Index</Label>
-              <Input type="number" value={field.idx} onChange={(e) => onUpdate({ idx: parseInt(e.target.value) || 1 })} min="1" />
-            </div>
-          </div>
-
-          {/* UI overrides */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Label Fallback</Label>
-              <Input value={field.ui.label?.fallback || ''} onChange={(e) => onUpdate({ ui: { ...field.ui, label: { ...field.ui.label, fallback: e.target.value } } })} />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Label Key</Label>
-              <Input value={field.ui.label?.key || ''} onChange={(e) => onUpdate({ ui: { ...field.ui, label: { ...field.ui.label, key: e.target.value } } })} />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Help Fallback</Label>
-              <Input value={field.ui.help?.fallback || ''} onChange={(e) => onUpdate({ ui: { ...field.ui, help: { ...field.ui.help, fallback: e.target.value } } })} />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Help Key</Label>
-              <Input value={field.ui.help?.key || ''} onChange={(e) => onUpdate({ ui: { ...field.ui, help: { ...field.ui.help, key: e.target.value } } })} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Placeholder Fallback</Label>
-              <Input value={field.ui.placeholder?.fallback || ''} onChange={(e) => onUpdate({ ui: { ...field.ui, placeholder: { ...field.ui.placeholder, fallback: e.target.value } } })} />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Placeholder Key</Label>
-              <Input value={field.ui.placeholder?.key || ''} onChange={(e) => onUpdate({ ui: { ...field.ui, placeholder: { ...field.ui.placeholder, key: e.target.value } } })} />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Switch checked={field.required} onCheckedChange={(checked) => onUpdate({ required: checked })} />
-              <Label className="text-xs">Required</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch checked={field.editable} onCheckedChange={(checked) => onUpdate({ editable: checked })} />
-              <Label className="text-xs">Editable</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch checked={field.ui.override} onCheckedChange={(checked) => onUpdate({ ui: { ...field.ui, override: checked } })} />
-              <Label className="text-xs">Override</Label>
-            </div>
-            <Badge variant={field.importance === 'high' ? 'destructive' : field.importance === 'normal' ? 'default' : 'secondary'}>
-              {field.importance}
-            </Badge>
-          </div>
-        </div>
+      <div className="flex items-start justify-between">
+        <CardTitle className="text-sm">Field</CardTitle>
         <Button onClick={onRemove} variant="ghost" size="sm"><Trash2 className="w-4 h-4 text-destructive" /></Button>
       </div>
+
+      <CardContent className="mt-3 space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Ref</Label>
+            <Select value={item.ref || undefined} onValueChange={(value) => onPatch({ ref: value, path: value })}>
+              <SelectTrigger><SelectValue placeholder="Select field" /></SelectTrigger>
+              <SelectContent>
+                {availableFields.map(af => (<SelectItem key={af.id} value={af.id}>{af.id}</SelectItem>))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Importance</Label>
+            <Select value={item.importance} onValueChange={(v: Importance) => onPatch({ importance: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="normal">Normal</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Index</Label>
+            <Input type="number" value={item.idx} onChange={(e) => onPatch({ idx: parseInt(e.target.value) || 1 })} min={1} />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Label (fallback)</Label>
+            <Input value={item.ui.label?.fallback || ''} onChange={(e) => onPatch({ ui: { ...item.ui, label: { ...item.ui.label, fallback: e.target.value } } })} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Label (key)</Label>
+            <Input value={item.ui.label?.key || ''} onChange={(e) => onPatch({ ui: { ...item.ui, label: { ...item.ui.label, key: e.target.value } } })} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Help (fallback)</Label>
+            <Input value={item.ui.help?.fallback || ''} onChange={(e) => onPatch({ ui: { ...item.ui, help: { ...item.ui.help, fallback: e.target.value } } })} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Help (key)</Label>
+            <Input value={item.ui.help?.key || ''} onChange={(e) => onPatch({ ui: { ...item.ui, help: { ...item.ui.help, key: e.target.value } } })} />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Switch checked={item.required} onCheckedChange={(checked) => onPatch({ required: checked })} />
+            <Label className="text-xs">Required</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={item.editable} onCheckedChange={(checked) => onPatch({ editable: checked })} />
+            <Label className="text-xs">Editable</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={item.ui.override} onCheckedChange={(checked) => onPatch({ ui: { ...item.ui, override: checked } })} />
+            <Label className="text-xs">Override</Label>
+          </div>
+          <Badge variant={item.importance === 'high' ? 'destructive' : item.importance === 'normal' ? 'default' : 'secondary'}>
+            {item.importance}
+          </Badge>
+        </div>
+      </CardContent>
     </Card>
   );
 
-  /* ===== NEW: Collection Field editor ===== */
-  const renderCollectionFieldEditor = (
-    item: CollectionFieldItem,
-    onUpdate: (updates: Partial<CollectionFieldItem>) => void,
-    onRemove: () => void
-  ) => {
-    const addInst = () => {
-      const next = reindexInstances([...(item.instances || []), { instance_id: 0, path: '', value: '' }], item.path);
-      onUpdate({ instances: next });
-    };
-    const rmInst = (id: number) => {
-      const next = reindexInstances((item.instances || []).filter(i => i.instance_id !== id), item.path);
-      onUpdate({ instances: next });
-    };
-    const mvInst = (id: number, dir: -1 | 1) => {
-      const arr = [...(item.instances || [])];
-      const idx = arr.findIndex(x => x.instance_id === id);
-      if (idx < 0) return;
-      const ni = idx + dir;
-      if (ni < 0 || ni >= arr.length) return;
-      const tmp = arr[idx]; arr[idx] = arr[ni]; arr[ni] = tmp;
-      onUpdate({ instances: reindexInstances(arr, item.path) });
-    };
-    const setInstVal = (id: number, val: string) => {
-      onUpdate({
-        instances: (item.instances || []).map(i => (i.instance_id === id ? { ...i, value: val } : i)),
-      });
-    };
+  const CFieldEditor = ({
+    item, onPatch, onRemove,
+  }: { item: CollectionFieldItem; onPatch: (p: Partial<CollectionFieldItem>) => void; onRemove: () => void }) => (
+    <Card className="p-4 border-primary/30">
+      <div className="flex items-start justify-between">
+        <CardTitle className="text-sm">Collection Field (template only)</CardTitle>
+        <Button onClick={onRemove} variant="ghost" size="sm"><Trash2 className="w-4 h-4 text-destructive" /></Button>
+      </div>
 
-    return (
-      <Card className="p-4 border-primary/30">
-        <div className="flex items-start gap-4">
-          <GripVertical className="w-4 h-4 text-muted-foreground mt-2 flex-shrink-0" />
-          <div className="flex-1 space-y-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm">Collection Field</CardTitle>
-              <div className="flex gap-2">
-                <Button onClick={addInst} size="sm" variant="outline">
-                  <CopyPlus className="w-4 h-4 mr-1" /> Add instance
-                </Button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Field Reference</Label>
-                <Select value={item.ref || undefined} onValueChange={(value) => onUpdate({ ref: value, path: item.path || value })}>
-                  <SelectTrigger><SelectValue placeholder="Select field" /></SelectTrigger>
-                  <SelectContent>
-                    {availableFields.map(af => (<SelectItem key={af.id} value={af.id}>{af.id}</SelectItem>))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Min</Label>
-                <Input type="number" value={item.min_instances} onChange={(e) => onUpdate({ min_instances: parseInt(e.target.value) || 0 })} />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Max</Label>
-                <Input type="number" value={item.max_instances} onChange={(e) => onUpdate({ max_instances: parseInt(e.target.value) || 0 })} />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Index</Label>
-                <Input type="number" value={item.idx} onChange={(e) => onUpdate({ idx: parseInt(e.target.value) || 1 })} />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Switch checked={item.required} onCheckedChange={(checked) => onUpdate({ required: checked })} />
-                <Label className="text-xs">Required</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch checked={item.editable} onCheckedChange={(checked) => onUpdate({ editable: checked })} />
-                <Label className="text-xs">Editable</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch checked={item.ui.override} onCheckedChange={(checked) => onUpdate({ ui: { ...item.ui, override: checked } })} />
-                <Label className="text-xs">Override</Label>
-              </div>
-              <Badge variant={item.importance === 'high' ? 'destructive' : item.importance === 'normal' ? 'default' : 'secondary'}>
-                {item.importance}
-              </Badge>
-            </div>
-
-            {/* Instances */}
-            {(item.instances || []).length === 0 ? (
-              <div className="text-sm text-muted-foreground border border-dashed rounded p-3">No instances yet.</div>
-            ) : (
-              <div className="space-y-3">
-                {(item.instances || []).map(inst => (
-                  <Card key={inst.instance_id} className="p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Badge variant="outline"># {inst.instance_id}</Badge>
-                        <span className="text-xs text-muted-foreground">{inst.path}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => mvInst(inst.instance_id, -1)}><ArrowUp className="w-4 h-4" /></Button>
-                        <Button variant="outline" size="sm" onClick={() => mvInst(inst.instance_id, +1)}><ArrowDown className="w-4 h-4" /></Button>
-                        <Button variant="ghost" size="sm" onClick={() => rmInst(inst.instance_id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
-                      </div>
-                    </div>
-                    <div className="mt-3 space-y-1">
-                      <Label className="text-xs">Initial Value (string)</Label>
-                      <Input
-                        value={String(inst.value ?? '')}
-                        onChange={(e) => setInstVal(inst.instance_id, e.target.value)}
-                        placeholder="Enter initial value"
-                      />
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
+      <CardContent className="mt-3 space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Ref</Label>
+            <Select value={item.ref || undefined} onValueChange={(value) => onPatch({ ref: value, path: item.path || value })}>
+              <SelectTrigger><SelectValue placeholder="Select field" /></SelectTrigger>
+              <SelectContent>
+                {availableFields.map(af => (<SelectItem key={af.id} value={af.id}>{af.id}</SelectItem>))}
+              </SelectContent>
+            </Select>
           </div>
-          <Button onClick={onRemove} variant="ghost" size="sm"><Trash2 className="w-4 h-4 text-destructive" /></Button>
-        </div>
-      </Card>
-    );
-  };
-
-  /* ===== NEW: Collection Section editor ===== */
-  const renderCollectionSectionEditor = (
-    item: CollectionSection,
-    onUpdate: (updates: Partial<CollectionSection>) => void,
-    onRemove: () => void,
-    // children ops for a specific instance
-    onAddFieldToInstance: (instance_id: number) => void,
-    onAddSubsectionToInstance: (instance_id: number) => void,
-    onAddCFieldToInstance: (instance_id: number) => void,
-    onAddCSectionToInstance: (instance_id: number) => void,
-    onRemoveChildOfInstance: (instance_id: number, childPath: string) => void,
-    onUpdateChildOfInstance: (instance_id: number, childPath: string, updates: Partial<ContentItem>) => void
-  ) => {
-    const addInst = () => {
-      const next = reindexInstances([...(item.instances || []), { instance_id: 0, path: '', children: [] }], item.path);
-      onUpdate({ instances: next });
-    };
-    const rmInst = (id: number) => {
-      const next = reindexInstances((item.instances || []).filter(i => i.instance_id !== id), item.path);
-      onUpdate({ instances: next });
-    };
-    const mvInst = (id: number, dir: -1 | 1) => {
-      const arr = [...(item.instances || [])];
-      const idx = arr.findIndex(x => x.instance_id === id);
-      if (idx < 0) return;
-      const ni = idx + dir;
-      if (ni < 0 || ni >= arr.length) return;
-      const tmp = arr[idx]; arr[idx] = arr[ni]; arr[ni] = tmp;
-      onUpdate({ instances: reindexInstances(arr, item.path) });
-    };
-
-    return (
-      <Card className="p-4 border-secondary/30">
-        <div className="flex items-start gap-4">
-          <GripVertical className="w-4 h-4 text-muted-foreground mt-2 flex-shrink-0" />
-          <div className="flex-1 space-y-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm">Collection Section</CardTitle>
-              <div className="flex gap-2">
-                <Button onClick={addInst} size="sm" variant="outline">
-                  <CopyPlus className="w-4 h-4 mr-1" /> Add instance
-                </Button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Label Fallback</Label>
-                <Input value={item.label.fallback} onChange={(e) => onUpdate({ label: { ...item.label, fallback: e.target.value } })} />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Label Key</Label>
-                <Input value={item.label.key || ''} onChange={(e) => onUpdate({ label: { ...item.label, key: e.target.value } })} />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Min</Label>
-                <Input type="number" value={item.min_instances} onChange={(e) => onUpdate({ min_instances: parseInt(e.target.value) || 0 })} />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Max</Label>
-                <Input type="number" value={item.max_instances} onChange={(e) => onUpdate({ max_instances: parseInt(e.target.value) || 0 })} />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Index</Label>
-                <Input type="number" value={item.idx} onChange={(e) => onUpdate({ idx: parseInt(e.target.value) || 1 })} />
-              </div>
-            </div>
-
-            {/* Instances */}
-            {(item.instances || []).length === 0 ? (
-              <div className="text-sm text-muted-foreground border border-dashed rounded p-3">No instances yet.</div>
-            ) : (
-              <div className="space-y-4">
-                {(item.instances || []).map(inst => (
-                  <Card key={inst.instance_id} className="p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Badge variant="outline"># {inst.instance_id}</Badge>
-                        <span className="text-xs text-muted-foreground">{inst.path}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => mvInst(inst.instance_id, -1)}><ArrowUp className="w-4 h-4" /></Button>
-                        <Button variant="outline" size="sm" onClick={() => mvInst(inst.instance_id, +1)}><ArrowDown className="w-4 h-4" /></Button>
-                        <Button variant="ghost" size="sm" onClick={() => rmInst(inst.instance_id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
-                      </div>
-                    </div>
-
-                    {/* Instance children controls */}
-                    <div className="mt-3 flex items-center gap-2">
-                      <Button size="sm" variant="outline" onClick={() => onAddFieldToInstance(inst.instance_id)}>
-                        <Plus className="w-4 h-4 mr-1" /> Field
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => onAddSubsectionToInstance(inst.instance_id)}>
-                        <Plus className="w-4 h-4 mr-1" /> Subsection
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => onAddCFieldToInstance(inst.instance_id)}>
-                        <Plus className="w-4 h-4 mr-1" /> Collection Field
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => onAddCSectionToInstance(inst.instance_id)}>
-                        <Plus className="w-4 h-4 mr-1" /> Collection Section
-                      </Button>
-                    </div>
-
-                    <div className="mt-3 space-y-3">
-                      {(inst.children || []).length === 0 ? (
-                        <div className="text-xs text-muted-foreground">No content in this instance.</div>
-                      ) : (
-                        (inst.children || []).map((child, ci) => {
-                          // Render child editors polymorphically
-                          const onInstChildUpdate = (updates: Partial<ContentItem>) =>
-                            onUpdateChildOfInstance(inst.instance_id, (child as any).path, updates);
-                          const onInstChildRemove = () => onRemoveChildOfInstance(inst.instance_id, (child as any).path);
-
-                          if (isField(child)) {
-                            return renderFieldEditor(child, onInstChildUpdate as any, onInstChildRemove);
-                          }
-                          if (isSection(child)) {
-                            return (
-                              <div key={(child as any).path || `inst-child-${ci}`} className="ml-4 border-l-2 border-l-muted pl-4">
-                                {renderNestedSectionEditor(child, [], 1, (updates) =>
-                                  onUpdateChildOfInstance(inst.instance_id, (child as any).path, updates)
-                                , () => onRemoveChildOfInstance(inst.instance_id, (child as any).path)
-                                , inst.instance_id)}
-                              </div>
-                            );
-                          }
-                          if (isCField(child)) {
-                            return renderCollectionFieldEditor(child as any, onInstChildUpdate as any, onInstChildRemove);
-                          }
-                          if (isCSection(child)) {
-                            // recursive collection section inside an instance
-                            return renderCollectionSectionEditor(
-                              child as any,
-                              onInstChildUpdate as any,
-                              onInstChildRemove,
-                              // inner instance child ops
-                              (iid) => onAddFieldToInstance(iid),        // reuse parent ops by instance id
-                              (iid) => onAddSubsectionToInstance(iid),
-                              (iid) => onAddCFieldToInstance(iid),
-                              (iid) => onAddCSectionToInstance(iid),
-                              (iid, p) => onRemoveChildOfInstance(iid, p),
-                              (iid, p, u) => onUpdateChildOfInstance(iid, p, u),
-                            );
-                          }
-                          return null;
-                        })
-                      )}
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
+          <div className="space-y-1">
+            <Label className="text-xs">Min</Label>
+            <Input type="number" value={item.min_instances} onChange={(e) => onPatch({ min_instances: parseInt(e.target.value) || 0 })} />
           </div>
-          <Button onClick={onRemove} variant="ghost" size="sm"><Trash2 className="w-4 h-4 text-destructive" /></Button>
+          <div className="space-y-1">
+            <Label className="text-xs">Max</Label>
+            <Input type="number" value={item.max_instances} onChange={(e) => onPatch({ max_instances: parseInt(e.target.value) || 0 })} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Default</Label>
+            <Input type="number" value={item.default_instances} onChange={(e) => onPatch({ default_instances: parseInt(e.target.value) || 1 })} />
+          </div>
         </div>
-      </Card>
-    );
-  };
 
-  /* ===== Nested Section editor (kept, with buttons to add collections) ===== */
-  const renderNestedSectionEditor = (
-    section: SectionItem,
-    path: number[],
-    depth: number = 1,
-    onThisUpdate?: (updates: Partial<SectionItem>) => void,
-    onThisRemove?: () => void,
-    // for collection section instance context (optional)
-    instId?: number
-  ) => (
-    <Card className={`border-l-4 ${depth === 1 ? 'border-l-secondary' : 'border-l-muted'}`}>
-      <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Label (fallback)</Label>
+            <Input value={item.ui.label?.fallback || ''} onChange={(e) => onPatch({ ui: { ...item.ui, label: { ...item.ui.label, fallback: e.target.value } } })} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Label (key)</Label>
+            <Input value={item.ui.label?.key || ''} onChange={(e) => onPatch({ ui: { ...item.ui, label: { ...item.ui.label, key: e.target.value } } })} />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => (onThisUpdate ? onThisUpdate({ collapsed: !section.collapsed }) : updateSectionAtPath(path, { collapsed: !section.collapsed }))}>
-              {section.collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </Button>
-            <CardTitle className="text-sm">Subsection: {section.label.fallback}</CardTitle>
-            <Badge variant="outline" className="text-xs">Level {depth + 1}</Badge>
+            <Switch checked={item.required} onCheckedChange={(checked) => onPatch({ required: checked })} />
+            <Label className="text-xs">Required</Label>
           </div>
-          <Button onClick={() => (onThisRemove ? onThisRemove() : removeChildAt(path.slice(0, -1), section.path))} variant="ghost" size="sm">
-            <Trash2 className="w-4 h-4 text-destructive" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Switch checked={item.editable} onCheckedChange={(checked) => onPatch({ editable: checked })} />
+            <Label className="text-xs">Editable</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={item.ui.override} onCheckedChange={(checked) => onPatch({ ui: { ...item.ui, override: checked } })} />
+            <Label className="text-xs">Override</Label>
+          </div>
+          <Badge variant={item.importance === 'high' ? 'destructive' : item.importance === 'normal' ? 'default' : 'secondary'}>
+            {item.importance}
+          </Badge>
         </div>
-      </CardHeader>
+      </CardContent>
+    </Card>
+  );
 
-      {!section.collapsed && (
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Section Path</Label>
-              <Input
-                value={section.path}
-                onChange={(e) => (onThisUpdate ? onThisUpdate({ path: e.target.value }) : updateSectionAtPath(path, { path: e.target.value }))}
-                placeholder="section_path"
-              />
+  const SectionLikeEditor = ({
+    item, onPatch, onRemove, isCollection,
+  }: {
+    item: SectionItem | CollectionSection;
+    onPatch: (p: Partial<SectionItem & CollectionSection>) => void;
+    onRemove: () => void;
+    isCollection?: boolean;
+  }) => (
+    <Card className={`p-4 ${isCollection ? 'border-secondary/30' : ''}`}>
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => onPatch({ collapsed: !(item as any).collapsed })}>
+            {(item as any).collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </Button>
+          <CardTitle className="text-sm">{isCollection ? 'Collection Section (template only)' : 'Section'}</CardTitle>
+          <Badge variant="outline" className="text-xs">idx: {(item as any).idx}</Badge>
+        </div>
+        <Button onClick={onRemove} variant="ghost" size="sm"><Trash2 className="w-4 h-4 text-destructive" /></Button>
+      </div>
+
+      {!(item as any).collapsed && (
+        <CardContent className="mt-3 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Path</Label>
+              <Input value={item.path} onChange={(e) => onPatch({ path: e.target.value })} />
             </div>
-            <div className="space-y-2">
-              <Label>Index</Label>
-              <Input
-                type="number"
-                value={section.idx}
-                onChange={(e) => (onThisUpdate ? onThisUpdate({ idx: parseInt(e.target.value) || 1 }) : updateSectionAtPath(path, { idx: parseInt(e.target.value) || 1 }))}
-                min="1"
-              />
+            <div className="space-y-1">
+              <Label className="text-xs">Label (fallback)</Label>
+              <Input value={item.label?.fallback || ''} onChange={(e) => onPatch({ label: { ...(item.label || { fallback: '' }), fallback: e.target.value } as any })} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Label (key)</Label>
+              <Input value={item.label?.key || ''} onChange={(e) => onPatch({ label: { ...(item.label || { fallback: '' }), key: e.target.value } as any })} />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Label (Fallback)</Label>
-              <Input
-                value={section.label.fallback}
-                onChange={(e) => (onThisUpdate ? onThisUpdate({ label: { ...section.label, fallback: e.target.value } }) : updateSectionAtPath(path, { label: { ...section.label, fallback: e.target.value } }))}
-              />
+          {isCollection && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Min</Label>
+                <Input type="number" value={(item as any).min_instances} onChange={(e) => onPatch({ min_instances: parseInt(e.target.value) || 0 } as any)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Max</Label>
+                <Input type="number" value={(item as any).max_instances} onChange={(e) => onPatch({ max_instances: parseInt(e.target.value) || 0 } as any)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Default</Label>
+                <Input type="number" value={(item as any).default_instances} onChange={(e) => onPatch({ default_instances: parseInt(e.target.value) || 1 } as any)} />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Label (Key)</Label>
-              <Input
-                value={section.label.key || ''}
-                onChange={(e) => (onThisUpdate ? onThisUpdate({ label: { ...section.label, key: e.target.value } }) : updateSectionAtPath(path, { label: { ...section.label, key: e.target.value } }))}
-              />
-            </div>
-          </div>
+          )}
 
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Switch checked={section.required} onCheckedChange={(checked) => (onThisUpdate ? onThisUpdate({ required: checked }) : updateSectionAtPath(path, { required: checked }))} />
-              <Label className="text-xs">Required</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch checked={section.hidden} onCheckedChange={(checked) => (onThisUpdate ? onThisUpdate({ hidden: checked }) : updateSectionAtPath(path, { hidden: checked }))} />
-              <Label className="text-xs">Hidden</Label>
-            </div>
-          </div>
-
-          {/* Adders */}
-          <div className="flex items-center justify-between">
-            <h4 className="font-medium">Content</h4>
+          {/* Children (TEMPLATE editing) */}
+          <div className="flex items-center justify-between mt-2">
+            <div className="font-medium">Content</div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => (onThisUpdate ? onThisUpdate({ children: reindexChildren([...(section.children || []), {
-                kind: 'FieldItem', idx: nextIdx(section.children as any), path: `${section.path}.field_${nextIdx(section.children as any)}`, ref: '', editable: true, required: false, importance: 'normal', ui: { kind: 'UIBlock', label: { fallback: 'New Field' }, override: false }, value: null,
-              } as FieldItem]) }) : addFieldAt(path, section.path))}>
+              <Button variant="outline" size="sm" onClick={() => {
+                const children = addChildToSection(item, 'FieldItem');
+                onPatch({ children } as any);
+              }}>
                 <Plus className="w-4 h-4 mr-1" /> Field
               </Button>
-              <Button variant="outline" size="sm" onClick={() => (onThisUpdate ? onThisUpdate({ children: reindexChildren([...(section.children || []), {
-                kind: 'SectionItem', idx: nextIdx(section.children as any), path: `${section.path}.section_${nextIdx(section.children as any)}`, label: { fallback: 'New Subsection' }, required: false, hidden: false, collapsed: false, children: [],
-              } as SectionItem]) }) : addSubsectionAt(path, section.path))}>
+              <Button variant="outline" size="sm" onClick={() => {
+                const children = addChildToSection(item, 'SectionItem');
+                onPatch({ children } as any);
+              }}>
                 <Plus className="w-4 h-4 mr-1" /> Subsection
               </Button>
-              <Button variant="outline" size="sm" onClick={() => (onThisUpdate ? onThisUpdate({ children: reindexChildren([...(section.children || []), {
-                kind: 'CollectionFieldItem', idx: nextIdx(section.children as any), path: `${section.path}.cfield_${nextIdx(section.children as any)}`, ref: '', editable: true, required: false, importance: 'normal', ui: { kind: 'UIBlock', label: { fallback: 'Collection Field' }, override: false }, min_instances: 0, max_instances: 10, instances: [],
-              } as CollectionFieldItem]) }) : addCollectionFieldAt(path, section.path))}>
+              <Button variant="outline" size="sm" onClick={() => {
+                const children = addChildToSection(item, 'CollectionFieldItem');
+                onPatch({ children } as any);
+              }}>
                 <Plus className="w-4 h-4 mr-1" /> Collection Field
               </Button>
-              <Button variant="outline" size="sm" onClick={() => (onThisUpdate ? onThisUpdate({ children: reindexChildren([...(section.children || []), {
-                kind: 'CollectionSection', idx: nextIdx(section.children as any), path: `${section.path}.csection_${nextIdx(section.children as any)}`, label: { fallback: 'Collection Section' }, required: false, hidden: false, collapsed: false, min_instances: 0, max_instances: 10, instances: [],
-              } as CollectionSection]) }) : addCollectionSectionAt(path, section.path))}>
+              <Button variant="outline" size="sm" onClick={() => {
+                const children = addChildToSection(item, 'CollectionSection');
+                onPatch({ children } as any);
+              }}>
                 <Plus className="w-4 h-4 mr-1" /> Collection Section
               </Button>
             </div>
           </div>
 
-          {/* Child list */}
           <div className="space-y-3">
-            {(section.children || []).length === 0 ? (
-              <div className="text-xs text-muted-foreground">No content in this subsection</div>
+            {(item.children || []).length === 0 ? (
+              <div className="text-xs text-muted-foreground">No content in this {isCollection ? 'collection section' : 'section'}.</div>
             ) : (
-              (section.children || []).map((child, childIndex) => {
-                const onChildUpdate = (updates: Partial<ContentItem>) =>
-                  (onThisUpdate
-                    ? onThisUpdate({ children: reindexChildren(section.children.map(c => (c.path === (child as any).path ? { ...(c as any), ...updates } : c)) as any) })
-                    : updateChildAt(path, (child as any).path, updates));
-                const onChildRemove = () =>
-                  (onThisRemove
-                    ? onThisUpdate?.({ children: (section.children || []).filter(c => c.path !== (child as any).path) as any })
-                    : removeChildAt(path, (child as any).path));
+              item.children.map((child, idx) => {
+                const patchChild = (patch: Partial<ContentItem>) =>
+                  onPatch({ children: replaceChildInSection(item, child.path, patch) } as any);
+                const removeChild = () =>
+                  onPatch({ children: reindex(removeChildInSection(item, child.path)) } as any);
 
-                if (isField(child)) return renderFieldEditor(child, onChildUpdate as any, onChildRemove);
-                if (isCField(child)) return renderCollectionFieldEditor(child as any, onChildUpdate as any, onChildRemove);
+                if (isField(child)) return <FieldEditor key={child.path} item={child} onPatch={patchChild as any} onRemove={removeChild} />;
+                if (isCField(child)) return <CFieldEditor key={child.path} item={child} onPatch={patchChild as any} onRemove={removeChild} />;
+
                 if (isCSection(child)) {
-                  // instance child ops within this collection section (by instance id)
-                  const onAddFieldToInstance = (iid: number) =>
-                    onChildUpdate({
-                      instances: reindexInstances(
-                        (child as any).instances.map((inst: CollectionInstance) =>
-                          inst.instance_id === iid
-                            ? { ...inst, children: reindexChildren([...(inst.children || []), {
-                                kind: 'FieldItem',
-                                idx: nextIdx(inst.children as any),
-                                path: `${(child as any).path}.inst_${iid}.field_${nextIdx(inst.children as any)}`,
-                                ref: '',
-                                editable: true,
-                                required: false,
-                                importance: 'normal',
-                                ui: { kind: 'UIBlock', label: { fallback: 'New Field' }, override: false },
-                                value: null,
-                              } as FieldItem]) }
-                            : inst
-                        ),
-                        (child as any).path
-                      )
-                    } as any);
-
-                  const onAddSubsectionToInstance = (iid: number) =>
-                    onChildUpdate({
-                      instances: reindexInstances(
-                        (child as any).instances.map((inst: CollectionInstance) =>
-                          inst.instance_id === iid
-                            ? { ...inst, children: reindexChildren([...(inst.children || []), {
-                                kind: 'SectionItem',
-                                idx: nextIdx(inst.children as any),
-                                path: `${(child as any).path}.inst_${iid}.section_${nextIdx(inst.children as any)}`,
-                                label: { fallback: 'New Subsection' },
-                                required: false,
-                                hidden: false,
-                                collapsed: false,
-                                children: [],
-                              } as SectionItem]) }
-                            : inst
-                        ),
-                        (child as any).path
-                      )
-                    } as any);
-
-                  const onAddCFieldToInstance = (iid: number) =>
-                    onChildUpdate({
-                      instances: reindexInstances(
-                        (child as any).instances.map((inst: CollectionInstance) =>
-                          inst.instance_id === iid
-                            ? { ...inst, children: reindexChildren([...(inst.children || []), {
-                                kind: 'CollectionFieldItem',
-                                idx: nextIdx(inst.children as any),
-                                path: `${(child as any).path}.inst_${iid}.cfield_${nextIdx(inst.children as any)}`,
-                                ref: '',
-                                editable: true,
-                                required: false,
-                                importance: 'normal',
-                                ui: { kind: 'UIBlock', label: { fallback: 'Collection Field' }, override: false },
-                                min_instances: 0,
-                                max_instances: 10,
-                                instances: [],
-                              } as CollectionFieldItem]) }
-                            : inst
-                        ),
-                        (child as any).path
-                      )
-                    } as any);
-
-                  const onAddCSectionToInstance = (iid: number) =>
-                    onChildUpdate({
-                      instances: reindexInstances(
-                        (child as any).instances.map((inst: CollectionInstance) =>
-                          inst.instance_id === iid
-                            ? { ...inst, children: reindexChildren([...(inst.children || []), {
-                                kind: 'CollectionSection',
-                                idx: nextIdx(inst.children as any),
-                                path: `${(child as any).path}.inst_${iid}.csection_${nextIdx(inst.children as any)}`,
-                                label: { fallback: 'Collection Section' },
-                                required: false,
-                                hidden: false,
-                                collapsed: false,
-                                min_instances: 0,
-                                max_instances: 10,
-                                instances: [],
-                              } as CollectionSection]) }
-                            : inst
-                        ),
-                        (child as any).path
-                      )
-                    } as any);
-
-                  const onRemoveChildOfInstance = (iid: number, childPath: string) =>
-                    onChildUpdate({
-                      instances: reindexInstances(
-                        (child as any).instances.map((inst: CollectionInstance) =>
-                          inst.instance_id === iid
-                            ? { ...inst, children: (inst.children || []).filter(c => c.path !== childPath) }
-                            : inst
-                        ),
-                        (child as any).path
-                      )
-                    } as any);
-
-                  const onUpdateChildOfInstance = (iid: number, childPath: string, updates: Partial<ContentItem>) =>
-                    onChildUpdate({
-                      instances: reindexInstances(
-                        (child as any).instances.map((inst: CollectionInstance) =>
-                          inst.instance_id === iid
-                            ? {
-                                ...inst,
-                                children: reindexChildren(
-                                  (inst.children || []).map(c => (c.path === childPath ? ({ ...(c as any), ...updates } as ContentItem) : c))
-                                ),
-                              }
-                            : inst
-                        ),
-                        (child as any).path
-                      )
-                    } as any);
-
-                  return renderCollectionSectionEditor(
-                    child as any,
-                    onChildUpdate as any,
-                    onChildRemove,
-                    onAddFieldToInstance,
-                    onAddSubsectionToInstance,
-                    onAddCFieldToInstance,
-                    onAddCSectionToInstance,
-                    onRemoveChildOfInstance,
-                    onUpdateChildOfInstance
+                  return (
+                    <SectionLikeEditor
+                      key={child.path}
+                      item={child}
+                      isCollection
+                      onPatch={patchChild as any}
+                      onRemove={removeChild}
+                    />
                   );
                 }
-                // regular Section
+
                 if (isSection(child)) {
                   return (
-                    <div key={(child as any).path || `child-${childIndex}`} className="ml-4 border-l-2 border-l-muted pl-4">
-                      {renderNestedSectionEditor(child, [...path, childIndex], depth + 1)}
-                    </div>
+                    <SectionLikeEditor
+                      key={child.path}
+                      item={child}
+                      onPatch={patchChild as any}
+                      onRemove={removeChild}
+                    />
                   );
                 }
+
                 return null;
               })
             )}
@@ -1036,217 +664,55 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
     </Card>
   );
 
-  /* ===================== Top-level render ===================== */
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-medium">Form Content (v2-items)</h3>
-          <p className="text-sm text-muted-foreground">Configure fields, sections, and collections</p>
+          <p className="text-sm text-muted-foreground">Fields, sections, and collection templates (no instances in library)</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button onClick={addTopLevelField} variant="outline" size="sm">
-            <Plus className="w-4 h-4 mr-2" /> Field
-          </Button>
-          <Button onClick={addTopLevelSection} variant="outline" size="sm">
-            <Plus className="w-4 h-4 mr-2" /> Section
-          </Button>
-          <Button onClick={addTopLevelCollectionField} variant="outline" size="sm">
-            <Plus className="w-4 h-4 mr-2" /> Collection Field
-          </Button>
-          <Button onClick={addTopLevelCollectionSection} variant="outline" size="sm">
-            <Plus className="w-4 h-4 mr-2" /> Collection Section
-          </Button>
+          <Button onClick={addField} variant="outline" size="sm"><Plus className="w-4 h-4 mr-2" /> Field</Button>
+          <Button onClick={addSection} variant="outline" size="sm"><Plus className="w-4 h-4 mr-2" /> Section</Button>
+          <Button onClick={addCField} variant="outline" size="sm"><Plus className="w-4 h-4 mr-2" /> Collection Field</Button>
+          <Button onClick={addCSection} variant="outline" size="sm"><Plus className="w-4 h-4 mr-2" /> Collection Section</Button>
         </div>
       </div>
 
-      {formContent.items.length === 0 ? (
+      {state.items.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="flex items-center justify-center py-8">
             <div className="text-center">
               <p className="text-muted-foreground mb-4">No content configured</p>
               <div className="flex gap-2 justify-center">
-                <Button onClick={addTopLevelField} variant="outline"><Plus className="w-4 h-4 mr-2" /> Field</Button>
-                <Button onClick={addTopLevelSection} variant="outline"><Plus className="w-4 h-4 mr-2" /> Section</Button>
-                <Button onClick={addTopLevelCollectionField} variant="outline"><Plus className="w-4 h-4 mr-2" /> Collection Field</Button>
-                <Button onClick={addTopLevelCollectionSection} variant="outline"><Plus className="w-4 h-4 mr-2" /> Collection Section</Button>
+                <Button onClick={addField} variant="outline"><Plus className="w-4 h-4 mr-2" /> Field</Button>
+                <Button onClick={addSection} variant="outline"><Plus className="w-4 h-4 mr-2" /> Section</Button>
+                <Button onClick={addCField} variant="outline"><Plus className="w-4 h-4 mr-2" /> Collection Field</Button>
+                <Button onClick={addCSection} variant="outline"><Plus className="w-4 h-4 mr-2" /> Collection Section</Button>
               </div>
             </div>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-4">
-          {formContent.items.map((item, index) => {
-            const onUpdate = (updates: Partial<ContentItem>) => updateItem(index, updates);
+          {state.items.map((item, index) => {
+            const onPatch = (patch: Partial<ContentItem>) => updateItem(index, patch);
             const onRemove = () => removeItem(index);
 
-            if (isField(item)) return renderFieldEditor(item, onUpdate as any, onRemove);
-            if (isCField(item)) return renderCollectionFieldEditor(item as any, onUpdate as any, onRemove);
-            if (isCSection(item)) {
-              // instance child ops at top-level
-              const onAddFieldToInstance = (iid: number) =>
-                onUpdate({
-                  instances: reindexInstances(
-                    (item as CollectionSection).instances.map(inst =>
-                      inst.instance_id === iid
-                        ? {
-                            ...inst,
-                            children: reindexChildren([...(inst.children || []), {
-                              kind: 'FieldItem',
-                              idx: nextIdx(inst.children as any),
-                              path: `${item.path}.inst_${iid}.field_${nextIdx(inst.children as any)}`,
-                              ref: '',
-                              editable: true,
-                              required: false,
-                              importance: 'normal',
-                              ui: { kind: 'UIBlock', label: { fallback: 'New Field' }, override: false },
-                              value: null,
-                            } as FieldItem]),
-                          }
-                        : inst
-                    ),
-                    item.path
-                  ),
-                } as any);
-
-              const onAddSubsectionToInstance = (iid: number) =>
-                onUpdate({
-                  instances: reindexInstances(
-                    (item as CollectionSection).instances.map(inst =>
-                      inst.instance_id === iid
-                        ? {
-                            ...inst,
-                            children: reindexChildren([...(inst.children || []), {
-                              kind: 'SectionItem',
-                              idx: nextIdx(inst.children as any),
-                              path: `${item.path}.inst_${iid}.section_${nextIdx(inst.children as any)}`,
-                              label: { fallback: 'New Subsection' },
-                              required: false,
-                              hidden: false,
-                              collapsed: false,
-                              children: [],
-                            } as SectionItem]),
-                          }
-                        : inst
-                    ),
-                    item.path
-                  ),
-                } as any);
-
-              const onAddCFieldToInstance = (iid: number) =>
-                onUpdate({
-                  instances: reindexInstances(
-                    (item as CollectionSection).instances.map(inst =>
-                      inst.instance_id === iid
-                        ? {
-                            ...inst,
-                            children: reindexChildren([...(inst.children || []), {
-                              kind: 'CollectionFieldItem',
-                              idx: nextIdx(inst.children as any),
-                              path: `${item.path}.inst_${iid}.cfield_${nextIdx(inst.children as any)}`,
-                              ref: '',
-                              editable: true,
-                              required: false,
-                              importance: 'normal',
-                              ui: { kind: 'UIBlock', label: { fallback: 'Collection Field' }, override: false },
-                              min_instances: 0,
-                              max_instances: 10,
-                              instances: [],
-                            } as CollectionFieldItem]),
-                          }
-                        : inst
-                    ),
-                    item.path
-                  ),
-                } as any);
-
-              const onAddCSectionToInstance = (iid: number) =>
-                onUpdate({
-                  instances: reindexInstances(
-                    (item as CollectionSection).instances.map(inst =>
-                      inst.instance_id === iid
-                        ? {
-                            ...inst,
-                            children: reindexChildren([...(inst.children || []), {
-                              kind: 'CollectionSection',
-                              idx: nextIdx(inst.children as any),
-                              path: `${item.path}.inst_${iid}.csection_${nextIdx(inst.children as any)}`,
-                              label: { fallback: 'Collection Section' },
-                              required: false,
-                              hidden: false,
-                              collapsed: false,
-                              min_instances: 0,
-                              max_instances: 10,
-                              instances: [],
-                            } as CollectionSection]),
-                          }
-                        : inst
-                    ),
-                    item.path
-                  ),
-                } as any);
-
-              const onRemoveChildOfInstance = (iid: number, childPath: string) =>
-                onUpdate({
-                  instances: reindexInstances(
-                    (item as CollectionSection).instances.map(inst =>
-                      inst.instance_id === iid
-                        ? { ...inst, children: (inst.children || []).filter(c => c.path !== childPath) }
-                        : inst
-                    ),
-                    item.path
-                  ),
-                } as any);
-
-              const onUpdateChildOfInstance = (iid: number, childPath: string, updates: Partial<ContentItem>) =>
-                onUpdate({
-                  instances: reindexInstances(
-                    (item as CollectionSection).instances.map(inst =>
-                      inst.instance_id === iid
-                        ? {
-                            ...inst,
-                            children: reindexChildren(
-                              (inst.children || []).map(c => (c.path === childPath ? ({ ...(c as any), ...updates } as ContentItem) : c))
-                            ),
-                          }
-                        : inst
-                    ),
-                    item.path
-                  ),
-                } as any);
-
-              return renderCollectionSectionEditor(
-                item as any,
-                onUpdate as any,
-                onRemove,
-                onAddFieldToInstance,
-                onAddSubsectionToInstance,
-                onAddCFieldToInstance,
-                onAddCSectionToInstance,
-                onRemoveChildOfInstance,
-                onUpdateChildOfInstance
-              );
-            }
-            if (isSection(item)) return renderSectionEditor(item, index, 0);
+            if (isField(item)) return <FieldEditor key={item.path} item={item} onPatch={onPatch as any} onRemove={onRemove} />;
+            if (isCField(item)) return <CFieldEditor key={item.path} item={item} onPatch={onPatch as any} onRemove={onRemove} />;
+            if (isCSection(item)) return <SectionLikeEditor key={item.path} item={item} isCollection onPatch={onPatch as any} onRemove={onRemove} />;
+            if (isSection(item)) return <SectionLikeEditor key={item.path} item={item} onPatch={onPatch as any} onRemove={onRemove} />;
             return null;
           })}
         </div>
       )}
 
       <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-md">
-        <strong>Debug:</strong> {formContent.version} · Items: {formContent.items.length} · Registry: {availableFields.length}
+        <strong>Debug:</strong> items={state.items.length} · registry={availableFields.length}
       </div>
     </div>
   );
-}
-
-/* ===================== Section editor (top-level) ===================== */
-function renderSectionEditor(section: SectionItem, sectionIndex: number, depth: number = 0) {
-  // NOTE: this function needs closures from the component,
-  // so we keep it inside component in the original file.
-  // To keep the full replacement simple, we re-declare proxy in-place:
-  // In this build, we simply return null here; the actual in-component version is used above.
-  return null as any;
 }
 
 export default FormContentEditor;
