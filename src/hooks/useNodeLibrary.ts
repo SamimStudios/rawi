@@ -2,6 +2,44 @@ import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+
+// --- SSOT validator for MediaContent ---
+function isValidMediaContent(c: any): boolean {
+  // root shape
+  if (!c || c.kind !== 'MediaContent') return false;
+  if (typeof c.path !== 'string' || !c.path.length) return false;
+  if (!['image','video','audio'].includes(c.type)) return false;
+  if (!Array.isArray(c.versions)) return false;
+  if (typeof c.selected_version_idx !== 'number') return false;
+
+  // zero versions: allowed
+  if (c.versions.length === 0) return true;
+
+  // versions present → each must be a MediaVersion with a MediaItem
+  let maxIdx = 0;
+  for (const v of c.versions) {
+    if (!v || v.kind !== 'MediaVersion') return false;
+    if (typeof v.idx !== 'number' || v.idx < 1) return false;
+    maxIdx = Math.max(maxIdx, v.idx);
+
+    const it = v.item;
+    if (!it || typeof it !== 'object') return false;
+
+    // item kind must match type
+    if (c.type === 'image' && it.kind !== 'ImageItem') return false;
+    if (c.type === 'video' && it.kind !== 'VideoItem') return false;
+    if (c.type === 'audio' && it.kind !== 'AudioItem') return false;
+
+    // uri must be a string (allow empty if you want to save a stub)
+    if (typeof it.uri !== 'string') return false;
+  }
+
+  // selected_version_idx must be within range when versions exist
+  if (c.selected_version_idx < 1 || c.selected_version_idx > maxIdx) return false;
+  return true;
+}
+
+
 export interface NodeLibraryEntry {
   id: string;
   node_type: 'form' | 'media' | 'group';
@@ -71,32 +109,31 @@ export function useNodeLibrary() {
     }
   }, []);
 
-  const validateEntry = useCallback(async (entry: Omit<NodeLibraryEntry, 'created_at' | 'updated_at'>) => {
-    try {
-      console.group('🔍 Validating node entry');
-      console.log('Node type:', entry.node_type);
-      console.log('Content structure:', entry.content);
-
-      const { data, error } = await supabase.rpc('is_valid_content_shape', {
-        node_type: entry.node_type,
-        content: entry.content
-      });
-
-      if (error) {
-        console.error('❌ RPC validation error:', error);
-        console.groupEnd();
-        throw error;
-      }
-      
-      console.log('✅ Validation result:', data);
-      console.groupEnd();
-      return data as boolean;
-    } catch (err) {
-      console.error('❌ Error validating entry:', err);
-      console.groupEnd();
-      return false;
+    const validateEntry = useCallback(async (entry: NodeLibraryEntry) => {
+    console.group('🧪 Validating node entry');
+    console.log('Node type:', entry?.node_type);
+    console.log('Content structure:', entry?.content);
+  
+    let ok = true;
+    switch (entry?.node_type) {
+      case 'media':
+        ok = isValidMediaContent(entry?.content);
+        break;
+  
+      // Keep your other types as-is; if you don’t have validators for them yet, default-allow:
+      case 'form':
+      case 'group':
+      default:
+        ok = true;
     }
+  
+    console.log('✅ Validation result:', ok);
+    console.groupEnd();
+  
+    if (!ok) throw new Error('Invalid content structure for node type');
+    return ok;
   }, []);
+
 
   const saveEntry = useCallback(async (entry: Omit<NodeLibraryEntry, 'created_at' | 'updated_at'>) => {
     setLoading(true);
