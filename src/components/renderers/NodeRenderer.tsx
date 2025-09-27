@@ -50,6 +50,54 @@ function toWritesArray(entries: Array<{ address: string; value: any }>, nodeAddr
     }));
 }
 
+// inside NodeRenderer.tsx (near other helpers)
+function getSelectedMediaVersion(content: any) {
+  const versions = Array.isArray(content?.versions) ? content.versions : [];
+  const sel = Number.isInteger(content?.selected_version_idx) ? content.selected_version_idx : 1;
+  const selected = versions.find((v: any) => v?.idx === sel) ?? versions[0];
+  return { versions, selectedIdx: selected?.idx ?? 1, selected };
+}
+
+function renderMediaContent(node: any, isEditing: boolean, draftContent: any, setDraftContent: (c:any)=>void) {
+  const content = draftContent ?? node.content ?? {};
+  const type = content?.type; // "image" | "video" | "audio"
+  const { versions, selectedIdx, selected } = getSelectedMediaVersion(content);
+
+  if (!selected?.item) {
+    return <div className="text-muted-foreground text-sm">No media yet.</div>;
+  }
+  const it = selected.item; // SSOT: versions[].item (single item)
+  const src = it?.uri ?? it?.url ?? '';
+  const poster = it?.poster;
+
+  return (
+    <div className="space-y-3">
+      {type === 'image' && <img src={src} alt="" className="rounded-lg w-full h-auto" />}
+      {type === 'video' && <video src={src} poster={poster} controls className="w-full rounded-lg" />}
+      {type === 'audio' && <audio src={src} controls className="w-full" />}
+
+      {isEditing && versions?.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          {versions
+            .slice()
+            .sort((a:any,b:any)=>(a.idx??0)-(b.idx??0))
+            .map((v:any)=>(
+              <button
+                key={v.idx}
+                type="button"
+                className={`px-2 py-1 rounded border ${v.idx===selectedIdx ? 'border-primary' : 'border-muted-foreground/30'}`}
+                onClick={() => setDraftContent({ ...content, selected_version_idx: v.idx })}
+              >
+                v{v.idx}
+              </button>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 
 
 
