@@ -295,7 +295,7 @@ const handleSaveEdit = async () => {
 const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number) => (
   <FieldRenderer
     key={`field:${node.id}:${parentPath || ''}:${instanceNum ?? 0}:${field.ref}:${refreshSeq}`}
-    node={node}
+    node={nodeForRender}
     fieldRef={field.ref}
     sectionPath={parentPath}
     instanceNum={instanceNum}
