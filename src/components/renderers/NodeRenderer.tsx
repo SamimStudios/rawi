@@ -1,424 +1,349 @@
-// src/components/renderers/FieldRenderer.tsx
+// src/components/renderers/NodeRenderer.tsx
 /**
- * FieldRenderer — reads from node.content (no remote hook), stable hooks order.
- * - Address + content-path are derived from the SSOT (sections, nested, instances).
- * - dbValue is read directly from node.content so idle + edit show the saved value.
- * - Drafts override dbValue until you save.
+ * NodeRenderer — SSOT-compliant, now the only orchestrator.
+ * - Renders form tree (sections, nesting, collections) recursively
+ * - Uses FieldRenderer for all fields
+ * - Node-level Edit/Save only
  */
-import React, { useCallback, useMemo, useState } from 'react';
-import { useFieldRegistry } from '@/hooks/useFieldRegistry';
-import { useDrafts } from '@/contexts/DraftsContext';
-import type { JobNode } from '@/hooks/useJobs';
-
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Button } from '@/components/ui/button';
+import React, { useState, useEffect, Fragment } from 'react';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, Plus, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
+import { ChevronDown, ChevronRight, Edit2, Save, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+// at top
+import { FieldRenderer } from '@/components/renderers/FieldRenderer'; // ✅
+import { ContentValidation, FormContent, FormItem, FieldItem, SectionItem } from '@/lib/content-contracts';
+import { CreditsButton } from '@/components/ui/credits-button';
+import { useToast } from '@/hooks/use-toast';
+import { useUserCredits } from '@/hooks/useUserCredits';
+import { useFunctionPricing } from '@/hooks/useFunctionPricing';
+import { supabase } from '@/integrations/supabase/client';
+import { useNodeEditor } from '@/hooks/useNodeEditor';
+import { useDrafts } from '@/contexts/DraftsContext';
+import { useJobs, type JobNode } from '@/hooks/useJobs';
 
 const DBG = true;
-const dlog = (...a: any[]) => { if (DBG) console.debug('[RENDER:Field]', ...a); };
+const nlog = (...a:any[]) => { if (DBG) console.debug('[NodeRenderer]', ...a); };
 
-type Mode = 'idle' | 'edit';
+const saveViaRpc = async (jobId: string, writes: Array<{ address: string; value: any }>) => {
+  nlog('rpc:addr_write_many:start', { jobId, count: writes.length, sample: writes.slice(0, 3) });
+  const { data, error } = await supabase.rpc('addr_write_many', {
+    p_job_id: jobId,
+    p_writes: writes
+  });
+  if (error) {
+    console.error('[NodeRenderer] rpc:addr_write_many:error', error);
+    throw error;
+  }
+  if (!data?.success) {
+    console.error('[NodeRenderer] rpc:addr_write_many:failed', data);
+    throw new Error(data?.error || 'addr_write_many failed');
+  }
+  nlog('rpc:addr_write_many:ok', data);
+};
 
-interface FieldRendererProps {
+
+// normalize writes: ensure `value` is JSON-serializable and never `undefined`
+function toWritesArray(entries: Array<{ address: string; value: any }>, nodeAddr: string) {
+  const prefix = `${nodeAddr}#`;
+  return entries
+    .filter(e => typeof e?.address === 'string' && e.address.startsWith(prefix))
+    .map(e => ({
+      address: e.address,
+      value: e.value === undefined ? null : JSON.parse(JSON.stringify(e.value, (_k, v) => (v === undefined ? null : v)))
+    }));
+}
+
+
+
+
+interface NodeRendererProps {
   node: JobNode;
-  fieldRef: string;
-  sectionPath?: string;
-  instanceNum?: number;
-  onChange?: (value: any) => void;
-  mode?: Mode;
-  required?: boolean;
-  editable?: boolean;
+  onUpdate?: (nodeId: string, data: any) => Promise<void>;
+  onGenerate?: (nodeId: string) => Promise<void>;
+  mode?: 'idle' | 'edit';
+  onModeChange?: (mode: 'idle' | 'edit') => void;
+  showPath?: boolean;
+  className?: string;
 }
 
-/** Build universal SSOT address "nodeAddr#content.items....<field>.value" */
-function buildFieldAddress(
-  nodeAddr: string,
-  fieldRef: string,
-  sectionPath?: string,
-  instanceNum?: number
-) {
-  const segs = (sectionPath || '').split('.').filter(Boolean);
-  let json = 'content.items';
-
-  if (segs.length === 0) {
-    json += `.${fieldRef}.value`;
-  } else {
-    json += `.${segs[0]}`;
-    if (typeof instanceNum === 'number') json += `.instances.i${instanceNum}`;
-    for (let i = 1; i < segs.length; i++) json += `.children.${segs[i]}`;
-    json += `.children.${fieldRef}.value`;
-  }
-  return `${nodeAddr}#${json}`;
-}
-
-/** Build path tokens relative to node.content (no leading "content") */
-function buildContentTokens(fieldRef: string, sectionPath?: string, instanceNum?: number): string[] {
-  const segs = (sectionPath || '').split('.').filter(Boolean);
-  const tokens: string[] = ['items'];
-  if (segs.length === 0) {
-    tokens.push(fieldRef, 'value');
-  } else {
-    tokens.push(segs[0]);
-    if (typeof instanceNum === 'number') {
-      tokens.push('instances', `i${instanceNum}`);
-    }
-    for (let i = 1; i < segs.length; i++) {
-      tokens.push('children', segs[i]);
-    }
-    tokens.push('children', fieldRef, 'value');
-  }
-  return tokens;
-}
-
-/** Safe getter from JSON by tokens; returns undefined if any segment is missing */
-function getByTokens(json: any, tokens: string[]) {
-  let cur = json;
-  for (const t of tokens) {
-    if (cur == null || typeof cur !== 'object') return undefined;
-    cur = cur[t as keyof typeof cur];
-  }
-  return cur;
-}
-
-export function FieldRenderer({
+export default function NodeRenderer({
   node,
-  fieldRef,
-  sectionPath,
-  instanceNum,
-  onChange,
-  mode = 'idle',
-  required = false,
-  editable = true
-}: FieldRendererProps) {
-  dlog('render', { node: node.addr, fieldRef, sectionPath, instanceNum, mode, editable, required });
+  onUpdate,
+  onGenerate,
+  mode: externalMode,
+  onModeChange,
+  showPath = false,
+  className
+}: NodeRendererProps) {
+  const { toast } = useToast();
+  const { credits: userCredits } = useUserCredits();
+  const { getPrice, loading: pricingLoading } = useFunctionPricing();
+  const { entries, clear: clearDrafts } = useDrafts();
+  const { reloadNode } = useJobs();
+  const { startEditing, stopEditing, isEditing, hasActiveEditor } = useNodeEditor();
 
-  const { getField, loading: registryLoading, error: registryError } = useFieldRegistry();
-  const { get: getDraft, set: setDraft } = useDrafts();
+  const [internalMode, setInternalMode] = useState<'idle' | 'edit'>('idle');
+  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [validationState, setValidationState] = useState<'unknown' | 'valid' | 'invalid' | 'validating'>('unknown');
+  const [loading, setLoading] = useState(false);
 
-  // ---- Address & local db value from node.content
-  const address = useMemo(() => {
-    const addr = buildFieldAddress(node.addr, String(fieldRef), sectionPath, instanceNum);
-    dlog('address', { addr });
-    return addr;
-  }, [node.addr, fieldRef, sectionPath, instanceNum]);
+  const effectiveMode = externalMode || internalMode;
+  const setEffectiveMode = onModeChange || setInternalMode;
 
-  const contentTokens = useMemo(
-    () => buildContentTokens(String(fieldRef), sectionPath, instanceNum),
-    [fieldRef, sectionPath, instanceNum]
-  );
+  const label = node.content?.label?.fallback || `Node ${node.addr}`;
+  const description = node.content?.description?.fallback;
+  const hasValidateAction = node.validate_n8n_id;
+  const hasGenerateAction = node.generate_n8n_id;
 
-  const dbValue = useMemo(() => {
-    const v = getByTokens(node.content ?? {}, contentTokens);
-    dlog('dbValue(from node.content)', { tokens: contentTokens.join('.'), v });
-    return v === undefined ? null : v;
-  }, [node.content, contentTokens]);
+  // Pricing
+  const validateCost = node.validate_n8n_id ? getPrice(node.validate_n8n_id) : 0;
+  const generateCost = node.generate_n8n_id ? getPrice(node.generate_n8n_id) : 0;
+  useEffect(() => {}, [validateCost, generateCost, pricingLoading]);
 
-  const [internalError, setInternalError] = useState<string | null>(null);
-  const [charCount, setCharCount] = useState(0);
-
-  const fieldDefinition = getField(fieldRef);
-  const draftValue = getDraft(address || '');
-  const effectiveValue = useMemo(() => {
-    return draftValue !== undefined ? draftValue :
-           (dbValue !== undefined ? dbValue : fieldDefinition?.default_value ?? null);
-  }, [draftValue, dbValue, fieldDefinition?.default_value]);
-
-  dlog('values', { dbValue, draftValue, effectiveValue });
-
-  const setValue = (newValue: any) => {
-    dlog('onChange→draft', { address, newValue });
-    setDraft(address, newValue);
-    onChange?.(newValue);
+  const handleStartEdit = () => {
+    if (startEditing(node.id)) {
+      setEffectiveMode('edit');
+      setIsCollapsed(false);
+    }
   };
 
-  const validateValue = useCallback((val: any) => {
-    if (!fieldDefinition) return true;
-    const rules = fieldDefinition.rules || {};
-    const label = fieldDefinition.ui?.label?.fallback || fieldDefinition.ui?.label?.key || fieldDefinition.id;
 
-    let msg: string | null = null;
-    if (rules.required && (!val || (typeof val === 'string' && val.trim() === ''))) {
-      msg = `${label} is required`;
+
+
+
+
+
+
+  // in src/components/renderers/NodeRenderer.tsx
+const handleSaveEdit = async () => {
+  if (!node.addr) return;
+  setLoading(true);
+  try {
+    const nodePrefix = `${node.addr}#`;
+
+    // gather & normalize drafts
+    const rawDrafts = entries(nodePrefix); // [{ address, value }]
+    const writes = toWritesArray(rawDrafts, node.addr);
+    nlog('save:writes', { count: writes.length, sample: writes.slice(0, 3) });
+
+    if (writes.length === 0) {
+      setEffectiveMode('idle');
+      stopEditing();
+      toast({ title: 'Nothing to save', description: 'No changes detected.' });
+      return;
     }
-    if (val && typeof val === 'string') {
-      if (rules.minLength && val.length < rules.minLength) msg = `${label} must be at least ${rules.minLength} characters`;
-      if (rules.maxLength && val.length > rules.maxLength) msg = `${label} must be no more than ${rules.maxLength} characters`;
-      if (rules.pattern && !new RegExp(rules.pattern).test(val)) msg = `${label} format is invalid`;
-      setCharCount(val.length);
-    }
-    if (Array.isArray(val)) {
-      if (rules.minItems && val.length < rules.minItems) msg = `${label} must have at least ${rules.minItems} items`;
-      if (rules.maxItems && val.length > rules.maxItems) msg = `${label} must have no more than ${rules.maxItems} items`;
-    }
-    if (typeof val === 'number') {
-      if (rules.min && val < rules.min) msg = `${label} must be at least ${rules.min}`;
-      if (rules.max && val > rules.max) msg = `${label} must be no more than ${rules.max}`;
-    }
-    setInternalError(msg);
-    return !msg;
-  }, [fieldDefinition]);
 
-  const handleChange = useCallback((val: any) => {
-    setValue(val);
-    validateValue(val);
-  }, [setValue, validateValue]);
+    // single RPC handles 1..N writes atomically
+    await saveViaRpc(node.job_id, writes);
 
-  // ---- STATUS/ERRORS
-  if (registryLoading) {
-    return <div className="h-10 bg-muted rounded animate-pulse" />;
+    // reload & cleanup
+    await reloadNode(node.job_id, node.id);
+    clearDrafts(nodePrefix);
+    setEffectiveMode('idle');
+    setHasUnsavedChanges(false);
+    stopEditing();
+    toast({ title: 'Success', description: 'Changes saved successfully' });
+  } catch (error) {
+    console.error('[NodeRenderer] Save failed:', error);
+    toast({
+      title: 'Error',
+      description: error instanceof Error ? error.message : 'Failed to save changes',
+      variant: 'destructive',
+    });
+  } finally {
+    setLoading(false);
   }
-  if (registryError) {
-    return (
-      <div className="text-destructive text-sm p-2 bg-destructive/10 rounded">
-        Field Registry Error: {String(registryError)}
-        <div className="text-xs mt-1">Field: {fieldRef}</div>
-      </div>
-    );
-  }
-  if (!fieldDefinition) {
-    return (
-      <div className="text-destructive text-sm p-2 bg-destructive/10 rounded">
-        Field definition not found: {fieldRef}
-        <div className="text-xs mt-1">Address: {address}</div>
-      </div>
-    );
-  }
+};
 
-  // ---- Render
-  const rules = fieldDefinition?.rules || {};
-  const label =
-    fieldDefinition?.ui?.label?.fallback ||
-    fieldDefinition?.ui?.label?.key ||
-    fieldDefinition?.id ||
-    fieldRef;
-  const placeholder =
-    fieldDefinition?.ui?.placeholder?.fallback ||
-    fieldDefinition?.ui?.placeholder?.key ||
-    '';
-  const help =
-    fieldDefinition?.ui?.help?.fallback ||
-    fieldDefinition?.ui?.help?.key ||
-    '';
 
-  const isReadOnly = mode === 'idle' || !editable;
-  const widget = fieldDefinition?.widget;
 
-  if (isReadOnly) {
-    let displayValue: any = effectiveValue;
-    if (displayValue == null) displayValue = fieldDefinition?.default_value || '';
-    if (typeof displayValue === 'boolean') displayValue = displayValue ? 'Yes' : 'No';
-    else if (Array.isArray(displayValue)) displayValue = displayValue.join(', ');
-    else if (typeof displayValue === 'object') displayValue = JSON.stringify(displayValue);
+  const handleCancelEdit = () => {
+    if (!node.addr) return;
+    clearDrafts(`${node.addr}#`);
+    setEffectiveMode('idle');
+    setHasUnsavedChanges(false);
+    stopEditing();
+    toast({ title: 'Changes discarded', description: 'All unsaved changes have been discarded' });
+  };
 
-    return (
-      <div className="flex justify-between items-center py-2 border-b border-border/30 last:border-b-0">
-        <span className="text-sm font-medium text-foreground">{label}:</span>
-        <span className="text-sm text-muted-foreground">
-          {displayValue || <span className="italic">No value</span>}
-        </span>
-      </div>
-    );
-  }
-
-  // EDIT — current value should start from saved dbValue (or draft/default)
-  const currentValue = effectiveValue ?? fieldDefinition.default_value;
-
-  const renderEdit = () => {
-    switch (widget) {
-      case 'text':
-        return (
-          <div className="space-y-1">
-            <Input
-              value={currentValue || ''}
-              onChange={(e) => handleChange(e.target.value)}
-              placeholder={placeholder}
-              className={cn(internalError && "border-destructive")}
-            />
-            {(rules.maxLength || rules.minLength) && (
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>
-                  {rules.minLength && `Min: ${rules.minLength}`}
-                  {rules.minLength && rules.maxLength && ' • '}
-                  {rules.maxLength && `Max: ${rules.maxLength}`}
-                </span>
-                {rules.maxLength && (
-                  <span className={cn(
-                    (typeof currentValue === 'string' ? currentValue.length : 0) > rules.maxLength ? "text-destructive" : ""
-                  )}>
-                    {(typeof currentValue === 'string' ? currentValue.length : 0)}/{rules.maxLength}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        );
-
-      case 'textarea':
-        return (
-          <div className="space-y-1">
-            <Textarea
-              value={currentValue || ''}
-              onChange={(e) => handleChange(e.target.value)}
-              placeholder={placeholder}
-              className={cn(internalError && "border-destructive")}
-              rows={4}
-            />
-            {rules.maxLength && (
-              <div className="flex justify-end text-xs text-muted-foreground">
-                <span>{(typeof currentValue === 'string' ? currentValue.length : 0)}/{rules.maxLength}</span>
-              </div>
-            )}
-          </div>
-        );
-
-      case 'select': {
-        const options = fieldDefinition.options?.values || [];
-        return (
-          <Select value={currentValue || ''} onValueChange={handleChange}>
-            <SelectTrigger className={cn(internalError && "border-destructive")}>
-              <SelectValue placeholder={placeholder || 'Select an option'} />
-            </SelectTrigger>
-            <SelectContent>
-              {options.map((opt: any, i: number) => (
-                <SelectItem key={opt.value || i} value={opt.value}>
-                  {opt.label?.fallback || opt.label || opt.value}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        );
+  const handleGenerate = async () => {
+    setLoading(true);
+    try {
+      const { data } = await supabase.functions.invoke('generate-node-content', {
+        body: { nodeId: node.id, jobId: node.job_id, context: {} }
+      });
+      if (data?.success) {
+        toast({ title: 'Content generated', description: 'Node content generated successfully.' });
+        onUpdate?.(node.id, data.generatedContent);
       }
+    } catch {
+      toast({ title: 'Generation failed', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      case 'radio': {
-        const options = fieldDefinition.options?.values || [];
-        return (
-          <RadioGroup
-            value={currentValue || ''}
-            onValueChange={handleChange}
-            className={cn(internalError && "border border-destructive rounded-md p-2")}
-          >
-            {options.map((opt: any, i: number) => (
-              <div key={opt.value || i} className="flex items-center space-x-2">
-                <RadioGroupItem value={opt.value} id={`${fieldDefinition.id}-${i}`} />
-                <Label htmlFor={`${fieldDefinition.id}-${i}`}>
-                  {opt.label?.fallback || opt.label || opt.value}
-                </Label>
-              </div>
+  // --------- Tree rendering (no extra renderers) ---------
+  const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number) => (
+    <FieldRenderer
+      key={`field:${parentPath || ''}:${instanceNum || 0}:${field.ref}`}
+      node={node}
+      fieldRef={field.ref}
+      sectionPath={parentPath}
+      instanceNum={instanceNum}
+      mode={effectiveMode}
+      required={field.required}
+      editable={field.editable !== false}
+      onChange={() => setHasUnsavedChanges(true)}
+    />
+  );
+
+  const renderSection = (section: SectionItem, parentPath?: string, inheritedInstance?: number) => {
+    const sectionPath = parentPath ? `${parentPath}.${section.path}` : section.path;
+    const title = section.title ?? section.path;
+    const isCollection = !!section.collection;
+
+    // Instance count: prefer explicit instances length, else default_instances, else min, else 0
+    const explicit = Array.isArray((section as any).instances) ? (section as any).instances.length : undefined;
+    const defCount = section.collection?.default_instances;
+    const min = section.collection?.min ?? 0;
+    const count = isCollection
+      ? (explicit ?? (typeof defCount === 'number' && defCount > 0 ? defCount : Math.max(0, min)))
+      : 0;
+
+    return (
+      <div key={`sec:${sectionPath}`} className="rounded-lg border p-3">
+        <div className="font-medium">{title}</div>
+
+        {!isCollection && (
+          <div className="mt-3 space-y-3">
+            {section.children?.map((child) => (
+              ContentValidation.isFieldItem(child)
+                ? renderField(child as FieldItem, sectionPath, inheritedInstance)
+                : renderSection(child as SectionItem, sectionPath, inheritedInstance)
             ))}
-          </RadioGroup>
-        );
-      }
-
-      case 'checkbox':
-        return (
-          <div className={cn("flex items-center space-x-2", internalError && "text-destructive")}>
-            <Checkbox
-              checked={!!currentValue}
-              onCheckedChange={handleChange}
-              id={fieldDefinition.id}
-            />
-            <Label htmlFor={fieldDefinition.id}>{label}</Label>
           </div>
-        );
+        )}
 
-      case 'tags': {
-        const values = fieldDefinition.options?.values || [];
-        const selected = Array.isArray(currentValue) ? currentValue : [];
-        const toggleTag = (tag: string) => {
-          const next = selected.includes(tag) ? selected.filter(t => t !== tag) : [...selected, tag];
-          handleChange(next);
-        };
-        return (
-          <div className="space-y-2">
-            <div className="flex flex-wrap gap-2 min-h-[40px] p-2 border rounded-md">
-              {selected.map((tag: string) => (
-                <Badge key={tag} variant="secondary" className="flex items-center gap-1">
-                  {tag}
-                  <Button variant="ghost" size="sm" className="h-auto p-0 w-4 h-4" onClick={() => toggleTag(tag)}>
-                    <X className="h-3 w-3" />
-                  </Button>
-                </Badge>
-              ))}
-              {selected.length === 0 && (
-                <span className="text-muted-foreground text-sm">{placeholder || 'Select tags'}</span>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {values.filter((o: any) => !selected.includes(o.value)).map((o: any, i: number) => (
-                <Button key={o.value || i} variant="outline" size="sm" onClick={() => toggleTag(o.value)} className="h-7">
-                  <Plus className="h-3 w-3 mr-1" />
-                  {o.label?.fallback || o.label || o.value}
-                </Button>
-              ))}
-            </div>
+        {isCollection && (
+          <div className="mt-3 space-y-4">
+            {Array.from({ length: count }).map((_, idx) => {
+              const i = idx + 1; // instances.i1...
+              const label =
+                section.collection?.label_template
+                  ? section.collection.label_template.replace('#{i}', String(i))
+                  : `Instance ${i}`;
+
+              return (
+                <div key={`inst:${sectionPath}:i${i}`} className="rounded-md border p-3">
+                  <div className="text-sm font-medium mb-2">{label}</div>
+                  <div className="space-y-3">
+                    {section.children?.map((child) => (
+                      ContentValidation.isFieldItem(child)
+                        ? renderField(child as FieldItem, sectionPath, i)
+                        : renderSection(child as SectionItem, sectionPath, i)
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        );
-      }
+        )}
+      </div>
+    );
+  };
 
-      case 'date':
-        return <Input type="date" value={currentValue || ''} onChange={(e) => handleChange(e.target.value)} className={cn(internalError && "border-destructive")} />;
-
-      case 'time':
-        return <Input type="time" value={currentValue || ''} onChange={(e) => handleChange(e.target.value)} className={cn(internalError && "border-destructive")} />;
-
-      case 'email':
-        return <Input type="email" value={currentValue || ''} onChange={(e) => handleChange(e.target.value)} placeholder={placeholder} className={cn(internalError && "border-destructive")} />;
-
-      case 'url':
-        return <Input type="url" value={currentValue || ''} onChange={(e) => handleChange(e.target.value)} placeholder={placeholder} className={cn(internalError && "border-destructive")} />;
-
-      case 'number':
-        return <Input type="number" value={currentValue ?? ''} onChange={(e) => handleChange(e.target.value === '' ? null : Number(e.target.value))} placeholder={placeholder} min={rules?.min} max={rules?.max} className={cn(internalError && "border-destructive")} />;
-
-      case 'file':
-        return (
-          <Input
-            type="file"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleChange({ name: file.name, size: file.size, type: file.type });
-            }}
-            className={cn(internalError && "border-destructive")}
-          />
-        );
-
-      default:
-        return (
-          <div className="p-4 border border-dashed rounded-md">
-            <p className="text-muted-foreground text-sm flex items-center gap-2">
-              <AlertCircle className="h-4 w-4" />
-              Unsupported widget type: {String(widget)}
-            </p>
-          </div>
-        );
+  const renderFormContent = () => {
+    if (!node.content) return <div className="text-center py-8 text-muted-foreground">No content defined</div>;
+    if (!ContentValidation.isFormContent(node.content)) {
+      return <div className="text-muted-foreground p-4 bg-muted/50 rounded">Content type not supported by SSOT renderer</div>;
     }
+    const form = node.content as FormContent;
+    if (!form.items?.length) return <div className="text-center py-8 text-muted-foreground">No form items defined</div>;
+
+    return (
+      <div className="space-y-4">
+        {form.items.map((item: FormItem) => (
+          ContentValidation.isFieldItem(item)
+            ? renderField(item as FieldItem, undefined, undefined)
+            : renderSection(item as SectionItem, undefined, undefined)
+        ))}
+      </div>
+    );
   };
 
   return (
-    <div className="space-y-2">
-      {fieldDefinition.widget !== 'checkbox' && (
-        <Label htmlFor={fieldDefinition.id} className="flex items-center gap-1">
-          {label}
-          {required && <span className="text-destructive">*</span>}
-          {help && <span className="text-xs text-muted-foreground ml-2">({help})</span>}
-        </Label>
-      )}
-      {renderEdit()}
-      {internalError && (
-        <p className="text-xs text-destructive flex items-center gap-1">
-          <AlertCircle className="h-3 w-3" />
-          {internalError}
-        </p>
-      )}
-    </div>
+    <Card className={cn("w-full transition-colors", effectiveMode === 'edit' && "border-primary bg-primary/5", className)}>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" onClick={() => setIsCollapsed(!isCollapsed)} className="p-1 h-6 w-6">
+              {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+            <div>
+              <h3 className="font-semibold text-foreground">{label}</h3>
+              {showPath && <div className="text-xs text-muted-foreground mt-1">Address: {node.addr}</div>}
+            </div>
+            <div className="flex gap-1">
+              {hasUnsavedChanges && <Badge variant="outline" className="text-xs">Unsaved</Badge>}
+              {effectiveMode === 'edit' && <Badge variant="default" className="text-xs">Editing</Badge>}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {effectiveMode === 'edit' ? (
+              <>
+                <Button size="sm" onClick={handleSaveEdit} disabled={loading}>
+                  <Save className="h-3 w-3 mr-1" /> Save
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={loading}>
+                  <X className="h-3 w-3 mr-1" /> Cancel
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (hasActiveEditor()) {
+                      toast({
+                        title: "Another node is being edited",
+                        description: "Please finish editing the current node first.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    handleStartEdit();
+                  }}
+                >
+                  <Edit2 className="h-3 w-3 mr-1" /> Edit
+                </Button>
+                {hasGenerateAction && (
+                  <CreditsButton onClick={handleGenerate} price={generateCost} available={userCredits} loading={loading} size="sm">
+                    Generate
+                  </CreditsButton>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+        {description && <p className="text-sm text-muted-foreground mt-2">{description}</p>}
+      </CardHeader>
+
+      <Collapsible open={!isCollapsed} onOpenChange={setIsCollapsed}>
+        <CardContent className="pt-0">
+          <CollapsibleContent>
+            {node.node_type === 'form' ? renderFormContent() : (
+              <div className="text-muted-foreground">Node type '{node.node_type}' not supported by SSOT renderer.</div>
+            )}
+          </CollapsibleContent>
+        </CardContent>
+      </Collapsible>
+    </Card>
   );
 }
-
-export default FieldRenderer;
