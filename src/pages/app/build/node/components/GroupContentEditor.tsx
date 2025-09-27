@@ -1,6 +1,7 @@
 // src/pages/app/build/node/components/GroupContentEditor.tsx
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -70,111 +71,79 @@ function LibraryPicker({
   label?: string;
   hint?: string;
 }) {
-  const [q, setQ] = useState('');
   const [rows, setRows] = useState<LibNode[]>([]);
   const [loading, setLoading] = useState(false);
+  const [pickId, setPickId] = useState<string>('');
 
-  const fetchLib = useCallback(async (query: string) => {
+  const fetchLib = useCallback(async () => {
     setLoading(true);
-    const qb = supabase
+    const { data, error } = await supabase
       // @ts-ignore schema
       .schema('app' as any)
       .from('node_library')
       .select('id, node_type, title')
       .order('title', { ascending: true })
-      .limit(50);
-
-    const { data, error } = query
-      ? await qb.ilike('title', `%${query}%`)
-      : await qb;
+      .limit(200); // simple dropdown: grab first 200; adjust if needed
     setLoading(false);
     if (error) {
       console.error('Library fetch error:', error);
       setRows([]);
       return;
     }
-    setRows(data as any);
+    setRows((data ?? []) as any);
   }, []);
 
   useEffect(() => {
-    fetchLib('');
+    fetchLib();
   }, [fetchLib]);
 
-  useEffect(() => {
-    const t = setTimeout(() => fetchLib(q), 250);
-    return () => clearTimeout(t);
-  }, [q, fetchLib]);
-
-  const toggle = (id: string) => {
-    const next = selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id];
-    onChange(uniq(next));
+  const addPick = () => {
+    if (!pickId) return;
+    onChange(uniq([...(selected ?? []), pickId]));
+    // keep the pick open for fast adding or reset it—UX preference:
+    setPickId('');
   };
 
-  const remove = (id: string) => onChange(selected.filter(x => x !== id));
-
-  const selectedFirst = useMemo(() => {
-    const map = new Map(rows.map(r => [r.id, r]));
-    const selRows = selected.map(id => map.get(id)).filter(Boolean) as LibNode[];
-    const nonSel = rows.filter(r => !selected.includes(r.id));
-    return [...selRows, ...nonSel];
-  }, [rows, selected]);
+  const remove = (id: string) => onChange((selected ?? []).filter(x => x !== id));
 
   return (
     <Card className="border-dashed">
       <CardHeader className="py-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <FolderTree className="w-4 h-4" />
             <div className="text-sm font-medium">{label}</div>
           </div>
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-2 top-2.5 text-muted-foreground" />
-            <Input
-              className="pl-8 w-64"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search library…"
-            />
+          <div className="flex items-center gap-2">
+            <Select value={pickId} onValueChange={(v) => setPickId(v)}>
+              <SelectTrigger className="w-80">
+                <SelectValue placeholder={loading ? 'Loading…' : 'Choose a node'} />
+              </SelectTrigger>
+              <SelectContent className="max-h-80">
+                {rows.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.title || r.id.slice(0, 8)} — {r.node_type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button type="button" onClick={addPick} disabled={!pickId || loading}>
+              Add
+            </Button>
           </div>
         </div>
         {hint && <p className="text-xs text-muted-foreground mt-1">{hint}</p>}
       </CardHeader>
-      <CardContent className="space-y-2 max-h-72 overflow-auto">
-        {loading && <div className="text-xs text-muted-foreground">Loading…</div>}
-        {!loading && selectedFirst.length === 0 && (
-          <div className="text-xs text-muted-foreground">No library nodes found.</div>
-        )}
-        {!loading &&
-          selectedFirst.map((r) => {
-            const checked = selected.includes(r.id);
-            return (
-              <div
-                key={r.id}
-                className={`flex items-center justify-between rounded border px-3 py-2 text-sm ${checked ? 'bg-muted/40' : ''}`}
-              >
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">{r.node_type}</Badge>
-                  <span className="truncate">{r.title || r.id}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {checked ? (
-                    <Button size="sm" variant="secondary" onClick={() => toggle(r.id)}>
-                      Remove
-                    </Button>
-                  ) : (
-                    <Button size="sm" variant="outline" onClick={() => toggle(r.id)}>
-                      Add
-                    </Button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        {selected.length > 0 && (
-          <div className="flex gap-2 flex-wrap pt-1">
-            {selected.map(id => (
+
+      <CardContent className="space-y-2">
+        {(selected ?? []).length === 0 ? (
+          <div className="text-xs text-muted-foreground">No children selected yet.</div>
+        ) : (
+          <div className="flex gap-2 flex-wrap">
+            {(selected ?? []).map((id) => (
               <Badge key={id} variant="secondary" className="gap-2">
-                {id.slice(0, 8)}… <button onClick={() => remove(id)} className="text-destructive">×</button>
+                {rows.find(r => r.id === id)?.title || id.slice(0, 8)} — {rows.find(r => r.id === id)?.node_type || 'node'}
+                <button onClick={() => remove(id)} className="text-destructive">×</button>
               </Badge>
             ))}
           </div>
@@ -183,6 +152,7 @@ function LibraryPicker({
     </Card>
   );
 }
+
 
 /* ---------------- Normalize + sanitize ---------------- */
 function normalize(raw: any): GroupContent {
