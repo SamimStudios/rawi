@@ -261,80 +261,51 @@ export function useNodeLibrary() {
   }, []);
 
 
-  const saveEntry = useCallback(async (entry: Omit<NodeLibraryEntry, 'created_at' | 'updated_at'>) => {
-    setLoading(true);
-    setError(null);
+    const saveEntry = useCallback(async (entry: Omit<NodeLibraryEntry, 'created_at' | 'updated_at'>) => {
+      setLoading(true);
+      setError(null);
     
-    try {
-      // Validate entry before saving
-      const isValid = await validateEntry(entry);
-      if (!isValid) {
-        throw new Error('Content validation failed - entry does not match expected structure');
+      try {
+        // 3C — enforce template-only at LIBRARY save time
+        const sanitizedContent = stripRuntimeInstancesForLibrary(entry.node_type, entry.content);
+        const sanitizedEntry = { ...entry, content: sanitizedContent };
+    
+        // Validate the sanitized (template-only) shape
+        const isValid = await validateEntry(sanitizedEntry);
+        if (!isValid) {
+          throw new Error('Invalid content for library (template-only required)');
+        }
+    
+        const { error } = await supabase
+          // @ts-ignore
+          .schema('app' as any)
+          .from('node_library')
+          .upsert(sanitizedEntry, { onConflict: 'id' });
+    
+        if (error) throw error;
+    
+        toast({
+          title: "Success",
+          description: "Node library entry saved successfully",
+        });
+    
+        // Refresh the entries
+        await fetchEntries();
+        return true;
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to save node library entry';
+        setError(errorMessage);
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        return false;
+      } finally {
+        setLoading(false);
       }
+    }, [fetchEntries, toast, validateEntry]);
 
-      const { error } = await supabase
-        .schema('app' as any)
-        .from('node_library')
-        .upsert(entry, { onConflict: 'id' });
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Node library entry saved successfully",
-      });
-
-      // Refresh the entries
-      await fetchEntries();
-      return true;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to save node library entry';
-      setError(errorMessage);
-      toast({
-        title: "Error",
-        description: `Failed to save entry: ${errorMessage}`,
-        variant: "destructive",
-      });
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchEntries, toast, validateEntry]);
-
-  const deleteEntry = useCallback(async (id: string) => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const { error } = await supabase
-        .schema('app' as any)
-        .from('node_library')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Node library entry deleted successfully",
-      });
-
-      // Refresh the entries
-      await fetchEntries();
-      return true;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to delete node library entry';
-      setError(errorMessage);
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchEntries, toast]);
 
 
   return {
