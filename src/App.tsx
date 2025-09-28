@@ -44,6 +44,8 @@ import Wallet from '@/pages/user/Wallet';
 import Settings from '@/pages/user/Settings';
 import StyleGuideline from "./pages/StyleGuideline";
 import ButtonShowcase from "./pages/ButtonShowcase";
+import NodeLibraryBuilder2 from '@/features/node-builders2/NodeLibraryBuilder2';
+
 
 
 
@@ -87,6 +89,15 @@ const MainApp = () => (
                       <Footer />
                     </div>
                   } />
+
+                  <Route path="/app/build2" element={
+                    <div>
+                      <Header />
+                      <NodeLibraryBuilder2 />
+                      <Footer />
+                    </div>
+                  } />
+                      
                   <Route path="/app/build" element={
                     <div>
                       <Header />
