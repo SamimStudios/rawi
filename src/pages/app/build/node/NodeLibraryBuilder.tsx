@@ -1,367 +1,375 @@
-// src/pages/app/build/node/NodeLibraryBuilder.tsx
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
-import { useNodeLibrary } from '@/hooks/useNodeLibrary'; // uses existing hook in repo
-import { MediaContentEditor } from './components/MediaContentEditor'; // our SSOT media editor
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
+import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { Save, ArrowLeft, Eye, AlertTriangle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNodeLibrary, type NodeLibraryEntry } from '@/hooks/useNodeLibrary';
+import { FormContentEditor } from './components/FormContentEditor';
+import { MediaContentEditor } from './components/MediaContentEditor';
+import { GroupContentEditor } from './components/GroupContentEditor';
 
-type NodeType = 'form' | 'media' | 'group';
-
-type MediaType = 'image' | 'video' | 'audio';
-type MediaItemKind = 'ImageItem' | 'VideoItem' | 'AudioItem';
-
-interface MediaItem {
-  kind: MediaItemKind;
-  url: string;
-  width?: number;
-  height?: number;
-  duration_ms?: number;
-}
-interface MediaVersion {
-  kind: 'MediaVersion';
-  idx: number;
-  path: string;
-  item: MediaItem;
-}
-interface MediaContent {
-  kind: 'MediaContent';
-  type: MediaType;
-  path: string;
-  versions: MediaVersion[];
-  selected_version_idx?: number;
-}
-
-interface NodeDraft {
-  id: string;
-  name: string;
-  node_type: NodeType;
-  content: Record<string, any>;
-  validate_n8n_id?: string | null;
-  payload_validate?: Record<string, any> | null;
-  generate_n8n_id?: string | null;
-  payload_generate?: Record<string, any> | null;
-  active: boolean;
-  version: number;
-}
-
-const id = () => Math.random().toString(36).slice(2, 9);
-const nowIso = () => new Date().toISOString();
-
-function isSSOTMedia(x: any): x is MediaContent {
-  return x && x.kind === 'MediaContent' && Array.isArray(x.versions);
-}
-
-function legacyifyMediaForRPC(content: MediaContent) {
-  const selected = typeof content.selected_version_idx === 'number' ? content.selected_version_idx : undefined;
-  const versions = (content.versions || []).map((v: MediaVersion) => {
-    const url = (v?.item?.url ?? '') as string;
-    const width = v?.item?.width;
-    const height = v?.item?.height;
-    const duration_ms = v?.item?.duration_ms;
-    const metadata: Record<string, any> = {};
-    if (typeof width === 'number') metadata.width = width;
-    if (typeof height === 'number') metadata.height = height;
-    if (typeof duration_ms === 'number') metadata.duration = duration_ms / 1000;
-    return { version: `v${v.idx}`, url, metadata };
-  });
-  const out = {
-    type: content.type,
-    versions,
-    default_version: selected ? `v${selected}` : undefined,
-  };
-  return out;
-}
-
-function diagnoseMedia(content: MediaContent) {
-  const issues: string[] = [];
-  const info: Record<string, any> = {
-    type: content.type,
-    path: content.path,
-    versions_count: content.versions?.length ?? 0,
-    selected_version_idx: content.selected_version_idx,
-  };
-
-  // Rule candidates we’ve seen in many DB validators:
-  if (!content.path || typeof content.path !== 'string' || !content.path.trim()) {
-    issues.push('content.path must be a non-empty string');
-  }
-
-  // If versions exist, idx must be 1..N and sequential; path should be `${path}.v${idx}`
-  (content.versions || []).forEach((v, i) => {
-    const expectedIdx = i + 1;
-    if (v.idx !== expectedIdx) {
-      issues.push(`versions[${i}].idx must be ${expectedIdx}`);
-    }
-    const expectedPath = `${content.path}.v${expectedIdx}`;
-    if (v.path !== expectedPath) {
-      issues.push(`versions[${i}].path must be '${expectedPath}'`);
-    }
-    const expectedKind: MediaItemKind =
-      content.type === 'image' ? 'ImageItem' : content.type === 'video' ? 'VideoItem' : 'AudioItem';
-    if (!v.item || v.item.kind !== expectedKind) {
-      issues.push(`versions[${i}].item.kind must be '${expectedKind}'`);
-    }
-    if (typeof v.item.url !== 'string') {
-      issues.push(`versions[${i}].item.url must be a string ('' allowed)`);
-    }
-    if ((content.type === 'image' || content.type === 'video') && v.item.width !== undefined && typeof v.item.width !== 'number') {
-      issues.push(`versions[${i}].item.width must be a number when provided`);
-    }
-    if ((content.type === 'image' || content.type === 'video') && v.item.height !== undefined && typeof v.item.height !== 'number') {
-      issues.push(`versions[${i}].item.height must be a number when provided`);
-    }
-    if ((content.type === 'video' || content.type === 'audio') && v.item.duration_ms !== undefined && typeof v.item.duration_ms !== 'number') {
-      issues.push(`versions[${i}].item.duration_ms must be a number when provided`);
-    }
-  });
-
-  // If no versions: selected_version_idx must be undefined/null
-  if ((content.versions?.length || 0) === 0 && content.selected_version_idx !== undefined && content.selected_version_idx !== null) {
-    issues.push('selected_version_idx must be undefined when versions is empty');
-  }
-  // If versions exist: selected_version_idx within bounds when present
-  if ((content.versions?.length || 0) > 0 && content.selected_version_idx !== undefined && content.selected_version_idx !== null) {
-    const n = content.versions.length;
-    if (content.selected_version_idx < 1 || content.selected_version_idx > n) {
-      issues.push(`selected_version_idx must be between 1 and ${n}`);
-    }
-  }
-
-  return { info, issues };
-}
+import { PayloadEditor } from './components/PayloadEditor';
+import isEqual from 'lodash/isEqual';
 
 export default function NodeLibraryBuilder() {
+  const { id } = useParams();
+  const navigate = useNavigate();
   const { toast } = useToast();
-  const { validateEntry, saveEntry } = useNodeLibrary();
+  const { entries, n8nFunctions, loading, saveEntry, validateEntry, fetchEntries, fetchN8NFunctions } = useNodeLibrary();
 
-  const [debug, setDebug] = useState<boolean>(() => {
-    const ls = localStorage.getItem('DEBUG_NODE_LIB');
-    return ls === '1';
-  });
-
-  const [draft, setDraft] = useState<NodeDraft>(() => ({
-    id: id(),
-    name: '',
-    node_type: 'media',
-    content: { kind: 'MediaContent', type: 'image', path: 'media', versions: [] },
+  const [entry, setEntry] = useState<NodeLibraryEntry>({
+    id: id ? '' : 'lib_',
+    node_type: 'form',
+    content: {},
+    payload_validate: null,
+    payload_generate: null,
+    validate_n8n_id: null,
+    generate_n8n_id: null,
     active: true,
     version: 1,
-    validate_n8n_id: null,
-    payload_validate: null,
-    generate_n8n_id: null,
-    payload_generate: null,
-  }));
+  });
+
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem('DEBUG_NODE_LIB', debug ? '1' : '0');
-  }, [debug]);
+    fetchEntries();
+    fetchN8NFunctions();
+  }, [fetchEntries, fetchN8NFunctions]);
 
-  const reqIdRef = useRef<string>('');
-  const nextReqId = () => {
-    reqIdRef.current = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-    return reqIdRef.current;
-  };
-
-  const onValidate = useCallback(async () => {
-    const rid = nextReqId();
-    console.groupCollapsed(`🧪 [NodeLibraryBuilder] VALIDATE #${rid}`);
-    console.log('Time:', nowIso());
-    console.log('Node type:', draft.node_type);
-    console.log('Entry ID:', draft.id);
-    console.log('Content snapshot:', draft.content);
-
-    // Media diagnostics (client-side mirror)
-    if (draft.node_type === 'media' && isSSOTMedia(draft.content)) {
-      const diag = diagnoseMedia(draft.content);
-      console.log('🔎 Media diagnostics → info:', diag.info);
-      if (diag.issues.length) {
-        console.warn('⚠️ Media diagnostics → potential issues:', diag.issues);
+  useEffect(() => {
+    if (id && entries.length > 0) {
+      const existingEntry = entries.find(e => e.id === id);
+      if (existingEntry) {
+        setEntry(existingEntry);
       } else {
-        console.log('✅ Media diagnostics → no client-side issues detected.');
+        toast({
+          title: "Entry not found",
+          description: "The requested node library entry was not found.",
+          variant: "destructive",
+        });
+        navigate('/app/build/node');
       }
-      // Also log the legacy payload we’d send if server expects it
-      const legacyPayload = legacyifyMediaForRPC(draft.content);
-      console.log('↪︎ Legacy payload preview (for RPC if needed):', legacyPayload);
     }
+  }, [id, entries, navigate, toast]);
 
-    try {
-      const ok = await validateEntry({
-        id: draft.id,
-        node_type: draft.node_type,
-        content: draft.content,
-        payload_validate: draft.payload_validate ?? null,
-        payload_generate: draft.payload_generate ?? null,
-        validate_n8n_id: draft.validate_n8n_id ?? null,
-        generate_n8n_id: draft.generate_n8n_id ?? null,
-        active: draft.active,
-        version: draft.version,
-      } as any);
-
-      console.log('✅ Validation result:', ok);
-      if (!ok) {
-        console.warn('❌ Server validation returned false.');
-        if (draft.node_type === 'media' && isSSOTMedia(draft.content)) {
-          const vc = draft.content.versions?.length ?? 0;
-          const s = draft.content.selected_version_idx;
-          console.warn(
-            'Heuristics → versions_count:',
-            vc,
-            '| selected_version_idx:',
-            s,
-            '| path:',
-            draft.content.path
-          );
-          if (vc === 0) {
-            console.warn(
-              'Likely failing rule on server: media.versions must have ≥ 1 entry (server validator stricter than SSOT).'
-            );
-          }
-        }
-      }
-      console.groupEnd();
-      return ok;
-    } catch (e) {
-      console.error('💥 validateEntry threw:', e);
-      console.groupEnd();
-      return false;
-    }
-  }, [draft, validateEntry]);
-
-  const onSave = useCallback(async () => {
-    const rid = nextReqId();
-    console.groupCollapsed(`💾 [NodeLibraryBuilder] SAVE #${rid}`);
-    console.log('Time:', nowIso());
-    console.log('Node type:', draft.node_type);
-    console.log('Entry ID:', draft.id);
-    console.log('Content snapshot:', draft.content);
-
-    const ok = await onValidate();
-    if (!ok) {
+  const handleSave = async () => {
+    if (!entry.id.trim()) {
       toast({
-        title: 'Validation failed',
-        description: 'Fix the issues printed in console (open DevTools) and try again.',
-        variant: 'destructive',
+        title: "Validation Error",
+        description: "Node ID is required",
+        variant: "destructive",
       });
-      console.groupEnd();
       return;
     }
 
+    // Validate ID starts with lib_ for library nodes
+    if (!entry.id.startsWith('lib_')) {
+      toast({
+        title: "Validation Error",
+        description: "Library node IDs must start with 'lib_'",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate ID pattern (alphanumeric, underscores, hyphens)
+    if (!/^lib_[a-zA-Z0-9_-]+$/.test(entry.id)) {
+      toast({
+        title: "Validation Error",
+        description: "Node ID can only contain letters, numbers, underscores, and hyphens after 'lib_' prefix",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    setValidationErrors([]);
+
     try {
-      const saved = await saveEntry({
-        id: draft.id,
-        node_type: draft.node_type,
-        content: draft.content,
-        payload_validate: draft.payload_validate ?? null,
-        payload_generate: draft.payload_generate ?? null,
-        validate_n8n_id: draft.validate_n8n_id ?? null,
-        generate_n8n_id: draft.generate_n8n_id ?? null,
-        active: draft.active,
-        version: draft.version,
-      } as any);
-      console.log('🟢 saveEntry result:', saved);
-      if (saved) {
-        toast({ title: 'Saved', description: 'Node library entry saved successfully.' });
+      // Validate content structure
+      const isValidContent = await validateEntry(entry);
+      if (!isValidContent) {
+        setValidationErrors(['Invalid content structure for node type']);
+        return;
       }
-    } catch (e) {
-      console.error('💥 saveEntry threw:', e);
-      toast({ title: 'Save failed', description: String(e), variant: 'destructive' });
+
+      const success = await saveEntry(entry);
+      if (success) {
+        navigate('/app/build/node');
+      }
+    } catch (error) {
+      console.error('Save error:', error);
     } finally {
-      console.groupEnd();
-    }
-  }, [draft, onValidate, saveEntry, toast]);
-
-  const onTypeChange = (v: NodeType) => {
-    setDraft((d) => {
-      if (v === 'media' && !isSSOTMedia(d.content)) {
-        return {
-          ...d,
-          node_type: v,
-          content: { kind: 'MediaContent', type: 'image', path: 'media', versions: [] },
-        };
-      }
-      return { ...d, node_type: v };
-    });
-  };
-
-  const onMediaChange = (next: any) => {
-    setDraft((d) => ({ ...d, content: next }));
-    if (debug) {
-      console.debug('[NodeLibraryBuilder] MediaContent changed →', next);
+      setIsSaving(false);
     }
   };
+
+  const handleContentChange = useCallback((newContent: Record<string, any>) => {
+    setEntry(prev => (isEqual(prev.content, newContent) ? prev : { ...prev, content: newContent }));
+  }, []);
+
+  const renderContentEditor = () => {
+    switch (entry.node_type) {
+      case 'form':
+        return (
+          <FormContentEditor 
+            content={entry.content} 
+            onChange={handleContentChange}
+          />
+        );
+      case 'media':
+        return (
+          <MediaContentEditor 
+            content={entry.content} 
+            onChange={handleContentChange}
+          />
+        );
+      case 'group':
+        return (
+          <GroupContentEditor 
+            content={entry.content} 
+            onChange={handleContentChange}
+          />
+        );
+      default:
+        return <div>Unknown node type</div>;
+    }
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-64">Loading...</div>;
+  }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Node Library Builder</h2>
-        <div className="flex items-center gap-3">
-          <Label className="text-xs flex items-center gap-2">
-            <Input
-              type="checkbox"
-              checked={debug}
-              onChange={(e) => setDebug(e.target.checked)}
-            />
-            Debug logs
-          </Label>
-          <Badge variant={debug ? 'default' : 'secondary'}>
-            DEBUG {debug ? 'ON' : 'OFF'}
-          </Badge>
+    <div className="max-w-6xl mx-auto p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="sm" asChild>
+          <Link to="/app/build/node">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Node Library
+          </Link>
+        </Button>
+        <div>
+          <h1 className="text-3xl font-bold">
+            {id ? 'Edit' : 'Create'} Node Library Entry
+          </h1>
+          <p className="text-muted-foreground">
+            Configure a reusable node for your application
+          </p>
         </div>
       </div>
 
+      {/* Validation Errors */}
+      {validationErrors.length > 0 && (
+        <Card className="border-destructive">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-destructive">Validation Errors</h3>
+                <ul className="mt-2 list-disc list-inside text-sm">
+                  {validationErrors.map((error, index) => (
+                    <li key={index}>{error}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Basic Configuration */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Basics</CardTitle>
+          <CardTitle>Basic Configuration</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label>Name</Label>
-            <Input
-              value={draft.name}
-              onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-              placeholder="Friendly name"
-            />
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="id">Node ID *</Label>
+              <Input
+                id="id"
+                value={entry.id}
+                onChange={(e) => setEntry(prev => ({ ...prev, id: e.target.value }))}
+                placeholder="lib_my-node-id"
+                disabled={!!id} // Disable editing ID for existing entries
+              />
+              <p className="text-xs text-muted-foreground">
+                Library node IDs must start with 'lib_'
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="nodeType">Node Type *</Label>
+              <Select 
+                value={entry.node_type} 
+                onValueChange={(value: 'form' | 'media' | 'group') => 
+                  setEntry(prev => ({ ...prev, node_type: value, content: {} }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="form">Form</SelectItem>
+                  <SelectItem value="media">Media</SelectItem>
+                  <SelectItem value="group">Group</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Node Type</Label>
-            <Select value={draft.node_type} onValueChange={(v) => onTypeChange(v as NodeType)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="form">Form</SelectItem>
-                <SelectItem value="media">Media</SelectItem>
-                <SelectItem value="group">Group</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="version">Version</Label>
+              <Input
+                id="version"
+                type="number"
+                min="1"
+                value={entry.version}
+                onChange={(e) => setEntry(prev => ({ ...prev, version: parseInt(e.target.value) || 1 }))}
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label>Version</Label>
-            <Input
-              type="number"
-              value={draft.version}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, version: Math.max(1, parseInt(e.target.value || '1', 10)) }))
-              }
-              min={1}
-            />
+            <div className="flex items-center space-x-2 pt-7">
+              <Switch
+                id="active"
+                checked={entry.active}
+                onCheckedChange={(checked) => setEntry(prev => ({ ...prev, active: checked }))}
+              />
+              <Label htmlFor="active">Active</Label>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {draft.node_type === 'media' && (
-        <MediaContentEditor content={draft.content} onChange={onMediaChange} />
-      )}
+      {/* Content Configuration */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Content Configuration</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Configure the content structure for this {entry.node_type} node
+          </p>
+        </CardHeader>
+        <CardContent>
+          {renderContentEditor()}
+        </CardContent>
+      </Card>
+
+      {/* N8N Integration */}
+      <Card>
+        <CardHeader>
+          <CardTitle>N8N Integration</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Connect this node to N8N functions for validation and generation
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="validateN8NId">Validation Function</Label>
+              <Select 
+                value={entry.validate_n8n_id ?? 'none'} 
+                onValueChange={(value) => setEntry(prev => ({ ...prev, validate_n8n_id: value === 'none' ? null : value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select validation function" />
+                </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {n8nFunctions.length === 0 ? (
+                      <SelectItem value="__no_results" disabled>
+                        No active N8N functions found
+                      </SelectItem>
+                    ) : (
+                      n8nFunctions.map(func => (
+                        <SelectItem key={func.id} value={func.id}>
+                          {func.name} ({func.kind})
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="generateN8NId">Generation Function</Label>
+              <Select 
+                value={entry.generate_n8n_id ?? 'none'} 
+                onValueChange={(value) => setEntry(prev => ({ ...prev, generate_n8n_id: value === 'none' ? null : value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select generation function" />
+                </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {n8nFunctions.length === 0 ? (
+                      <SelectItem value="__no_results" disabled>
+                        No active N8N functions found
+                      </SelectItem>
+                    ) : (
+                      n8nFunctions.map(func => (
+                        <SelectItem key={func.id} value={func.id}>
+                          {func.name} ({func.kind})
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Payload Configuration */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Payload Configuration</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Configure the payloads sent to N8N functions
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <PayloadEditor
+            label="Validation Payload"
+            value={entry.payload_validate}
+            onChange={(payload) => setEntry(prev => ({ ...prev, payload_validate: payload }))}
+            placeholder="JSON payload for validation function"
+          />
+          
+          <Separator />
+          
+          <PayloadEditor
+            label="Generation Payload"
+            value={entry.payload_generate}
+            onChange={(payload) => setEntry(prev => ({ ...prev, payload_generate: payload }))}
+            placeholder="JSON payload for generation function"
+          />
+        </CardContent>
+      </Card>
 
       {/* Actions */}
-      <div className="flex items-center gap-3">
-        <Button variant="secondary" onClick={onValidate}>Validate</Button>
-        <Button onClick={onSave}>Save</Button>
+      <div className="flex items-center gap-4">
+        <Button onClick={handleSave} disabled={isSaving}>
+          <Save className="w-4 h-4 mr-2" />
+          {isSaving ? 'Saving...' : 'Save Node'}
+        </Button>
+        
+        <Button variant="outline" asChild>
+          <Link to="/app/build/node">
+            Cancel
+          </Link>
+        </Button>
       </div>
     </div>
   );
