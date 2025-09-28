@@ -101,7 +101,7 @@ const MainApp = () => (
                   <Route path="/app/build" element={
                     <div>
                       <Header />
-                      <BuildIndex />
+                      <NodeLibraryBuilder2 />
                       <Footer />
                     </div>
                   } />
