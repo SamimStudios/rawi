@@ -23,6 +23,42 @@ export interface N8NFunction {
   active: boolean;
 }
 
+function isSSOTMedia(content: any): boolean {
+  return content && content.kind === 'MediaContent' && Array.isArray(content.versions);
+}
+
+/**
+ * Convert SSOT MediaContent to legacy shape expected by DB validator (if needed).
+ * Keeps zero versions intact. URL can be empty.
+ */
+function legacyifyMediaForRPC(content: any): any {
+  if (!isSSOTMedia(content)) return content;
+  const selected = typeof content.selected_version_idx === 'number' ? content.selected_version_idx : undefined;
+  const versions = (content.versions || []).map((v: any) => {
+    const url = (v?.item?.url ?? '') as string;
+    const width = v?.item?.width;
+    const height = v?.item?.height;
+    const duration_ms = v?.item?.duration_ms;
+    const meta: Record<string, any> = {};
+    if (typeof width === 'number') meta.width = width;
+    if (typeof height === 'number') meta.height = height;
+    if (typeof duration_ms === 'number') meta.duration = duration_ms / 1000;
+    return {
+      version: `v${v.idx ?? 0}`,
+      url,
+      metadata: meta,
+    };
+  });
+  const def = selected ? `v${selected}` : undefined;
+  const legacy = {
+    type: content.type,
+    versions,
+    default_version: def,
+  };
+  console.debug('[useNodeLibrary] ↪︎ legacyifyMediaForRPC:', legacy);
+  return legacy;
+}
+
 export function useNodeLibrary() {
   const [entries, setEntries] = useState<NodeLibraryEntry[]>([]);
   const [n8nFunctions, setN8NFunctions] = useState<N8NFunction[]>([]);
@@ -53,18 +89,15 @@ export function useNodeLibrary() {
   const fetchN8NFunctions = useCallback(async () => {
     try {
       console.log('🔄 Fetching N8N functions...');
-      
-      const { data, error } = await supabase.functions.invoke('list-n8n-functions');
-      
-      if (error) {
-        console.error('❌ Edge function error:', error);
-        throw error;
-      }
-
-      console.log('📊 N8N functions response:', data);
-      
-      setN8NFunctions(data?.data || []);
-      console.log('✅ N8N functions loaded:', data?.data?.length || 0);
+      const { data, error } = await supabase
+        .schema('app' as any)
+        .from('n8n_functions')
+        .select('*')
+        .eq('active', true)
+        .order('updated_at', { ascending: false });
+      if (error) throw error;
+      setN8NFunctions(data || []);
+      console.log('✅ N8N functions loaded:', data?.length || 0);
     } catch (err) {
       console.error('❌ Error fetching n8n functions:', err);
       setN8NFunctions([]);
@@ -77,9 +110,23 @@ export function useNodeLibrary() {
       console.log('Node type:', entry.node_type);
       console.log('Content structure:', entry.content);
 
+      // Media (SSOT) with zero versions is valid per SSOT
+      if (entry.node_type === 'media' && isSSOTMedia(entry.content)) {
+        const versions = entry.content?.versions ?? [];
+        if (versions.length === 0) {
+          console.log('✅ Media SSOT with zero versions → treat as valid (per SSOT).');
+          console.groupEnd();
+          return true;
+        }
+      }
+
+      // For media, convert SSOT → legacy for the DB validator only
+      const contentForRPC =
+        entry.node_type === 'media' ? legacyifyMediaForRPC(entry.content) : entry.content;
+
       const { data, error } = await supabase.rpc('is_valid_content_shape', {
         node_type: entry.node_type,
-        content: entry.content
+        content: contentForRPC,
       });
 
       if (error) {
@@ -87,10 +134,10 @@ export function useNodeLibrary() {
         console.groupEnd();
         throw error;
       }
-      
+
       console.log('✅ Validation result:', data);
       console.groupEnd();
-      return data as boolean;
+      return Boolean(data);
     } catch (err) {
       console.error('❌ Error validating entry:', err);
       console.groupEnd();
@@ -101,7 +148,7 @@ export function useNodeLibrary() {
   const saveEntry = useCallback(async (entry: Omit<NodeLibraryEntry, 'created_at' | 'updated_at'>) => {
     setLoading(true);
     setError(null);
-    
+
     try {
       // Validate entry before saving
       const isValid = await validateEntry(entry);
@@ -117,11 +164,11 @@ export function useNodeLibrary() {
       if (error) throw error;
 
       toast({
-        title: "Success",
+        title: "Saved",
         description: "Node library entry saved successfully",
       });
 
-      // Refresh the entries
+      // Refresh entries
       await fetchEntries();
       return true;
     } catch (err) {
@@ -141,7 +188,7 @@ export function useNodeLibrary() {
   const deleteEntry = useCallback(async (id: string) => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const { error } = await supabase
         .schema('app' as any)
