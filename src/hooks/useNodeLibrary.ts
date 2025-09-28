@@ -71,36 +71,56 @@ export function useNodeLibrary() {
     }
   }, []);
 
-    // in src/hooks/useNodeLibrary.ts (or wherever your snippet lives)
-    const validateEntry = useCallback(async (entry: Omit<NodeLibraryEntry, 'created_at' | 'updated_at'>) => {
-      try {
-        console.group('🔍 Validating node entry');
-        console.log('Node type:', entry.node_type);
-        console.log('Content structure:', entry.content);
-    
-        // 👇 use the app schema so PostgREST sends Accept-Profile: app
-        const { data, error } = await supabase
-          .schema('app' as any)
-          .rpc('is_valid_content_shape', {
-            node_type: entry.node_type,
-            content: entry.content
-          });
-    
-        if (error) {
-          console.error('❌ RPC validation error:', error);
-          console.groupEnd();
-          throw error;
-        }
-        
-        console.log('✅ Validation result:', data);
-        console.groupEnd();
-        return data as boolean;
-      } catch (err) {
-        console.error('❌ Error validating entry:', err);
-        console.groupEnd();
-        return false;
-      }
-    }, []);
+    const toSsotMedia = (raw: any) => {
+  // already SSOT?
+  if (raw && raw.kind === 'MediaContent') return raw;
+
+  // legacy -> minimal SSOT (zero versions allowed)
+  if (raw && typeof raw === 'object' && raw.type && Array.isArray(raw.versions)) {
+    return {
+      kind: 'MediaContent',
+      type: raw.type,
+      path: raw.path || 'media',
+      versions: [],                 // keep empty (allowed)
+      selected_version_idx: null    // must be null when versions is []
+    };
+  }
+  return raw;
+};
+
+const validateEntry = useCallback(async (entry: Omit<NodeLibraryEntry, 'created_at' | 'updated_at'>) => {
+  try {
+    console.group('🔍 Validating node entry');
+    console.log('Node type:', entry.node_type);
+    console.log('Content structure (incoming):', entry.content);
+
+    const contentForRPC =
+      entry.node_type === 'media' ? toSsotMedia(entry.content) : entry.content;
+
+    console.log('Content structure (for RPC):', contentForRPC);
+
+    const { data, error } = await supabase
+      .schema('app' as any)
+      .rpc('is_valid_content_shape', {
+        node_type: entry.node_type,
+        content: contentForRPC
+      });
+
+    if (error) {
+      console.error('❌ RPC validation error:', error);
+      console.groupEnd();
+      throw error;
+    }
+    console.log('✅ Validation result:', data);
+    console.groupEnd();
+    return data as boolean;
+  } catch (err) {
+    console.error('❌ Error validating entry:', err);
+    console.groupEnd();
+    return false;
+  }
+}, []);
+
 
 
   const saveEntry = useCallback(async (entry: Omit<NodeLibraryEntry, 'created_at' | 'updated_at'>) => {
