@@ -47,7 +47,6 @@ import ButtonShowcase from "./pages/ButtonShowcase";
 
 
 
-
 const queryClient = new QueryClient();
 
 const MainApp = () => (
@@ -88,8 +87,6 @@ const MainApp = () => (
                       <Footer />
                     </div>
                   } />
-
-                      
                   <Route path="/app/build" element={
                     <div>
                       <Header />

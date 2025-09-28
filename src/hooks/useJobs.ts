@@ -2,8 +2,6 @@ import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { materializeCollections } from '@/lib/materialize';
-
 
 export interface Job {
   id: string;
@@ -184,47 +182,14 @@ export function useJobs() {
       }
 
       console.log('✅ Job created with ID:', data);
-      const jobId = data as string;
-      
-      // ── MATERIALIZE: clone collection templates into runtime instances ──
-      try {
-        // 1) pull all nodes created for this job
-        const { data: createdNodes, error: nodesErr } = await supabase
-          // @ts-ignore
-          .schema('app' as any)
-          .from('nodes')
-          .select('id')
-          .eq('job_id', jobId);
-      
-        if (nodesErr) {
-          console.warn('⚠️ Could not fetch nodes for materialization:', nodesErr);
-        } else {
-          const nodeIds = (createdNodes ?? []).map((n: any) => n.id);
-          if (nodeIds.length > 0) {
-            await materializeCollections(jobId, nodeIds);
-            // optional: refresh local state so UI sees expanded instances
-            try {
-              await fetchJobNodes(jobId);
-            } catch (e) {
-              console.warn('⚠️ fetchJobNodes after materialize failed:', e);
-            }
-          } else {
-            console.warn('No nodes found to materialize for job', jobId);
-          }
-        }
-      } catch (e) {
-        console.warn('⚠️ Materialize step failed:', e);
-      }
-      
       console.groupEnd();
-      
+
       toast({
         title: "Success",
         description: `Job "${jobName}" created successfully`,
       });
-      
-      return jobId;
 
+      return data as string;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create job from template';
       setError(errorMessage);
@@ -238,7 +203,7 @@ export function useJobs() {
     } finally {
       setLoading(false);
     }
-  }, [toast, user, fetchJobNodes]);
+  }, [toast, user]);
 
   const updateJobNode = useCallback(async (nodeId: string, content: Record<string, any>): Promise<boolean> => {
     setLoading(true);

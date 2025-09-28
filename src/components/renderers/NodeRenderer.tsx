@@ -30,81 +30,13 @@ import { useJobs, type JobNode } from '@/hooks/useJobs';
 const DBG = true;
 const nlog = (...a:any[]) => { if (DBG) console.debug('[NodeRenderer]', ...a); };
 
-// apply writes to a deep-cloned content object using SSOT addressing `${node.addr}#path.to.key`
-function applyWritesToContent(base: any, writes: Array<{ address: string; value: any }>, nodeAddr: string) {
-  const out = JSON.parse(JSON.stringify(base ?? {}));
-
-  const setByPath = (obj: any, path: string, value: any) => {
-    const segs = path.split('.').filter(Boolean);
-    let cur = obj;
-    for (let i = 0; i < segs.length; i++) {
-      const seg = segs[i];
-      const isLast = i === segs.length - 1;
-
-      // numeric segment → array index
-      const idx = /^[0-9]+$/.test(seg) ? parseInt(seg, 10) : null;
-
-      if (idx !== null) {
-        if (!Array.isArray(cur)) cur = (cur = []);
-        if (!cur[idx]) cur[idx] = {};
-        if (isLast) cur[idx] = value;
-        else cur = cur[idx];
-      } else {
-        if (typeof cur[seg] === 'undefined') cur[seg] = {};
-        if (isLast) cur[seg] = value;
-        else cur = cur[seg];
-      }
-    }
-  };
-
-  for (const w of writes) {
-    const prefix = `${nodeAddr}#`;
-    if (!w?.address?.startsWith(prefix)) continue;
-    const path = w.address.slice(prefix.length); // e.g. "selected_version_idx" or "items.section_1.field_x.value"
-    setByPath(out, path, w.value);
-  }
-
-  return out;
-}
-
-// Runtime save: merge writes → update app.nodes.content
-async function saveViaRpc(
-  nodeId: string,
-  nodeType: string,
-  nodeAddr: string,
-  baseContent: any,
-  writes: Array<{ address: string; value: any }>
-) {
-  nlog('saveViaRpc:merge', { nodeId, count: writes.length });
-
-  const nextContent = applyWritesToContent(baseContent, writes, nodeAddr);
-
-  // runtime guard (instances[] allowed)
-  if (!isRuntimeOk(nodeType, nextContent)) {
-    throw new Error('Invalid runtime content shape for app.nodes');
-  }
-
-  const { error } = await supabase
-    // @ts-ignore
-    .schema('app' as any)
-    .from('nodes')
-    .update({ content: nextContent, updated_at: new Date().toISOString() })
-    .eq('id', nodeId);
-
-  if (error) throw error;
-
-  nlog('saveViaRpc:ok', { nodeId });
-}
-
-
-function isRuntimeOk(nodeType: string, content: any): boolean {
-  if (!content || typeof content !== 'object') return false;
-  if (nodeType === 'group') return content.kind === 'GroupContent'; // allow instances[]
-  if (nodeType === 'form')  return content.kind === 'FormContent';  // allow instances[]
-  // media & others: be permissive
-  return true;
-}
-
+const saveViaRpc = async (jobId: string, writes: Array<{ address: string; value: any }>) => {
+  nlog('saveViaRpc:start', { jobId, count: writes.length, sample: writes.slice(0, 3) });
+  // TODO: Implement proper RPC call or use edge function
+  // For now, log the writes that would be made
+  console.log('Would save writes:', writes);
+  nlog('saveViaRpc:ok', { count: writes.length });
+};
 
 
 // normalize writes: ensure `value` is JSON-serializable and never `undefined`
@@ -117,75 +49,6 @@ function toWritesArray(entries: Array<{ address: string; value: any }>, nodeAddr
       value: e.value === undefined ? null : JSON.parse(JSON.stringify(e.value, (_k, v) => (v === undefined ? null : v)))
     }));
 }
-
-// inside NodeRenderer.tsx (near other helpers)
-function getSelectedMediaVersion(content: any) {
-  const versions = Array.isArray(content?.versions) ? content.versions : [];
-  if (versions.length === 0) return { versions, selectedIdx: null, selected: null };
-  const sel = Number.isInteger(content?.selected_version_idx) ? content.selected_version_idx : 1;
-  const selected = versions.find((v: any) => v?.idx === sel) ?? versions[0];
-  return { versions, selectedIdx: selected?.idx ?? 1, selected };
-}
-
-
-
-
-function renderMediaContent(
-  node: any,
-  isEditing: boolean,
-  draftContent: any,
-  setDraftContent: (c:any)=>void,
-  nodeAddr: string,
-  setDraft: (address: string, value: any) => void,
-  markDirty: () => void
-) {
-  const content = draftContent ?? node.content ?? {};
-  const type = content?.type; // "image" | "video" | "audio"
-  const { versions, selectedIdx, selected } = getSelectedMediaVersion(content);
-
- if (!selected?.item) {
-  return <div className="text-sm text-muted-foreground">
-    No media yet. Use <strong>Generate</strong> to create the first version.
-  </div>;
-}
-
-  const it = selected.item; // SSOT: versions[].item (single item)
-  const src = it?.uri ?? it?.url ?? '';
-  const poster = it?.poster;
-
-  return (
-    <div className="space-y-3">
-      {type === 'image' && <img src={src} alt="" className="rounded-lg w-full h-auto" />}
-      {type === 'video' && <video src={src} poster={poster} controls className="w-full rounded-lg" />}
-      {type === 'audio' && <audio src={src} controls className="w-full" />}
-
-      {isEditing && versions?.length > 0 && (
-        <div className="flex gap-2 flex-wrap">
-          {versions
-            .slice()
-            .sort((a:any,b:any)=>(a.idx??0)-(b.idx??0))
-            .map((v:any)=>(
-              <button
-                key={v.idx}
-                type="button"
-                className={`px-2 py-1 rounded border ${v.idx===selectedIdx ? 'border-primary' : 'border-muted-foreground/30'}`}
-                onClick={() => {
-                // SSOT address for the selected version index (root of MediaContent)
-                setDraft(`${nodeAddr}#selected_version_idx`, v.idx);
-                // reflect immediately in UI
-                setDraftContent({ ...content, selected_version_idx: v.idx });
-                markDirty();
-              }}
-              >
-                v{v.idx}
-              </button>
-            ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 
 
 
@@ -212,7 +75,7 @@ export default function NodeRenderer({
   const { toast } = useToast();
   const { credits: userCredits } = useUserCredits();
   const { getPrice, loading: pricingLoading } = useFunctionPricing();
-  const { entries, set: setDraft, clear: clearDrafts } = useDrafts();
+  const { entries, clear: clearDrafts } = useDrafts();
   const { reloadNode } = useJobs();
   const { startEditing, stopEditing, isEditing, hasActiveEditor } = useNodeEditor();
 
@@ -331,9 +194,9 @@ const handleSaveEdit = async () => {
     }
 
     // single RPC handles 1..N writes atomically
-    await saveViaRpc(node.id, node.node_type, node.addr, contentSnapshot, writes);
+    await saveViaRpc(node.job_id, writes);
 
-
+    // after: await saveViaRpc(node.job_id, writes);
 
     clearDrafts(nodePrefix);
     
@@ -544,13 +407,7 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
                   <Edit2 className="h-3 w-3 mr-1" /> Edit
                 </Button>
                 {hasGenerateAction && (
-                  <CreditsButton
-                    onClick={handleGenerate}
-                    price={generateCost}
-                    available={userCredits}
-                    loading={loading}
-                    size="sm"
-                  >
+                  <CreditsButton onClick={handleGenerate} price={generateCost} available={userCredits} loading={loading} size="sm">
                     Generate
                   </CreditsButton>
                 )}
@@ -564,26 +421,9 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
       <Collapsible open={!isCollapsed} onOpenChange={setIsCollapsed}>
         <CardContent className="pt-0">
           <CollapsibleContent>
-            {node.node_type === 'form'
-              ? renderFormContent()
-              : node.node_type === 'media'
-              ? renderMediaContent(
-                  node,
-                  effectiveMode === 'edit',
-                  contentSnapshot,
-                  (next: any) => setContentSnapshot(next),
-                  node.addr,
-                  setDraft,
-                  () => setHasUnsavedChanges(true)
-                )
-              : (
-                <div className="text-muted-foreground">
-                  Node type '{node.node_type}' not supported by SSOT renderer.
-                </div>
-              )
-            }
-
-
+            {node.node_type === 'form' ? renderFormContent() : (
+              <div className="text-muted-foreground">Node type '{node.node_type}' not supported by SSOT renderer.</div>
+            )}
           </CollapsibleContent>
         </CardContent>
       </Collapsible>
