@@ -1,19 +1,17 @@
 import { useCallback, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import { NodeLibraryRow } from "./ssot";
 import { sanitizeForLibrary } from "./sanitize";
 import { validateTemplate } from "./validate";
-import { NodeLibraryRow } from "./ssot";
 
-const log = (label: string, obj: any) => {
-  try { console.log(label, JSON.stringify(obj, null, 2)); } catch { console.log(label, obj); }
-};
+const log = (label: string, obj: any) => { try { console.log(label, JSON.stringify(obj, null, 2)); } catch { console.log(label, obj); } };
 
 export function useNodeLibrary2() {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
 
-  const save = useCallback(async (row: Omit<NodeLibraryRow, "version" | "active"> & { version?: number; active?: boolean; }) => {
+  const save = useCallback(async (row: NodeLibraryRow) => {
     setSaving(true);
     try {
       const id = row.id.startsWith("lib_") ? row.id : `lib_${row.id}`;
@@ -22,18 +20,11 @@ export function useNodeLibrary2() {
       log("🧪 validateTemplate", v);
       if (!v.ok) throw new Error(`Invalid template: ${v.why}`);
 
-      // existence check
-      const { data: existing, error: exErr } = await supabase
-        // @ts-ignore
-        .schema("app" as any)
-        .from("node_library")
-        .select("id")
-        .eq("id", id);
-
+      // existence check → insert or update
+      const { data: existing, error: exErr } = await supabase.schema("app" as any).from("node_library").select("id").eq("id", id);
       if (exErr) throw exErr;
-
       const payload: any = { id, node_type: row.node_type, content };
-      // attempt 1: minimal
+
       let dbErr: any = null;
       if (existing && existing.length) {
         const { error } = await supabase.schema("app" as any).from("node_library").update(payload).eq("id", id);
@@ -44,13 +35,12 @@ export function useNodeLibrary2() {
       }
 
       if (dbErr) {
-        // retry with defaults if NOT NULLs exist
         const msg = String(dbErr?.message || "");
         const needsVersion = /"version"/i.test(msg);
         const needsActive  = /"active"/i.test(msg);
         if (needsVersion || needsActive) {
-          payload.version = row.version ?? 1;
-          payload.active  = row.active ?? true;
+          payload.version = (row as any).version ?? 1;
+          payload.active  = (row as any).active ?? true;
           if (existing && existing.length) {
             const { error } = await supabase.schema("app" as any).from("node_library").update(payload).eq("id", id);
             if (error) throw error;
