@@ -14,8 +14,8 @@ import { supabase } from '@/integrations/supabase/client';
 type Importance = 'low' | 'normal' | 'high';
 
 interface I18nText {
-  fallback: string;
-  key?: string;
+  fallback: string | null;   // ⬅ allow null
+  key?: string | null;       // ⬅ allow null
 }
 
 interface UIBlock {
@@ -103,7 +103,14 @@ interface FormContentEditorProps {
 
 /* ---------------- helpers ---------------- */
 
-const i18n = (t?: I18nText | null): I18nText => ({ fallback: t?.fallback ?? '', key: t?.key || undefined });
+const s2n = (s: string | null | undefined) => (s && s.trim() !== '' ? s : null);
+
+// i18n helper → null out empty strings
+const i18n = (t?: Partial<I18nText> | null): I18nText => ({
+  fallback: s2n(t?.fallback ?? null),
+  key: s2n(t?.key ?? null),
+});
+
 const clampIdx = (n?: number) => Math.max(1, Number.isFinite(n as any) ? (n as number) : 1);
 const nextIdx = (arr: { idx?: number }[]) => (arr.length ? Math.max(...arr.map(x => clampIdx(x.idx))) + 1 : 1);
 const isField = (x: any): x is FieldItem => x?.kind === 'FieldItem';
@@ -111,9 +118,7 @@ const isSection = (x: any): x is SectionItem => x?.kind === 'SectionItem';
 const isCField = (x: any): x is CollectionFieldItem => x?.kind === 'CollectionFieldItem';
 const isCSection = (x: any): x is CollectionSection => x?.kind === 'CollectionSection';
 
-const s2n = (s: string | null | undefined) => (s && s.trim() !== '' ? s : null);
-
-/** Auto-compute override; null all props when empty */
+/** Auto-compute override; null all UI props when empty */
 function normalizeUI(raw?: Partial<UIBlock> | null): UIBlock {
   const help_f = s2n((raw as any)?.help?.fallback);
   const help_k = s2n((raw as any)?.help?.key);
@@ -122,12 +127,11 @@ function normalizeUI(raw?: Partial<UIBlock> | null): UIBlock {
   const widget = s2n((raw as any)?.widget);
   const datatype = s2n((raw as any)?.datatype);
 
-  const help = help_f || help_k ? { fallback: help_f ?? '', key: help_k ?? undefined } : null;
-  const placeholder = placeholder_f || placeholder_k ? { fallback: placeholder_f ?? '', key: placeholder_k ?? undefined } : null;
+  const help = help_f || help_k ? { fallback: help_f, key: help_k } : null;
+  const placeholder = placeholder_f || placeholder_k ? { fallback: placeholder_f, key: placeholder_k } : null;
 
   const override = !!(help || placeholder || widget || datatype);
 
-  // If nothing is filled, force nulls + override=false
   if (!override) {
     return {
       kind: 'UIBlock',
@@ -154,15 +158,15 @@ function normalizeFieldItem(item: any, fallbackPath = 'field'): FieldItem {
   const ref = (item?.ref ?? item?.path ?? `${fallbackPath}_${idx}`).toString();
   const path = (item?.path ?? ref).toString();
 
-  // Lift legacy ui.label to top-level label if present
-  const liftedLabel = item?.label ?? item?.ui?.label;
+  // Lift legacy ui.label to top-level label if present; else null by default
+  const liftedLabel = item?.label ?? item?.ui?.label ?? { fallback: null, key: null };
 
   return {
     kind: 'FieldItem',
     idx,
     path,
     ref,
-    label: i18n(liftedLabel ?? { fallback: ref }),
+    label: i18n(liftedLabel),
     editable: item?.editable !== false,
     required: !!item?.required,
     importance: (['low', 'normal', 'high'] as Importance[]).includes(item?.importance) ? item.importance : 'normal',
@@ -182,7 +186,8 @@ function normalizeSectionItem(item: any, fallbackPath = 'section'): SectionItem 
     kind: 'SectionItem',
     idx,
     path,
-    label: i18n(item?.label ?? { fallback: 'Section' }),
+    // default label.fallback = null
+    label: i18n(item?.label ?? { fallback: null, key: null }),
     description: item?.description ? i18n(item.description) : undefined,
     required: !!item?.required,
     hidden: !!item?.hidden,
@@ -207,7 +212,8 @@ function normalizeCFieldItem(item: any, basePath = 'cfield'): CollectionFieldIte
     idx,
     path,
     ref,
-    label: i18n(item?.label ?? item?.ui?.label ?? { fallback: ref }),
+    // default label.fallback = null
+    label: i18n(item?.label ?? item?.ui?.label ?? { fallback: null, key: null }),
     editable: item?.editable !== false,
     required: !!item?.required,
     importance: (['low', 'normal', 'high'] as Importance[]).includes(item?.importance) ? item.importance : 'normal',
@@ -236,7 +242,8 @@ function normalizeCSectionItem(item: any, basePath = 'csection'): CollectionSect
     kind: 'CollectionSection',
     idx,
     path,
-    label: i18n(item?.label ?? { fallback: 'Collection' }),
+    // default label.fallback = null
+    label: i18n(item?.label ?? { fallback: null, key: null }),
     description: item?.description ? i18n(item.description) : undefined,
     required: !!item?.required,
     hidden: !!item?.hidden,
@@ -261,12 +268,12 @@ function normalizeAnyItem(item: any, parentPath: string): ContentItem {
       // guess best fit
       if (item?.ref) return normalizeFieldItem(item, `${parentPath}.field`);
       if (Array.isArray(item?.children)) return normalizeSectionItem({ ...item, kind: 'SectionItem' }, `${parentPath}.section`);
-      return normalizeFieldItem({ kind: 'FieldItem', ref: 'field', idx: 1, path: `${parentPath}.field_1` }, parentPath);
+      return normalizeFieldItem({ kind: 'FieldItem', ref: 'field', idx: 1, path: `${parentPath}.field_1`, label: { fallback: null, key: null } }, parentPath);
   }
 }
 
 function normalizeFormContent(raw: any): FormContent {
-  // legacy "sections" to v2-items
+  // legacy "sections" → v2-items
   if (raw?.sections && !raw?.items) {
     const converted: ContentItem[] = (raw.sections as any[]).map((section: any, idx: number) =>
       normalizeSectionItem(
@@ -274,8 +281,9 @@ function normalizeFormContent(raw: any): FormContent {
           kind: 'SectionItem',
           idx: idx + 1,
           path: section.key || `section_${idx + 1}`,
-          label: section.title || { fallback: `Section ${idx + 1}` },
-          description: section.ui?.help,
+          // keep provided title; otherwise null fallback
+          label: i18n(section.title ?? { fallback: null, key: null }),
+          description: section.ui?.help ? i18n(section.ui.help) : undefined,
           required: false,
           hidden: false,
           collapsed: false,
@@ -289,8 +297,9 @@ function normalizeFormContent(raw: any): FormContent {
                 editable: true,
                 required: field.required || false,
                 importance: field.importance || 'normal',
-                ui: normalizeUI(field.ui),
+                ui: field.ui,
                 value: null,
+                label: field.ui?.label ?? { fallback: null, key: null },
               },
               `section_${idx + 1}`
             )
@@ -355,12 +364,22 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
   const addTopLevelField = () => {
     setFormContent(prev => {
       const idx = nextIdx(prev.items);
-      const field = normalizeFieldItem({
-        kind: 'FieldItem', idx, ref: '', path: `field_${idx}`,
-        label: { fallback },
-        ui: { kind: 'UIBlock', help: null, placeholder: null, widget: null, datatype: null, override: false },
-        editable: true, required: false, importance: 'normal', value: null,
-      }, 'field');
+      const field = normalizeFieldItem(
+        {
+          kind: 'FieldItem',
+          idx,
+          ref: '',
+          path: `field_${idx}`,
+          // ⬇ default label fallback = null
+          label: { fallback: null, key: null },
+          ui: { kind: 'UIBlock', help: null, placeholder: null, widget: null, datatype: null, override: false },
+          editable: true,
+          required: false,
+          importance: 'normal',
+          value: null,
+        },
+        'field'
+      );
       return { ...prev, items: [...prev.items, field] };
     });
   };
@@ -368,10 +387,20 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
   const addSection = () => {
     setFormContent(prev => {
       const idx = nextIdx(prev.items);
-      const section = normalizeSectionItem({
-        kind: 'SectionItem', idx, path: `section_${idx}`,
-        label: { fallback: 'New Section' }, required: false, hidden: false, collapsed: false, children: [],
-      }, 'section');
+      const section = normalizeSectionItem(
+        {
+          kind: 'SectionItem',
+          idx,
+          path: `section_${idx}`,
+          // ⬇ default label fallback = null
+          label: { fallback: null, key: null },
+          required: false,
+          hidden: false,
+          collapsed: false,
+          children: [],
+        },
+        'section'
+      );
       return { ...prev, items: [...prev.items, section] };
     });
   };
@@ -379,12 +408,24 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
   const addCollectionField = () => {
     setFormContent(prev => {
       const idx = nextIdx(prev.items);
-      const cfield = normalizeCFieldItem({
-        kind: 'CollectionFieldItem', idx, path: `cfield_${idx}`, ref: '', label: { fallback: 'Collection Field' },
-        editable: true, required: false, importance: 'normal',
-        ui: { kind: 'UIBlock', help: null, placeholder: null, widget: null, datatype: null, override: false },
-        min_instances: 1, max_instances: 3, instances: [{ instance_id: 1, path: `cfield_${idx}.i1`, value: null }],
-      }, 'cfield');
+      const cfield = normalizeCFieldItem(
+        {
+          kind: 'CollectionFieldItem',
+          idx,
+          path: `cfield_${idx}`,
+          ref: '',
+          // ⬇ default label fallback = null
+          label: { fallback: null, key: null },
+          editable: true,
+          required: false,
+          importance: 'normal',
+          ui: { kind: 'UIBlock', help: null, placeholder: null, widget: null, datatype: null, override: false },
+          min_instances: 1,
+          max_instances: 3,
+          instances: [{ instance_id: 1, path: `cfield_${idx}.i1`, value: null }],
+        },
+        'cfield'
+      );
       return { ...prev, items: [...prev.items, cfield] };
     });
   };
@@ -392,12 +433,22 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
   const addCollectionSection = () => {
     setFormContent(prev => {
       const idx = nextIdx(prev.items);
-      const csection = normalizeCSectionItem({
-        kind: 'CollectionSection', idx, path: `csection_${idx}`,
-        label: { fallback: 'Collection Section' }, required: false, hidden: false, collapsed: false,
-        min_instances: 1, max_instances: 3,
-        instances: [{ instance_id: 1, path: `csection_${idx}.i1`, children: [] }],
-      }, 'csection');
+      const csection = normalizeCSectionItem(
+        {
+          kind: 'CollectionSection',
+          idx,
+          path: `csection_${idx}`,
+          // ⬇ default label fallback = null
+          label: { fallback: null, key: null },
+          required: false,
+          hidden: false,
+          collapsed: false,
+          min_instances: 1,
+          max_instances: 3,
+          instances: [{ instance_id: 1, path: `csection_${idx}.i1`, children: [] }],
+        },
+        'csection'
+      );
       return { ...prev, items: [...prev.items, csection] };
     });
   };
@@ -410,7 +461,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
       const cur = items[index];
       let next: ContentItem = { ...(cur as any), ...updates };
 
-      // Re-normalize specific kinds to keep SSOT sound (and UI override auto)
+      // Re-normalize (keeps UI auto-override + null labels)
       if (isField(next)) next = normalizeFieldItem(next, 'field');
       if (isSection(next)) next = normalizeSectionItem(next, 'section');
       if (isCField(next)) next = normalizeCFieldItem(next, 'cfield');
@@ -450,7 +501,8 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
         idx,
         path: `${section.path}.field_${idx}`,
         ref: '',
-        label: { fallback },
+        // ⬇ default label fallback = null
+        label: { fallback: null, key: null },
         ui: { kind: 'UIBlock', help: null, placeholder: null, widget: null, datatype: null, override: false },
         editable: true,
         required: false,
@@ -471,7 +523,8 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
         kind: 'SectionItem',
         idx,
         path: `${section.path}.section_${idx}`,
-        label: { fallback: 'New Subsection' },
+        // ⬇ default label fallback = null
+        label: { fallback: null, key: null },
         required: false,
         hidden: false,
         collapsed: false,
@@ -511,7 +564,8 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
         idx,
         path: `${item.path}.i1.field_${idx}`,
         ref: '',
-        label: { fallback },
+        // ⬇ default label fallback = null
+        label: { fallback: null, key: null },
         ui: { kind: 'UIBlock', help: null, placeholder: null, widget: null, datatype: null, override: false },
         editable: true,
         required: false,
@@ -534,7 +588,8 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
         kind: 'SectionItem',
         idx,
         path: `${item.path}.i1.section_${idx}`,
-        label: { fallback: 'New Subsection' },
+        // ⬇ default label fallback = null
+        label: { fallback: null, key: null },
         required: false,
         hidden: false,
         collapsed: false,
@@ -589,7 +644,8 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
                   onUpdate({
                     ref: value,
                     path: value,
-                    label: field.label?.fallback ? field.label : { fallback: value },
+                    // ⬇ keep current label as-is; do not auto-fill fallback
+                    label: field.label,
                   })
                 }
               >
@@ -607,14 +663,14 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
               <Label className="text-xs">Label (fallback)</Label>
               <Input
                 value={field.label?.fallback || ''}
-                onChange={(e) => onUpdate({ label: { ...field.label, fallback: e.target.value } })}
+                onChange={(e) => onUpdate({ label: { ...field.label, fallback: s2n(e.target.value) } })}
               />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Label (key)</Label>
               <Input
                 value={field.label?.key || ''}
-                onChange={(e) => onUpdate({ label: { ...field.label, key: s2n(e.target.value) || undefined } })}
+                onChange={(e) => onUpdate({ label: { ...field.label, key: s2n(e.target.value) } })}
               />
             </div>
             <div className="space-y-1">
@@ -720,7 +776,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Label (fallback)</Label>
-              <Input value={section.label?.fallback || ''} onChange={(e) => updateItemAt(index, { label: { ...section.label, fallback: e.target.value } as any })} />
+              <Input value={section.label?.fallback || ''} onChange={(e) => updateItemAt(index, { label: { ...section.label, fallback: s2n(e.target.value) } as any })} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Index</Label>
@@ -731,11 +787,11 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Label (key)</Label>
-              <Input value={section.label?.key || ''} onChange={(e) => updateItemAt(index, { label: { ...section.label, key: s2n(e.target.value) || undefined } as any })} />
+              <Input value={section.label?.key || ''} onChange={(e) => updateItemAt(index, { label: { ...section.label, key: s2n(e.target.value) } as any })} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Description (fallback)</Label>
-              <Textarea value={section.description?.fallback || ''} onChange={(e) => updateItemAt(index, { description: { ...(section.description || {}), fallback: e.target.value } as any })} />
+              <Textarea value={section.description?.fallback || ''} onChange={(e) => updateItemAt(index, { description: { ...(section.description || {}), fallback: s2n(e.target.value) } as any })} />
             </div>
           </div>
 
@@ -807,7 +863,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Field ref</Label>
-              <Select value={item.ref || undefined} onValueChange={(v) => onUpdate({ ref: v, path: item.path || v, label: item.label?.fallback ? item.label : { fallback: v } })}>
+              <Select value={item.ref || undefined} onValueChange={(v) => onUpdate({ ref: v, path: item.path || v, label: item.label })}>
                 <SelectTrigger><SelectValue placeholder="Select field" /></SelectTrigger>
                 <SelectContent>
                   {availableFields.map(f => <SelectItem key={f.id} value={f.id}>{f.id}</SelectItem>)}
@@ -816,7 +872,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Label (fallback)</Label>
-              <Input value={item.label?.fallback || ''} onChange={(e) => onUpdate({ label: { ...item.label, fallback: e.target.value } as any })} />
+              <Input value={item.label?.fallback || ''} onChange={(e) => onUpdate({ label: { ...item.label, fallback: s2n(e.target.value) } as any })} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Min instances</Label>
@@ -883,7 +939,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Label (fallback)</Label>
-            <Input value={item.label?.fallback || ''} onChange={(e) => onUpdate({ label: { ...item.label, fallback: e.target.value } as any })} />
+            <Input value={item.label?.fallback || ''} onChange={(e) => onUpdate({ label: { ...item.label, fallback: s2n(e.target.value) } as any })} />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Min instances</Label>
@@ -1016,4 +1072,3 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
 }
 
 export default FormContentEditor;
-
