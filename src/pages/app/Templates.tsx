@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Loader2, Play, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -41,12 +41,24 @@ export default function AppTemplates() {
       return;
     }
 
-    const jobId = await createJobFromTemplate(selectedTemplate, jobName.trim());
-    if (jobId) {
-      setDialogOpen(false);
-      setJobName('');
-      setSelectedTemplate(null);
-      navigate(`/app/jobs/edit/${jobId}`);
+    try {
+      console.group('[Templates] ▶ handleCreateJob');
+      console.debug('templateId:', selectedTemplate, 'jobName:', jobName);
+
+      // Back-compat call: hook supports (templateId, jobNameString)
+      const jobId = await createJobFromTemplate(selectedTemplate, jobName.trim());
+
+      if (jobId) {
+        setDialogOpen(false);
+        setJobName('');
+        setSelectedTemplate(null);
+        console.debug('[Templates] → navigate to job:', jobId);
+        navigate(`/app/jobs/edit/${jobId}`);
+      }
+    } catch (e) {
+      console.error('[Templates] ❌ failed to create job:', e);
+    } finally {
+      console.groupEnd();
     }
   };
 
@@ -112,16 +124,16 @@ export default function AppTemplates() {
               </div>
             </CardContent>
             
-            <CardFooter>
-              <Button 
-                onClick={() => openCreateDialog(template.id)}
-                className="w-full"
-                size="sm"
-              >
-                <Play className="w-4 h-4 mr-2" />
-                Create Job
-              </Button>
-            </CardFooter>
+              <CardFooter>
+                <Button 
+                  onClick={() => openCreateDialog(template.id)}
+                  className="w-full"
+                  size="sm"
+                >
+                  <Play className="w-4 h-4 mr-2" />
+                  Create Job
+                </Button>
+              </CardFooter>
           </Card>
         ))}
       </div>
