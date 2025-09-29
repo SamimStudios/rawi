@@ -6,25 +6,30 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, Layers, FolderTree } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useNodeLibrary } from '@/hooks/useNodeLibrary';
 
 /**
- * SSOT-aligned GroupContent editor (per ai_scenes_node_contracts)
+ * SSOT-aligned GroupContent editor
  *
- * Regular Group:
- *   { kind:'Group', path:string, label?:I18nText, children:string[], x_ui?:{ arrangeable?:boolean }, x_meta?:{ description?:I18nText } }
+ * Regular:
+ *   { kind:'Group', path, label?, children: string[], x_ui?, x_meta? }
  *
- * Collection Group:
- *   { kind:'Group', path:string, label?:I18nText, collection:{}, instances:[
- *       { i:1..N, idx?:number, label?:I18nText, children:string[] }
- *     ],
- *     x_ui?:..., x_meta?:...
+ * Collection (template with exactly 1 instance in builder):
+ *   { kind:'Group', path, label?, collection:{
+ *       min:int, max:int, default_instances:int,
+ *       allow_add:boolean, allow_remove:boolean, allow_reorder:boolean,
+ *       label_template?: string  // may contain #{i}
+ *     },
+ *     instances: [{ i:1, idx?:number, label?:I18nText, children: string[] }],
+ *     x_ui?, x_meta?
  *   }
  *
  * Notes:
- *  - We keep `description` and `arrangeable` as namespaced extensions: x_meta.description, x_ui.arrangeable
- *  - Auto reindex `instances[i].i = 1..N`
- *  - Always emit strict SSOT shape
- *  - Verbose console logs with [GroupBuilder]
+ * - Builder enforces exactly ONE instance when in collection mode.
+ * - Job builder will replicate that instance (not this screen).
+ * - Children are selected from node-library list (id + name), not typed.
+ * - Debug logs prefix: [GroupBuilder]
  */
 
 type I18nText = { fallback: string; key?: string };
@@ -39,8 +44,8 @@ type GroupRegular = {
 };
 
 type GroupInstance = {
-  i: number;                 // 1..N ordinal (auto)
-  idx?: number;              // optional display/index
+  i: number;                 // ALWAYS 1 in builder collection mode
+  idx?: number;
   label?: I18nText;
   children: string[];
 };
@@ -49,8 +54,16 @@ type GroupCollection = {
   kind: 'Group';
   path: string;
   label?: I18nText;
-  collection: Record<string, any>;
-  instances: GroupInstance[];
+  collection: {
+    min?: number;
+    max?: number;
+    default_instances?: number;
+    allow_add?: boolean;
+    allow_remove?: boolean;
+    allow_reorder?: boolean;
+    label_template?: string;
+  };
+  instances: GroupInstance[]; // builder enforces length === 1
   x_ui?: { arrangeable?: boolean };
   x_meta?: { description?: I18nText };
 };
@@ -70,29 +83,43 @@ function isCollectionGroup(c: GroupContent): c is GroupCollection {
 
 function normalize(content: GroupContent): GroupContent {
   const basePath = content.path?.trim() || 'group';
+
   if (isCollectionGroup(content)) {
-    // Reindex i, ensure arrays
-    const reindexed = (content.instances || []).map((ins, idx) => ({
-      i: idx + 1,
-      idx: ins.idx,
-      label: ins.label && typeof ins.label === 'object'
-        ? { fallback: ins.label.fallback ?? '', key: ins.label.key }
+    // ENFORCE: exactly one instance in builder
+    const first = (content.instances && content.instances[0]) || { i: 1, children: [] as string[] } as GroupInstance;
+
+    const only: GroupInstance = {
+      i: 1,
+      idx: first.idx,
+      label: first.label && typeof first.label === 'object'
+        ? { fallback: first.label.fallback ?? '', key: first.label.key }
         : undefined,
-      children: Array.isArray(ins.children) ? ins.children : [],
-    }));
+      children: Array.isArray(first.children) ? first.children : [],
+    };
+
+    const col = content.collection || {};
     const out: GroupCollection = {
       kind: 'Group',
       path: basePath,
       label: content.label && typeof content.label === 'object'
         ? { fallback: content.label.fallback ?? '', key: content.label.key }
         : undefined,
-      collection: typeof content.collection === 'object' && content.collection ? content.collection : {},
-      instances: reindexed,
+      collection: {
+        min: numOrUndef(col.min),
+        max: numOrUndef(col.max),
+        default_instances: numOrUndef(col.default_instances),
+        allow_add: boolOrUndef(col.allow_add),
+        allow_remove: boolOrUndef(col.allow_remove),
+        allow_reorder: boolOrUndef(col.allow_reorder),
+        label_template: strOrUndef(col.label_template),
+      },
+      instances: [only],
       x_ui: content.x_ui,
       x_meta: content.x_meta,
     };
     return out;
   }
+
   // Regular group
   const out: GroupRegular = {
     kind: 'Group',
@@ -107,11 +134,14 @@ function normalize(content: GroupContent): GroupContent {
   return out;
 }
 
+const numOrUndef = (v: any) => (v === '' || v === null || v === undefined ? undefined : Number(v));
+const boolOrUndef = (v: any) => (typeof v === 'boolean' ? v : v ? true : undefined);
+const strOrUndef = (v: any) => (v && String(v).trim().length ? String(v) : undefined);
+
 /** Accept legacy-ish shapes and convert to SSOT */
 function migrateLegacy(raw: any): GroupContent {
   console.debug('[GroupBuilder] 🧪 migrateLegacy input:', raw);
 
-  // Already SSOT-ish
   if (raw && raw.kind === 'Group') {
     const normalized = normalize(raw as GroupContent);
     console.debug('[GroupBuilder] ✅ already Group; normalized:', normalized);
@@ -141,6 +171,14 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
   const initial = useMemo(() => migrateLegacy(content), [ck]);
   const [state, setState] = useState<GroupContent>(initial);
   const [mode, setMode] = useState<'regular' | 'collection'>(isCollectionGroup(initial) ? 'collection' : 'regular');
+
+  // Node options from library (for children selection)
+  const { entries, fetchEntries } = useNodeLibrary();
+  useEffect(() => { fetchEntries().catch(() => void 0); }, [fetchEntries]);
+  const nodeOptions = useMemo(
+    () => (entries || []).map(e => ({ id: e.id, label: e.name ? `${e.name} • ${e.id}` : e.id })),
+    [entries]
+  );
 
   useEffect(() => {
     const next = migrateLegacy(content);
@@ -183,7 +221,10 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
 
   const updateDescription = (field: 'fallback' | 'key', val: string) => {
     emit(prev => {
-      const desc: I18nText = { fallback: field === 'fallback' ? val : ((prev as any)?.x_meta?.description?.fallback ?? ''), key: field === 'key' ? (val || undefined) : ((prev as any)?.x_meta?.description?.key) };
+      const desc: I18nText = {
+        fallback: field === 'fallback' ? val : ((prev as any)?.x_meta?.description?.fallback ?? ''),
+        key: field === 'key' ? (val || undefined) : ((prev as any)?.x_meta?.description?.key)
+      };
       const x_meta = { ...(prev as any).x_meta, description: desc };
       return { ...prev, x_meta };
     });
@@ -193,17 +234,22 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
     setMode(newMode);
     emit(prev => {
       if (newMode === 'collection') {
-        console.debug('[GroupBuilder] 🔁 mode regular → collection');
-        const firstChildren = !isCollectionGroup(prev) ? (prev.children || []) : [];
-        const instances: GroupInstance[] = [
-          { i: 1, children: firstChildren.length ? [...firstChildren] : [] }
-        ];
+        console.debug('[GroupBuilder] 🔁 mode regular → collection (init 1 instance template)');
+        const firstChildren = !isCollectionGroup(prev) ? (prev.children || []) : (prev.instances?.[0]?.children || []);
         const col: GroupCollection = {
           kind: 'Group',
           path: prev.path,
           label: (prev as any).label,
-          collection: {},
-          instances,
+          collection: {
+            min: 1,
+            max: undefined,
+            default_instances: 1,
+            allow_add: true,
+            allow_remove: true,
+            allow_reorder: true,
+            label_template: undefined,
+          },
+          instances: [{ i: 1, children: [...firstChildren] }],
           x_ui: (prev as any).x_ui,
           x_meta: (prev as any).x_meta,
         };
@@ -223,118 +269,112 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
     });
   };
 
-  /* --------- handlers (regular) --------- */
+  /* --------- children pickers (select from list) --------- */
 
-  const addChildRegular = () => {
+  const addChildRowRegular = () => {
     if (isCollectionGroup(state)) return;
-    emit(prev => ({ ...(prev as GroupRegular), children: [...(prev as GroupRegular).children, ''] }));
-    console.debug('[GroupBuilder] ➕ add child (regular)');
+    emit(prev => ({ ...(prev as GroupRegular), children: [...(prev as GroupRegular).children, '' ] }));
+    console.debug('[GroupBuilder] ➕ add child row (regular)');
   };
 
-  const updateChildRegular = (idx: number, value: string) => {
-    if (isCollectionGroup(state)) return;
-    emit(prev => {
-      const children = [...(prev as GroupRegular).children];
-      children[idx] = value;
-      return { ...(prev as GroupRegular), children };
-    });
-  };
-
-  const removeChildRegular = (idx: number) => {
+  const setChildRegular = (row: number, nodeId: string) => {
     if (isCollectionGroup(state)) return;
     emit(prev => {
-      const children = [...(prev as GroupRegular).children];
-      children.splice(idx, 1);
-      return { ...(prev as GroupRegular), children };
-    });
-    console.debug('[GroupBuilder] 🗑️ remove child (regular) idx', idx);
-  };
-
-  /* --------- handlers (collection) --------- */
-
-  const addInstance = () => {
-    if (!isCollectionGroup(state)) return;
-    emit(prev => {
-      const pc = prev as GroupCollection;
-      const nextI = (pc.instances?.length || 0) + 1;
-      const instances = [...pc.instances, { i: nextI, children: [] }];
-      console.debug('[GroupBuilder] ➕ add instance → i', nextI);
-      return { ...pc, instances };
+      const ch = [...(prev as GroupRegular).children];
+      ch[row] = nodeId;
+      return { ...(prev as GroupRegular), children: ch };
     });
   };
 
-  const removeInstance = (iValue: number) => {
-    if (!isCollectionGroup(state)) return;
+  const removeChildRegular = (row: number) => {
+    if (isCollectionGroup(state)) return;
     emit(prev => {
-      const pc = prev as GroupCollection;
-      const filtered = pc.instances.filter(ins => ins.i !== iValue);
-      const reindexed = filtered.map((ins, idx) => ({ ...ins, i: idx + 1 }));
-      console.debug('[GroupBuilder] 🗑️ remove instance i', iValue, '→ reindex to', reindexed.length);
-      return { ...pc, instances: reindexed };
+      const ch = [...(prev as GroupRegular).children];
+      ch.splice(row, 1);
+      return { ...(prev as GroupRegular), children: ch };
+    });
+    console.debug('[GroupBuilder] 🗑️ remove child row (regular) idx', row);
+  };
+
+  // Collection: template single instance (i=1)
+  const ensureCollection = (): GroupCollection => {
+    if (isCollectionGroup(state)) return state as GroupCollection;
+    // Shouldn't happen when in collection mode, but guard anyway
+    return {
+      kind: 'Group',
+      path: state.path,
+      label: (state as any).label,
+      collection: { min: 1, default_instances: 1, allow_add: true, allow_remove: true, allow_reorder: true },
+      instances: [{ i: 1, children: [] }],
+      x_ui: (state as any).x_ui,
+      x_meta: (state as any).x_meta,
+    };
+  };
+
+  const setCollectionField = <K extends keyof GroupCollection['collection']>(k: K, v: GroupCollection['collection'][K]) => {
+    emit(prev => {
+      const pc = isCollectionGroup(prev) ? prev as GroupCollection : ensureCollection();
+      return { ...pc, collection: { ...pc.collection, [k]: v } };
     });
   };
 
-  const updateInstanceIdx = (iValue: number, idxVal?: number) => {
+  const setChildInstance = (row: number, nodeId: string) => {
     if (!isCollectionGroup(state)) return;
     emit(prev => {
       const pc = prev as GroupCollection;
-      const instances = pc.instances.map(ins => ins.i === iValue ? { ...ins, idx: idxVal } : ins);
-      return { ...pc, instances };
+      const ins = pc.instances[0]; // template
+      const children = [...ins.children];
+      children[row] = nodeId;
+      const nextIns = [{ ...ins, i: 1, children }];
+      return { ...pc, instances: nextIns };
     });
   };
 
-  const updateInstanceLabel = (iValue: number, field: 'fallback' | 'key', value: string) => {
+  const addChildRowInstance = () => {
     if (!isCollectionGroup(state)) return;
     emit(prev => {
       const pc = prev as GroupCollection;
-      const instances = pc.instances.map(ins => {
-        if (ins.i !== iValue) return ins;
-        const label: I18nText = {
-          fallback: field === 'fallback' ? value : (ins.label?.fallback ?? ''),
-          key: field === 'key' ? (value || undefined) : ins.label?.key
-        };
-        return { ...ins, label };
-      });
-      return { ...pc, instances };
+      const ins = pc.instances[0] || { i: 1, children: [] as string[] };
+      const nextIns = [{ ...ins, i: 1, children: [...ins.children, ''] }];
+      console.debug('[GroupBuilder] ➕ add child row (collection template)');
+      return { ...pc, instances: nextIns };
     });
   };
 
-  const addChildInstance = (iValue: number) => {
+  const removeChildRowInstance = (row: number) => {
     if (!isCollectionGroup(state)) return;
     emit(prev => {
       const pc = prev as GroupCollection;
-      const instances = pc.instances.map(ins => ins.i === iValue ? { ...ins, children: [...ins.children, ''] } : ins);
-      console.debug('[GroupBuilder] ➕ add child (instance i)', iValue);
-      return { ...pc, instances };
+      const ins = pc.instances[0];
+      const children = [...ins.children];
+      children.splice(row, 1);
+      const nextIns = [{ ...ins, i: 1, children }];
+      console.debug('[GroupBuilder] 🗑️ remove child row (collection template) idx', row);
+      return { ...pc, instances: nextIns };
     });
   };
 
-  const updateChildInstance = (iValue: number, idx: number, val: string) => {
+  const setInstanceIdx = (idxVal?: number) => {
     if (!isCollectionGroup(state)) return;
     emit(prev => {
       const pc = prev as GroupCollection;
-      const instances = pc.instances.map(ins => {
-        if (ins.i !== iValue) return ins;
-        const children = [...ins.children];
-        children[idx] = val;
-        return { ...ins, children };
-      });
-      return { ...pc, instances };
+      const ins = pc.instances[0];
+      const nextIns = [{ ...ins, i: 1, idx: idxVal }];
+      return { ...pc, instances: nextIns };
     });
   };
 
-  const removeChildInstance = (iValue: number, idx: number) => {
+  const setInstanceLabel = (field: 'fallback' | 'key', value: string) => {
     if (!isCollectionGroup(state)) return;
     emit(prev => {
       const pc = prev as GroupCollection;
-      const instances = pc.instances.map(ins => {
-        if (ins.i !== iValue) return ins;
-        const children = [...ins.children];
-        children.splice(idx, 1);
-        return { ...ins, children };
-      });
-      console.debug('[GroupBuilder] 🗑️ remove child (instance i)', iValue, 'idx', idx);
-      return { ...pc, instances };
+      const ins = pc.instances[0];
+      const label: I18nText = {
+        fallback: field === 'fallback' ? value : (ins.label?.fallback ?? ''),
+        key: field === 'key' ? (value || undefined) : ins.label?.key
+      };
+      const nextIns = [{ ...ins, i: 1, label }];
+      return { ...pc, instances: nextIns };
     });
   };
 
@@ -346,7 +386,7 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
         <div>
           <h3 className="text-lg font-medium">Group Configuration</h3>
           <p className="text-sm text-muted-foreground">
-            SSOT-aligned. Switch between a single group or a collection of instances.
+            SSOT-aligned. Regular or Collection (template with exactly one instance).
           </p>
         </div>
 
@@ -390,7 +430,6 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
                 onChange={(e) => updateLabel('fallback', e.target.value)}
                 placeholder="Group title shown in UI"
               />
-              <p className="text-[11px] text-muted-foreground">Optional; displayed label.</p>
             </div>
 
             <div className="space-y-2">
@@ -410,7 +449,7 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
                   checked={!!(state as any)?.x_ui?.arrangeable}
                   onChange={(e) => updateArrangeable(e.target.checked)}
                 />
-                <span className="text-sm text-muted-foreground">Allow drag-reorder in UI (not part of SSOT)</span>
+                <span className="text-sm text-muted-foreground">UI-only flag (not validated by SSOT)</span>
               </div>
             </div>
 
@@ -434,29 +473,35 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
           </CardContent>
         </Card>
 
-        {/* Regular children */}
+        {/* Regular children (select from list) */}
         {mode === 'regular' && !isCollectionGroup(state) && (
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2"><Layers className="w-4 h-4" /> Children (node ids)</CardTitle>
-              <Button variant="secondary" size="sm" onClick={addChildRegular}>
+              <CardTitle className="text-base flex items-center gap-2"><Layers className="w-4 h-4" /> Children (node library)</CardTitle>
+              <Button variant="secondary" size="sm" onClick={addChildRowRegular}>
                 <Plus className="w-4 h-4 mr-1" /> Add child
               </Button>
             </CardHeader>
             <CardContent>
               {state.children.length === 0 ? (
                 <div className="text-sm text-muted-foreground border rounded-md p-3">
-                  No children yet. Add node IDs (e.g., UUIDs) that belong to this group.
+                  No children yet. Add nodes from your library.
                 </div>
               ) : (
                 <div className="space-y-3">
                   {state.children.map((cid, idx) => (
                     <div key={idx} className="grid grid-cols-[1fr_auto] gap-2">
-                      <Input
-                        value={cid}
-                        onChange={(e) => updateChildRegular(idx, e.target.value)}
-                        placeholder="node-id (string)"
-                      />
+                      <Select
+                        value={cid || ''}
+                        onValueChange={(v) => setChildRegular(idx, v)}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select a node…" /></SelectTrigger>
+                        <SelectContent>
+                          {nodeOptions.map(o => (
+                            <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <Button variant="ghost" size="icon" onClick={() => removeChildRegular(idx)} aria-label={`Remove child ${idx + 1}`}>
                         <Trash2 className="w-4 h-4 text-destructive" />
                       </Button>
@@ -468,102 +513,160 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
           </Card>
         )}
 
-        {/* Collection instances */}
+        {/* Collection: collection props + single template instance */}
         {mode === 'collection' && isCollectionGroup(state) && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-base">Instances</CardTitle>
-              <Button variant="secondary" size="sm" onClick={addInstance}>
-                <Plus className="w-4 h-4 mr-1" /> Add instance
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {state.instances.length === 0 ? (
-                <div className="text-sm text-muted-foreground border rounded-md p-3">
-                  No instances yet. Add at least one instance to this collection group.
+          <>
+            {/* Collection properties (from SSOT) */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Collection settings</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Min</Label>
+                  <Input
+                    type="number"
+                    value={(state.collection.min ?? '') as any}
+                    onChange={(e) => setCollectionField('min', e.target.value === '' ? undefined : parseInt(e.target.value, 10))}
+                    placeholder="e.g., 1"
+                  />
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {state.instances.map((ins) => (
-                    <Card key={ins.i} className="border">
-                      <CardHeader className="flex flex-row items-center justify-between py-3">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary">i{ins.i}</Badge>
-                          <span className="text-xs text-muted-foreground">ordinal</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button onClick={() => removeInstance(ins.i)} variant="ghost" size="sm">
+                <div className="space-y-2">
+                  <Label>Max</Label>
+                  <Input
+                    type="number"
+                    value={(state.collection.max ?? '') as any}
+                    onChange={(e) => setCollectionField('max', e.target.value === '' ? undefined : parseInt(e.target.value, 10))}
+                    placeholder="e.g., 5"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Default instances</Label>
+                  <Input
+                    type="number"
+                    value={(state.collection.default_instances ?? '') as any}
+                    onChange={(e) => setCollectionField('default_instances', e.target.value === '' ? undefined : parseInt(e.target.value, 10))}
+                    placeholder="e.g., 1"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Allow add</Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={!!state.collection.allow_add}
+                      onChange={(e) => setCollectionField('allow_add', e.target.checked)}
+                    />
+                    <span className="text-sm text-muted-foreground">Can add instances in job builder</span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Allow remove</Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={!!state.collection.allow_remove}
+                      onChange={(e) => setCollectionField('allow_remove', e.target.checked)}
+                    />
+                    <span className="text-sm text-muted-foreground">Can remove instances in job builder</span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Allow reorder</Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={!!state.collection.allow_reorder}
+                      onChange={(e) => setCollectionField('allow_reorder', e.target.checked)}
+                    />
+                    <span className="text-sm text-muted-foreground">Drag to reorder instances</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2 md:col-span-3">
+                  <Label>Label template</Label>
+                  <Input
+                    value={state.collection.label_template ?? ''}
+                    onChange={(e) => setCollectionField('label_template', e.target.value || undefined)}
+                    placeholder="e.g., 'Shot #{i}'"
+                  />
+                  <p className="text-[11px] text-muted-foreground">Supports <code>#{'{i}'}</code> for the 1-based instance number.</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Single template instance (i = 1) */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Template instance (i1)</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Instance idx (optional)</Label>
+                  <Input
+                    type="number"
+                    value={(state.instances[0]?.idx ?? '') as any}
+                    onChange={(e) => setInstanceIdx(e.target.value ? parseInt(e.target.value, 10) : undefined)}
+                    placeholder="e.g., 1"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Instance label (fallback)</Label>
+                  <Input
+                    value={state.instances[0]?.label?.fallback ?? ''}
+                    onChange={(e) => setInstanceLabel('fallback', e.target.value)}
+                    placeholder="e.g., Shot A"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Instance label (i18n key)</Label>
+                  <Input
+                    value={state.instances[0]?.label?.key ?? ''}
+                    onChange={(e) => setInstanceLabel('key', e.target.value)}
+                    placeholder="app.groups.scene.shot_a"
+                  />
+                </div>
+
+                {/* Children of the template instance */}
+                <div className="md:col-span-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Children (node library)</Label>
+                    <Button variant="secondary" size="sm" onClick={addChildRowInstance}>
+                      <Plus className="w-4 h-4 mr-1" /> Add child
+                    </Button>
+                  </div>
+
+                  {(state.instances[0]?.children?.length ?? 0) === 0 ? (
+                    <div className="text-sm text-muted-foreground border rounded-md p-3">
+                      No children yet for this template instance. Add nodes from your library.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {state.instances[0].children.map((cid, cidx) => (
+                        <div key={cidx} className="grid grid-cols-[1fr_auto] gap-2">
+                          <Select
+                            value={cid || ''}
+                            onValueChange={(v) => setChildInstance(cidx, v)}
+                          >
+                            <SelectTrigger><SelectValue placeholder="Select a node…" /></SelectTrigger>
+                            <SelectContent>
+                              {nodeOptions.map(o => (
+                                <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button variant="ghost" size="icon" onClick={() => removeChildRowInstance(cidx)} aria-label={`Remove child ${cidx + 1}`}>
                             <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>
                         </div>
-                      </CardHeader>
-
-                      <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label>Instance idx (optional)</Label>
-                          <Input
-                            type="number"
-                            value={ins.idx ?? ''}
-                            onChange={(e) => updateInstanceIdx(ins.i, e.target.value ? parseInt(e.target.value, 10) : undefined)}
-                            placeholder="e.g., 1"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Label (fallback)</Label>
-                          <Input
-                            value={ins.label?.fallback ?? ''}
-                            onChange={(e) => updateInstanceLabel(ins.i, 'fallback', e.target.value)}
-                            placeholder="e.g., Shot A"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Label (i18n key)</Label>
-                          <Input
-                            value={ins.label?.key ?? ''}
-                            onChange={(e) => updateInstanceLabel(ins.i, 'key', e.target.value)}
-                            placeholder="app.groups.scene.shot_a"
-                          />
-                        </div>
-
-                        {/* Children of instance */}
-                        <div className="md:col-span-3 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <Label>Children (node ids)</Label>
-                            <Button variant="secondary" size="sm" onClick={() => addChildInstance(ins.i)}>
-                              <Plus className="w-4 h-4 mr-1" /> Add child
-                            </Button>
-                          </div>
-
-                          {ins.children.length === 0 ? (
-                            <div className="text-sm text-muted-foreground border rounded-md p-3">
-                              No children yet for this instance. Add node IDs (strings).
-                            </div>
-                          ) : (
-                            <div className="space-y-2">
-                              {ins.children.map((cid, cidx) => (
-                                <div key={cidx} className="grid grid-cols-[1fr_auto] gap-2">
-                                  <Input
-                                    value={cid}
-                                    onChange={(e) => updateChildInstance(ins.i, cidx, e.target.value)}
-                                    placeholder="node-id (string)"
-                                  />
-                                  <Button variant="ghost" size="icon" onClick={() => removeChildInstance(ins.i, cidx)} aria-label={`Remove child ${cidx + 1}`}>
-                                    <Trash2 className="w-4 h-4 text-destructive" />
-                                  </Button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </>
         )}
       </div>
     </div>
