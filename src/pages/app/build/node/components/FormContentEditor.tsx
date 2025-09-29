@@ -1,5 +1,5 @@
 // src/pages/app/build/node/components/FormContentEditor.tsx
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,23 +11,6 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, GripVertical, ChevronDown, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
-/**
- * Form builder — SSOT-aligned (v2-items) with collections support.
- *
- * SSOT essentials this editor enforces on save:
- * - content.kind === 'FormContent'
- * - content.version === 'v2-items'
- * - items[] is an ordered (idx>=1) list of one of:
- *    FieldItem | SectionItem | CollectionFieldItem | CollectionSection
- * - FieldItem: { kind:'FieldItem', idx, path, ref, label, ui, required, editable, importance, value }
- * - SectionItem: { kind:'SectionItem', idx, path, label, description?, required, hidden, collapsed, children: ContentItem[] }
- * - CollectionFieldItem: { kind:'CollectionFieldItem', idx, path, ref, label, ui, required, editable, importance, min_instances, max_instances, instances:[{ instance_id:1, path, value }] }
- * - CollectionSection: { kind:'CollectionSection', idx, path, label, description?, required, hidden, collapsed, min_instances, max_instances, instances:[{ instance_id:1, path, children: ContentItem[] }] }
- *
- * Important: We always keep exactly ONE template instance (instance_id=1) in builder for collection items.
- * The job editor/runtime is responsible for duplicating instances beyond the template, per SSOT.
- */
-
 type Importance = 'low' | 'normal' | 'high';
 
 interface I18nText {
@@ -36,14 +19,12 @@ interface I18nText {
 }
 
 interface UIBlock {
-  // UI config only; labels live at top-level item.label per SSOT.
   kind: 'UIBlock';
-  help?: I18nText;
-  placeholder?: I18nText;
-  override: boolean;
-  // free form widget metadata from registry (kept opaque)
-  widget?: string;
-  datatype?: string;
+  help: I18nText | null;
+  placeholder: I18nText | null;
+  widget: string | null;
+  datatype: string | null;
+  override: boolean; // auto: true if any property is filled, else false
 }
 
 interface FieldItem {
@@ -74,10 +55,8 @@ interface SectionItem {
 interface CollectionInstance {
   instance_id: number; // always 1 in builder
   path: string;
-  // For CollectionFieldItem
-  value?: any;
-  // For CollectionSection
-  children?: ContentItem[];
+  value?: any; // for CollectionFieldItem
+  children?: ContentItem[]; // for CollectionSection
 }
 
 interface CollectionFieldItem {
@@ -124,7 +103,7 @@ interface FormContentEditorProps {
 
 /* ---------------- helpers ---------------- */
 
-const i18n = (t?: I18nText): I18nText => ({ fallback: t?.fallback ?? '', key: t?.key || undefined });
+const i18n = (t?: I18nText | null): I18nText => ({ fallback: t?.fallback ?? '', key: t?.key || undefined });
 const clampIdx = (n?: number) => Math.max(1, Number.isFinite(n as any) ? (n as number) : 1);
 const nextIdx = (arr: { idx?: number }[]) => (arr.length ? Math.max(...arr.map(x => clampIdx(x.idx))) + 1 : 1);
 const isField = (x: any): x is FieldItem => x?.kind === 'FieldItem';
@@ -132,21 +111,51 @@ const isSection = (x: any): x is SectionItem => x?.kind === 'SectionItem';
 const isCField = (x: any): x is CollectionFieldItem => x?.kind === 'CollectionFieldItem';
 const isCSection = (x: any): x is CollectionSection => x?.kind === 'CollectionSection';
 
+const s2n = (s: string | null | undefined) => (s && s.trim() !== '' ? s : null);
+
+/** Auto-compute override; null all props when empty */
+function normalizeUI(raw?: Partial<UIBlock> | null): UIBlock {
+  const help_f = s2n((raw as any)?.help?.fallback);
+  const help_k = s2n((raw as any)?.help?.key);
+  const placeholder_f = s2n((raw as any)?.placeholder?.fallback);
+  const placeholder_k = s2n((raw as any)?.placeholder?.key);
+  const widget = s2n((raw as any)?.widget);
+  const datatype = s2n((raw as any)?.datatype);
+
+  const help = help_f || help_k ? { fallback: help_f ?? '', key: help_k ?? undefined } : null;
+  const placeholder = placeholder_f || placeholder_k ? { fallback: placeholder_f ?? '', key: placeholder_k ?? undefined } : null;
+
+  const override = !!(help || placeholder || widget || datatype);
+
+  // If nothing is filled, force nulls + override=false
+  if (!override) {
+    return {
+      kind: 'UIBlock',
+      help: null,
+      placeholder: null,
+      widget: null,
+      datatype: null,
+      override: false,
+    };
+  }
+
+  return {
+    kind: 'UIBlock',
+    help,
+    placeholder,
+    widget: widget ?? null,
+    datatype: datatype ?? null,
+    override: true,
+  };
+}
+
 function normalizeFieldItem(item: any, fallbackPath = 'field'): FieldItem {
   const idx = clampIdx(item?.idx);
   const ref = (item?.ref ?? item?.path ?? `${fallbackPath}_${idx}`).toString();
   const path = (item?.path ?? ref).toString();
-  // If legacy stored label inside ui.label, lift it to top-level
-  const legacyUi = item?.ui ?? {};
-  const liftedLabel = item?.label ?? legacyUi?.label;
-  const ui: UIBlock = {
-    kind: 'UIBlock',
-    help: legacyUi?.help ? i18n(legacyUi.help) : undefined,
-    placeholder: legacyUi?.placeholder ? i18n(legacyUi.placeholder) : undefined,
-    override: !!legacyUi?.override,
-    widget: legacyUi?.widget,
-    datatype: legacyUi?.datatype,
-  };
+
+  // Lift legacy ui.label to top-level label if present
+  const liftedLabel = item?.label ?? item?.ui?.label;
 
   return {
     kind: 'FieldItem',
@@ -157,7 +166,7 @@ function normalizeFieldItem(item: any, fallbackPath = 'field'): FieldItem {
     editable: item?.editable !== false,
     required: !!item?.required,
     importance: (['low', 'normal', 'high'] as Importance[]).includes(item?.importance) ? item.importance : 'normal',
-    ui,
+    ui: normalizeUI(item?.ui),
     value: item?.value ?? null,
   };
 }
@@ -186,15 +195,7 @@ function normalizeCFieldItem(item: any, basePath = 'cfield'): CollectionFieldIte
   const idx = clampIdx(item?.idx);
   const ref = (item?.ref ?? item?.path ?? `${basePath}_${idx}`).toString();
   const path = (item?.path ?? ref).toString();
-  const ui: UIBlock = {
-    kind: 'UIBlock',
-    help: item?.ui?.help ? i18n(item.ui.help) : undefined,
-    placeholder: item?.ui?.placeholder ? i18n(item.ui.placeholder) : undefined,
-    override: !!item?.ui?.override,
-    widget: item?.ui?.widget,
-    datatype: item?.ui?.datatype,
-  };
-  // Ensure single template instance
+
   const tmpl: CollectionInstance = {
     instance_id: 1,
     path: `${path}.i1`,
@@ -210,7 +211,7 @@ function normalizeCFieldItem(item: any, basePath = 'cfield'): CollectionFieldIte
     editable: item?.editable !== false,
     required: !!item?.required,
     importance: (['low', 'normal', 'high'] as Importance[]).includes(item?.importance) ? item.importance : 'normal',
-    ui,
+    ui: normalizeUI(item?.ui),
     min_instances: Number.isFinite(item?.min_instances) ? item.min_instances : 1,
     max_instances: Number.isFinite(item?.max_instances) ? item.max_instances : 1,
     instances: [tmpl],
@@ -257,7 +258,7 @@ function normalizeAnyItem(item: any, parentPath: string): ContentItem {
     case 'CollectionSection':
       return normalizeCSectionItem(item, `${parentPath}.csection`);
     default:
-      // If legacy/unknown, try to infer: prefer FieldItem if ref present
+      // guess best fit
       if (item?.ref) return normalizeFieldItem(item, `${parentPath}.field`);
       if (Array.isArray(item?.children)) return normalizeSectionItem({ ...item, kind: 'SectionItem' }, `${parentPath}.section`);
       return normalizeFieldItem({ kind: 'FieldItem', ref: 'field', idx: 1, path: `${parentPath}.field_1` }, parentPath);
@@ -265,7 +266,7 @@ function normalizeAnyItem(item: any, parentPath: string): ContentItem {
 }
 
 function normalizeFormContent(raw: any): FormContent {
-  // Legacy "sections" → convert
+  // legacy "sections" to v2-items
   if (raw?.sections && !raw?.items) {
     const converted: ContentItem[] = (raw.sections as any[]).map((section: any, idx: number) =>
       normalizeSectionItem(
@@ -279,23 +280,20 @@ function normalizeFormContent(raw: any): FormContent {
           hidden: false,
           collapsed: false,
           children: (section.fields || []).map((field: any, fIdx: number) =>
-            normalizeFieldItem({
-              kind: 'FieldItem',
-              idx: fIdx + 1,
-              path: field.field_ref || `field_${fIdx + 1}`,
-              ref: field.field_ref || '',
-              editable: true,
-              required: field.required || false,
-              importance: field.importance || 'normal',
-              ui: {
-                kind: 'UIBlock',
-                label: field.ui?.label || { fallback: field.field_ref || 'Field' },
-                help: field.ui?.help,
-                placeholder: field.ui?.placeholder,
-                override: false,
+            normalizeFieldItem(
+              {
+                kind: 'FieldItem',
+                idx: fIdx + 1,
+                path: field.field_ref || `field_${fIdx + 1}`,
+                ref: field.field_ref || '',
+                editable: true,
+                required: field.required || false,
+                importance: field.importance || 'normal',
+                ui: normalizeUI(field.ui),
+                value: null,
               },
-              value: null,
-            }, `section_${idx + 1}`)
+              `section_${idx + 1}`
+            )
           ),
         },
         'section'
@@ -360,7 +358,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
       const field = normalizeFieldItem({
         kind: 'FieldItem', idx, ref: '', path: `field_${idx}`,
         label: { fallback: 'New Field' },
-        ui: { kind: 'UIBlock', override: false },
+        ui: { kind: 'UIBlock', help: null, placeholder: null, widget: null, datatype: null, override: false },
         editable: true, required: false, importance: 'normal', value: null,
       }, 'field');
       return { ...prev, items: [...prev.items, field] };
@@ -383,7 +381,8 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
       const idx = nextIdx(prev.items);
       const cfield = normalizeCFieldItem({
         kind: 'CollectionFieldItem', idx, path: `cfield_${idx}`, ref: '', label: { fallback: 'Collection Field' },
-        editable: true, required: false, importance: 'normal', ui: { kind: 'UIBlock', override: false },
+        editable: true, required: false, importance: 'normal',
+        ui: { kind: 'UIBlock', help: null, placeholder: null, widget: null, datatype: null, override: false },
         min_instances: 1, max_instances: 3, instances: [{ instance_id: 1, path: `cfield_${idx}.i1`, value: null }],
       }, 'cfield');
       return { ...prev, items: [...prev.items, cfield] };
@@ -410,11 +409,13 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
       const items = [...prev.items];
       const cur = items[index];
       let next: ContentItem = { ...(cur as any), ...updates };
-      // Re-normalize specific kinds to keep SSOT sound
+
+      // Re-normalize specific kinds to keep SSOT sound (and UI override auto)
       if (isField(next)) next = normalizeFieldItem(next, 'field');
       if (isSection(next)) next = normalizeSectionItem(next, 'section');
       if (isCField(next)) next = normalizeCFieldItem(next, 'cfield');
       if (isCSection(next)) next = normalizeCSectionItem(next, 'csection');
+
       items[index] = next;
       return { ...prev, items };
     });
@@ -430,8 +431,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
     const section = formContent.items[sectionIdx] as SectionItem;
     if (!isSection(section)) return;
     const children = [...section.children];
-    const cur = children[childIdx];
-    let next: ContentItem = { ...(cur as any), ...updates };
+    let next: ContentItem = { ...(children[childIdx] as any), ...updates };
     if (isField(next)) next = normalizeFieldItem(next, section.path);
     if (isSection(next)) next = normalizeSectionItem(next, section.path);
     if (isCField(next)) next = normalizeCFieldItem(next, section.path);
@@ -444,7 +444,21 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
     const section = formContent.items[sectionIdx] as SectionItem;
     if (!isSection(section)) return;
     const idx = nextIdx(section.children);
-    const field = normalizeFieldItem({ kind: 'FieldItem', idx, path: `${section.path}.field_${idx}`, ref: '', label: { fallback: 'New Field' }, ui: { kind: 'UIBlock', override: false }, editable: true, required: false, importance: 'normal', value: null }, section.path);
+    const field = normalizeFieldItem(
+      {
+        kind: 'FieldItem',
+        idx,
+        path: `${section.path}.field_${idx}`,
+        ref: '',
+        label: { fallback: 'New Field' },
+        ui: { kind: 'UIBlock', help: null, placeholder: null, widget: null, datatype: null, override: false },
+        editable: true,
+        required: false,
+        importance: 'normal',
+        value: null,
+      },
+      section.path
+    );
     updateItemAt(sectionIdx, { children: [...section.children, field] } as any);
   };
 
@@ -452,7 +466,19 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
     const section = formContent.items[sectionIdx] as SectionItem;
     if (!isSection(section)) return;
     const idx = nextIdx(section.children);
-    const sub = normalizeSectionItem({ kind: 'SectionItem', idx, path: `${section.path}.section_${idx}`, label: { fallback: 'New Subsection' }, required: false, hidden: false, collapsed: false, children: [] }, section.path);
+    const sub = normalizeSectionItem(
+      {
+        kind: 'SectionItem',
+        idx,
+        path: `${section.path}.section_${idx}`,
+        label: { fallback: 'New Subsection' },
+        required: false,
+        hidden: false,
+        collapsed: false,
+        children: [],
+      },
+      section.path
+    );
     updateItemAt(sectionIdx, { children: [...section.children, sub] } as any);
   };
 
@@ -470,8 +496,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
     if (!isCSection(item)) return;
     const tmpl = { ...(item.instances[0] || { instance_id: 1, path: `${item.path}.i1`, children: [] }) };
     tmpl.children = children;
-    const instances = [tmpl];
-    updateItemAt(csecIdx, { instances } as any);
+    updateItemAt(csecIdx, { instances: [tmpl] } as any);
   };
 
   const addFieldToCSection = (csecIdx: number) => {
@@ -480,7 +505,21 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
     const tmpl = item.instances[0];
     const children = tmpl?.children ? [...tmpl.children] : [];
     const idx = nextIdx(children as any);
-    const field = normalizeFieldItem({ kind: 'FieldItem', idx, path: `${item.path}.i1.field_${idx}`, ref: '', label: { fallback: 'New Field' }, ui: { kind: 'UIBlock', override: false }, editable: true, required: false, importance: 'normal', value: null }, `${item.path}.i1`);
+    const field = normalizeFieldItem(
+      {
+        kind: 'FieldItem',
+        idx,
+        path: `${item.path}.i1.field_${idx}`,
+        ref: '',
+        label: { fallback: 'New Field' },
+        ui: { kind: 'UIBlock', help: null, placeholder: null, widget: null, datatype: null, override: false },
+        editable: true,
+        required: false,
+        importance: 'normal',
+        value: null,
+      },
+      `${item.path}.i1`
+    );
     updateCSectionTemplateChildren(csecIdx, [...children, field]);
   };
 
@@ -490,7 +529,19 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
     const tmpl = item.instances[0];
     const children = tmpl?.children ? [...tmpl.children] : [];
     const idx = nextIdx(children as any);
-    const sub = normalizeSectionItem({ kind: 'SectionItem', idx, path: `${item.path}.i1.section_${idx}`, label: { fallback: 'New Subsection' }, required: false, hidden: false, collapsed: false, children: [] }, `${item.path}.i1`);
+    const sub = normalizeSectionItem(
+      {
+        kind: 'SectionItem',
+        idx,
+        path: `${item.path}.i1.section_${idx}`,
+        label: { fallback: 'New Subsection' },
+        required: false,
+        hidden: false,
+        collapsed: false,
+        children: [],
+      },
+      `${item.path}.i1`
+    );
     updateCSectionTemplateChildren(csecIdx, [...children, sub]);
   };
 
@@ -499,8 +550,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
     if (!isCSection(item)) return;
     const tmpl = item.instances[0];
     const children = tmpl?.children ? [...tmpl.children] : [];
-    const cur = children[childIdx];
-    let next: ContentItem = { ...(cur as any), ...updates };
+    let next: ContentItem = { ...(children[childIdx] as any), ...updates };
     if (isField(next)) next = normalizeFieldItem(next, `${item.path}.i1`);
     if (isSection(next)) next = normalizeSectionItem(next, `${item.path}.i1`);
     if (isCField(next)) next = normalizeCFieldItem(next, `${item.path}.i1`);
@@ -519,6 +569,12 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
 
   /* ---------- renderers ---------- */
 
+  // UI helpers: always go through normalizeUI to auto-set override and null-out empties
+  const setFieldUI = (field: FieldItem, patch: Partial<UIBlock>) =>
+    normalizeUI({ ...(field.ui || { kind: 'UIBlock', help: null, placeholder: null, widget: null, datatype: null, override: false }), ...patch });
+  const setCFieldUI = (item: CollectionFieldItem, patch: Partial<UIBlock>) =>
+    normalizeUI({ ...(item.ui || { kind: 'UIBlock', help: null, placeholder: null, widget: null, datatype: null, override: false }), ...patch });
+
   const renderFieldEditor = (field: FieldItem, onUpdate: (updates: Partial<FieldItem>) => void, onRemove: () => void) => (
     <Card className="p-4">
       <div className="flex items-start gap-4">
@@ -529,7 +585,13 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
               <Label className="text-xs">Field ref</Label>
               <Select
                 value={field.ref || undefined}
-                onValueChange={(value) => onUpdate({ ref: value, path: value, label: field.label?.fallback ? field.label : { fallback: value } })}
+                onValueChange={(value) =>
+                  onUpdate({
+                    ref: value,
+                    path: value,
+                    label: field.label?.fallback ? field.label : { fallback: value },
+                  })
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select field" />
@@ -552,7 +614,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
               <Label className="text-xs">Label (key)</Label>
               <Input
                 value={field.label?.key || ''}
-                onChange={(e) => onUpdate({ label: { ...field.label, key: e.target.value || undefined } })}
+                onChange={(e) => onUpdate({ label: { ...field.label, key: s2n(e.target.value) || undefined } })}
               />
             </div>
             <div className="space-y-1">
@@ -580,14 +642,14 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
               <Label className="text-xs">Help (fallback)</Label>
               <Input
                 value={field.ui?.help?.fallback || ''}
-                onChange={(e) => onUpdate({ ui: { ...field.ui, help: { ...(field.ui?.help || {}), fallback: e.target.value } } as UIBlock })}
+                onChange={(e) => onUpdate({ ui: setFieldUI(field, { help: { fallback: s2n(e.target.value), key: field.ui?.help?.key ?? null } as any }) })}
               />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Help (key)</Label>
               <Input
                 value={field.ui?.help?.key || ''}
-                onChange={(e) => onUpdate({ ui: { ...field.ui, help: { ...(field.ui?.help || {}), key: e.target.value || undefined } } as UIBlock })}
+                onChange={(e) => onUpdate({ ui: setFieldUI(field, { help: { fallback: field.ui?.help?.fallback ?? null, key: s2n(e.target.value) } as any }) })}
               />
             </div>
           </div>
@@ -597,14 +659,14 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
               <Label className="text-xs">Placeholder (fallback)</Label>
               <Input
                 value={field.ui?.placeholder?.fallback || ''}
-                onChange={(e) => onUpdate({ ui: { ...field.ui, placeholder: { ...(field.ui?.placeholder || {}), fallback: e.target.value } } as UIBlock })}
+                onChange={(e) => onUpdate({ ui: setFieldUI(field, { placeholder: { fallback: s2n(e.target.value), key: field.ui?.placeholder?.key ?? null } as any }) })}
               />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Placeholder (key)</Label>
               <Input
                 value={field.ui?.placeholder?.key || ''}
-                onChange={(e) => onUpdate({ ui: { ...field.ui, placeholder: { ...(field.ui?.placeholder || {}), key: e.target.value || undefined } } as UIBlock })}
+                onChange={(e) => onUpdate({ ui: setFieldUI(field, { placeholder: { fallback: field.ui?.placeholder?.fallback ?? null, key: s2n(e.target.value) } as any }) })}
               />
             </div>
           </div>
@@ -622,6 +684,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
             <Badge variant={field.importance === 'high' ? 'destructive' : field.importance === 'normal' ? 'default' : 'secondary'}>
               {field.importance}
             </Badge>
+            {/* UI Override toggle intentionally hidden: auto-computed */}
           </div>
         </div>
         <Button onClick={onRemove} variant="ghost" size="sm" aria-label="remove-field">
@@ -668,7 +731,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Label (key)</Label>
-              <Input value={section.label?.key || ''} onChange={(e) => updateItemAt(index, { label: { ...section.label, key: e.target.value || undefined } as any })} />
+              <Input value={section.label?.key || ''} onChange={(e) => updateItemAt(index, { label: { ...section.label, key: s2n(e.target.value) || undefined } as any })} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Description (fallback)</Label>
@@ -678,11 +741,11 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
 
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <Switch checked={section.required} onCheckedChange={(v) => updateItemAt(index, { required: v })} />
+              <Switch checked={section.required} onCheckedChange={(v) => updateItemAt(index, { required: v } as any)} />
               <Label className="text-xs">Required</Label>
             </div>
             <div className="flex items-center gap-2">
-              <Switch checked={section.hidden} onCheckedChange={(v) => updateItemAt(index, { hidden: v })} />
+              <Switch checked={section.hidden} onCheckedChange={(v) => updateItemAt(index, { hidden: v } as any)} />
               <Label className="text-xs">Hidden</Label>
             </div>
           </div>
@@ -712,8 +775,16 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
                       () => removeSectionChild(index, cIdx)
                     )}
                     {isSection(child) && renderSectionEditor(child as SectionItem, index, depth + 1)}
-                    {isCField(child) && renderCFieldEditor(child as CollectionFieldItem, (updates) => updateSectionChildAt(index, cIdx, updates), () => removeSectionChild(index, cIdx))}
-                    {isCSection(child) && renderCSectionEditor(child as CollectionSection, (updates) => updateSectionChildAt(index, cIdx, updates), () => removeSectionChild(index, cIdx))}
+                    {isCField(child) && renderCFieldEditor(
+                      child as CollectionFieldItem,
+                      (updates) => updateSectionChildAt(index, cIdx, updates),
+                      () => removeSectionChild(index, cIdx)
+                    )}
+                    {isCSection(child) && renderCSectionEditor(
+                      child as CollectionSection,
+                      (updates) => updateSectionChildAt(index, cIdx, updates),
+                      () => removeSectionChild(index, cIdx)
+                    )}
                   </div>
                 ))}
               </div>
@@ -766,6 +837,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
               <Switch checked={item.editable} onCheckedChange={(v) => onUpdate({ editable: v })} />
               <Label className="text-xs">Editable</Label>
             </div>
+            {/* UI Override toggle intentionally hidden: auto-computed */}
           </div>
 
           <div className="space-y-2">
@@ -848,8 +920,16 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
                     () => removeChildFromCSection(formContent.items.indexOf(item), i)
                   )}
                   {isSection(child) && renderSectionEditor(child as SectionItem, formContent.items.indexOf(item), 1)}
-                  {isCField(child) && renderCFieldEditor(child as CollectionFieldItem, (updates) => updateChildInCSection(formContent.items.indexOf(item), i, updates as any), () => removeChildFromCSection(formContent.items.indexOf(item), i))}
-                  {isCSection(child) && renderCSectionEditor(child as CollectionSection, (updates) => updateChildInCSection(formContent.items.indexOf(item), i, updates as any), () => removeChildFromCSection(formContent.items.indexOf(item), i))}
+                  {isCField(child) && renderCFieldEditor(
+                    child as CollectionFieldItem,
+                    (updates) => updateChildInCSection(formContent.items.indexOf(item), i, updates as any),
+                    () => removeChildFromCSection(formContent.items.indexOf(item), i)
+                  )}
+                  {isCSection(child) && renderCSectionEditor(
+                    child as CollectionSection,
+                    (updates) => updateChildInCSection(formContent.items.indexOf(item), i, updates as any),
+                    () => removeChildFromCSection(formContent.items.indexOf(item), i)
+                  )}
                 </div>
               ))}
             </div>
@@ -867,7 +947,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-medium">Form Content (SSOT v2-items)</h3>
-          <p className="text-sm text-muted-foreground">Fields, sections, and collections. Builder enforces SSOT and emits normalized content.</p>
+          <p className="text-sm text-muted-foreground">Fields, sections, and collections. UI override is automatic.</p>
         </div>
         <div className="flex gap-2">
           <Button onClick={addTopLevelField} variant="outline" size="sm">
@@ -934,4 +1014,6 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
     </div>
   );
 }
+
 export default FormContentEditor;
+
