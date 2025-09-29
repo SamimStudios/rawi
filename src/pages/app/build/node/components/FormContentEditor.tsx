@@ -750,18 +750,87 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
     </Card>
   );
 
-  const renderSectionEditor = (section: SectionItem, index: number, depth = 0) => (
+  // REPLACE your existing renderSectionEditor with this callback-based version
+const renderSectionEditor = (
+  section: SectionItem,
+  opts: {
+    depth: number;
+    parentPath: string;
+    onUpdate: (updates: Partial<SectionItem>) => void;
+    onRemove: () => void;
+  }
+) => {
+  const { depth, parentPath, onUpdate, onRemove } = opts;
+
+  // child helpers that update THIS section (not the parent list)
+  const updateChild = (childIdx: number, updates: Partial<ContentItem>) => {
+    const children = [...section.children];
+    let next: ContentItem = { ...(children[childIdx] as any), ...updates };
+
+    if (isField(next)) next = normalizeFieldItem(next, section.path);
+    else if (isSection(next)) next = normalizeSectionItem(next, section.path);
+    else if (isCField(next)) next = normalizeCFieldItem(next, section.path);
+    else if (isCSection(next)) next = normalizeCSectionItem(next, section.path);
+
+    children[childIdx] = next;
+    onUpdate({ children } as any);
+  };
+
+  const removeChild = (childIdx: number) => {
+    const children = section.children.filter((_, i) => i !== childIdx);
+    onUpdate({ children } as any);
+  };
+
+  const addFieldHere = () => {
+    const idx = nextIdx(section.children);
+    const field = normalizeFieldItem(
+      {
+        kind: 'FieldItem',
+        idx,
+        path: `${section.path}.field_${idx}`,
+        ref: '',
+        label: { fallback: null, key: null },
+        ui: { kind: 'UIBlock', help: null, placeholder: null, widget: null, datatype: null, override: false },
+        editable: true,
+        required: false,
+        importance: 'normal',
+        value: null,
+      },
+      section.path
+    );
+    onUpdate({ children: [...section.children, field] } as any);
+  };
+
+  const addSubsectionHere = () => {
+    const idx = nextIdx(section.children);
+    const sub = normalizeSectionItem(
+      {
+        kind: 'SectionItem',
+        idx,
+        path: `${section.path}.section_${idx}`,
+        label: { fallback: null, key: null },
+        required: false,
+        hidden: false,
+        collapsed: false,
+        children: [],
+      },
+      section.path
+    );
+    onUpdate({ children: [...section.children, sub] } as any);
+  };
+
+  return (
     <Card key={section.path} className={`border-l-4 ${depth === 0 ? 'border-l-primary' : 'border-l-muted'} ${depth > 0 ? 'ml-6' : ''}`}>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => updateItemAt(index, { collapsed: !section.collapsed })}>
+            <Button variant="ghost" size="sm" onClick={() => onUpdate({ collapsed: !section.collapsed } as any)}>
               {section.collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </Button>
             <CardTitle className={depth === 0 ? 'text-base' : 'text-sm'}>Section: {section.label?.fallback || section.path}</CardTitle>
             {depth > 0 && <Badge variant="outline" className="text-xs">Nested</Badge>}
           </div>
-          <Button onClick={() => removeItemAt(index)} variant="ghost" size="sm" aria-label="remove-section">
+          <Button onClick={onRemove} variant="ghost" size="sm" aria-label="remove-section">
             <Trash2 className="w-4 h-4 text-destructive" />
           </Button>
         </div>
@@ -772,36 +841,36 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Path</Label>
-              <Input value={section.path} onChange={(e) => updateItemAt(index, { path: e.target.value })} />
+              <Input value={section.path} onChange={(e) => onUpdate({ path: e.target.value } as any)} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Label (fallback)</Label>
-              <Input value={section.label?.fallback || ''} onChange={(e) => updateItemAt(index, { label: { ...section.label, fallback: s2n(e.target.value) } as any })} />
+              <Input value={section.label?.fallback || ''} onChange={(e) => onUpdate({ label: { ...section.label, fallback: s2n(e.target.value) } as any })} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Index</Label>
-              <Input type="number" value={section.idx} min={1} onChange={(e) => updateItemAt(index, { idx: clampIdx(parseInt(e.target.value)) })} />
+              <Input type="number" value={section.idx} min={1} onChange={(e) => onUpdate({ idx: Math.max(1, parseInt(e.target.value) || 1) } as any)} />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Label (key)</Label>
-              <Input value={section.label?.key || ''} onChange={(e) => updateItemAt(index, { label: { ...section.label, key: s2n(e.target.value) } as any })} />
+              <Input value={section.label?.key || ''} onChange={(e) => onUpdate({ label: { ...section.label, key: s2n(e.target.value) } as any })} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Description (fallback)</Label>
-              <Textarea value={section.description?.fallback || ''} onChange={(e) => updateItemAt(index, { description: { ...(section.description || {}), fallback: s2n(e.target.value) } as any })} />
+              <Textarea value={section.description?.fallback || ''} onChange={(e) => onUpdate({ description: { ...(section.description || {}), fallback: s2n(e.target.value) } as any })} />
             </div>
           </div>
 
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <Switch checked={section.required} onCheckedChange={(v) => updateItemAt(index, { required: v } as any)} />
+              <Switch checked={section.required} onCheckedChange={(v) => onUpdate({ required: v } as any)} />
               <Label className="text-xs">Required</Label>
             </div>
             <div className="flex items-center gap-2">
-              <Switch checked={section.hidden} onCheckedChange={(v) => updateItemAt(index, { hidden: v } as any)} />
+              <Switch checked={section.hidden} onCheckedChange={(v) => onUpdate({ hidden: v } as any)} />
               <Label className="text-xs">Hidden</Label>
             </div>
           </div>
@@ -810,10 +879,10 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
             <div className="flex items-center justify-between">
               <h4 className="font-medium">Children</h4>
               <div className="flex gap-2">
-                <Button onClick={() => addFieldToSection(index)} variant="outline" size="sm">
+                <Button onClick={addFieldHere} variant="outline" size="sm">
                   <Plus className="w-4 h-4 mr-2" />Add Field
                 </Button>
-                <Button onClick={() => addSubsectionToSection(index)} variant="outline" size="sm">
+                <Button onClick={addSubsectionHere} variant="outline" size="sm">
                   <Plus className="w-4 h-4 mr-2" />Add Subsection
                 </Button>
               </div>
@@ -825,22 +894,31 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
               <div className="space-y-3">
                 {section.children.map((child, cIdx) => (
                   <div key={(child as any).path || `${section.path}-${cIdx}`}>
-                    {isField(child) && renderFieldEditor(
-                      child,
-                      (updates) => updateSectionChildAt(index, cIdx, updates),
-                      () => removeSectionChild(index, cIdx)
-                    )}
-                    {isSection(child) && renderSectionEditor(child as SectionItem, index, depth + 1)}
-                    {isCField(child) && renderCFieldEditor(
-                      child as CollectionFieldItem,
-                      (updates) => updateSectionChildAt(index, cIdx, updates),
-                      () => removeSectionChild(index, cIdx)
-                    )}
-                    {isCSection(child) && renderCSectionEditor(
-                      child as CollectionSection,
-                      (updates) => updateSectionChildAt(index, cIdx, updates),
-                      () => removeSectionChild(index, cIdx)
-                    )}
+                    {isField(child) &&
+                      renderFieldEditor(
+                        child,
+                        (updates) => updateChild(cIdx, updates),
+                        () => removeChild(cIdx)
+                      )}
+                    {isSection(child) &&
+                      renderSectionEditor(child as SectionItem, {
+                        depth: depth + 1,
+                        parentPath: section.path,
+                        onUpdate: (u) => updateChild(cIdx, u),
+                        onRemove: () => removeChild(cIdx),
+                      })}
+                    {isCField(child) &&
+                      renderCFieldEditor(
+                        child as CollectionFieldItem,
+                        (updates) => updateChild(cIdx, updates),
+                        () => removeChild(cIdx)
+                      )}
+                    {isCSection(child) &&
+                      renderCSectionEditor(
+                        child as CollectionSection,
+                        (updates) => updateChild(cIdx, updates as any),
+                        () => removeChild(cIdx)
+                      )}
                   </div>
                 ))}
               </div>
@@ -850,6 +928,8 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
       )}
     </Card>
   );
+};
+
 
   const renderCFieldEditor = (
     item: CollectionFieldItem,
@@ -1077,7 +1157,12 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
                 () => removeItemAt(index)
               );
             } else if (isSection(item)) {
-              return renderSectionEditor(item, index, 0);
+              return renderSectionEditor(item, {
+                depth: 0,
+                parentPath: 'form',
+                onUpdate: (updates) => updateItemAt(index, updates),
+                onRemove: () => removeItemAt(index),
+              });
             } else if (isCField(item)) {
               return renderCFieldEditor(
                 item,
