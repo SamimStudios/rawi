@@ -934,3 +934,4 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
     </div>
   );
 }
+export default FormContentEditor;
