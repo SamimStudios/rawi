@@ -357,7 +357,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
       const idx = nextIdx(prev.items);
       const field = normalizeFieldItem({
         kind: 'FieldItem', idx, ref: '', path: `field_${idx}`,
-        label: { fallback: 'New Field' },
+        label: { fallback },
         ui: { kind: 'UIBlock', help: null, placeholder: null, widget: null, datatype: null, override: false },
         editable: true, required: false, importance: 'normal', value: null,
       }, 'field');
@@ -450,7 +450,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
         idx,
         path: `${section.path}.field_${idx}`,
         ref: '',
-        label: { fallback: 'New Field' },
+        label: { fallback },
         ui: { kind: 'UIBlock', help: null, placeholder: null, widget: null, datatype: null, override: false },
         editable: true,
         required: false,
@@ -511,7 +511,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
         idx,
         path: `${item.path}.i1.field_${idx}`,
         ref: '',
-        label: { fallback: 'New Field' },
+        label: { fallback },
         ui: { kind: 'UIBlock', help: null, placeholder: null, widget: null, datatype: null, override: false },
         editable: true,
         required: false,
