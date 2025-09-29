@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+// src/pages/app/build/node/components/FormContentEditor.tsx
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,52 +11,39 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, GripVertical, ChevronDown, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
+/**
+ * Form builder — SSOT-aligned (v2-items) with collections support.
+ *
+ * SSOT essentials this editor enforces on save:
+ * - content.kind === 'FormContent'
+ * - content.version === 'v2-items'
+ * - items[] is an ordered (idx>=1) list of one of:
+ *    FieldItem | SectionItem | CollectionFieldItem | CollectionSection
+ * - FieldItem: { kind:'FieldItem', idx, path, ref, label, ui, required, editable, importance, value }
+ * - SectionItem: { kind:'SectionItem', idx, path, label, description?, required, hidden, collapsed, children: ContentItem[] }
+ * - CollectionFieldItem: { kind:'CollectionFieldItem', idx, path, ref, label, ui, required, editable, importance, min_instances, max_instances, instances:[{ instance_id:1, path, value }] }
+ * - CollectionSection: { kind:'CollectionSection', idx, path, label, description?, required, hidden, collapsed, min_instances, max_instances, instances:[{ instance_id:1, path, children: ContentItem[] }] }
+ *
+ * Important: We always keep exactly ONE template instance (instance_id=1) in builder for collection items.
+ * The job editor/runtime is responsible for duplicating instances beyond the template, per SSOT.
+ */
+
+type Importance = 'low' | 'normal' | 'high';
+
 interface I18nText {
   fallback: string;
   key?: string;
 }
 
-interface CollectionInstance {
-  instance_id: number;
-  path: string;
-  children?: (FieldItem | SectionItem | CollectionSection | CollectionFieldItem)[];
-  value?: any;
-}
-
-interface CollectionSection {
-  kind: 'CollectionSection';
-  idx: number;
-  path: string;
-  label: I18nText;
-  description?: I18nText;
-  required: boolean;
-  hidden: boolean;
-  collapsed: boolean;
-  min_instances: number;
-  max_instances: number;
-  instances: CollectionInstance[];
-}
-
-interface CollectionFieldItem {
-  kind: 'CollectionFieldItem';
-  idx: number;
-  path: string;
-  ref: string;
-  editable: boolean;
-  required: boolean;
-  importance: 'low' | 'normal' | 'high';
-  ui: UIBlock;
-  min_instances: number;
-  max_instances: number;
-  instances: CollectionInstance[];
-}
-
 interface UIBlock {
+  // UI config only; labels live at top-level item.label per SSOT.
   kind: 'UIBlock';
-  label: I18nText;
   help?: I18nText;
   placeholder?: I18nText;
   override: boolean;
+  // free form widget metadata from registry (kept opaque)
+  widget?: string;
+  datatype?: string;
 }
 
 interface FieldItem {
@@ -63,9 +51,10 @@ interface FieldItem {
   idx: number;
   path: string;
   ref: string;
+  label: I18nText;
   editable: boolean;
   required: boolean;
-  importance: 'low' | 'normal' | 'high';
+  importance: Importance;
   ui: UIBlock;
   value: any;
 }
@@ -82,7 +71,45 @@ interface SectionItem {
   children: ContentItem[];
 }
 
-type ContentItem = FieldItem | SectionItem | CollectionSection | CollectionFieldItem;
+interface CollectionInstance {
+  instance_id: number; // always 1 in builder
+  path: string;
+  // For CollectionFieldItem
+  value?: any;
+  // For CollectionSection
+  children?: ContentItem[];
+}
+
+interface CollectionFieldItem {
+  kind: 'CollectionFieldItem';
+  idx: number;
+  path: string;
+  ref: string;
+  label: I18nText;
+  editable: boolean;
+  required: boolean;
+  importance: Importance;
+  ui: UIBlock;
+  min_instances: number;
+  max_instances: number;
+  instances: CollectionInstance[]; // [ { instance_id:1, path, value } ]
+}
+
+interface CollectionSection {
+  kind: 'CollectionSection';
+  idx: number;
+  path: string;
+  label: I18nText;
+  description?: I18nText;
+  required: boolean;
+  hidden: boolean;
+  collapsed: boolean;
+  min_instances: number;
+  max_instances: number;
+  instances: CollectionInstance[]; // [ { instance_id:1, path, children:[] } ]
+}
+
+type ContentItem = FieldItem | SectionItem | CollectionFieldItem | CollectionSection;
 
 interface FormContent {
   kind: 'FormContent';
@@ -95,425 +122,453 @@ interface FormContentEditorProps {
   onChange: (content: Record<string, any>) => void;
 }
 
-export function FormContentEditor({ content, onChange }: FormContentEditorProps) {
-  const [formContent, setFormContent] = useState<FormContent>({
-    kind: 'FormContent',
-    version: 'v2-items',
-    items: []
+/* ---------------- helpers ---------------- */
+
+const i18n = (t?: I18nText): I18nText => ({ fallback: t?.fallback ?? '', key: t?.key || undefined });
+const clampIdx = (n?: number) => Math.max(1, Number.isFinite(n as any) ? (n as number) : 1);
+const nextIdx = (arr: { idx?: number }[]) => (arr.length ? Math.max(...arr.map(x => clampIdx(x.idx))) + 1 : 1);
+const isField = (x: any): x is FieldItem => x?.kind === 'FieldItem';
+const isSection = (x: any): x is SectionItem => x?.kind === 'SectionItem';
+const isCField = (x: any): x is CollectionFieldItem => x?.kind === 'CollectionFieldItem';
+const isCSection = (x: any): x is CollectionSection => x?.kind === 'CollectionSection';
+
+function normalizeFieldItem(item: any, fallbackPath = 'field'): FieldItem {
+  const idx = clampIdx(item?.idx);
+  const ref = (item?.ref ?? item?.path ?? `${fallbackPath}_${idx}`).toString();
+  const path = (item?.path ?? ref).toString();
+  // If legacy stored label inside ui.label, lift it to top-level
+  const legacyUi = item?.ui ?? {};
+  const liftedLabel = item?.label ?? legacyUi?.label;
+  const ui: UIBlock = {
+    kind: 'UIBlock',
+    help: legacyUi?.help ? i18n(legacyUi.help) : undefined,
+    placeholder: legacyUi?.placeholder ? i18n(legacyUi.placeholder) : undefined,
+    override: !!legacyUi?.override,
+    widget: legacyUi?.widget,
+    datatype: legacyUi?.datatype,
+  };
+
+  return {
+    kind: 'FieldItem',
+    idx,
+    path,
+    ref,
+    label: i18n(liftedLabel ?? { fallback: ref }),
+    editable: item?.editable !== false,
+    required: !!item?.required,
+    importance: (['low', 'normal', 'high'] as Importance[]).includes(item?.importance) ? item.importance : 'normal',
+    ui,
+    value: item?.value ?? null,
+  };
+}
+
+function normalizeSectionItem(item: any, fallbackPath = 'section'): SectionItem {
+  const idx = clampIdx(item?.idx);
+  const path = (item?.path ?? `${fallbackPath}_${idx}`).toString();
+  const children: ContentItem[] = Array.isArray(item?.children)
+    ? (item.children as any[]).map((c: any) => normalizeAnyItem(c, path))
+    : [];
+
+  return {
+    kind: 'SectionItem',
+    idx,
+    path,
+    label: i18n(item?.label ?? { fallback: 'Section' }),
+    description: item?.description ? i18n(item.description) : undefined,
+    required: !!item?.required,
+    hidden: !!item?.hidden,
+    collapsed: !!item?.collapsed,
+    children,
+  };
+}
+
+function normalizeCFieldItem(item: any, basePath = 'cfield'): CollectionFieldItem {
+  const idx = clampIdx(item?.idx);
+  const ref = (item?.ref ?? item?.path ?? `${basePath}_${idx}`).toString();
+  const path = (item?.path ?? ref).toString();
+  const ui: UIBlock = {
+    kind: 'UIBlock',
+    help: item?.ui?.help ? i18n(item.ui.help) : undefined,
+    placeholder: item?.ui?.placeholder ? i18n(item.ui.placeholder) : undefined,
+    override: !!item?.ui?.override,
+    widget: item?.ui?.widget,
+    datatype: item?.ui?.datatype,
+  };
+  // Ensure single template instance
+  const tmpl: CollectionInstance = {
+    instance_id: 1,
+    path: `${path}.i1`,
+    value: item?.instances?.[0]?.value ?? null,
+  };
+
+  return {
+    kind: 'CollectionFieldItem',
+    idx,
+    path,
+    ref,
+    label: i18n(item?.label ?? item?.ui?.label ?? { fallback: ref }),
+    editable: item?.editable !== false,
+    required: !!item?.required,
+    importance: (['low', 'normal', 'high'] as Importance[]).includes(item?.importance) ? item.importance : 'normal',
+    ui,
+    min_instances: Number.isFinite(item?.min_instances) ? item.min_instances : 1,
+    max_instances: Number.isFinite(item?.max_instances) ? item.max_instances : 1,
+    instances: [tmpl],
+  };
+}
+
+function normalizeCSectionItem(item: any, basePath = 'csection'): CollectionSection {
+  const idx = clampIdx(item?.idx);
+  const path = (item?.path ?? `${basePath}_${idx}`).toString();
+
+  const tmplChildren: ContentItem[] = Array.isArray(item?.instances?.[0]?.children)
+    ? (item.instances[0].children as any[]).map((c: any) => normalizeAnyItem(c, `${path}.i1`))
+    : [];
+
+  const tmpl: CollectionInstance = {
+    instance_id: 1,
+    path: `${path}.i1`,
+    children: tmplChildren,
+  };
+
+  return {
+    kind: 'CollectionSection',
+    idx,
+    path,
+    label: i18n(item?.label ?? { fallback: 'Collection' }),
+    description: item?.description ? i18n(item.description) : undefined,
+    required: !!item?.required,
+    hidden: !!item?.hidden,
+    collapsed: !!item?.collapsed,
+    min_instances: Number.isFinite(item?.min_instances) ? item.min_instances : 1,
+    max_instances: Number.isFinite(item?.max_instances) ? item.max_instances : 1,
+    instances: [tmpl],
+  };
+}
+
+function normalizeAnyItem(item: any, parentPath: string): ContentItem {
+  switch (item?.kind) {
+    case 'FieldItem':
+      return normalizeFieldItem(item, `${parentPath}.field`);
+    case 'SectionItem':
+      return normalizeSectionItem(item, `${parentPath}.section`);
+    case 'CollectionFieldItem':
+      return normalizeCFieldItem(item, `${parentPath}.cfield`);
+    case 'CollectionSection':
+      return normalizeCSectionItem(item, `${parentPath}.csection`);
+    default:
+      // If legacy/unknown, try to infer: prefer FieldItem if ref present
+      if (item?.ref) return normalizeFieldItem(item, `${parentPath}.field`);
+      if (Array.isArray(item?.children)) return normalizeSectionItem({ ...item, kind: 'SectionItem' }, `${parentPath}.section`);
+      return normalizeFieldItem({ kind: 'FieldItem', ref: 'field', idx: 1, path: `${parentPath}.field_1` }, parentPath);
+  }
+}
+
+function normalizeFormContent(raw: any): FormContent {
+  // Legacy "sections" → convert
+  if (raw?.sections && !raw?.items) {
+    const converted: ContentItem[] = (raw.sections as any[]).map((section: any, idx: number) =>
+      normalizeSectionItem(
+        {
+          kind: 'SectionItem',
+          idx: idx + 1,
+          path: section.key || `section_${idx + 1}`,
+          label: section.title || { fallback: `Section ${idx + 1}` },
+          description: section.ui?.help,
+          required: false,
+          hidden: false,
+          collapsed: false,
+          children: (section.fields || []).map((field: any, fIdx: number) =>
+            normalizeFieldItem({
+              kind: 'FieldItem',
+              idx: fIdx + 1,
+              path: field.field_ref || `field_${fIdx + 1}`,
+              ref: field.field_ref || '',
+              editable: true,
+              required: field.required || false,
+              importance: field.importance || 'normal',
+              ui: {
+                kind: 'UIBlock',
+                label: field.ui?.label || { fallback: field.field_ref || 'Field' },
+                help: field.ui?.help,
+                placeholder: field.ui?.placeholder,
+                override: false,
+              },
+              value: null,
+            }, `section_${idx + 1}`)
+          ),
+        },
+        'section'
+      )
+    );
+
+    return { kind: 'FormContent', version: 'v2-items', items: converted };
+  }
+
+  const items = Array.isArray(raw?.items) ? raw.items : [];
+  const normalized = items.map((it: any, i: number) => {
+    const base = it?.kind ? it : { ...it, kind: 'FieldItem' };
+    const parent = 'form';
+    return normalizeAnyItem({ ...base, idx: clampIdx(it?.idx ?? i + 1) }, parent);
   });
-  const [availableFields, setAvailableFields] = useState<Array<{ id: string; ui: any }>>([]);
+
+  return { kind: 'FormContent', version: 'v2-items', items: normalized };
+}
+
+/* ---------------- component ---------------- */
+
+export function FormContentEditor({ content, onChange }: FormContentEditorProps) {
+  const [availableFields, setAvailableFields] = useState<Array<{ id: string; ui?: any; widget?: string; datatype?: string }>>([]);
+
+  const initial = useMemo(() => normalizeFormContent(content || {}), [JSON.stringify(content || {})]);
+  const [formContent, setFormContent] = useState<FormContent>(initial);
 
   useEffect(() => {
-    // Initialize from existing content structure - only run once when content changes
-    if (!content) return;
-    
-    if (content.items) {
-      setFormContent({
-        kind: content.kind || 'FormContent',
-        version: content.version || 'v2-items',
-        items: content.items || []
-      });
-    } else if (content.sections) {
-      // Legacy sections format - convert to v2-items
-      const convertedItems: ContentItem[] = content.sections.map((section: any, idx: number) => ({
-        kind: 'SectionItem' as const,
-        idx: idx + 1,
-        path: section.key || `section_${idx + 1}`,
-        label: section.title || { fallback: `Section ${idx + 1}` },
-        description: section.ui?.help,
-        required: false,
-        hidden: false,
-        collapsed: false,
-        children: (section.fields || []).map((field: any, fieldIdx: number) => ({
-          kind: 'FieldItem' as const,
-          idx: fieldIdx + 1,
-          path: field.field_ref || `field_${fieldIdx + 1}`,
-          ref: field.field_ref || '',
-          editable: true,
-          required: field.required || false,
-          importance: field.importance || 'normal',
-          ui: {
-            kind: 'UIBlock' as const,
-            label: field.ui?.label || { fallback: field.field_ref || 'Field' },
-            help: field.ui?.help,
-            placeholder: field.ui?.placeholder,
-            override: false
-          },
-          value: null
-        }))
-      }));
-      setFormContent({
-        kind: 'FormContent',
-        version: 'v2-items',
-        items: convertedItems
-      });
-    }
-  }, [JSON.stringify(content)]);
+    const next = normalizeFormContent(content || {});
+    setFormContent(prev => JSON.stringify(prev) === JSON.stringify(next) ? prev : next);
+  }, [JSON.stringify(content || {})]);
 
   useEffect(() => {
-    // Fetch available fields from field registry - only once
     const fetchFields = async () => {
       try {
         const { data, error } = await supabase
           .schema('app' as any)
           .from('field_registry')
-          .select('id, ui, datatype, widget')
+          .select('id, widget, datatype, ui')
           .order('id');
-        
+
         if (error) throw error;
         setAvailableFields(data || []);
       } catch (error) {
-        console.error('Failed to fetch field registry:', error);
+        console.error('[FormBuilder] Failed to fetch field registry:', error);
       }
     };
-
     fetchFields();
   }, []);
 
-  // Use callback to avoid infinite loops
-  const handleContentChange = useCallback(() => {
-    onChange(formContent);
+  // Emit normalized SSOT content
+  useEffect(() => {
+    const normalized = normalizeFormContent(formContent);
+    onChange(normalized as unknown as Record<string, any>);
   }, [formContent, onChange]);
 
-  useEffect(() => {
-    // Only update if formContent actually changed
-    if (formContent.items.length > 0 || Object.keys(content).length === 0) {
-      handleContentChange();
-    }
-  }, [handleContentChange]);
+  /* ---------- adders ---------- */
 
   const addTopLevelField = () => {
-    const newIdx = Math.max(0, ...formContent.items.map(item => item.idx)) + 1;
-    const newField: FieldItem = {
-      kind: 'FieldItem',
-      idx: newIdx,
-      path: `field_${newIdx}`,
-      ref: '',
-      editable: true,
-      required: false,
-      importance: 'normal',
-      ui: {
-        kind: 'UIBlock',
+    setFormContent(prev => {
+      const idx = nextIdx(prev.items);
+      const field = normalizeFieldItem({
+        kind: 'FieldItem', idx, ref: '', path: `field_${idx}`,
         label: { fallback: 'New Field' },
-        override: false
-      },
-      value: null
-    };
-    
-    setFormContent(prev => ({
-      ...prev,
-      items: [...prev.items, newField]
-    }));
+        ui: { kind: 'UIBlock', override: false },
+        editable: true, required: false, importance: 'normal', value: null,
+      }, 'field');
+      return { ...prev, items: [...prev.items, field] };
+    });
   };
 
   const addSection = () => {
-    const newIdx = Math.max(0, ...formContent.items.map(item => item.idx)) + 1;
-    const newSection: SectionItem = {
-      kind: 'SectionItem',
-      idx: newIdx,
-      path: `section_${newIdx}`,
-      label: { fallback: 'New Section' },
-      required: false,
-      hidden: false,
-      collapsed: false,
-      children: []
-    };
-    
-    setFormContent(prev => ({
-      ...prev,
-      items: [...prev.items, newSection]
-    }));
-  };
-
-  const updateItem = (index: number, updates: Partial<ContentItem>) => {
-    setFormContent(prev => ({
-      ...prev,
-      items: prev.items.map((item, i) => 
-        i === index ? { ...item, ...updates } as ContentItem : item
-      )
-    }));
-  };
-
-  const removeItem = (index: number) => {
-    setFormContent(prev => ({
-      ...prev,
-      items: prev.items.filter((_, i) => i !== index)
-    }));
-  };
-
-  // Generic helpers to operate on any nested section by index path
-  // path example: [topSectionIndex, nestedIndex, deeperIndex, ...]
-  const updateSectionWith = (path: number[], updater: (section: SectionItem) => SectionItem) => {
     setFormContent(prev => {
-      const newItems = [...prev.items];
-      const apply = (sect: SectionItem, rest: number[]): SectionItem => {
-        if (rest.length === 0) return updater(sect);
-        const [i, ...r] = rest;
-        const child = sect.children[i] as SectionItem;
-        if (!child || child.kind !== 'SectionItem') return sect;
-        const updatedChild = apply(child, r);
-        const newChildren = sect.children.map((c, idx) => idx === i ? updatedChild : c);
-        return { ...sect, children: newChildren };
-      };
-
-      const [topIndex, ...rest] = path;
-      const top = newItems[topIndex];
-      if (!top || top.kind !== 'SectionItem') return prev;
-      const updatedTop = apply(top, rest);
-      newItems[topIndex] = updatedTop;
-      return { ...prev, items: newItems };
+      const idx = nextIdx(prev.items);
+      const section = normalizeSectionItem({
+        kind: 'SectionItem', idx, path: `section_${idx}`,
+        label: { fallback: 'New Section' }, required: false, hidden: false, collapsed: false, children: [],
+      }, 'section');
+      return { ...prev, items: [...prev.items, section] };
     });
   };
 
-  const updateSectionAtPath = (path: number[], updates: Partial<SectionItem>) => {
-    updateSectionWith(path, (s) => ({ ...s, ...updates }));
-  };
-
-  const addFieldAt = (path: number[], parentPath: string) => {
-    updateSectionWith(path, (s) => {
-      const nextIdx = Math.max(0, ...s.children.map((c: any) => Number(c?.idx) || 0)) + 1;
-      const newField: FieldItem = {
-        kind: 'FieldItem',
-        idx: nextIdx,
-        path: `${parentPath}.field_${nextIdx}`,
-        ref: '',
-        editable: true,
-        required: false,
-        importance: 'normal',
-        ui: { kind: 'UIBlock', label: { fallback: 'New Field' }, override: false },
-        value: null,
-      };
-      return { ...s, children: [...s.children, newField] };
+  const addCollectionField = () => {
+    setFormContent(prev => {
+      const idx = nextIdx(prev.items);
+      const cfield = normalizeCFieldItem({
+        kind: 'CollectionFieldItem', idx, path: `cfield_${idx}`, ref: '', label: { fallback: 'Collection Field' },
+        editable: true, required: false, importance: 'normal', ui: { kind: 'UIBlock', override: false },
+        min_instances: 1, max_instances: 3, instances: [{ instance_id: 1, path: `cfield_${idx}.i1`, value: null }],
+      }, 'cfield');
+      return { ...prev, items: [...prev.items, cfield] };
     });
   };
 
-  const addSubsectionAt = (path: number[], parentPath: string) => {
-    updateSectionWith(path, (s) => {
-      const nextIdx = Math.max(0, ...s.children.map((c: any) => Number(c?.idx) || 0)) + 1;
-      const newSection: SectionItem = {
-        kind: 'SectionItem',
-        idx: nextIdx,
-        path: `${parentPath}.section_${nextIdx}`,
-        label: { fallback: 'New Subsection' },
-        required: false,
-        hidden: false,
-        collapsed: false,
-        children: [],
-      };
-      return { ...s, children: [...s.children, newSection] };
+  const addCollectionSection = () => {
+    setFormContent(prev => {
+      const idx = nextIdx(prev.items);
+      const csection = normalizeCSectionItem({
+        kind: 'CollectionSection', idx, path: `csection_${idx}`,
+        label: { fallback: 'Collection Section' }, required: false, hidden: false, collapsed: false,
+        min_instances: 1, max_instances: 3,
+        instances: [{ instance_id: 1, path: `csection_${idx}.i1`, children: [] }],
+      }, 'csection');
+      return { ...prev, items: [...prev.items, csection] };
     });
   };
 
-  const updateChildAt = (path: number[], childPath: string, updates: Partial<ContentItem>) => {
-    updateSectionWith(path, (s) => {
-      const updatedChildren = s.children.map((c: any) => (c?.path === childPath ? ({ ...c, ...updates } as ContentItem) : c));
-      return { ...s, children: updatedChildren };
+  /* ---------- updaters ---------- */
+
+  const updateItemAt = (index: number, updates: Partial<ContentItem>) => {
+    setFormContent(prev => {
+      const items = [...prev.items];
+      const cur = items[index];
+      let next: ContentItem = { ...(cur as any), ...updates };
+      // Re-normalize specific kinds to keep SSOT sound
+      if (isField(next)) next = normalizeFieldItem(next, 'field');
+      if (isSection(next)) next = normalizeSectionItem(next, 'section');
+      if (isCField(next)) next = normalizeCFieldItem(next, 'cfield');
+      if (isCSection(next)) next = normalizeCSectionItem(next, 'csection');
+      items[index] = next;
+      return { ...prev, items };
     });
   };
 
-  const removeChildAt = (path: number[], childPath: string) => {
-    updateSectionWith(path, (s) => {
-      const before = s.children.length;
-      const updatedChildren = s.children.filter((c: any) => c?.path !== childPath);
-      console.log('FormContentEditor: removeChildAt', { path, childPath, before, after: updatedChildren.length });
-      return { ...s, children: updatedChildren };
-    });
+  const removeItemAt = (index: number) => {
+    setFormContent(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }));
   };
 
-  const addFieldToSection = (sectionIndex: number, parentPath?: string) => {
-    const section = formContent.items[sectionIndex] as SectionItem;
-    const newIdx = Math.max(0, ...section.children.map(child => child.idx)) + 1;
-    const basePath = parentPath || section.path;
-    const newField: FieldItem = {
-      kind: 'FieldItem',
-      idx: newIdx,
-      path: `${basePath}.field_${newIdx}`,
-      ref: '',
-      editable: true,
-      required: false,
-      importance: 'normal',
-      ui: {
-        kind: 'UIBlock',
-        label: { fallback: 'New Field' },
-        override: false
-      },
-      value: null
-    };
-    
-    const updatedChildren = [...section.children, newField];
-    updateItem(sectionIndex, { children: updatedChildren });
+  /* ---------- nested helpers (sections & csections) ---------- */
+
+  const updateSectionChildAt = (sectionIdx: number, childIdx: number, updates: Partial<ContentItem>) => {
+    const section = formContent.items[sectionIdx] as SectionItem;
+    if (!isSection(section)) return;
+    const children = [...section.children];
+    const cur = children[childIdx];
+    let next: ContentItem = { ...(cur as any), ...updates };
+    if (isField(next)) next = normalizeFieldItem(next, section.path);
+    if (isSection(next)) next = normalizeSectionItem(next, section.path);
+    if (isCField(next)) next = normalizeCFieldItem(next, section.path);
+    if (isCSection(next)) next = normalizeCSectionItem(next, section.path);
+    children[childIdx] = next;
+    updateItemAt(sectionIdx, { children } as any);
   };
 
-  const addSubsectionToSection = (sectionIndex: number, parentPath?: string) => {
-    const section = formContent.items[sectionIndex] as SectionItem;
-    const newIdx = Math.max(0, ...section.children.map(child => child.idx)) + 1;
-    const basePath = parentPath || section.path;
-    const newSubsection: SectionItem = {
-      kind: 'SectionItem',
-      idx: newIdx,
-      path: `${basePath}.section_${newIdx}`,
-      label: { fallback: 'New Subsection' },
-      required: false,
-      hidden: false,
-      collapsed: false,
-      children: []
-    };
-    
-    const updatedChildren = [...section.children, newSubsection];
-    updateItem(sectionIndex, { children: updatedChildren });
+  const addFieldToSection = (sectionIdx: number) => {
+    const section = formContent.items[sectionIdx] as SectionItem;
+    if (!isSection(section)) return;
+    const idx = nextIdx(section.children);
+    const field = normalizeFieldItem({ kind: 'FieldItem', idx, path: `${section.path}.field_${idx}`, ref: '', label: { fallback: 'New Field' }, ui: { kind: 'UIBlock', override: false }, editable: true, required: false, importance: 'normal', value: null }, section.path);
+    updateItemAt(sectionIdx, { children: [...section.children, field] } as any);
   };
 
-  const updateSectionChild = (sectionIndex: number, childIndex: number, updates: Partial<ContentItem>) => {
-    const section = formContent.items[sectionIndex] as SectionItem;
-    const updatedChildren = section.children.map((child, i) => 
-      i === childIndex ? { ...child, ...updates } as ContentItem : child
-    );
-    updateItem(sectionIndex, { children: updatedChildren });
+  const addSubsectionToSection = (sectionIdx: number) => {
+    const section = formContent.items[sectionIdx] as SectionItem;
+    if (!isSection(section)) return;
+    const idx = nextIdx(section.children);
+    const sub = normalizeSectionItem({ kind: 'SectionItem', idx, path: `${section.path}.section_${idx}`, label: { fallback: 'New Subsection' }, required: false, hidden: false, collapsed: false, children: [] }, section.path);
+    updateItemAt(sectionIdx, { children: [...section.children, sub] } as any);
   };
 
-  const removeSectionChild = (sectionIndex: number, childIndex: number) => {
-    const section = formContent.items[sectionIndex] as SectionItem;
-    const before = section.children.length;
-    const updatedChildren = section.children.filter((_, i) => i !== childIndex);
-    console.log('FormContentEditor: removeSectionChild', { sectionIndex, childIndex, before, after: updatedChildren.length });
-    updateItem(sectionIndex, { children: updatedChildren });
+  const removeSectionChild = (sectionIdx: number, childIdx: number) => {
+    const section = formContent.items[sectionIdx] as SectionItem;
+    if (!isSection(section)) return;
+    const children = section.children.filter((_, i) => i !== childIdx);
+    updateItemAt(sectionIdx, { children } as any);
   };
 
-  // Functions for handling nested sections (sections within sections)
-  const addFieldToNestedSection = (parentSectionIndex: number, nestedSectionIndex: number, parentPath: string) => {
-    const parentSection = formContent.items[parentSectionIndex] as SectionItem;
-    const nestedSection = parentSection.children[nestedSectionIndex] as SectionItem;
-    const newIdx = Math.max(0, ...nestedSection.children.map(child => child.idx)) + 1;
-    const newField: FieldItem = {
-      kind: 'FieldItem',
-      idx: newIdx,
-      path: `${parentPath}.field_${newIdx}`,
-      ref: '',
-      editable: true,
-      required: false,
-      importance: 'normal',
-      ui: {
-        kind: 'UIBlock',
-        label: { fallback: 'New Field' },
-        override: false
-      },
-      value: null
-    };
-    
-    const updatedNestedSection = {
-      ...nestedSection,
-      children: [...nestedSection.children, newField]
-    };
-    
-    const updatedParentChildren = parentSection.children.map((child, i) => 
-      i === nestedSectionIndex ? updatedNestedSection : child
-    );
-    
-    updateItem(parentSectionIndex, { children: updatedParentChildren });
+  /* ---------- collection helpers ---------- */
+
+  const updateCSectionTemplateChildren = (csecIdx: number, children: ContentItem[]) => {
+    const item = formContent.items[csecIdx] as CollectionSection;
+    if (!isCSection(item)) return;
+    const tmpl = { ...(item.instances[0] || { instance_id: 1, path: `${item.path}.i1`, children: [] }) };
+    tmpl.children = children;
+    const instances = [tmpl];
+    updateItemAt(csecIdx, { instances } as any);
   };
 
-  const addSubsectionToNestedSection = (parentSectionIndex: number, nestedSectionIndex: number, parentPath: string) => {
-    const parentSection = formContent.items[parentSectionIndex] as SectionItem;
-    const nestedSection = parentSection.children[nestedSectionIndex] as SectionItem;
-    const newIdx = Math.max(0, ...nestedSection.children.map(child => child.idx)) + 1;
-    const newSubsection: SectionItem = {
-      kind: 'SectionItem',
-      idx: newIdx,
-      path: `${parentPath}.section_${newIdx}`,
-      label: { fallback: 'New Subsection' },
-      required: false,
-      hidden: false,
-      collapsed: false,
-      children: []
-    };
-    
-    const updatedNestedSection = {
-      ...nestedSection,
-      children: [...nestedSection.children, newSubsection]
-    };
-    
-    const updatedParentChildren = parentSection.children.map((child, i) => 
-      i === nestedSectionIndex ? updatedNestedSection : child
-    );
-    
-    updateItem(parentSectionIndex, { children: updatedParentChildren });
+  const addFieldToCSection = (csecIdx: number) => {
+    const item = formContent.items[csecIdx] as CollectionSection;
+    if (!isCSection(item)) return;
+    const tmpl = item.instances[0];
+    const children = tmpl?.children ? [...tmpl.children] : [];
+    const idx = nextIdx(children as any);
+    const field = normalizeFieldItem({ kind: 'FieldItem', idx, path: `${item.path}.i1.field_${idx}`, ref: '', label: { fallback: 'New Field' }, ui: { kind: 'UIBlock', override: false }, editable: true, required: false, importance: 'normal', value: null }, `${item.path}.i1`);
+    updateCSectionTemplateChildren(csecIdx, [...children, field]);
   };
 
-  const updateNestedSectionChild = (parentSectionIndex: number, nestedSectionIndex: number, childIndex: number, updates: Partial<ContentItem>) => {
-    const parentSection = formContent.items[parentSectionIndex] as SectionItem;
-    const nestedSection = parentSection.children[nestedSectionIndex] as SectionItem;
-    
-    const updatedNestedChildren = nestedSection.children.map((child, i) => 
-      i === childIndex ? { ...child, ...updates } as ContentItem : child
-    );
-    
-    const updatedNestedSection = {
-      ...nestedSection,
-      children: updatedNestedChildren
-    };
-    
-    const updatedParentChildren = parentSection.children.map((child, i) => 
-      i === nestedSectionIndex ? updatedNestedSection : child
-    );
-    
-    updateItem(parentSectionIndex, { children: updatedParentChildren });
+  const addSubsectionToCSection = (csecIdx: number) => {
+    const item = formContent.items[csecIdx] as CollectionSection;
+    if (!isCSection(item)) return;
+    const tmpl = item.instances[0];
+    const children = tmpl?.children ? [...tmpl.children] : [];
+    const idx = nextIdx(children as any);
+    const sub = normalizeSectionItem({ kind: 'SectionItem', idx, path: `${item.path}.i1.section_${idx}`, label: { fallback: 'New Subsection' }, required: false, hidden: false, collapsed: false, children: [] }, `${item.path}.i1`);
+    updateCSectionTemplateChildren(csecIdx, [...children, sub]);
   };
 
-  const removeNestedSectionChild = (parentSectionIndex: number, nestedSectionIndex: number, childIndex: number) => {
-    const parentSection = formContent.items[parentSectionIndex] as SectionItem;
-    const nestedSection = parentSection.children[nestedSectionIndex] as SectionItem;
-    
-    const before = nestedSection.children.length;
-    const updatedNestedChildren = nestedSection.children.filter((_, i) => i !== childIndex);
-    
-    const updatedNestedSection = {
-      ...nestedSection,
-      children: updatedNestedChildren
-    };
-    
-    const updatedParentChildren = parentSection.children.map((child, i) => 
-      i === nestedSectionIndex ? updatedNestedSection : child
-    );
-    
-    console.log('FormContentEditor: removeNestedSectionChild', { parentSectionIndex, nestedSectionIndex, childIndex, before, after: updatedNestedSection.children.length });
-    updateItem(parentSectionIndex, { children: updatedParentChildren });
+  const updateChildInCSection = (csecIdx: number, childIdx: number, updates: Partial<ContentItem>) => {
+    const item = formContent.items[csecIdx] as CollectionSection;
+    if (!isCSection(item)) return;
+    const tmpl = item.instances[0];
+    const children = tmpl?.children ? [...tmpl.children] : [];
+    const cur = children[childIdx];
+    let next: ContentItem = { ...(cur as any), ...updates };
+    if (isField(next)) next = normalizeFieldItem(next, `${item.path}.i1`);
+    if (isSection(next)) next = normalizeSectionItem(next, `${item.path}.i1`);
+    if (isCField(next)) next = normalizeCFieldItem(next, `${item.path}.i1`);
+    if (isCSection(next)) next = normalizeCSectionItem(next, `${item.path}.i1`);
+    children[childIdx] = next;
+    updateCSectionTemplateChildren(csecIdx, children);
   };
+
+  const removeChildFromCSection = (csecIdx: number, childIdx: number) => {
+    const item = formContent.items[csecIdx] as CollectionSection;
+    if (!isCSection(item)) return;
+    const tmpl = item.instances[0];
+    const children = (tmpl?.children || []).filter((_, i) => i !== childIdx);
+    updateCSectionTemplateChildren(csecIdx, children);
+  };
+
+  /* ---------- renderers ---------- */
 
   const renderFieldEditor = (field: FieldItem, onUpdate: (updates: Partial<FieldItem>) => void, onRemove: () => void) => (
     <Card className="p-4">
       <div className="flex items-start gap-4">
         <GripVertical className="w-4 h-4 text-muted-foreground mt-2 flex-shrink-0" />
-        
         <div className="flex-1 space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs">Field Reference</Label>
+              <Label className="text-xs">Field ref</Label>
               <Select
                 value={field.ref || undefined}
-                onValueChange={(value) => onUpdate({ ref: value, path: value })}
+                onValueChange={(value) => onUpdate({ ref: value, path: value, label: field.label?.fallback ? field.label : { fallback: value } })}
               >
-                <SelectTrigger id={`field-ref-${field.idx}`}>
+                <SelectTrigger>
                   <SelectValue placeholder="Select field" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableFields.map(availableField => (
-                    <SelectItem key={availableField.id} value={availableField.id}>
-                      {availableField.id}
-                    </SelectItem>
+                  {availableFields.map(f => (
+                    <SelectItem key={f.id} value={f.id}>{f.id}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Label (fallback)</Label>
+              <Input
+                value={field.label?.fallback || ''}
+                onChange={(e) => onUpdate({ label: { ...field.label, fallback: e.target.value } })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Label (key)</Label>
+              <Input
+                value={field.label?.key || ''}
+                onChange={(e) => onUpdate({ label: { ...field.label, key: e.target.value || undefined } })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Index</Label>
+              <Input type="number" value={field.idx} min={1} onChange={(e) => onUpdate({ idx: clampIdx(parseInt(e.target.value)) })} />
+            </div>
+          </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Importance</Label>
               <Select
                 value={field.importance}
-                onValueChange={(value: 'low' | 'normal' | 'high') => onUpdate({ importance: value })}
+                onValueChange={(value: Importance) => onUpdate({ importance: value })}
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="low">Low</SelectItem>
                   <SelectItem value="normal">Normal</SelectItem>
@@ -521,340 +576,146 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-1">
-              <Label className="text-xs">Index</Label>
+              <Label className="text-xs">Help (fallback)</Label>
               <Input
-                type="number"
-                value={field.idx}
-                onChange={(e) => onUpdate({ idx: parseInt(e.target.value) || 1 })}
-                min="1"
+                value={field.ui?.help?.fallback || ''}
+                onChange={(e) => onUpdate({ ui: { ...field.ui, help: { ...(field.ui?.help || {}), fallback: e.target.value } } as UIBlock })}
               />
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs">Label Fallback</Label>
+              <Label className="text-xs">Help (key)</Label>
               <Input
-                id={`field-label-fallback-${field.idx}`}
-                value={field.ui.label?.fallback || ''}
-                onChange={(e) => onUpdate({
-                  ui: {
-                    ...field.ui,
-                    label: { ...field.ui.label, fallback: e.target.value }
-                  }
-                })}
-                placeholder="Custom label"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs">Label Key</Label>
-              <Input
-                id={`field-label-key-${field.idx}`}
-                value={field.ui.label?.key || ''}
-                onChange={(e) => onUpdate({
-                  ui: {
-                    ...field.ui,
-                    label: { ...field.ui.label, key: e.target.value }
-                  }
-                })}
-                placeholder="translation.key"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs">Help Fallback</Label>
-              <Input
-                id={`field-help-fallback-${field.idx}`}
-                value={field.ui.help?.fallback || ''}
-                onChange={(e) => onUpdate({
-                  ui: {
-                    ...field.ui,
-                    help: { ...field.ui.help, fallback: e.target.value }
-                  }
-                })}
-                placeholder="Help text"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs">Help Key</Label>
-              <Input
-                id={`field-help-key-${field.idx}`}
-                value={field.ui.help?.key || ''}
-                onChange={(e) => onUpdate({
-                  ui: {
-                    ...field.ui,
-                    help: { ...field.ui.help, key: e.target.value }
-                  }
-                })}
-                placeholder="help.key"
+                value={field.ui?.help?.key || ''}
+                onChange={(e) => onUpdate({ ui: { ...field.ui, help: { ...(field.ui?.help || {}), key: e.target.value || undefined } } as UIBlock })}
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs">Placeholder Fallback</Label>
+              <Label className="text-xs">Placeholder (fallback)</Label>
               <Input
-                id={`field-placeholder-fallback-${field.idx}`}
-                value={field.ui.placeholder?.fallback || ''}
-                onChange={(e) => onUpdate({
-                  ui: {
-                    ...field.ui,
-                    placeholder: { ...field.ui.placeholder, fallback: e.target.value }
-                  }
-                })}
-                placeholder="Placeholder text"
+                value={field.ui?.placeholder?.fallback || ''}
+                onChange={(e) => onUpdate({ ui: { ...field.ui, placeholder: { ...(field.ui?.placeholder || {}), fallback: e.target.value } } as UIBlock })}
               />
             </div>
-
             <div className="space-y-1">
-              <Label className="text-xs">Placeholder Key</Label>
+              <Label className="text-xs">Placeholder (key)</Label>
               <Input
-                id={`field-placeholder-key-${field.idx}`}
-                value={field.ui.placeholder?.key || ''}
-                onChange={(e) => onUpdate({
-                  ui: {
-                    ...field.ui,
-                    placeholder: { ...field.ui.placeholder, key: e.target.value }
-                  }
-                })}
-                placeholder="placeholder.key"
+                value={field.ui?.placeholder?.key || ''}
+                onChange={(e) => onUpdate({ ui: { ...field.ui, placeholder: { ...(field.ui?.placeholder || {}), key: e.target.value || undefined } } as UIBlock })}
               />
             </div>
           </div>
 
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <Switch
-                checked={field.required}
-                onCheckedChange={(checked) => onUpdate({ required: checked })}
-              />
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Switch checked={field.required} onCheckedChange={(v) => onUpdate({ required: v })} />
               <Label className="text-xs">Required</Label>
             </div>
-            
-            <div className="flex items-center space-x-2">
-              <Switch
-                checked={field.editable}
-                onCheckedChange={(checked) => onUpdate({ editable: checked })}
-              />
+            <div className="flex items-center gap-2">
+              <Switch checked={field.editable} onCheckedChange={(v) => onUpdate({ editable: v })} />
               <Label className="text-xs">Editable</Label>
             </div>
-
-            <div className="flex items-center space-x-2">
-              <Switch
-                checked={field.ui.override}
-                onCheckedChange={(checked) => onUpdate({
-                  ui: { ...field.ui, override: checked }
-                })}
-              />
-              <Label className="text-xs">Override</Label>
-            </div>
-            
+            <div className="flex-1" />
             <Badge variant={field.importance === 'high' ? 'destructive' : field.importance === 'normal' ? 'default' : 'secondary'}>
               {field.importance}
             </Badge>
           </div>
         </div>
-
-        <Button onClick={onRemove} variant="ghost" size="sm">
+        <Button onClick={onRemove} variant="ghost" size="sm" aria-label="remove-field">
           <Trash2 className="w-4 h-4 text-destructive" />
         </Button>
       </div>
     </Card>
   );
 
-  const renderSectionEditor = (section: SectionItem, sectionIndex: number, depth: number = 0) => (
-    <Card key={sectionIndex} className={`border-l-4 ${depth === 0 ? 'border-l-primary' : depth === 1 ? 'border-l-secondary' : 'border-l-muted'} ${depth > 0 ? 'ml-6' : ''}`}>
+  const renderSectionEditor = (section: SectionItem, index: number, depth = 0) => (
+    <Card key={section.path} className={`border-l-4 ${depth === 0 ? 'border-l-primary' : 'border-l-muted'} ${depth > 0 ? 'ml-6' : ''}`}>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => updateItem(sectionIndex, { collapsed: !section.collapsed })}
-            >
+            <Button variant="ghost" size="sm" onClick={() => updateItemAt(index, { collapsed: !section.collapsed })}>
               {section.collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </Button>
-            <CardTitle className={`${depth === 0 ? 'text-base' : 'text-sm'}`}>
-              {depth > 0 ? 'Subsection' : 'Section'}: {section.label.fallback}
-            </CardTitle>
-            {depth > 0 && <Badge variant="outline" className="text-xs">Level {depth + 1}</Badge>}
+            <CardTitle className={depth === 0 ? 'text-base' : 'text-sm'}>Section: {section.label?.fallback || section.path}</CardTitle>
+            {depth > 0 && <Badge variant="outline" className="text-xs">Nested</Badge>}
           </div>
-          <Button onClick={() => removeItem(sectionIndex)} variant="ghost" size="sm">
+          <Button onClick={() => removeItemAt(index)} variant="ghost" size="sm" aria-label="remove-section">
             <Trash2 className="w-4 h-4 text-destructive" />
           </Button>
         </div>
       </CardHeader>
-      
+
       {!section.collapsed && (
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor={`section-${sectionIndex}-path`}>Section Path</Label>
-              <Input
-                id={`section-${sectionIndex}-path`}
-                name={`section-${sectionIndex}-path`}
-                value={section.path}
-                onChange={(e) => updateItem(sectionIndex, { path: e.target.value })}
-                placeholder="section_path"
-              />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Path</Label>
+              <Input value={section.path} onChange={(e) => updateItemAt(index, { path: e.target.value })} />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor={`section-${sectionIndex}-idx`}>Index</Label>
-              <Input
-                id={`section-${sectionIndex}-idx`}
-                name={`section-${sectionIndex}-idx`}
-                type="number"
-                value={section.idx}
-                onChange={(e) => updateItem(sectionIndex, { idx: parseInt(e.target.value) || 1 })}
-                min="1"
-              />
+            <div className="space-y-1">
+              <Label className="text-xs">Label (fallback)</Label>
+              <Input value={section.label?.fallback || ''} onChange={(e) => updateItemAt(index, { label: { ...section.label, fallback: e.target.value } as any })} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Index</Label>
+              <Input type="number" value={section.idx} min={1} onChange={(e) => updateItemAt(index, { idx: clampIdx(parseInt(e.target.value)) })} />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor={`section-${sectionIndex}-label-fallback`}>Label (Fallback Text)</Label>
-              <Input
-                id={`section-${sectionIndex}-label-fallback`}
-                name={`section-${sectionIndex}-label-fallback`}
-                value={section.label.fallback}
-                onChange={(e) => updateItem(sectionIndex, {
-                  label: { ...section.label, fallback: e.target.value }
-                })}
-                placeholder="Section Label"
-              />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Label (key)</Label>
+              <Input value={section.label?.key || ''} onChange={(e) => updateItemAt(index, { label: { ...section.label, key: e.target.value || undefined } as any })} />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor={`section-${sectionIndex}-label-key`}>Label (Translation Key)</Label>
-              <Input
-                id={`section-${sectionIndex}-label-key`}
-                name={`section-${sectionIndex}-label-key`}
-                value={section.label.key || ''}
-                onChange={(e) => updateItem(sectionIndex, {
-                  label: { ...section.label, key: e.target.value }
-                })}
-                placeholder="section.label.key"
-              />
+            <div className="space-y-1">
+              <Label className="text-xs">Description (fallback)</Label>
+              <Textarea value={section.description?.fallback || ''} onChange={(e) => updateItemAt(index, { description: { ...(section.description || {}), fallback: e.target.value } as any })} />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor={`section-${sectionIndex}-description-fallback`}>Description (Fallback Text)</Label>
-              <Textarea
-                id={`section-${sectionIndex}-description-fallback`}
-                name={`section-${sectionIndex}-description-fallback`}
-                value={section.description?.fallback || ''}
-                onChange={(e) => updateItem(sectionIndex, {
-                  description: { ...section.description, fallback: e.target.value }
-                })}
-                placeholder="Section description"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`section-${sectionIndex}-description-key`}>Description (Translation Key)</Label>
-              <Input
-                id={`section-${sectionIndex}-description-key`}
-                name={`section-${sectionIndex}-description-key`}
-                value={section.description?.key || ''}
-                onChange={(e) => updateItem(sectionIndex, {
-                  description: { ...section.description, key: e.target.value }
-                })}
-                placeholder="section.description.key"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <Switch
-                checked={section.required}
-                onCheckedChange={(checked) => updateItem(sectionIndex, { required: checked })}
-              />
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Switch checked={section.required} onCheckedChange={(v) => updateItemAt(index, { required: v })} />
               <Label className="text-xs">Required</Label>
             </div>
-            
-            <div className="flex items-center space-x-2">
-              <Switch
-                checked={section.hidden}
-                onCheckedChange={(checked) => updateItem(sectionIndex, { hidden: checked })}
-              />
+            <div className="flex items-center gap-2">
+              <Switch checked={section.hidden} onCheckedChange={(v) => updateItemAt(index, { hidden: v })} />
               <Label className="text-xs">Hidden</Label>
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="font-medium">Content in Section</h4>
+              <h4 className="font-medium">Children</h4>
               <div className="flex gap-2">
-                <Button
-                  onClick={() => addFieldAt([sectionIndex], section.path)}
-                  variant="outline"
-                  size="sm"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Field
+                <Button onClick={() => addFieldToSection(index)} variant="outline" size="sm">
+                  <Plus className="w-4 h-4 mr-2" />Add Field
                 </Button>
-                <Button
-                  onClick={() => addSubsectionAt([sectionIndex], section.path)}
-                  variant="outline"
-                  size="sm"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Subsection
+                <Button onClick={() => addSubsectionToSection(index)} variant="outline" size="sm">
+                  <Plus className="w-4 h-4 mr-2" />Add Subsection
                 </Button>
               </div>
             </div>
 
             {section.children.length === 0 ? (
-              <div className="text-center py-4 border border-dashed rounded-md">
-                <p className="text-muted-foreground mb-2">No content in this section</p>
-                <div className="flex gap-2 justify-center">
-                  <Button
-                    onClick={() => addFieldAt([sectionIndex], section.path)}
-                    variant="outline"
-                    size="sm"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Field
-                  </Button>
-                  <Button
-                    onClick={() => addSubsectionAt([sectionIndex], section.path)}
-                    variant="outline"
-                    size="sm"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Subsection
-                  </Button>
-                </div>
-              </div>
+              <div className="text-sm text-muted-foreground border rounded-md p-3">No children yet.</div>
             ) : (
               <div className="space-y-3">
-                {section.children.map((child, childIndex) => {
-                  if (child.kind === 'FieldItem') {
-                    return renderFieldEditor(
+                {section.children.map((child, cIdx) => (
+                  <div key={(child as any).path || `${section.path}-${cIdx}`}>
+                    {isField(child) && renderFieldEditor(
                       child,
-                      (updates) => updateChildAt([sectionIndex], (child as any).path, updates),
-                      () => removeChildAt([sectionIndex], (child as any).path)
-                    );
-                  } else if (child.kind === 'SectionItem') {
-                    return (
-                      <div key={(child as any).path || `child-${childIndex}`} className="ml-4 border-l-2 border-l-muted pl-4">
-                        {renderNestedSectionEditor(
-                          child,
-                          [sectionIndex, childIndex],
-                          depth + 1
-                        )}
-                      </div>
-                    );
-                  }
-                  return null;
-                })}
+                      (updates) => updateSectionChildAt(index, cIdx, updates),
+                      () => removeSectionChild(index, cIdx)
+                    )}
+                    {isSection(child) && renderSectionEditor(child as SectionItem, index, depth + 1)}
+                    {isCField(child) && renderCFieldEditor(child as CollectionFieldItem, (updates) => updateSectionChildAt(index, cIdx, updates), () => removeSectionChild(index, cIdx))}
+                    {isCSection(child) && renderCSectionEditor(child as CollectionSection, (updates) => updateSectionChildAt(index, cIdx, updates), () => removeSectionChild(index, cIdx))}
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -863,199 +724,163 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
     </Card>
   );
 
-  const renderNestedSectionEditor = (section: SectionItem, path: number[], depth: number = 1) => (
-    <Card className={`border-l-4 ${depth === 1 ? 'border-l-secondary' : 'border-l-muted'}`}>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => updateSectionAtPath(path, { collapsed: !section.collapsed })}
-            >
-              {section.collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </Button>
-            <CardTitle className="text-sm">
-              Subsection: {section.label.fallback}
-            </CardTitle>
-            <Badge variant="outline" className="text-xs">Level {depth + 1}</Badge>
+  const renderCFieldEditor = (
+    item: CollectionFieldItem,
+    onUpdate: (updates: Partial<CollectionFieldItem>) => void,
+    onRemove: () => void
+  ) => (
+    <Card className="p-4">
+      <div className="flex items-start gap-4">
+        <GripVertical className="w-4 h-4 text-muted-foreground mt-2 flex-shrink-0" />
+        <div className="flex-1 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Field ref</Label>
+              <Select value={item.ref || undefined} onValueChange={(v) => onUpdate({ ref: v, path: item.path || v, label: item.label?.fallback ? item.label : { fallback: v } })}>
+                <SelectTrigger><SelectValue placeholder="Select field" /></SelectTrigger>
+                <SelectContent>
+                  {availableFields.map(f => <SelectItem key={f.id} value={f.id}>{f.id}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Label (fallback)</Label>
+              <Input value={item.label?.fallback || ''} onChange={(e) => onUpdate({ label: { ...item.label, fallback: e.target.value } as any })} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Min instances</Label>
+              <Input type="number" value={item.min_instances} min={1} onChange={(e) => onUpdate({ min_instances: clampIdx(parseInt(e.target.value)) } as any)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Max instances</Label>
+              <Input type="number" value={item.max_instances} min={item.min_instances || 1} onChange={(e) => onUpdate({ max_instances: clampIdx(parseInt(e.target.value)) } as any)} />
+            </div>
           </div>
-          <Button onClick={() => removeChildAt(path.slice(0, -1), section.path)} variant="ghost" size="sm">
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Switch checked={item.required} onCheckedChange={(v) => onUpdate({ required: v })} />
+              <Label className="text-xs">Required</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={item.editable} onCheckedChange={(v) => onUpdate({ editable: v })} />
+              <Label className="text-xs">Editable</Label>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs">Template instance value</Label>
+            <Input
+              value={item.instances?.[0]?.value ?? ''}
+              onChange={(e) => onUpdate({ instances: [{ ...(item.instances?.[0] || { instance_id: 1, path: `${item.path}.i1` }), value: e.target.value }] } as any)}
+              placeholder="Default value for each instance"
+            />
+            <p className="text-[11px] text-muted-foreground">Builder keeps one template instance (i1). Jobs may add more.</p>
+          </div>
+        </div>
+        <Button onClick={onRemove} variant="ghost" size="sm" aria-label="remove-cfield">
+          <Trash2 className="w-4 h-4 text-destructive" />
+        </Button>
+      </div>
+    </Card>
+  );
+
+  const renderCSectionEditor = (
+    item: CollectionSection,
+    onUpdate: (updates: Partial<CollectionSection>) => void,
+    onRemove: () => void
+  ) => {
+    const tmpl = item.instances?.[0];
+    const children = tmpl?.children || [];
+    return (
+      <Card className="p-4 border-l-4 border-l-secondary">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2">
+            <GripVertical className="w-4 h-4 text-muted-foreground" />
+            <CardTitle className="text-base">Collection Section: {item.label?.fallback || item.path}</CardTitle>
+          </div>
+          <Button onClick={onRemove} variant="ghost" size="sm" aria-label="remove-csection">
             <Trash2 className="w-4 h-4 text-destructive" />
           </Button>
         </div>
-      </CardHeader>
-      
-      {!section.collapsed && (
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Section Path</Label>
-              <Input
-                value={section.path}
-                onChange={(e) => updateSectionAtPath(path, { path: e.target.value })}
-                placeholder="section_path"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Index</Label>
-              <Input
-                type="number"
-                value={section.idx}
-                onChange={(e) => updateSectionAtPath(path, { idx: parseInt(e.target.value) || 1 })}
-                min="1"
-              />
+
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Path</Label>
+            <Input value={item.path} onChange={(e) => onUpdate({ path: e.target.value })} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Label (fallback)</Label>
+            <Input value={item.label?.fallback || ''} onChange={(e) => onUpdate({ label: { ...item.label, fallback: e.target.value } as any })} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Min instances</Label>
+            <Input type="number" value={item.min_instances} min={1} onChange={(e) => onUpdate({ min_instances: clampIdx(parseInt(e.target.value)) } as any)} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Max instances</Label>
+            <Input type="number" value={item.max_instances} min={item.min_instances || 1} onChange={(e) => onUpdate({ max_instances: clampIdx(parseInt(e.target.value)) } as any)} />
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-medium">Template instance children</h4>
+            <div className="flex gap-2">
+              <Button onClick={() => addFieldToCSection(formContent.items.indexOf(item))} variant="outline" size="sm">
+                <Plus className="w-4 h-4 mr-2" />Add Field
+              </Button>
+              <Button onClick={() => addSubsectionToCSection(formContent.items.indexOf(item))} variant="outline" size="sm">
+                <Plus className="w-4 h-4 mr-2" />Add Subsection
+              </Button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Label (Fallback Text)</Label>
-              <Input
-                value={section.label.fallback}
-                onChange={(e) => updateSectionAtPath(path, { label: { ...section.label, fallback: e.target.value } })}
-                placeholder="Section Label"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Label (Translation Key)</Label>
-              <Input
-                value={section.label.key || ''}
-                onChange={(e) => updateSectionAtPath(path, { label: { ...section.label, key: e.target.value } })}
-                placeholder="section.label.key"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Description (Fallback Text)</Label>
-              <Textarea
-                value={section.description?.fallback || ''}
-                onChange={(e) => updateSectionAtPath(path, { description: { ...section.description, fallback: e.target.value } })}
-                placeholder="Section description"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Description (Translation Key)</Label>
-              <Input
-                value={section.description?.key || ''}
-                onChange={(e) => updateSectionAtPath(path, { description: { ...section.description, key: e.target.value } })}
-                placeholder="section.description.key"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <Switch
-                checked={section.required}
-                onCheckedChange={(checked) => updateSectionAtPath(path, { required: checked })}
-              />
-              <Label className="text-xs">Required</Label>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <Switch
-                checked={section.hidden}
-                onCheckedChange={(checked) => updateSectionAtPath(path, { hidden: checked })}
-              />
-              <Label className="text-xs">Hidden</Label>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="font-medium">Content in Subsection</h4>
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => addFieldAt(path, section.path)}
-                  variant="outline"
-                  size="sm"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Field
-                </Button>
-                <Button
-                  onClick={() => addSubsectionAt(path, section.path)}
-                  variant="outline"
-                  size="sm"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Subsection
-                </Button>
-              </div>
-            </div>
-
-            {section.children.length === 0 ? (
-              <div className="text-center py-4 border border-dashed rounded-md">
-                <p className="text-muted-foreground mb-2">No content in this subsection</p>
-                <div className="flex gap-2 justify-center">
-                  <Button
-                    onClick={() => addFieldAt(path, section.path)}
-                    variant="outline"
-                    size="sm"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Field
-                  </Button>
-                  <Button
-                    onClick={() => addSubsectionAt(path, section.path)}
-                    variant="outline"
-                    size="sm"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Subsection
-                  </Button>
+          {children.length === 0 ? (
+            <div className="text-sm text-muted-foreground border rounded-md p-3 mt-2">No children yet.</div>
+          ) : (
+            <div className="space-y-3 mt-2">
+              {children.map((child, i) => (
+                <div key={(child as any).path || `${item.path}.i1-${i}`}>
+                  {isField(child) && renderFieldEditor(
+                    child,
+                    (updates) => updateChildInCSection(formContent.items.indexOf(item), i, updates),
+                    () => removeChildFromCSection(formContent.items.indexOf(item), i)
+                  )}
+                  {isSection(child) && renderSectionEditor(child as SectionItem, formContent.items.indexOf(item), 1)}
+                  {isCField(child) && renderCFieldEditor(child as CollectionFieldItem, (updates) => updateChildInCSection(formContent.items.indexOf(item), i, updates as any), () => removeChildFromCSection(formContent.items.indexOf(item), i))}
+                  {isCSection(child) && renderCSectionEditor(child as CollectionSection, (updates) => updateChildInCSection(formContent.items.indexOf(item), i, updates as any), () => removeChildFromCSection(formContent.items.indexOf(item), i))}
                 </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {section.children.map((child, nestedChildIndex) => {
-                  if (child.kind === 'FieldItem') {
-                    return renderFieldEditor(
-                      child,
-                      (updates) => updateChildAt(path, (child as any).path, updates),
-                      () => removeChildAt(path, (child as any).path)
-                    );
-                  } else if (child.kind === 'SectionItem') {
-                    return (
-                      <div key={(child as any).path || `child-${nestedChildIndex}`} className="ml-4 border-l-2 border-l-muted pl-4">
-                        {renderNestedSectionEditor(
-                          child,
-                          [...path, nestedChildIndex],
-                          depth + 1
-                        )}
-                      </div>
-                    );
-                  }
-                  return null;
-                })}
-              </div>
-            )}
-          </div>
-        </CardContent>
-      )}
-    </Card>
-  );
+              ))}
+            </div>
+          )}
+          <p className="text-[11px] text-muted-foreground mt-2">Builder keeps one template instance (i1). Jobs may add more.</p>
+        </div>
+      </Card>
+    );
+  };
+
+  /* ---------- main ---------- */
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-medium">Form Content (v2-items)</h3>
-          <p className="text-sm text-muted-foreground">
-            Configure fields and sections for this form node
-          </p>
+          <h3 className="text-lg font-medium">Form Content (SSOT v2-items)</h3>
+          <p className="text-sm text-muted-foreground">Fields, sections, and collections. Builder enforces SSOT and emits normalized content.</p>
         </div>
         <div className="flex gap-2">
           <Button onClick={addTopLevelField} variant="outline" size="sm">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Field
+            <Plus className="w-4 h-4 mr-2" />Add Field
           </Button>
           <Button onClick={addSection} variant="outline" size="sm">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Section
+            <Plus className="w-4 h-4 mr-2" />Add Section
+          </Button>
+          <Button onClick={addCollectionField} variant="outline" size="sm">
+            <Plus className="w-4 h-4 mr-2" />Add Collection Field
+          </Button>
+          <Button onClick={addCollectionSection} variant="outline" size="sm">
+            <Plus className="w-4 h-4 mr-2" />Add Collection Section
           </Button>
         </div>
       </div>
@@ -1066,14 +891,10 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
             <div className="text-center">
               <p className="text-muted-foreground mb-4">No content configured</p>
               <div className="flex gap-2 justify-center">
-                <Button onClick={addTopLevelField} variant="outline">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Field
-                </Button>
-                <Button onClick={addSection} variant="outline">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Section
-                </Button>
+                <Button onClick={addTopLevelField} variant="outline"><Plus className="w-4 h-4 mr-2" />Add Field</Button>
+                <Button onClick={addSection} variant="outline"><Plus className="w-4 h-4 mr-2" />Add Section</Button>
+                <Button onClick={addCollectionField} variant="outline"><Plus className="w-4 h-4 mr-2" />Add Collection Field</Button>
+                <Button onClick={addCollectionSection} variant="outline"><Plus className="w-4 h-4 mr-2" />Add Collection Section</Button>
               </div>
             </div>
           </CardContent>
@@ -1081,22 +902,34 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
       ) : (
         <div className="space-y-4">
           {formContent.items.map((item, index) => {
-            if (item.kind === 'FieldItem') {
+            if (isField(item)) {
               return renderFieldEditor(
                 item,
-                (updates) => updateItem(index, updates),
-                () => removeItem(index)
+                (updates) => updateItemAt(index, updates),
+                () => removeItemAt(index)
               );
-            } else if (item.kind === 'SectionItem') {
+            } else if (isSection(item)) {
               return renderSectionEditor(item, index, 0);
+            } else if (isCField(item)) {
+              return renderCFieldEditor(
+                item,
+                (updates) => updateItemAt(index, updates),
+                () => removeItemAt(index)
+              );
+            } else if (isCSection(item)) {
+              return renderCSectionEditor(
+                item,
+                (updates) => updateItemAt(index, updates),
+                () => removeItemAt(index)
+              );
             }
             return null;
           })}
         </div>
       )}
-      
+
       <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-md">
-        <strong>Debug Info:</strong> Content structure: {formContent.version}, Items: {formContent.items.length}, Available fields: {availableFields.length}
+        <strong>Debug:</strong> items={formContent.items.length} • availableFields={availableFields.length}
       </div>
     </div>
   );
