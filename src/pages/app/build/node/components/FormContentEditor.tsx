@@ -784,14 +784,37 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Label (key)</Label>
-              <Input value={section.label?.key || ''} onChange={(e) => updateItemAt(index, { label: { ...section.label, key: s2n(e.target.value) } as any })} />
+              <Input
+                value={section.label?.key || ''}
+                onChange={(e) =>
+                  updateItemAt(index, { label: { ...section.label, key: s2n(e.target.value) } as any })
+                }
+              />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Description (fallback)</Label>
-              <Textarea value={section.description?.fallback || ''} onChange={(e) => updateItemAt(index, { description: { ...(section.description || {}), fallback: s2n(e.target.value) } as any })} />
+              <Textarea
+                value={section.description?.fallback || ''}
+                onChange={(e) =>
+                  updateItemAt(index, {
+                    description: { ...(section.description || {}), fallback: s2n(e.target.value) } as any,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Description (key)</Label>
+              <Input
+                value={section.description?.key || ''}
+                onChange={(e) =>
+                  updateItemAt(index, {
+                    description: { ...(section.description || {}), key: s2n(e.target.value) } as any,
+                  })
+                }
+              />
             </div>
           </div>
 
@@ -914,161 +937,122 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
   );
 
   const renderCSectionEditor = (
-    item: CollectionSection,
-    onUpdate: (updates: Partial<CollectionSection>) => void,
-    onRemove: () => void
-  ) => {
-    const tmpl = item.instances?.[0];
-    const children = tmpl?.children || [];
-    return (
-      <Card className="p-4 border-l-4 border-l-secondary">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <GripVertical className="w-4 h-4 text-muted-foreground" />
-            <CardTitle className="text-base">Collection Section: {item.label?.fallback || item.path}</CardTitle>
-          </div>
-          <Button onClick={onRemove} variant="ghost" size="sm" aria-label="remove-csection">
-            <Trash2 className="w-4 h-4 text-destructive" />
-          </Button>
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Path</Label>
-            <Input value={item.path} onChange={(e) => onUpdate({ path: e.target.value })} />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Label (fallback)</Label>
-            <Input value={item.label?.fallback || ''} onChange={(e) => onUpdate({ label: { ...item.label, fallback: s2n(e.target.value) } as any })} />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Min instances</Label>
-            <Input type="number" value={item.min_instances} min={1} onChange={(e) => onUpdate({ min_instances: clampIdx(parseInt(e.target.value)) } as any)} />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Max instances</Label>
-            <Input type="number" value={item.max_instances} min={item.min_instances || 1} onChange={(e) => onUpdate({ max_instances: clampIdx(parseInt(e.target.value)) } as any)} />
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <div className="flex items-center justify-between">
-            <h4 className="font-medium">Template instance children</h4>
-            <div className="flex gap-2">
-              <Button onClick={() => addFieldToCSection(formContent.items.indexOf(item))} variant="outline" size="sm">
-                <Plus className="w-4 h-4 mr-2" />Add Field
-              </Button>
-              <Button onClick={() => addSubsectionToCSection(formContent.items.indexOf(item))} variant="outline" size="sm">
-                <Plus className="w-4 h-4 mr-2" />Add Subsection
-              </Button>
-            </div>
-          </div>
-
-          {children.length === 0 ? (
-            <div className="text-sm text-muted-foreground border rounded-md p-3 mt-2">No children yet.</div>
-          ) : (
-            <div className="space-y-3 mt-2">
-              {children.map((child, i) => (
-                <div key={(child as any).path || `${item.path}.i1-${i}`}>
-                  {isField(child) && renderFieldEditor(
-                    child,
-                    (updates) => updateChildInCSection(formContent.items.indexOf(item), i, updates),
-                    () => removeChildFromCSection(formContent.items.indexOf(item), i)
-                  )}
-                  {isSection(child) && renderSectionEditor(child as SectionItem, formContent.items.indexOf(item), 1)}
-                  {isCField(child) && renderCFieldEditor(
-                    child as CollectionFieldItem,
-                    (updates) => updateChildInCSection(formContent.items.indexOf(item), i, updates as any),
-                    () => removeChildFromCSection(formContent.items.indexOf(item), i)
-                  )}
-                  {isCSection(child) && renderCSectionEditor(
-                    child as CollectionSection,
-                    (updates) => updateChildInCSection(formContent.items.indexOf(item), i, updates as any),
-                    () => removeChildFromCSection(formContent.items.indexOf(item), i)
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-          <p className="text-[11px] text-muted-foreground mt-2">Builder keeps one template instance (i1). Jobs may add more.</p>
-        </div>
-      </Card>
-    );
-  };
-
-  /* ---------- main ---------- */
-
+  item: CollectionSection,
+  onUpdate: (updates: Partial<CollectionSection>) => void,
+  onRemove: () => void
+) => {
+  const tmpl = item.instances?.[0];
+  const children = tmpl?.children || [];
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-medium">Form Content (SSOT v2-items)</h3>
-          <p className="text-sm text-muted-foreground">Fields, sections, and collections. UI override is automatic.</p>
+    <Card className="p-4 border-l-4 border-l-secondary">
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-2">
+          <GripVertical className="w-4 h-4 text-muted-foreground" />
+          <CardTitle className="text-base">Collection Section: {item.label?.fallback || item.path}</CardTitle>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={addTopLevelField} variant="outline" size="sm">
-            <Plus className="w-4 h-4 mr-2" />Add Field
-          </Button>
-          <Button onClick={addSection} variant="outline" size="sm">
-            <Plus className="w-4 h-4 mr-2" />Add Section
-          </Button>
-          <Button onClick={addCollectionField} variant="outline" size="sm">
-            <Plus className="w-4 h-4 mr-2" />Add Collection Field
-          </Button>
-          <Button onClick={addCollectionSection} variant="outline" size="sm">
-            <Plus className="w-4 h-4 mr-2" />Add Collection Section
-          </Button>
+        <Button onClick={onRemove} variant="ghost" size="sm" aria-label="remove-csection">
+          <Trash2 className="w-4 h-4 text-destructive" />
+        </Button>
+      </div>
+
+      {/* Path / Label / Min / Max */}
+      <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs">Path</Label>
+          <Input value={item.path} onChange={(e) => onUpdate({ path: e.target.value })} />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Label (fallback)</Label>
+          <Input value={item.label?.fallback || ''} onChange={(e) => onUpdate({ label: { ...item.label, fallback: s2n(e.target.value) } as any })} />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Min instances</Label>
+          <Input type="number" value={item.min_instances} min={1} onChange={(e) => onUpdate({ min_instances: clampIdx(parseInt(e.target.value)) } as any)} />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Max instances</Label>
+          <Input type="number" value={item.max_instances} min={item.min_instances || 1} onChange={(e) => onUpdate({ max_instances: clampIdx(parseInt(e.target.value)) } as any)} />
         </div>
       </div>
 
-      {formContent.items.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="flex items-center justify-center py-8">
-            <div className="text-center">
-              <p className="text-muted-foreground mb-4">No content configured</p>
-              <div className="flex gap-2 justify-center">
-                <Button onClick={addTopLevelField} variant="outline"><Plus className="w-4 h-4 mr-2" />Add Field</Button>
-                <Button onClick={addSection} variant="outline"><Plus className="w-4 h-4 mr-2" />Add Section</Button>
-                <Button onClick={addCollectionField} variant="outline"><Plus className="w-4 h-4 mr-2" />Add Collection Field</Button>
-                <Button onClick={addCollectionSection} variant="outline"><Plus className="w-4 h-4 mr-2" />Add Collection Section</Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {formContent.items.map((item, index) => {
-            if (isField(item)) {
-              return renderFieldEditor(
-                item,
-                (updates) => updateItemAt(index, updates),
-                () => removeItemAt(index)
-              );
-            } else if (isSection(item)) {
-              return renderSectionEditor(item, index, 0);
-            } else if (isCField(item)) {
-              return renderCFieldEditor(
-                item,
-                (updates) => updateItemAt(index, updates),
-                () => removeItemAt(index)
-              );
-            } else if (isCSection(item)) {
-              return renderCSectionEditor(
-                item,
-                (updates) => updateItemAt(index, updates),
-                () => removeItemAt(index)
-              );
+      {/* 🔽 INSERTED BLOCK: Description fields */}
+      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs">Description (fallback)</Label>
+          <Textarea
+            value={item.description?.fallback || ''}
+            onChange={(e) =>
+              onUpdate({
+                description: {
+                  ...(item.description || {}),
+                  fallback: s2n(e.target.value),
+                } as any,
+              })
             }
-            return null;
-          })}
+          />
         </div>
-      )}
-
-      <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-md">
-        <strong>Debug:</strong> items={formContent.items.length} • availableFields={availableFields.length}
+        <div className="space-y-1">
+          <Label className="text-xs">Description (key)</Label>
+          <Input
+            value={item.description?.key || ''}
+            onChange={(e) =>
+              onUpdate({
+                description: {
+                  ...(item.description || {}),
+                  key: s2n(e.target.value),
+                } as any,
+              })
+            }
+          />
+        </div>
       </div>
-    </div>
+
+      {/* Template instance children */}
+      <div className="mt-4">
+        <div className="flex items-center justify-between">
+          <h4 className="font-medium">Template instance children</h4>
+          <div className="flex gap-2">
+            <Button onClick={() => addFieldToCSection(formContent.items.indexOf(item))} variant="outline" size="sm">
+              <Plus className="w-4 h-4 mr-2" />Add Field
+            </Button>
+            <Button onClick={() => addSubsectionToCSection(formContent.items.indexOf(item))} variant="outline" size="sm">
+              <Plus className="w-4 h-4 mr-2" />Add Subsection
+            </Button>
+          </div>
+        </div>
+
+        {children.length === 0 ? (
+          <div className="text-sm text-muted-foreground border rounded-md p-3 mt-2">No children yet.</div>
+        ) : (
+          <div className="space-y-3 mt-2">
+            {children.map((child, i) => (
+              <div key={(child as any).path || `${item.path}.i1-${i}`}>
+                {isField(child) && renderFieldEditor(
+                  child,
+                  (updates) => updateChildInCSection(formContent.items.indexOf(item), i, updates),
+                  () => removeChildFromCSection(formContent.items.indexOf(item), i)
+                )}
+                {isSection(child) && renderSectionEditor(child as SectionItem, formContent.items.indexOf(item), 1)}
+                {isCField(child) && renderCFieldEditor(
+                  child as CollectionFieldItem,
+                  (updates) => updateChildInCSection(formContent.items.indexOf(item), i, updates as any),
+                  () => removeChildFromCSection(formContent.items.indexOf(item), i)
+                )}
+                {isCSection(child) && renderCSectionEditor(
+                  child as CollectionSection,
+                  (updates) => updateChildInCSection(formContent.items.indexOf(item), i, updates as any),
+                  () => removeChildFromCSection(formContent.items.indexOf(item), i)
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="text-[11px] text-muted-foreground mt-2">Builder keeps one template instance (i1). Jobs may add more.</p>
+      </div>
+    </Card>
   );
+};
+
 }
 
 export default FormContentEditor;
