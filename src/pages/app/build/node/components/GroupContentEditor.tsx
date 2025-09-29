@@ -5,31 +5,28 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, Layers, FolderTree } from 'lucide-react';
+import { FolderTree, Layers, X } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useNodeLibrary } from '@/hooks/useNodeLibrary';
 
 /**
- * SSOT-aligned GroupContent editor
- *
- * Regular:
- *   { kind:'Group', path, label?, children: string[], x_ui?, x_meta? }
- *
- * Collection (template with exactly 1 instance in builder):
- *   { kind:'Group', path, label?, collection:{
- *       min:int, max:int, default_instances:int,
- *       allow_add:boolean, allow_remove:boolean, allow_reorder:boolean,
- *       label_template?: string  // may contain #{i}
+ * GroupContentEditor — SSOT-aligned (per ai_scenes_node_contracts)
+ * - Regular Group:
+ *   { kind:'Group', path, label?, children:string[], x_ui?, x_meta? }
+ * - Collection Group (builder enforces EXACTLY ONE instance as a template):
+ *   {
+ *     kind:'Group', path, label?,
+ *     collection:{
+ *       min?:number, max?:number, default_instances?:number,
+ *       allow_add?:boolean, allow_remove?:boolean, allow_reorder?:boolean,
+ *       label_template?:string
  *     },
- *     instances: [{ i:1, idx?:number, label?:I18nText, children: string[] }],
+ *     instances:[{ i:1, idx?:number, label?:I18nText, children:string[] }],
  *     x_ui?, x_meta?
  *   }
  *
- * Notes:
- * - Builder enforces exactly ONE instance when in collection mode.
- * - Job builder will replicate that instance (not this screen).
- * - Children are selected from node-library list (id + name), not typed.
- * - Debug logs prefix: [GroupBuilder]
+ * - Children are picked from a dropdown list of node library entries (no free typing).
+ * - Verbose debug logs with [GroupBuilder].
  */
 
 type I18nText = { fallback: string; key?: string };
@@ -44,7 +41,7 @@ type GroupRegular = {
 };
 
 type GroupInstance = {
-  i: number;                 // ALWAYS 1 in builder collection mode
+  i: number; // always 1 in builder
   idx?: number;
   label?: I18nText;
   children: string[];
@@ -63,7 +60,7 @@ type GroupCollection = {
     allow_reorder?: boolean;
     label_template?: string;
   };
-  instances: GroupInstance[]; // builder enforces length === 1
+  instances: GroupInstance[]; // builder enforces [ { i:1, ... } ]
   x_ui?: { arrangeable?: boolean };
   x_meta?: { description?: I18nText };
 };
@@ -77,6 +74,10 @@ interface GroupContentEditorProps {
 
 /* ---------------- utils ---------------- */
 
+const numOrUndef = (v: any) => (v === '' || v === null || v === undefined ? undefined : Number(v));
+const strOrUndef = (v: any) => (typeof v === 'string' && v.trim() !== '' ? v : undefined);
+const boolFromAny = (v: any) => !!v;
+
 function isCollectionGroup(c: GroupContent): c is GroupCollection {
   return !!(c as any)?.collection && Array.isArray((c as any)?.instances);
 }
@@ -85,32 +86,30 @@ function normalize(content: GroupContent): GroupContent {
   const basePath = content.path?.trim() || 'group';
 
   if (isCollectionGroup(content)) {
-    // ENFORCE: exactly one instance in builder
-    const first = (content.instances && content.instances[0]) || { i: 1, children: [] as string[] } as GroupInstance;
-
+    // Enforce exactly ONE instance template (i=1)
+    const first = content.instances?.[0] ?? ({ i: 1, children: [] } as GroupInstance);
     const only: GroupInstance = {
       i: 1,
       idx: first.idx,
-      label: first.label && typeof first.label === 'object'
-        ? { fallback: first.label.fallback ?? '', key: first.label.key }
+      label: first.label
+        ? { fallback: first.label.fallback ?? '', key: strOrUndef(first.label.key) }
         : undefined,
       children: Array.isArray(first.children) ? first.children : [],
     };
-
     const col = content.collection || {};
     const out: GroupCollection = {
       kind: 'Group',
       path: basePath,
-      label: content.label && typeof content.label === 'object'
-        ? { fallback: content.label.fallback ?? '', key: content.label.key }
+      label: content.label
+        ? { fallback: content.label.fallback ?? '', key: strOrUndef(content.label.key) }
         : undefined,
       collection: {
         min: numOrUndef(col.min),
         max: numOrUndef(col.max),
         default_instances: numOrUndef(col.default_instances),
-        allow_add: boolOrUndef(col.allow_add),
-        allow_remove: boolOrUndef(col.allow_remove),
-        allow_reorder: boolOrUndef(col.allow_reorder),
+        allow_add: col.allow_add === undefined ? undefined : boolFromAny(col.allow_add),
+        allow_remove: col.allow_remove === undefined ? undefined : boolFromAny(col.allow_remove),
+        allow_reorder: col.allow_reorder === undefined ? undefined : boolFromAny(col.allow_reorder),
         label_template: strOrUndef(col.label_template),
       },
       instances: [only],
@@ -124,8 +123,8 @@ function normalize(content: GroupContent): GroupContent {
   const out: GroupRegular = {
     kind: 'Group',
     path: basePath,
-    label: content.label && typeof content.label === 'object'
-      ? { fallback: content.label.fallback ?? '', key: content.label.key }
+    label: content.label
+      ? { fallback: content.label.fallback ?? '', key: strOrUndef(content.label.key) }
       : undefined,
     children: Array.isArray((content as any).children) ? (content as any).children : [],
     x_ui: content.x_ui,
@@ -133,10 +132,6 @@ function normalize(content: GroupContent): GroupContent {
   };
   return out;
 }
-
-const numOrUndef = (v: any) => (v === '' || v === null || v === undefined ? undefined : Number(v));
-const boolOrUndef = (v: any) => (typeof v === 'boolean' ? v : v ? true : undefined);
-const strOrUndef = (v: any) => (v && String(v).trim().length ? String(v) : undefined);
 
 /** Accept legacy-ish shapes and convert to SSOT */
 function migrateLegacy(raw: any): GroupContent {
@@ -148,12 +143,12 @@ function migrateLegacy(raw: any): GroupContent {
     return normalized;
   }
 
-  // Fallback minimal
+  // Minimal fallback
   const minimal: GroupRegular = {
     kind: 'Group',
     path: (raw?.path ?? 'group') as string,
     label: raw?.label && typeof raw.label === 'object'
-      ? { fallback: raw.label.fallback ?? '', key: raw.label.key }
+      ? { fallback: raw.label.fallback ?? '', key: strOrUndef(raw.label.key) }
       : undefined,
     children: Array.isArray(raw?.children) ? raw.children : [],
     x_ui: raw?.arrangeable != null ? { arrangeable: !!raw.arrangeable } : undefined,
@@ -172,7 +167,7 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
   const [state, setState] = useState<GroupContent>(initial);
   const [mode, setMode] = useState<'regular' | 'collection'>(isCollectionGroup(initial) ? 'collection' : 'regular');
 
-  // Node options from library (for children selection)
+  // Node library (for dropdowns)
   const { entries, fetchEntries } = useNodeLibrary();
   useEffect(() => { fetchEntries().catch(() => void 0); }, [fetchEntries]);
   const nodeOptions = useMemo(
@@ -195,7 +190,7 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
     });
   };
 
-  /* --------- handlers (top) --------- */
+  /* --------- basic handlers --------- */
 
   const updatePath = (p: string) => {
     const safe = p?.trim() || 'group';
@@ -205,9 +200,10 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
 
   const updateLabel = (field: 'fallback' | 'key', val: string) => {
     emit(prev => {
-      const label = { ...(prev as any).label } as I18nText;
-      if (field === 'fallback') label.fallback = val;
-      else label.key = val || undefined;
+      const label: I18nText = {
+        fallback: field === 'fallback' ? val : (prev as any).label?.fallback ?? '',
+        key: field === 'key' ? strOrUndef(val) : (prev as any).label?.key
+      };
       return { ...prev, label };
     });
   };
@@ -221,9 +217,10 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
 
   const updateDescription = (field: 'fallback' | 'key', val: string) => {
     emit(prev => {
+      const prevDesc = (prev as any)?.x_meta?.description || {};
       const desc: I18nText = {
-        fallback: field === 'fallback' ? val : ((prev as any)?.x_meta?.description?.fallback ?? ''),
-        key: field === 'key' ? (val || undefined) : ((prev as any)?.x_meta?.description?.key)
+        fallback: field === 'fallback' ? val : (prevDesc.fallback ?? ''),
+        key: field === 'key' ? strOrUndef(val) : prevDesc.key
       };
       const x_meta = { ...(prev as any).x_meta, description: desc };
       return { ...prev, x_meta };
@@ -242,7 +239,6 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
           label: (prev as any).label,
           collection: {
             min: 1,
-            max: undefined,
             default_instances: 1,
             allow_add: true,
             allow_remove: true,
@@ -269,88 +265,69 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
     });
   };
 
-  /* --------- children pickers (select from list) --------- */
+  /* --------- CHILDREN (REGULAR) — dropdown add + badges list --------- */
 
-  const addChildRowRegular = () => {
-    if (isCollectionGroup(state)) return;
-    emit(prev => ({ ...(prev as GroupRegular), children: [...(prev as GroupRegular).children, '' ] }));
-    console.debug('[GroupBuilder] ➕ add child row (regular)');
-  };
-
-  const setChildRegular = (row: number, nodeId: string) => {
+  const addChildRegularFromSelect = (nodeId: string) => {
     if (isCollectionGroup(state)) return;
     emit(prev => {
-      const ch = [...(prev as GroupRegular).children];
-      ch[row] = nodeId;
-      return { ...(prev as GroupRegular), children: ch };
+      const children = [...(prev as GroupRegular).children, nodeId];
+      return { ...(prev as GroupRegular), children };
     });
+    console.debug('[GroupBuilder] ➕ add child (regular):', nodeId);
   };
 
-  const removeChildRegular = (row: number) => {
+  const removeChildRegular = (idx: number) => {
     if (isCollectionGroup(state)) return;
     emit(prev => {
-      const ch = [...(prev as GroupRegular).children];
-      ch.splice(row, 1);
-      return { ...(prev as GroupRegular), children: ch };
+      const children = [...(prev as GroupRegular).children];
+      children.splice(idx, 1);
+      return { ...(prev as GroupRegular), children };
     });
-    console.debug('[GroupBuilder] 🗑️ remove child row (regular) idx', row);
+    console.debug('[GroupBuilder] 🗑️ remove child (regular) idx:', idx);
   };
 
-  // Collection: template single instance (i=1)
-  const ensureCollection = (): GroupCollection => {
-    if (isCollectionGroup(state)) return state as GroupCollection;
-    // Shouldn't happen when in collection mode, but guard anyway
-    return {
-      kind: 'Group',
-      path: state.path,
-      label: (state as any).label,
-      collection: { min: 1, default_instances: 1, allow_add: true, allow_remove: true, allow_reorder: true },
-      instances: [{ i: 1, children: [] }],
-      x_ui: (state as any).x_ui,
-      x_meta: (state as any).x_meta,
-    };
-  };
+  /* --------- CHILDREN (COLLECTION TEMPLATE) — dropdown add + badges list --------- */
 
-  const setCollectionField = <K extends keyof GroupCollection['collection']>(k: K, v: GroupCollection['collection'][K]) => {
-    emit(prev => {
-      const pc = isCollectionGroup(prev) ? prev as GroupCollection : ensureCollection();
-      return { ...pc, collection: { ...pc.collection, [k]: v } };
-    });
-  };
-
-  const setChildInstance = (row: number, nodeId: string) => {
-    if (!isCollectionGroup(state)) return;
-    emit(prev => {
-      const pc = prev as GroupCollection;
-      const ins = pc.instances[0]; // template
-      const children = [...ins.children];
-      children[row] = nodeId;
-      const nextIns = [{ ...ins, i: 1, children }];
-      return { ...pc, instances: nextIns };
-    });
-  };
-
-  const addChildRowInstance = () => {
+  const addChildInstanceFromSelect = (nodeId: string) => {
     if (!isCollectionGroup(state)) return;
     emit(prev => {
       const pc = prev as GroupCollection;
       const ins = pc.instances[0] || { i: 1, children: [] as string[] };
-      const nextIns = [{ ...ins, i: 1, children: [...ins.children, ''] }];
-      console.debug('[GroupBuilder] ➕ add child row (collection template)');
+      const nextIns = [{ ...ins, i: 1, children: [...ins.children, nodeId] }];
       return { ...pc, instances: nextIns };
     });
+    console.debug('[GroupBuilder] ➕ add child (collection template):', nodeId);
   };
 
-  const removeChildRowInstance = (row: number) => {
+  const removeChildInstance = (idx: number) => {
     if (!isCollectionGroup(state)) return;
     emit(prev => {
       const pc = prev as GroupCollection;
       const ins = pc.instances[0];
       const children = [...ins.children];
-      children.splice(row, 1);
+      children.splice(idx, 1);
       const nextIns = [{ ...ins, i: 1, children }];
-      console.debug('[GroupBuilder] 🗑️ remove child row (collection template) idx', row);
       return { ...pc, instances: nextIns };
+    });
+    console.debug('[GroupBuilder] 🗑️ remove child (collection template) idx:', idx);
+  };
+
+  /* --------- COLLECTION PROPERTY setters --------- */
+
+  const setCollectionField = <K extends keyof GroupCollection['collection']>(k: K, v: GroupCollection['collection'][K]) => {
+    emit(prev => {
+      const pc: GroupCollection = isCollectionGroup(prev)
+        ? prev as GroupCollection
+        : {
+            kind: 'Group',
+            path: prev.path,
+            label: (prev as any).label,
+            collection: {},
+            instances: [{ i: 1, children: [] }],
+            x_ui: (prev as any).x_ui,
+            x_meta: (prev as any).x_meta,
+          };
+      return { ...pc, collection: { ...pc.collection, [k]: v } };
     });
   };
 
@@ -371,7 +348,7 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
       const ins = pc.instances[0];
       const label: I18nText = {
         fallback: field === 'fallback' ? value : (ins.label?.fallback ?? ''),
-        key: field === 'key' ? (value || undefined) : ins.label?.key
+        key: field === 'key' ? strOrUndef(value) : ins.label?.key
       };
       const nextIns = [{ ...ins, i: 1, label }];
       return { ...pc, instances: nextIns };
@@ -385,9 +362,7 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
       <div className="space-y-4">
         <div>
           <h3 className="text-lg font-medium">Group Configuration</h3>
-          <p className="text-sm text-muted-foreground">
-            SSOT-aligned. Regular or Collection (template with exactly one instance).
-          </p>
+          <p className="text-sm text-muted-foreground">SSOT-aligned. In collection mode you define ONE template instance; the job builder will duplicate it.</p>
         </div>
 
         {/* Basics */}
@@ -399,20 +374,10 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
             <div className="space-y-2 md:col-span-1">
               <Label>Mode</Label>
               <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant={mode === 'regular' ? 'default' : 'secondary'}
-                  size="sm"
-                  onClick={() => toggleMode('regular')}
-                >
+                <Button type="button" variant={mode === 'regular' ? 'default' : 'secondary'} size="sm" onClick={() => toggleMode('regular')}>
                   Regular
                 </Button>
-                <Button
-                  type="button"
-                  variant={mode === 'collection' ? 'default' : 'secondary'}
-                  size="sm"
-                  onClick={() => toggleMode('collection')}
-                >
+                <Button type="button" variant={mode === 'collection' ? 'default' : 'secondary'} size="sm" onClick={() => toggleMode('collection')}>
                   Collection
                 </Button>
               </div>
@@ -473,39 +438,36 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
           </CardContent>
         </Card>
 
-        {/* Regular children (select from list) */}
+        {/* Regular children — dropdown add + badges list */}
         {mode === 'regular' && !isCollectionGroup(state) && (
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader>
               <CardTitle className="text-base flex items-center gap-2"><Layers className="w-4 h-4" /> Children (node library)</CardTitle>
-              <Button variant="secondary" size="sm" onClick={addChildRowRegular}>
-                <Plus className="w-4 h-4 mr-1" /> Add child
-              </Button>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Add node from library</Label>
+                <Select onValueChange={(v) => addChildRegularFromSelect(v)}>
+                  <SelectTrigger><SelectValue placeholder="Select a node…" /></SelectTrigger>
+                  <SelectContent>
+                    {nodeOptions.map(o => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {state.children.length === 0 ? (
                 <div className="text-sm text-muted-foreground border rounded-md p-3">
-                  No children yet. Add nodes from your library.
+                  No children yet. Use the selector above to add nodes.
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
                   {state.children.map((cid, idx) => (
-                    <div key={idx} className="grid grid-cols-[1fr_auto] gap-2">
-                      <Select
-                        value={cid || ''}
-                        onValueChange={(v) => setChildRegular(idx, v)}
-                      >
-                        <SelectTrigger><SelectValue placeholder="Select a node…" /></SelectTrigger>
-                        <SelectContent>
-                          {nodeOptions.map(o => (
-                            <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button variant="ghost" size="icon" onClick={() => removeChildRegular(idx)} aria-label={`Remove child ${idx + 1}`}>
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
-                    </div>
+                    <Badge key={`${cid}-${idx}`} variant="secondary" className="flex items-center gap-2">
+                      <span className="truncate max-w-[220px]">{cid}</span>
+                      <button aria-label="remove" className="ml-1 hover:opacity-70" onClick={() => removeChildRegular(idx)}>
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
                   ))}
                 </div>
               )}
@@ -513,10 +475,9 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
           </Card>
         )}
 
-        {/* Collection: collection props + single template instance */}
+        {/* Collection: settings + ONE template instance (i=1) */}
         {mode === 'collection' && isCollectionGroup(state) && (
           <>
-            {/* Collection properties (from SSOT) */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Collection settings</CardTitle>
@@ -558,9 +519,10 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
                       checked={!!state.collection.allow_add}
                       onChange={(e) => setCollectionField('allow_add', e.target.checked)}
                     />
-                    <span className="text-sm text-muted-foreground">Can add instances in job builder</span>
+                    <span className="text-sm text-muted-foreground">Allow adding instances in job builder</span>
                   </div>
                 </div>
+
                 <div className="space-y-2">
                   <Label>Allow remove</Label>
                   <div className="flex items-center gap-2">
@@ -569,9 +531,10 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
                       checked={!!state.collection.allow_remove}
                       onChange={(e) => setCollectionField('allow_remove', e.target.checked)}
                     />
-                    <span className="text-sm text-muted-foreground">Can remove instances in job builder</span>
+                    <span className="text-sm text-muted-foreground">Allow removing instances in job builder</span>
                   </div>
                 </div>
+
                 <div className="space-y-2">
                   <Label>Allow reorder</Label>
                   <div className="flex items-center gap-2">
@@ -580,7 +543,7 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
                       checked={!!state.collection.allow_reorder}
                       onChange={(e) => setCollectionField('allow_reorder', e.target.checked)}
                     />
-                    <span className="text-sm text-muted-foreground">Drag to reorder instances</span>
+                    <span className="text-sm text-muted-foreground">Allow drag-reordering in job builder</span>
                   </div>
                 </div>
 
@@ -589,14 +552,13 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
                   <Input
                     value={state.collection.label_template ?? ''}
                     onChange={(e) => setCollectionField('label_template', e.target.value || undefined)}
-                    placeholder="e.g., 'Shot #{i}'"
+                    placeholder="e.g., Shot #{i}"
                   />
-                  <p className="text-[11px] text-muted-foreground">Supports <code>#{'{i}'}</code> for the 1-based instance number.</p>
+                  <p className="text-[11px] text-muted-foreground">Supports <code>#{'{i}'}</code> to insert 1-based instance index.</p>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Single template instance (i = 1) */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Template instance (i1)</CardTitle>
@@ -611,6 +573,7 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
                     placeholder="e.g., 1"
                   />
                 </div>
+
                 <div className="space-y-2">
                   <Label>Instance label (fallback)</Label>
                   <Input
@@ -619,6 +582,7 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
                     placeholder="e.g., Shot A"
                   />
                 </div>
+
                 <div className="space-y-2">
                   <Label>Instance label (i18n key)</Label>
                   <Input
@@ -628,38 +592,31 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
                   />
                 </div>
 
-                {/* Children of the template instance */}
+                {/* Template instance children — dropdown add + badges list */}
                 <div className="md:col-span-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>Children (node library)</Label>
-                    <Button variant="secondary" size="sm" onClick={addChildRowInstance}>
-                      <Plus className="w-4 h-4 mr-1" /> Add child
-                    </Button>
+                  <div className="space-y-2">
+                    <Label>Add node to template from library</Label>
+                    <Select onValueChange={(v) => addChildInstanceFromSelect(v)}>
+                      <SelectTrigger><SelectValue placeholder="Select a node…" /></SelectTrigger>
+                      <SelectContent>
+                        {nodeOptions.map(o => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   {(state.instances[0]?.children?.length ?? 0) === 0 ? (
                     <div className="text-sm text-muted-foreground border rounded-md p-3">
-                      No children yet for this template instance. Add nodes from your library.
+                      No children yet for this template instance. Use the selector above to add nodes.
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      {state.instances[0].children.map((cid, cidx) => (
-                        <div key={cidx} className="grid grid-cols-[1fr_auto] gap-2">
-                          <Select
-                            value={cid || ''}
-                            onValueChange={(v) => setChildInstance(cidx, v)}
-                          >
-                            <SelectTrigger><SelectValue placeholder="Select a node…" /></SelectTrigger>
-                            <SelectContent>
-                              {nodeOptions.map(o => (
-                                <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button variant="ghost" size="icon" onClick={() => removeChildRowInstance(cidx)} aria-label={`Remove child ${cidx + 1}`}>
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
-                        </div>
+                    <div className="flex flex-wrap gap-2">
+                      {state.instances[0].children.map((cid, idx) => (
+                        <Badge key={`${cid}-${idx}`} variant="secondary" className="flex items-center gap-2">
+                          <span className="truncate max-w-[220px]">{cid}</span>
+                          <button aria-label="remove" className="ml-1 hover:opacity-70" onClick={() => removeChildInstance(idx)}>
+                            <X className="w-3 h-3" />
+                          </button>
+                        </Badge>
                       ))}
                     </div>
                   )}
