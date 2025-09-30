@@ -279,8 +279,17 @@ export default function TemplateBuilder() {
         for (const kid of instChildren) {
           const childPath: string = kid.path;
           if (!isValidPathLabel(childPath)) throw new Error(`Invalid child path: ${childPath}`);
+          
+          console.log('[seedGroupNodes] Instance child RAW:', { instance: iPath, kid });
+          
+          if (!kid.library_id) {
+            throw new Error(`Instance child "${childPath}" is missing library_id. Child data: ${JSON.stringify(kid)}`);
+          }
+          
           const childLib = libIndex.get(kid.library_id);
-          if (!childLib) throw new Error(`Missing library: ${kid.library_id}`);
+          if (!childLib) {
+            throw new Error(`Missing library: ${kid.library_id} for instance child "${childPath}". Available libraries: ${Array.from(libIndex.keys()).join(', ')}`);
+          }
           
           console.log('[seedGroupNodes] Instance child:', { instance: iPath, childPath, childType: childLib.node_type, libraryId: childLib.id });
           
