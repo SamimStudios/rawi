@@ -126,11 +126,14 @@ export function normalizeNodesForSave(nodes: TemplateNodeRow[], version: number)
 }
 
 // "Replace save": delete rows that are no longer present, then upsert the provided set (without addr)
-export async function createTemplate(name: string, category: string): Promise<string> {
+export async function createTemplate(name: string, category: string, id?: string): Promise<string> {
+  const payload: any = { name, category, active: true, current_version: 1 };
+  if (id) payload.id = id;
+  
   const { data, error } = await supabase
     .schema('app' as any)
     .from('templates')
-    .insert({ name, category, active: true, current_version: 1 })
+    .insert(payload)
     .select('id')
     .single();
   if (error) throw error;

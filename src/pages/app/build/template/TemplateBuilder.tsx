@@ -99,7 +99,9 @@ export default function TemplateBuilder() {
     
     setLoading(true);
     try {
-      const templateId = await createTemplate(newTemplateName.trim(), newTemplateCategory);
+      // Generate a unique ID for the new template
+      const newId = crypto.randomUUID();
+      const templateId = await createTemplate(newTemplateName.trim(), newTemplateCategory, newId);
       toast({ title: 'Success', description: 'Template created successfully' });
       navigate(`/app/build/template/${templateId}`);
     } catch (e: any) {
