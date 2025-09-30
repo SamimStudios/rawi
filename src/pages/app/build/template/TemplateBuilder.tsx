@@ -87,7 +87,12 @@ export default function TemplateBuilder() {
     setError(null);
     try {
       // normalize sibling idx & pin version
-      const normalized = normalizeNodesForSave(nodes, template.current_version);
+      const normalized = normalizeNodesForSave(nodes, template.current_version)
+        .map(n => ({
+          ...n,
+          template_id: template.id,             // <— ensure present
+          version: template.current_version,    // <— ensure present
+        }));
       await saveTemplateNodes(normalized);
 
       // reload fresh (to pull DB-generated addr)
