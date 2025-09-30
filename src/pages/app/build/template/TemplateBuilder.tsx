@@ -190,16 +190,31 @@ export default function TemplateBuilder() {
         if (!isValidPathLabel(childPath)) throw new Error(`Invalid child path: ${childPath}`);
         const childLib = libIndex.get(kid.library_id);
         if (!childLib) throw new Error(`Missing library: ${kid.library_id}`);
-        rows.push({
-          template_id: templateId,
-          version,
-          idx: 999999,
-          node_type: childLib.node_type,
-          path: childPath,
-          parent_addr: groupAddr,
-          library_id: childLib.id,
-          removable: true
-        });
+        
+        // If child is a group, recursively expand it
+        if (childLib.node_type === 'group') {
+          const childRows = seedGroupNodes({
+            templateId,
+            version,
+            parentAddr: groupAddr,
+            groupPath: childPath,
+            groupLibrary: childLib,
+            libIndex
+          });
+          rows.push(...childRows);
+        } else {
+          // Non-group child: push single row
+          rows.push({
+            template_id: templateId,
+            version,
+            idx: 999999,
+            node_type: childLib.node_type,
+            path: childPath,
+            parent_addr: groupAddr,
+            library_id: childLib.id,
+            removable: true
+          });
+        }
       }
       return rows;
     }
@@ -251,16 +266,31 @@ export default function TemplateBuilder() {
           if (!isValidPathLabel(childPath)) throw new Error(`Invalid child path: ${childPath}`);
           const childLib = libIndex.get(kid.library_id);
           if (!childLib) throw new Error(`Missing library: ${kid.library_id}`);
-          rows.push({
-            template_id: templateId,
-            version,
-            idx: 999999,
-            node_type: childLib.node_type,
-            path: childPath,
-            parent_addr: iAddr,
-            library_id: childLib.id,
-            removable: true
-          });
+          
+          // If child is a group, recursively expand it
+          if (childLib.node_type === 'group') {
+            const childRows = seedGroupNodes({
+              templateId,
+              version,
+              parentAddr: iAddr,
+              groupPath: childPath,
+              groupLibrary: childLib,
+              libIndex
+            });
+            rows.push(...childRows);
+          } else {
+            // Non-group child: push single row
+            rows.push({
+              template_id: templateId,
+              version,
+              idx: 999999,
+              node_type: childLib.node_type,
+              path: childPath,
+              parent_addr: iAddr,
+              library_id: childLib.id,
+              removable: true
+            });
+          }
         }
       }
     }
