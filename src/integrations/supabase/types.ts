@@ -482,6 +482,10 @@ export type Database = {
         Args: { p_schema: string; p_table: string }
         Returns: undefined
       }
+      addr_write_many: {
+        Args: { p_job_id: string; p_writes: Json }
+        Returns: Json
+      }
       api_job_get: {
         Args: { p_job_id: string }
         Returns: Json
@@ -569,6 +573,10 @@ export type Database = {
       get_n8n_function_id: {
         Args: { id_or_name: string }
         Returns: string
+      }
+      get_node_content: {
+        Args: { p_node_id: string }
+        Returns: Json
       }
       hash_ltree: {
         Args: { "": unknown }
