@@ -32,6 +32,8 @@ export interface JobNode {
   removable?: boolean | null;
   library_id?: string | null;
   idx?: number | null;
+  validate_n8n_id?: string | null;
+  generate_n8n_id?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -150,11 +152,11 @@ export function useJobs() {
         }
         if (!userId) throw new Error('No user id available to create a job.');
 
-        // Resolve session id if not provided
+        // Resolve session id if not provided (session doesn't have id, use access_token or null)
         let sessionId = explicitSessionId ?? null;
         if (!sessionId) {
           const { data } = await supabase.auth.getSession();
-          sessionId = data?.session?.id ?? null;
+          sessionId = data?.session?.access_token ?? null;
         }
 
         // New RPC payload

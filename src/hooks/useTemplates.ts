@@ -52,7 +52,7 @@ export const isValidPathLabel = (p: string) => /^[a-z][a-z0-9_]*$/.test(p);
 
 export async function fetchActiveTemplates(): Promise<TemplateRow[]> {
   const { data, error } = await supabase
-    .schema('app')
+    .schema('app' as any)
     .from('templates')
     .select('id,name,category,active,current_version,meta,created_at,updated_at')
     .eq('active', true)
@@ -63,7 +63,7 @@ export async function fetchActiveTemplates(): Promise<TemplateRow[]> {
 
 export async function fetchTemplateById(id: string): Promise<TemplateRow | null> {
   const { data, error } = await supabase
-    .schema('app')
+    .schema('app' as any)
     .from('templates')
     .select('id,name,category,active,current_version,meta,created_at,updated_at')
     .eq('id', id)
@@ -74,7 +74,7 @@ export async function fetchTemplateById(id: string): Promise<TemplateRow | null>
 
 export async function fetchTemplateNodes(templateId: string, version: number): Promise<TemplateNodeRow[]> {
   const { data, error } = await supabase
-    .schema('app')
+    .schema('app' as any)
     .from('template_nodes')
     .select('*')
     .eq('template_id', templateId)
@@ -87,7 +87,7 @@ export async function fetchTemplateNodes(templateId: string, version: number): P
 
 export async function loadLibraryIndex(): Promise<Map<string, LibraryRow>> {
   const { data, error } = await supabase
-    .schema('app')
+    .schema('app' as any)
     .from('node_library')
     .select('id,node_type,content,active,version')
     .eq('active', true);
@@ -104,7 +104,7 @@ export async function ensureGroupAnchors(): Promise<void> {
     { id: 'lib_group_instance_anchor',  node_type: 'group', content: { kind: 'Group' }, active: true, version: 1 }
   ];
   const { error } = await supabase
-    .schema('app')
+    .schema('app' as any)
     .from('node_library')
     .upsert(anchors as any, { onConflict: 'id' });
   if (error) throw error;
@@ -133,7 +133,7 @@ export async function replaceSaveTemplateNodes(allRows: TemplateNodeRow[]): Prom
 
   // 1) load existing addrs
   const { data: existing, error: exErr } = await supabase
-    .schema('app')
+    .schema('app' as any)
     .from('template_nodes')
     .select('addr')
     .eq('template_id', template_id)
@@ -152,7 +152,7 @@ export async function replaceSaveTemplateNodes(allRows: TemplateNodeRow[]): Prom
 
   if (toDelete.length) {
     const { error: delErr } = await supabase
-      .schema('app')
+      .schema('app' as any)
       .from('template_nodes')
       .delete()
       .eq('template_id', template_id)
@@ -164,7 +164,7 @@ export async function replaceSaveTemplateNodes(allRows: TemplateNodeRow[]): Prom
   // 2) upsert without addr
   const payload = allRows.map(({ addr, ...rest }) => rest);
   const { error: upErr } = await supabase
-    .schema('app')
+    .schema('app' as any)
     .from('template_nodes')
     .upsert(payload, { onConflict: 'template_id,version,addr' });
   if (upErr) throw upErr;
