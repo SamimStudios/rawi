@@ -1,8 +1,5 @@
-// src/pages/app/build/template/TemplateBuilder.tsx
-// Version-aware Template Builder with auto-seeded group children (regular + collection).
-
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   useTemplates,
   type TemplateRow,
@@ -10,6 +7,17 @@ import {
   type LibraryRow,
   type NodeType
 } from '@/hooks/useTemplates';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Loader2, Save, Plus, ArrowLeft } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const ROOT = 'root';
 const joinAddr = (parentAddr: string | null, path: string) =>
@@ -17,15 +25,22 @@ const joinAddr = (parentAddr: string | null, path: string) =>
 
 export default function TemplateBuilder() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const {
     fetchTemplateById,
     fetchTemplateNodes,
     loadLibraryIndex,
     ensureGroupAnchors,
+    createTemplate,
     saveTemplateNodes,
     normalizeNodesForSave,
     isValidPathLabel
   } = useTemplates();
+
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState('');
+  const [newTemplateCategory, setNewTemplateCategory] = useState('content');
 
   const [template, setTemplate] = useState<TemplateRow | null>(null);
   const [nodes, setNodes] = useState<TemplateNodeRow[]>([]);
@@ -45,8 +60,14 @@ export default function TemplateBuilder() {
     let mounted = true;
     (async () => {
       try {
+        if (id === 'new') {
+          setCreateDialogOpen(true);
+          setLoading(false);
+          return;
+        }
+        
         if (!id) throw new Error('No template id');
-        await ensureGroupAnchors(); // idempotent
+        await ensureGroupAnchors();
 
         const [tpl, libs] = await Promise.all([
           fetchTemplateById(id),
@@ -81,20 +102,37 @@ export default function TemplateBuilder() {
     return [...roots, ...groupAddrs];
   }, [nodes]);
 
+  async function handleCreateTemplate() {
+    if (!newTemplateName.trim()) {
+      toast({ title: 'Error', description: 'Template name is required', variant: 'destructive' });
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const templateId = await createTemplate(newTemplateName.trim(), newTemplateCategory);
+      toast({ title: 'Success', description: 'Template created successfully' });
+      navigate(`/app/build/template/${templateId}`);
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message ?? String(e), variant: 'destructive' });
+      setLoading(false);
+    }
+  }
+
   async function handleSave() {
     if (!template) return;
     setSaving(true);
     setError(null);
     try {
-      // normalize sibling idx & pin version
       const normalized = normalizeNodesForSave(nodes, template.current_version);
       await saveTemplateNodes(normalized);
 
-      // reload fresh (to pull DB-generated addr)
       const fresh = await fetchTemplateNodes(template.id, template.current_version);
       setNodes(fresh);
+      toast({ title: 'Success', description: 'Template nodes saved successfully' });
     } catch (e: any) {
       setError(e.message ?? String(e));
+      toast({ title: 'Error', description: e.message ?? String(e), variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -265,114 +303,235 @@ export default function TemplateBuilder() {
     }
   }
 
-  // ---- UI
-
-  function NodeRow({ n }: { n: TemplateNodeRow }) {
-    const addr = n.addr ?? joinAddr(n.parent_addr, n.path);
+  if (loading) {
     return (
-      <tr>
-        <td style={{ whiteSpace: 'nowrap' }}>{n.idx}</td>
-        <td>{n.node_type}</td>
-        <td><code>{n.path}</code></td>
-        <td style={{ fontFamily: 'monospace' }}>{n.parent_addr ?? 'NULL'}</td>
-        <td style={{ fontFamily: 'monospace' }}>{addr}</td>
-        <td><code>{n.library_id}</code></td>
-      </tr>
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
     );
   }
 
-  if (loading) return <div style={{ padding: 16 }}>Loading…</div>;
-  if (error) return <div style={{ padding: 16, color: 'crimson' }}>Error: {error}</div>;
-  if (!template) return <div style={{ padding: 16 }}>Template not found</div>;
+  if (!template) {
+    return (
+      <>
+        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New Template</DialogTitle>
+              <DialogDescription>
+                Enter a name and category for your new template
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Template Name</Label>
+                <Input
+                  id="name"
+                  value={newTemplateName}
+                  onChange={(e) => setNewTemplateName(e.target.value)}
+                  placeholder="My Template"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="category">Category</Label>
+                <Input
+                  id="category"
+                  value={newTemplateCategory}
+                  onChange={(e) => setNewTemplateCategory(e.target.value)}
+                  placeholder="content"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => navigate('/app/build/template')}>
+                Cancel
+              </Button>
+              <Button onClick={handleCreateTemplate}>
+                Create Template
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
 
   return (
-    <div style={{ padding: 16, display: 'grid', gap: 16 }}>
-      <header>
-        <h2 style={{ margin: 0 }}>{template.name}</h2>
-        <div style={{ color: '#888' }}>
-          id: <code>{template.id}</code> • version: <b>{template.current_version}</b> • category: {template.category}
+    <div className="max-w-7xl mx-auto p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/app/build/template')}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">{template.name}</h1>
+            <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
+              <code className="bg-muted px-2 py-0.5 rounded">{template.id}</code>
+              <span>•</span>
+              <Badge variant="outline">v{template.current_version}</Badge>
+              <span>•</span>
+              <span className="capitalize">{template.category}</span>
+            </div>
+          </div>
         </div>
-      </header>
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4 mr-2" />
+              Save Changes
+            </>
+          )}
+        </Button>
+      </div>
 
-      <section style={{ display: 'grid', gap: 8, border: '1px solid #222', padding: 12, borderRadius: 8 }}>
-        <h3 style={{ margin: 0 }}>Add node</h3>
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-        <label>
-          Parent:
-          <select
-            value={newParentAddr ?? ''}
-            onChange={(e) => setNewParentAddr(e.target.value || null)}
-            style={{ marginLeft: 8 }}
-          >
-            {parentOptions.map(opt => (
-              <option key={opt.label + String(opt.value)} value={opt.value ?? ''}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </label>
+      {/* Add Node Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Add Node</CardTitle>
+          <CardDescription>
+            Add a new node to the template structure
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Parent</Label>
+              <Select value={newParentAddr ?? ''} onValueChange={(v) => setNewParentAddr(v || null)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {parentOptions.map(opt => (
+                    <SelectItem key={opt.label + String(opt.value)} value={opt.value ?? ''}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-        <label>
-          Path:
-          <input
-            value={newPath}
-            onChange={(e) => setNewPath(e.target.value)}
-            placeholder="single_label"
-            style={{ marginLeft: 8 }}
-          />
-        </label>
+            <div className="space-y-2">
+              <Label>Path</Label>
+              <Input
+                value={newPath}
+                onChange={(e) => setNewPath(e.target.value)}
+                placeholder="single_label"
+              />
+            </div>
 
-        <label>
-          Type:
-          <select value={newType} onChange={(e) => setNewType(e.target.value as NodeType)} style={{ marginLeft: 8 }}>
-            <option value="form">form</option>
-            <option value="media">media</option>
-            <option value="group">group</option>
-          </select>
-        </label>
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select value={newType} onValueChange={(v) => setNewType(v as NodeType)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="form">Form</SelectItem>
+                  <SelectItem value="media">Media</SelectItem>
+                  <SelectItem value="group">Group</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-        <label>
-          Library:
-          <select value={newLibraryId} onChange={(e) => setNewLibraryId(e.target.value)} style={{ marginLeft: 8 }}>
-            <option value="">-- select --</option>
-            {Array.from(libIndex.values()).map(lib => (
-              <option key={lib.id} value={lib.id}>
-                {lib.id} ({lib.node_type})
-              </option>
-            ))}
-          </select>
-        </label>
+            <div className="space-y-2">
+              <Label>Library</Label>
+              <Select value={newLibraryId} onValueChange={setNewLibraryId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select library" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from(libIndex.values()).map(lib => (
+                    <SelectItem key={lib.id} value={lib.id}>
+                      {lib.id} ({lib.node_type})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={newType === 'group' ? addGroupNode : addSimpleNode}>
+          <Button onClick={newType === 'group' ? addGroupNode : addSimpleNode}>
+            <Plus className="w-4 h-4 mr-2" />
             Add {newType}
-          </button>
-          <button onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-      </section>
+          </Button>
+        </CardContent>
+      </Card>
 
-      <section>
-        <h3 style={{ margin: '8px 0' }}>Nodes ({nodes.length})</h3>
-        <table cellPadding={6} style={{ borderCollapse: 'collapse', width: '100%' }}>
-          <thead>
-            <tr style={{ textAlign: 'left' }}>
-              <th>idx</th>
-              <th>type</th>
-              <th>path</th>
-              <th>parent_addr</th>
-              <th>addr</th>
-              <th>library_id</th>
-            </tr>
-          </thead>
-          <tbody>
-            {nodes.map(n => (
-              <NodeRow key={(n.addr ?? joinAddr(n.parent_addr, n.path)) + ':' + n.idx} n={n} />
-            ))}
-          </tbody>
-        </table>
-      </section>
+      {/* Nodes Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Template Nodes ({nodes.length})</CardTitle>
+          <CardDescription>
+            Structure and hierarchy of template nodes
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-16">Idx</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Path</TableHead>
+                  <TableHead>Parent</TableHead>
+                  <TableHead>Address</TableHead>
+                  <TableHead>Library ID</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {nodes.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                      No nodes yet. Add your first node above.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  nodes.map(n => {
+                    const addr = n.addr ?? joinAddr(n.parent_addr, n.path);
+                    return (
+                      <TableRow key={(n.addr ?? joinAddr(n.parent_addr, n.path)) + ':' + n.idx}>
+                        <TableCell className="font-medium">{n.idx}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize">
+                            {n.node_type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <code className="text-sm bg-muted px-2 py-0.5 rounded">{n.path}</code>
+                        </TableCell>
+                        <TableCell>
+                          <code className="text-xs text-muted-foreground">
+                            {n.parent_addr ?? 'NULL'}
+                          </code>
+                        </TableCell>
+                        <TableCell>
+                          <code className="text-xs text-muted-foreground">{addr}</code>
+                        </TableCell>
+                        <TableCell>
+                          <code className="text-xs">{n.library_id}</code>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -127,6 +127,17 @@ export function normalizeNodesForSave(nodes: TemplateNodeRow[], version: number)
 }
 
 // "Replace save": delete rows that are no longer present, then upsert the provided set (without addr)
+export async function createTemplate(name: string, category: string): Promise<string> {
+  const { data, error } = await supabase
+    .schema('app' as any)
+    .from('templates')
+    .insert({ name, category, active: true, current_version: 1 })
+    .select('id')
+    .single();
+  if (error) throw error;
+  return data.id;
+}
+
 export async function replaceSaveTemplateNodes(allRows: TemplateNodeRow[]): Promise<void> {
   if (!allRows.length) return;
   const { template_id, version } = allRows[0];
@@ -178,7 +189,8 @@ export function useTemplates() {
     fetchTemplateNodes,
     loadLibraryIndex,
     ensureGroupAnchors,
-    saveTemplateNodes: replaceSaveTemplateNodes, // <-- replace-save semantics
+    createTemplate,
+    saveTemplateNodes: replaceSaveTemplateNodes,
     normalizeNodesForSave,
     isValidPathLabel
   };
