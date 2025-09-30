@@ -166,3 +166,9 @@ export function useTemplates() {
     isValidPathLabel
   };
 }
+
+// Note: Make sure to also fix the TemplateBuilder.tsx parentOptions useMemo
+// Change:
+//   const groupAddrs = nodes?.filter(...).map(...)
+// To:
+//   const groupAddrs = (nodes ?? []).filter(...).map(...)
