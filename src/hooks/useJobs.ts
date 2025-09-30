@@ -152,12 +152,8 @@ export function useJobs() {
         }
         if (!userId) throw new Error('No user id available to create a job.');
 
-        // Resolve session id if not provided (session doesn't have id, use access_token or null)
-        let sessionId = explicitSessionId ?? null;
-        if (!sessionId) {
-          const { data } = await supabase.auth.getSession();
-          sessionId = data?.session?.access_token ?? null;
-        }
+        // Use explicit session ID if provided (for guest sessions), otherwise null
+        const sessionId = explicitSessionId ?? null;
 
         // New RPC payload
         const payloadNew = {
