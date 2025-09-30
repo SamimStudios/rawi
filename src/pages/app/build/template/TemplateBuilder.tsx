@@ -232,15 +232,23 @@ export default function TemplateBuilder() {
       return rows;
     }
 
-    // COLLECTION group -> collection + instances { children[] }
+    // COLLECTION group -> collection + instances array
     if (content.collection && content.instances && Array.isArray(content.instances)) {
-      console.log('[seedGroupNodes] Processing collection with instances:', { instancesCount: content.instances.length, defaultInstances: content.collection.default_instances });
+      console.log('[seedGroupNodes] Processing collection with instances:', { instances: content.instances });
+      
+      // Get the default number of instances to create
       const N = Number.isFinite(+content.collection.default_instances) && +content.collection.default_instances > 0
         ? +content.collection.default_instances
         : 1;
 
-      const instChildren = [...content.instances].sort((a: any, b: any) => (a.idx ?? 1) - (b.idx ?? 1));
-      console.log('[seedGroupNodes] Instance children:', instChildren.length);
+      // Find the instance definition (should have {i: number, children: string[]})
+      const instDef = content.instances.find((inst: any) => inst.i === 1);
+      if (!instDef || !Array.isArray(instDef.children)) {
+        console.warn('[seedGroupNodes] No valid instance definition found');
+        return rows;
+      }
+      
+      console.log('[seedGroupNodes] Instance definition:', { instDef, childrenCount: instDef.children.length });
 
       // 2) 'instances' anchor under group
       rows.push({
@@ -275,20 +283,19 @@ export default function TemplateBuilder() {
 
         const iAddr = `${instancesAddr}.${iPath}`;
 
-        // 4) children under each iN
-        for (const kid of instChildren) {
-          const childPath: string = kid.path;
-          if (!isValidPathLabel(childPath)) throw new Error(`Invalid child path: ${childPath}`);
+        // 4) children under each iN - instDef.children is array of library IDs
+        for (const libraryId of instDef.children) {
+          console.log('[seedGroupNodes] Processing instance child library:', { instance: iPath, libraryId });
           
-          console.log('[seedGroupNodes] Instance child RAW:', { instance: iPath, kid });
-          
-          if (!kid.library_id) {
-            throw new Error(`Instance child "${childPath}" is missing library_id. Child data: ${JSON.stringify(kid)}`);
+          const childLib = libIndex.get(libraryId);
+          if (!childLib) {
+            throw new Error(`Missing library: ${libraryId}. Available libraries: ${Array.from(libIndex.keys()).join(', ')}`);
           }
           
-          const childLib = libIndex.get(kid.library_id);
-          if (!childLib) {
-            throw new Error(`Missing library: ${kid.library_id} for instance child "${childPath}". Available libraries: ${Array.from(libIndex.keys()).join(', ')}`);
+          // Derive the child path from the library ID (remove 'lib_' prefix)
+          const childPath = libraryId.replace(/^lib_/, '');
+          if (!isValidPathLabel(childPath)) {
+            throw new Error(`Invalid child path derived from library: ${childPath}`);
           }
           
           console.log('[seedGroupNodes] Instance child:', { instance: iPath, childPath, childType: childLib.node_type, libraryId: childLib.id });
