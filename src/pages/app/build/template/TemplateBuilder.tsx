@@ -169,6 +169,7 @@ export default function TemplateBuilder() {
     const { templateId, version, parentAddr, groupPath, groupLibrary, libIndex } = params;
     if (!isValidPathLabel(groupPath)) throw new Error(`Invalid path: ${groupPath}`);
 
+    console.log('[seedGroupNodes] Starting:', { groupPath, libraryId: groupLibrary.id, parentAddr });
     const rows: TemplateNodeRow[] = [];
 
     // 1) the group itself
@@ -186,18 +187,23 @@ export default function TemplateBuilder() {
 
     const groupAddr = parentAddr ? `${parentAddr}.${groupPath}` : `${ROOT}.${groupPath}`;
     const content = groupLibrary.content || {};
+    console.log('[seedGroupNodes] Content:', { content, hasChildren: Array.isArray(content.children), childrenCount: content.children?.length });
 
     // REGULAR group -> children[]
     if (Array.isArray(content.children)) {
       const children = [...content.children].sort((a: any, b: any) => (a.idx ?? 1) - (b.idx ?? 1));
+      console.log('[seedGroupNodes] Processing children:', children.length);
       for (const kid of children) {
         const childPath: string = kid.path;
         if (!isValidPathLabel(childPath)) throw new Error(`Invalid child path: ${childPath}`);
         const childLib = libIndex.get(kid.library_id);
         if (!childLib) throw new Error(`Missing library: ${kid.library_id}`);
         
+        console.log('[seedGroupNodes] Child:', { childPath, childType: childLib.node_type, libraryId: childLib.id });
+        
         // If child is a group, recursively expand it
         if (childLib.node_type === 'group') {
+          console.log('[seedGroupNodes] Recursing into group child:', childPath);
           const childRows = seedGroupNodes({
             templateId,
             version,
@@ -206,6 +212,7 @@ export default function TemplateBuilder() {
             groupLibrary: childLib,
             libIndex
           });
+          console.log('[seedGroupNodes] Got', childRows.length, 'rows from recursive call');
           rows.push(...childRows);
         } else {
           // Non-group child: push single row
@@ -221,6 +228,7 @@ export default function TemplateBuilder() {
           });
         }
       }
+      console.log('[seedGroupNodes] Finished processing children, total rows:', rows.length);
       return rows;
     }
 
