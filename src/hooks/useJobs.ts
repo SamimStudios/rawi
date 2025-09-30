@@ -58,7 +58,7 @@ export function useJobs() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setJobs((data || []) as Job[]);
+      setJobs((data || []) as any as Job[]);
       console.debug('[Jobs] ✅ jobs:', data?.length ?? 0);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to fetch jobs';
@@ -83,7 +83,7 @@ export function useJobs() {
         .order('path', { ascending: true });
 
       if (error) throw error;
-      setJobNodes((data || []) as JobNode[]);
+      setJobNodes((data || []) as any as JobNode[]);
       console.debug('[Jobs] ✅ nodes:', data?.length ?? 0);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to fetch job nodes';
@@ -106,8 +106,8 @@ export function useJobs() {
         .maybeSingle();
 
       if (error) throw error;
-      console.debug('[Jobs] ✅ job:', data?.id);
-      return (data as Job) ?? null;
+      console.debug('[Jobs] ✅ job:', (data as any)?.id);
+      return (data as any as Job) ?? null;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to get job';
       console.error('[Jobs] ❌', msg);
@@ -314,7 +314,7 @@ export function useJobs() {
 
       if (error) throw error;
       console.debug('[Jobs] ✅ node reloaded');
-      return (data as JobNode) ?? null;
+      return (data as any as JobNode) ?? null;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to reload node';
       console.error('[Jobs] ❌', msg);

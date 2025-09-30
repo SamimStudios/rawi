@@ -13,18 +13,31 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function AppTemplates() {
   const navigate = useNavigate();
-  const { templates, loading, fetchTemplates } = useTemplates();
+  const { fetchTemplates } = useTemplates();
   const { createJobFromTemplate, loading: jobLoading } = useJobs();
   const { toast } = useToast();
   
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [jobName, setJobName] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
-    fetchTemplates();
-  }, [fetchTemplates]);
+    const loadTemplates = async () => {
+      try {
+        setLoading(true);
+        const data = await fetchTemplates();
+        setTemplates(data);
+      } catch (error) {
+        console.error('Failed to load templates:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadTemplates();
+  }, []);
 
   const filteredTemplates = templates.filter(template => 
     template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||

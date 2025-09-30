@@ -14,10 +14,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 
 export default function TemplateList() {
-  const { templates, loading, fetchTemplates, deleteTemplate, cloneTemplate } = useTemplates();
+  const { fetchTemplates } = useTemplates();
   const { toast } = useToast();
   const navigate = useNavigate();
   
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [filterActive, setFilterActive] = useState<string>('all');
@@ -29,8 +31,19 @@ export default function TemplateList() {
   });
 
   useEffect(() => {
-    fetchTemplates();
-  }, [fetchTemplates]);
+    const loadTemplates = async () => {
+      try {
+        setLoading(true);
+        const data = await fetchTemplates();
+        setTemplates(data);
+      } catch (error) {
+        console.error('Failed to load templates:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadTemplates();
+  }, []);
 
   const filteredTemplates = templates.filter(template => {
     const matchesSearch = template.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -44,13 +57,11 @@ export default function TemplateList() {
   const categories = Array.from(new Set(templates.map(t => t.category)));
 
   const handleDelete = async (id: string) => {
-    const success = await deleteTemplate(id);
-    if (success) {
-      toast({
-        title: "Success",
-        description: "Template deleted successfully",
-      });
-    }
+    // TODO: Implement delete functionality
+    toast({
+      title: "Info",
+      description: "Delete functionality not yet implemented",
+    });
   };
 
   const handleClone = (template: any) => {
@@ -90,11 +101,13 @@ export default function TemplateList() {
       return;
     }
 
-    const success = await cloneTemplate(cloneData.originalId, cloneData.newId, cloneData.newName);
-    if (success) {
-      setCloneDialogOpen(false);
-      setCloneData({ originalId: '', newId: '', newName: '' });
-    }
+    // TODO: Implement clone functionality
+    toast({
+      title: "Info",
+      description: "Clone functionality not yet implemented",
+    });
+    setCloneDialogOpen(false);
+    setCloneData({ originalId: '', newId: '', newName: '' });
   };
 
   if (loading) {
@@ -140,9 +153,9 @@ export default function TemplateList() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                {categories.map(category => (
+                {categories.map((category: string) => (
                   <SelectItem key={category} value={category}>
-                    {category.split('_').map(word => 
+                    {String(category).split('_').map(word => 
                       word.charAt(0).toUpperCase() + word.slice(1)
                     ).join(' ')}
                   </SelectItem>

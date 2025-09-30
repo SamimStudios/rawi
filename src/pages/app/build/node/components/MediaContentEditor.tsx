@@ -77,14 +77,14 @@ function normalizeContent(input: MediaContent): MediaContent {
   const versions = (input.versions || []).map((v, i) => {
     const idx = i + 1;
     const coerced = coerceItemToType(type, v.item);
-    return { kind: 'MediaVersion', idx, path: `${basePath}.v${idx}`, item: coerced };
+    return { kind: 'MediaVersion' as const, idx, path: `${basePath}.v${idx}`, item: coerced };
   });
 
   let sel = input.selected_version_idx;
   if (versions.length === 0) sel = undefined;
   else if (!sel || sel < 1 || sel > versions.length) sel = 1;
 
-  const out: MediaContent = { kind: 'MediaContent', type, path: basePath, versions, selected_version_idx: sel };
+  const out: MediaContent = { kind: 'MediaContent' as const, type, path: basePath, versions, selected_version_idx: sel };
   return out;
 }
 
@@ -109,13 +109,13 @@ function migrateLegacy(raw: any): MediaContent {
     const url = lv?.url ?? '';
     const meta = lv?.metadata ?? {};
     const duration_ms = typeof meta.duration === 'number' ? Math.round(meta.duration * 1000) : undefined;
-    const item = type === 'image'
-      ? { kind: 'ImageItem', url, width: meta.width, height: meta.height }
+    const item: any = type === 'image'
+      ? { kind: 'ImageItem' as const, url, width: meta.width, height: meta.height }
       : type === 'video'
-        ? { kind: 'VideoItem', url, duration_ms, width: meta.width, height: meta.height }
-        : { kind: 'AudioItem', url, duration_ms };
+        ? { kind: 'VideoItem' as const, url, duration_ms, width: meta.width, height: meta.height }
+        : { kind: 'AudioItem' as const, url, duration_ms };
 
-    return { kind: 'MediaVersion', idx, path: `${basePath}.v${idx}`, item };
+    return { kind: 'MediaVersion' as const, idx, path: `${basePath}.v${idx}`, item };
   });
 
   let selected_version_idx: number | undefined;
@@ -282,7 +282,7 @@ export function MediaContentEditor({ content, onChange }: MediaContentEditorProp
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base">Versions</CardTitle>
-            <Button variant="secondary" size="sm" onClick={addVersion}>
+            <Button variant="outline" size="sm" onClick={addVersion}>
               <Plus className="w-4 h-4 mr-1" /> Add version
             </Button>
           </CardHeader>

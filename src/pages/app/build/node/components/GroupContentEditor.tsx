@@ -171,7 +171,7 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
   const { entries, fetchEntries } = useNodeLibrary();
   useEffect(() => { fetchEntries().catch(() => void 0); }, [fetchEntries]);
   const nodeOptions = useMemo(
-    () => (entries || []).map(e => ({ id: e.id, label: e.name ? `${e.name} • ${e.id}` : e.id })),
+    () => (entries || []).map((e: any) => ({ id: e.id, label: e.name ? `${e.name} • ${e.id}` : e.id })),
     [entries]
   );
 
@@ -374,10 +374,10 @@ export function GroupContentEditor({ content, onChange }: GroupContentEditorProp
             <div className="space-y-2 md:col-span-1">
               <Label>Mode</Label>
               <div className="flex items-center gap-2">
-                <Button type="button" variant={mode === 'regular' ? 'default' : 'secondary'} size="sm" onClick={() => toggleMode('regular')}>
+                <Button type="button" variant={mode === 'regular' ? 'default' : 'outline'} size="sm" onClick={() => toggleMode('regular')}>
                   Regular
                 </Button>
-                <Button type="button" variant={mode === 'collection' ? 'default' : 'secondary'} size="sm" onClick={() => toggleMode('collection')}>
+                <Button type="button" variant={mode === 'collection' ? 'default' : 'outline'} size="sm" onClick={() => toggleMode('collection')}>
                   Collection
                 </Button>
               </div>

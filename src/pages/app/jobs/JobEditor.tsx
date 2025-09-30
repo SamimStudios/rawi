@@ -57,11 +57,9 @@ export default function JobEditor() {
   };
 
   const handleNodeUpdate = useCallback(async (nodeId: string, content: any): Promise<void> => {
-    const success = await updateJobNode(nodeId, content);
-    if (success) {
-      // Refresh job readiness after any node update
-      await checkReadiness();
-    }
+    await updateJobNode(nodeId, content);
+    // Refresh job readiness after any node update
+    await checkReadiness();
   }, [updateJobNode, checkReadiness]);
 
   const groupNodesByPath = (nodes: JobNode[]) => {

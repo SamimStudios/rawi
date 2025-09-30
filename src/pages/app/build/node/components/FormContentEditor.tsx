@@ -1038,6 +1038,7 @@ export function FormContentEditor({ content, onChange }: FormContentEditorProps)
               onChange={(e) =>
                 onUpdate({
                   description: {
+                    fallback: item.description?.fallback || '',
                     ...(item.description || {}),
                     key: s2n(e.target.value),
                   },
