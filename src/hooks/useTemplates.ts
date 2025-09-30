@@ -175,6 +175,8 @@ export async function replaceSaveTemplateNodes(allRows: TemplateNodeRow[]): Prom
   const payload = allRows.map(({ addr, ...rest }) => ({
     ...rest,
     dependencies: (rest.dependencies ?? []),
+    arrangeable: rest.arrangeable ?? true,
+    removable: rest.removable ?? true,
   }));
   const { error: upErr } = await supabase
     .schema('app' as any)

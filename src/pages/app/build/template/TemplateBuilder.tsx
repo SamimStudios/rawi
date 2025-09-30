@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   useTemplates,
   type TemplateRow,
@@ -26,6 +26,8 @@ const joinAddr = (parentAddr: string | null, path: string) =>
 export default function TemplateBuilder() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isNew = id === 'new' || location.pathname.endsWith('/new');
   const { toast } = useToast();
   const {
     fetchTemplateById,
@@ -59,8 +61,7 @@ export default function TemplateBuilder() {
     let mounted = true;
     (async () => {
       try {
-        if (id === 'new') {
-          setCreateDialogOpen(true);
+        if (isNew) {
           setLoading(false);
           return;
         }
@@ -145,6 +146,7 @@ export default function TemplateBuilder() {
       path: newPath,
       parent_addr: null, // All nodes added at root level
       library_id: lib.id,
+      arrangeable: true,
       removable: true
     };
     setNodes(prev => [...prev, row]);
@@ -300,7 +302,7 @@ export default function TemplateBuilder() {
   }
 
   if (!template) {
-    if (id === 'new') {
+    if (isNew) {
       return (
         <div className="max-w-2xl mx-auto p-6 space-y-6">
           <Card>
