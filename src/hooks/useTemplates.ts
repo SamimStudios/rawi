@@ -55,7 +55,6 @@ export async function fetchActiveTemplates(): Promise<TemplateRow[]> {
     .schema('app' as any)
     .from('templates')
     .select('id,name,category,active,current_version,meta,created_at,updated_at')
-    .eq('active', true)
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data ?? [];

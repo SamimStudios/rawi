@@ -92,7 +92,7 @@ export default function TemplateBuilder() {
   }, [id]);
 
   const parentOptions = useMemo(() => {
-    const roots = [{ label: '(root)', value: null as any }];
+    const roots = [{ label: '(root)', value: '__ROOT__' }];
     const groupAddrs = nodes
       .filter(n => n.node_type === 'group')
       .map(n => {
@@ -409,13 +409,13 @@ export default function TemplateBuilder() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Parent</Label>
-              <Select value={newParentAddr ?? ''} onValueChange={(v) => setNewParentAddr(v || null)}>
+              <Select value={newParentAddr ?? '__ROOT__'} onValueChange={(v) => setNewParentAddr(v === '__ROOT__' ? null : v)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {parentOptions.map(opt => (
-                    <SelectItem key={opt.label + String(opt.value)} value={opt.value ?? ''}>
+                    <SelectItem key={opt.label + String(opt.value)} value={opt.value}>
                       {opt.label}
                     </SelectItem>
                   ))}
