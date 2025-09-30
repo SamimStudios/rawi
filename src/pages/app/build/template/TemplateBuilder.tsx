@@ -41,6 +41,7 @@ export default function TemplateBuilder() {
   } = useTemplates();
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [newTemplateId, setNewTemplateId] = useState('');
   const [newTemplateName, setNewTemplateName] = useState('');
   const [newTemplateCategory, setNewTemplateCategory] = useState('content');
 
@@ -92,6 +93,10 @@ export default function TemplateBuilder() {
   }, [id]);
 
   async function handleCreateTemplate() {
+    if (!newTemplateId.trim()) {
+      toast({ title: 'Error', description: 'Template ID is required', variant: 'destructive' });
+      return;
+    }
     if (!newTemplateName.trim()) {
       toast({ title: 'Error', description: 'Template name is required', variant: 'destructive' });
       return;
@@ -99,9 +104,7 @@ export default function TemplateBuilder() {
     
     setLoading(true);
     try {
-      // Generate a unique ID for the new template
-      const newId = crypto.randomUUID();
-      const templateId = await createTemplate(newTemplateName.trim(), newTemplateCategory, newId);
+      const templateId = await createTemplate(newTemplateName.trim(), newTemplateCategory, newTemplateId.trim());
       toast({ title: 'Success', description: 'Template created successfully' });
       navigate(`/app/build/template/${templateId}`);
     } catch (e: any) {
@@ -343,6 +346,10 @@ export default function TemplateBuilder() {
               <CardDescription>Enter a name and category for your new template</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="id">Template ID</Label>
+                <Input id="id" value={newTemplateId} onChange={(e) => setNewTemplateId(e.target.value)} placeholder="tpl_my_template" />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="name">Template Name</Label>
                 <Input id="name" value={newTemplateName} onChange={(e) => setNewTemplateName(e.target.value)} placeholder="My Template" />
