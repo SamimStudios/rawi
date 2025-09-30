@@ -171,8 +171,11 @@ export async function replaceSaveTemplateNodes(allRows: TemplateNodeRow[]): Prom
     if (delErr) throw delErr;
   }
 
-  // 2) upsert without addr
-  const payload = allRows.map(({ addr, ...rest }) => rest);
+  // 2) upsert without addr, ensure non-nullables
+  const payload = allRows.map(({ addr, ...rest }) => ({
+    ...rest,
+    dependencies: (rest.dependencies ?? []),
+  }));
   const { error: upErr } = await supabase
     .schema('app' as any)
     .from('template_nodes')

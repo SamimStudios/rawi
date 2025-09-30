@@ -300,6 +300,34 @@ export default function TemplateBuilder() {
   }
 
   if (!template) {
+    if (id === 'new') {
+      return (
+        <div className="max-w-2xl mx-auto p-6 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Create New Template</CardTitle>
+              <CardDescription>Enter a name and category for your new template</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Template Name</Label>
+                <Input id="name" value={newTemplateName} onChange={(e) => setNewTemplateName(e.target.value)} placeholder="My Template" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="category">Category</Label>
+                <Input id="category" value={newTemplateCategory} onChange={(e) => setNewTemplateCategory(e.target.value)} placeholder="content" />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => navigate('/app/build/template')}>Cancel</Button>
+                <Button onClick={handleCreateTemplate}>Create Template</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
+    // Fallback dialog (kept for compatibility)
     return (
       <>
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
