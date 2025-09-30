@@ -171,13 +171,23 @@ export async function replaceSaveTemplateNodes(allRows: TemplateNodeRow[]): Prom
     if (delErr) throw delErr;
   }
 
-  // 2) upsert without addr, ensure non-nullables
-  const payload = allRows.map(({ addr, ...rest }) => ({
-    ...rest,
-    dependencies: (rest.dependencies ?? []),
-    arrangeable: rest.arrangeable ?? true,
-    removable: rest.removable ?? true,
-  }));
+  // 2) upsert without addr, ensure non-nullables and timestamps
+  const now = new Date().toISOString();
+  const payload = allRows.map(({ addr, ...rest }) => {
+    const row: any = {
+      ...rest,
+      dependencies: (rest.dependencies ?? []),
+      arrangeable: rest.arrangeable ?? true,
+      removable: rest.removable ?? true,
+      created_at: rest.created_at ?? now,
+      updated_at: now,
+    };
+    // Remove undefined fields to prevent null assignments
+    Object.keys(row).forEach(key => {
+      if (row[key] === undefined) delete row[key];
+    });
+    return row;
+  });
   const { error: upErr } = await supabase
     .schema('app' as any)
     .from('template_nodes')
