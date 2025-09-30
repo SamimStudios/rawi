@@ -53,7 +53,8 @@ export function useJobs() {
     setError(null);
     try {
       const { data, error } = await supabase
-        .from('app.jobs' as any)
+        .schema('app' as any)
+        .from('jobs')
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -77,7 +78,8 @@ export function useJobs() {
     setError(null);
     try {
       const { data, error } = await supabase
-        .from('app.nodes' as any)
+        .schema('app' as any)
+        .from('nodes')
         .select('*')
         .eq('job_id', jobId)
         .order('path', { ascending: true });
@@ -100,7 +102,8 @@ export function useJobs() {
     console.group('[Jobs] ▶ getJob', jobId);
     try {
       const { data, error } = await supabase
-        .from('app.jobs' as any)
+        .schema('app' as any)
+        .from('jobs')
         .select('*')
         .eq('id', jobId)
         .maybeSingle();
@@ -201,7 +204,8 @@ export function useJobs() {
         // If we fell back, persist job_name via direct update
         if ((jobName ?? '').trim()) {
           const { error: nameErr } = await supabase
-            .from('app.jobs' as any)
+.schema('app' as any)
+            .from('jobs')
             .update({ job_name: (jobName ?? '').trim() })
             .eq('id', oldId);
 
@@ -239,7 +243,8 @@ export function useJobs() {
     setError(null);
     try {
       const { error } = await supabase
-        .from('app.nodes' as any)
+        .schema('app' as any)
+        .from('nodes')
         .update({ content })
         .eq('id', nodeId);
 
@@ -303,7 +308,8 @@ export function useJobs() {
     console.group('[Jobs] ▶ reloadNode', nodeId);
     try {
       const { data, error } = await supabase
-        .from('app.nodes' as any)
+        .schema('app' as any)
+        .from('nodes')
         .select('*')
         .eq('id', nodeId)
         .maybeSingle();
@@ -326,7 +332,8 @@ export function useJobs() {
     console.group('[Jobs] ▶ getNodeUpdatedAt', nodeId);
     try {
       const { data, error } = await supabase
-        .from('app.nodes' as any)
+        .schema('app' as any)
+        .from('nodes')
         .select('updated_at')
         .eq('id', nodeId)
         .maybeSingle();
