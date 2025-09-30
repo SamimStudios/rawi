@@ -233,12 +233,14 @@ export default function TemplateBuilder() {
     }
 
     // COLLECTION group -> collection + instances { children[] }
-    if (content.collection && content.instances && Array.isArray(content.instances.children)) {
+    if (content.collection && content.instances && Array.isArray(content.instances)) {
+      console.log('[seedGroupNodes] Processing collection with instances:', { instancesCount: content.instances.length, defaultInstances: content.collection.default_instances });
       const N = Number.isFinite(+content.collection.default_instances) && +content.collection.default_instances > 0
         ? +content.collection.default_instances
         : 1;
 
-      const instChildren = [...content.instances.children].sort((a: any, b: any) => (a.idx ?? 1) - (b.idx ?? 1));
+      const instChildren = [...content.instances].sort((a: any, b: any) => (a.idx ?? 1) - (b.idx ?? 1));
+      console.log('[seedGroupNodes] Instance children:', instChildren.length);
 
       // 2) 'instances' anchor under group
       rows.push({
@@ -280,8 +282,11 @@ export default function TemplateBuilder() {
           const childLib = libIndex.get(kid.library_id);
           if (!childLib) throw new Error(`Missing library: ${kid.library_id}`);
           
+          console.log('[seedGroupNodes] Instance child:', { instance: iPath, childPath, childType: childLib.node_type, libraryId: childLib.id });
+          
           // If child is a group, recursively expand it
           if (childLib.node_type === 'group') {
+            console.log('[seedGroupNodes] Recursing into group instance child:', childPath);
             const childRows = seedGroupNodes({
               templateId,
               version,
@@ -290,6 +295,7 @@ export default function TemplateBuilder() {
               groupLibrary: childLib,
               libIndex
             });
+            console.log('[seedGroupNodes] Got', childRows.length, 'rows from instance recursive call');
             rows.push(...childRows);
           } else {
             // Non-group child: push single row
@@ -306,6 +312,7 @@ export default function TemplateBuilder() {
           }
         }
       }
+      console.log('[seedGroupNodes] Finished processing instances, total rows:', rows.length);
     }
 
     return rows;
