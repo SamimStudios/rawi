@@ -250,38 +250,23 @@ export default function TemplateBuilder() {
       
       console.log('[seedGroupNodes] Instance definition:', { instDef, childrenCount: instDef.children.length });
 
-      // 2) 'instances' anchor under group
-      rows.push({
-        template_id: templateId,
-        version,
-        idx: 999999,
-        node_type: 'group',
-        path: 'instances',
-        parent_addr: groupAddr,
-        library_id: 'lib_group_instances_anchor',
-        arrangeable: false,
-        removable: false
-      });
-
-      const instancesAddr = `${groupAddr}.instances`;
-
+      // Create instance nodes (i1..iN) directly under the group
       for (let i = 1; i <= N; i++) {
         const iPath = `i${i}`;
 
-        // 3) each iN under instances
         rows.push({
           template_id: templateId,
           version,
           idx: 999999,
           node_type: 'group',
           path: iPath,
-          parent_addr: instancesAddr,
+          parent_addr: groupAddr,
           library_id: 'lib_group_instance_anchor',
           arrangeable: true,
           removable: true
         });
 
-        const iAddr = `${instancesAddr}.${iPath}`;
+        const iAddr = `${groupAddr}.${iPath}`;
 
         // 4) children under each iN - instDef.children is array of library IDs
         for (const libraryId of instDef.children) {
