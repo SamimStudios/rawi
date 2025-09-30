@@ -51,7 +51,6 @@ export default function TemplateBuilder() {
   const [error, setError] = useState<string | null>(null);
 
   // Input controls (simple)
-  const [newParentAddr, setNewParentAddr] = useState<string | null>(null);
   const [newPath, setNewPath] = useState('');
   const [newType, setNewType] = useState<NodeType>('form');
   const [newLibraryId, setNewLibraryId] = useState('');
@@ -90,17 +89,6 @@ export default function TemplateBuilder() {
     })();
     return () => { mounted = false; };
   }, [id]);
-
-  const parentOptions = useMemo(() => {
-    const roots = [{ label: '(root)', value: '__ROOT__' }];
-    const groupAddrs = nodes
-      .filter(n => n.node_type === 'group')
-      .map(n => {
-        const addr = n.addr ?? joinAddr(n.parent_addr, n.path);
-        return { label: addr, value: addr };
-      });
-    return [...roots, ...groupAddrs];
-  }, [nodes]);
 
   async function handleCreateTemplate() {
     if (!newTemplateName.trim()) {
@@ -155,7 +143,7 @@ export default function TemplateBuilder() {
       idx: 999999, // temp; fixed on save
       node_type: newType,
       path: newPath,
-      parent_addr: newParentAddr,
+      parent_addr: null, // All nodes added at root level
       library_id: lib.id,
       removable: true
     };
@@ -291,7 +279,7 @@ export default function TemplateBuilder() {
       const seeded = seedGroupNodes({
         templateId: template.id,
         version: template.current_version,
-        parentAddr: newParentAddr,
+        parentAddr: null, // All nodes added at root level
         groupPath: newPath,
         groupLibrary: lib,
         libIndex
@@ -406,23 +394,7 @@ export default function TemplateBuilder() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Parent</Label>
-              <Select value={newParentAddr ?? '__ROOT__'} onValueChange={(v) => setNewParentAddr(v === '__ROOT__' ? null : v)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {parentOptions.map(opt => (
-                    <SelectItem key={opt.label + String(opt.value)} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
+          <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Path</Label>
               <Input
