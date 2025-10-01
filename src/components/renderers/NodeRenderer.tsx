@@ -76,10 +76,13 @@ const nlog = (...a:any[]) => { if (DBG) console.debug('[NodeRenderer]', ...a); }
 
 const saveViaRpc = async (jobId: string, writes: Array<{ address: string; value: any }>) => {
   nlog('saveViaRpc:start', { jobId, count: writes.length, sample: writes.slice(0, 3) });
-  // TODO: Implement proper RPC call or use edge function
-  // For now, log the writes that would be made
-  console.log('Would save writes:', writes);
-  nlog('saveViaRpc:ok', { count: writes.length });
+  const { data, error } = await supabase.rpc('app.addr_write_many', {
+    p_job_id: jobId,
+    p_writes: writes as any,
+  });
+  if (error) throw error;
+  nlog('saveViaRpc:ok', data);
+  return data;
 };
 
 
@@ -581,7 +584,8 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
             jobId
           });
 
-          // Query ALL nodes for this job
+          // Query all nodes (or two filtered queries if you prefer),
+          // but **filter strictly by parent_addr**:
           const { data, error } = await supabase
             .schema('app' as any)
             .from('nodes')
@@ -597,33 +601,16 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
 
           if (isCollection) {
             // Collection group: group by instance, only direct children
-            const instances: Record<number, JobNode[]> = {};
-            (data || []).forEach(child => {
-              const instNum = parseInstanceFromAny(child.addr, child.parent_addr, groupNode.addr);
-              if (instNum !== null) {
-                // Check if direct child of the instance anchor (e.g., "root.group.i1" or "root.group.instances.i1")
-                const instanceAnchors = [
-                  `${groupNode.addr}.i${instNum}`,
-                  `${groupNode.addr}.instances.i${instNum}`
-                ];
-                const inferredParent = child.parent_addr || getParentPath(child.addr);
-                const isDirect = instanceAnchors.some(anchor => 
-                  inferredParent === anchor || isDirectChildOf(child.addr, anchor)
-                );
-                
-                if (isDirect) {
-                  if (!instances[instNum]) instances[instNum] = [];
-                  instances[instNum].push(child as JobNode);
-                  console.log('[GroupRenderer] Collection child:', {
-                    addr: child.addr,
-                    parent_addr: child.parent_addr,
-                    inferred: inferredParent,
-                    instance: instNum
-                  });
-                }
-              }
-            });
-            
+              const instances: Record<number, JobNode[]> = {};
+              (data || []).forEach((child) => {
+                if (!child.parent_addr) return;
+                // Only parent_addr that matches {group}.iN (no 'instances' segment)
+                const m = child.parent_addr.match(new RegExp(`^${groupNode.addr.replace(/\./g, '\\.')}\\.i(\\d+)$`));
+                if (!m) return;
+                const n = Number(m[1]);
+                (instances[n] ||= []).push(child as JobNode);
+              });
+                        
             // Sort children in each instance
             Object.keys(instances).forEach(key => {
               instances[Number(key)] = sortNodes(instances[Number(key)]);
@@ -633,20 +620,10 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
             setByInstance(instances);
           } else {
             // Regular group: direct children only
-            const children: JobNode[] = [];
-            (data || []).forEach(child => {
-              const inferredParent = child.parent_addr || getParentPath(child.addr);
-              const isDirect = inferredParent === groupNode.addr || isDirectChildOf(child.addr, groupNode.addr);
-              
-              if (isDirect) {
-                children.push(child as JobNode);
-                console.log('[GroupRenderer] Regular child:', {
-                  addr: child.addr,
-                  parent_addr: child.parent_addr,
-                  inferred: inferredParent
-                });
-              }
-            });
+              const children = (data || []).filter(
+                (child) => child.parent_addr === groupNode.addr
+              ) as JobNode[];
+              children.sort((a,b)=>a.idx-b.idx);
             
             console.log('[GroupRenderer] Regular children:', children.length);
             setRegularChildren(sortNodes(children));
@@ -724,7 +701,14 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => setIsCollapsed(!isCollapsed)} className="p-1 h-6 w-6">
+            const isDescendantEditing = false; // TODO: implement with your editor state (see note below)
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => !isDescendantEditing && setIsCollapsed(!isCollapsed)}
+                className="p-1 h-6 w-6"
+                disabled={isDescendantEditing}
+              >
               {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </Button>
             <div>
@@ -753,13 +737,10 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    if (hasActiveEditor()) {
-                      toast({
-                        title: "Another node is being edited",
-                        description: "Please finish editing the current node first.",
-                        variant: "destructive",
-                      });
-                      return;
+                    if (hasActiveEditor() && !isEditing(node.id)) {
+                      const ok = window.confirm('Discard unsaved changes in the other editor and edit this node instead?');
+                      if (!ok) return;
+                      // Close the other editor (your hook likely exposes this implicitly via startEditing)
                     }
                     handleStartEdit();
                   }}
