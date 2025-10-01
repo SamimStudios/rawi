@@ -79,6 +79,23 @@ const deepHasNonNull = (v: any): boolean => {
   return Object.values(v).some(deepHasNonNull);
 };
 
+const CenterGenerate = () => (
+  <div className="py-12 flex items-center justify-center">
+    <CreditsButton
+      onClick={handleGenerate}
+      price={generateCost}
+      available={userCredits}
+      loading={loading}
+      size="lg"
+    >
+      <Play className="h-4 w-4 mr-2" />
+      Generate
+    </CreditsButton>
+  </div>
+);
+
+
+
 const DBG = true;
 const nlog = (...a:any[]) => { if (DBG) console.debug('[NodeRenderer]', ...a); };
 
@@ -182,21 +199,9 @@ export default function NodeRenderer({
   
   const shouldCenterGenerate = !!hasGenerateAction && (isFormEmpty || isMediaEmpty);
 
-  const CenterGenerate = () => (
-    <div className="py-12 flex items-center justify-center">
-      <CreditsButton
-        onClick={handleGenerate}
-        price={generateCost}
-        available={userCredits}
-        loading={loading}
-        size="lg"
-      >
-        <Play className="h-4 w-4 mr-2" />
-        Generate
-      </CreditsButton>
-    </div>
-  );
 
+
+  
   useEffect(() => {}, [validateCost, generateCost, pricingLoading]);
 
   const handleStartEdit = () => {
