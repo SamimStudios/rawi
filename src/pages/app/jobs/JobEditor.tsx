@@ -63,16 +63,17 @@ export default function JobEditor() {
   }, [updateJobNode, checkReadiness]);
 
   const groupNodesByPath = (nodes: JobNode[]) => {
-    // Only show TOP-LEVEL nodes: direct children of root AND parent_addr strictly null
-    const isDirectRootChild = (addr?: string) => !!addr && addr.startsWith('root.') && addr.split('.').length === 2;
-    const topLevelNodes = nodes.filter(node => node.parent_addr === null && isDirectRootChild(node.addr));
+    // Only show TOP-LEVEL nodes: direct children of root; treat null/empty/undefined parent as no parent
+    const isDirectRootChild = (addr?: string) => !!addr && /^root\.[^.]+$/.test(addr);
+    const hasNoParent = (p?: string | null) => p === null || p === '' || typeof p === 'undefined';
+    const topLevelNodes = nodes.filter(node => hasNoParent(node.parent_addr) && isDirectRootChild(node.addr));
+    console.debug('[JobEditor] top-level filter', { total: nodes.length, top: topLevelNodes.length, parentSamples: Array.from(new Set(nodes.map(n => (n.parent_addr ?? '(null)')))).slice(0,10) });
     
     const grouped: Record<string, JobNode[]> = {};
     
     topLevelNodes.forEach(node => {
       const parts = node.addr?.split('.') || [];
       const rootPath = parts[0] || 'root';
-      
       if (!grouped[rootPath]) {
         grouped[rootPath] = [];
       }
@@ -149,7 +150,7 @@ export default function JobEditor() {
 
       {/* Node Sections */}
       <div className="space-y-6">
-        {Object.entries(groupedNodes).map(([rootPath, nodes]) => (
+        {Object.entries(groupedNodes as Record<string, JobNode[]>).map(([rootPath, nodes]) => (
           <Card key={rootPath}>
             <CardHeader>
               <CardTitle className="capitalize">{rootPath.replace('_', ' ')}</CardTitle>
