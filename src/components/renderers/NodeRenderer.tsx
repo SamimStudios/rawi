@@ -75,14 +75,20 @@ const DBG = true;
 const nlog = (...a:any[]) => { if (DBG) console.debug('[NodeRenderer]', ...a); };
 
 // Renderer version (visual only, for deployment verification)
-const RENDERER_VERSION = 'NR v2025.10.01-a';
+const RENDERER_VERSION = 'NR v2025.10.01-b';
 
 const saveViaRpc = async (jobId: string, writes: Array<{ address: string; value: any }>) => {
   nlog('saveViaRpc:start', { jobId, count: writes.length, sample: writes.slice(0, 3) });
-  // TODO: Implement proper RPC call or use edge function
-  // For now, log the writes that would be made
-  console.log('Would save writes:', writes);
-  nlog('saveViaRpc:ok', { count: writes.length });
+  const { data, error } = await supabase.rpc('app.addr_write_many', {
+    p_job_id: jobId,
+    p_writes: writes as any,
+  });
+  if (error) {
+    console.error('[NodeRenderer] saveViaRpc error:', error);
+    throw error;
+  }
+  nlog('saveViaRpc:ok', data);
+  return data;
 };
 
 
