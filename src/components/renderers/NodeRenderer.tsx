@@ -582,7 +582,7 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
         {loading && <div className="text-sm text-muted-foreground">Loading children...</div>}
         
         {!isCollection && (
-          <div className="space-y-4">
+          <div className="space-y-4 pl-4 border-l-2 border-muted">
             {regularChildren.length === 0 && !loading && (
               <div className="text-muted-foreground text-sm">No children yet</div>
             )}
@@ -613,9 +613,9 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
                   : `Instance ${instNum}`;
 
                 return (
-                  <div key={instNum} className="rounded-lg border p-4">
-                    <div className="font-medium mb-3">{label}</div>
-                    <div className="space-y-4">
+                  <div key={instNum} className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+                    <div className="font-medium mb-3 text-primary">{label}</div>
+                    <div className="space-y-4 pl-4 border-l-2 border-primary/30">
                       {children.map(child => (
                         <NodeRenderer
                           key={child.id}

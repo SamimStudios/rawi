@@ -63,11 +63,16 @@ export default function JobEditor() {
   }, [updateJobNode, checkReadiness]);
 
   const groupNodesByPath = (nodes: JobNode[]) => {
+    // Only show TOP-LEVEL nodes (no parent or parent is 'root')
+    const topLevelNodes = nodes.filter(node => 
+      !node.parent_addr || node.parent_addr === 'root' || node.parent_addr === ''
+    );
+    
     const grouped: Record<string, JobNode[]> = {};
     
-    nodes.forEach(node => {
-      const parts = node.addr.split('.');
-      const rootPath = parts[0];
+    topLevelNodes.forEach(node => {
+      const parts = node.addr?.split('.') || [];
+      const rootPath = parts[0] || 'root';
       
       if (!grouped[rootPath]) {
         grouped[rootPath] = [];
@@ -75,9 +80,14 @@ export default function JobEditor() {
       grouped[rootPath].push(node);
     });
     
-    // Sort nodes within each group by address for consistent ordering
+    // Sort nodes within each group by idx, then by address for consistent ordering
     Object.keys(grouped).forEach(key => {
-      grouped[key].sort((a, b) => a.addr.localeCompare(b.addr));
+      grouped[key].sort((a, b) => {
+        if (a.idx !== undefined && b.idx !== undefined && a.idx !== b.idx) {
+          return a.idx - b.idx;
+        }
+        return (a.addr || '').localeCompare(b.addr || '');
+      });
     });
     
     return grouped;
