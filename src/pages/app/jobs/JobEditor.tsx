@@ -107,31 +107,44 @@ export default function JobEditor() {
   const groupedNodes = groupNodesByPath(jobNodes);
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-8 max-w-7xl">
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Button variant="ghost" onClick={() => navigate('/app/templates')}>
+      <div className="mb-6 sm:mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="space-y-3">
+            <Button 
+              variant="ghost" 
+              onClick={() => navigate('/app/templates')}
+              className="mb-2 -ml-3"
+            >
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Templates
+              <span className="hidden sm:inline">Back to Templates</span>
+              <span className="sm:hidden">Back</span>
             </Button>
             <div>
-              <h1 className="text-3xl font-bold">{job.name || job.id || 'Unnamed Job'}</h1>
-              <p className="text-muted-foreground">
-                Template: {job.template} • Status: <Badge variant={
-                  job.status === 'completed' ? 'default' : 
-                  job.status === 'failed' ? 'destructive' : 'secondary'
-                }>{job.status}</Badge>
-              </p>
+              <h1 className="text-2xl sm:text-3xl font-bold mb-1">
+                {job.job_name || 'Unnamed Job'}
+              </h1>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                <span>Template: {job.template}</span>
+                <span className="hidden sm:inline">•</span>
+                <div className="flex items-center gap-1">
+                  <span className="hidden sm:inline">Status:</span>
+                  <Badge variant={
+                    job.status === 'completed' ? 'default' : 
+                    job.status === 'failed' ? 'destructive' : 'secondary'
+                  }>{job.status}</Badge>
+                </div>
+              </div>
             </div>
           </div>
           
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {isReady ? (
               <Badge variant="default" className="bg-green-500">
                 <CheckCircle className="w-4 h-4 mr-1" />
-                Ready for Generation
+                <span className="hidden sm:inline">Ready for Generation</span>
+                <span className="sm:hidden">Ready</span>
               </Badge>
             ) : (
               <Badge variant="outline">
@@ -140,7 +153,7 @@ export default function JobEditor() {
               </Badge>
             )}
             
-            <Button disabled={!isReady}>
+            <Button disabled={!isReady} className="w-full sm:w-auto">
               <Play className="w-4 h-4 mr-2" />
               Generate
             </Button>
@@ -149,15 +162,14 @@ export default function JobEditor() {
       </div>
 
       {/* Node Sections */}
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {Object.entries(groupedNodes as Record<string, JobNode[]>).map(([rootPath, nodes]) => (
-          <Card key={rootPath}>
-            <CardHeader>
-              <CardTitle className="capitalize">{rootPath.replace('_', ' ')}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {nodes.map(node => (
+          <div key={rootPath} className="space-y-3 sm:space-y-4">
+            <h2 className="text-lg sm:text-xl font-semibold capitalize border-b pb-2">
+              {rootPath.replace('_', ' ')}
+            </h2>
+            <div className="space-y-3 sm:space-y-4">
+              {nodes.map(node => (
                 <NodeRenderer
                   key={node.id}
                   node={node}
@@ -174,10 +186,9 @@ export default function JobEditor() {
                   }}
                   showPath={true}
                 />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
 
