@@ -284,6 +284,20 @@ export function FieldRenderer({
   const widget = fieldDefinition?.widget;
 
   if (isReadOnly) {
+    // Special handling for file widget (image preview)
+    if (widget === 'file' && effectiveValue && typeof effectiveValue === 'string') {
+      return (
+        <div className="flex flex-col gap-2 py-2 border-b border-border/30 last:border-b-0">
+          <span className="text-sm font-medium text-foreground">{label}:</span>
+          <img 
+            src={effectiveValue} 
+            alt={label}
+            className="max-w-xs max-h-48 rounded-md border border-border object-contain"
+          />
+        </div>
+      );
+    }
+
     let displayValue: any = effectiveValue;
     if (displayValue == null) displayValue = fieldDefinition?.default_value || '';
     if (typeof displayValue === 'boolean') displayValue = displayValue ? 'Yes' : 'No';
@@ -446,6 +460,16 @@ export function FieldRenderer({
           const file = e.target.files?.[0];
           if (!file || !user) return;
 
+          // Validate file type - only images allowed
+          if (!file.type.startsWith('image/')) {
+            toast({ 
+              title: "Invalid file type", 
+              description: "Only image files are allowed",
+              variant: "destructive" 
+            });
+            return;
+          }
+
           setIsUploading(true);
           try {
             const timestamp = Date.now();
@@ -463,7 +487,7 @@ export function FieldRenderer({
               .getPublicUrl(filePath);
 
             handleChange(publicUrl);
-            toast({ title: "File uploaded successfully" });
+            toast({ title: "Image uploaded successfully" });
           } catch (error) {
             console.error('File upload error:', error);
             toast({ 
@@ -477,10 +501,11 @@ export function FieldRenderer({
         };
 
         return (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Input
                 type="file"
+                accept="image/*"
                 onChange={handleFileUpload}
                 disabled={isUploading}
                 className={cn(internalError && "border-destructive")}
@@ -488,16 +513,11 @@ export function FieldRenderer({
               {isUploading && <LoadingSpinner size="sm" />}
             </div>
             {currentValue && typeof currentValue === 'string' && (
-              <div className="flex items-center gap-2 text-sm">
-                <a 
-                  href={currentValue} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline truncate"
-                >
-                  View uploaded file
-                </a>
-              </div>
+              <img 
+                src={currentValue} 
+                alt="Uploaded preview"
+                className="max-w-xs max-h-48 rounded-md border border-border object-contain"
+              />
             )}
           </div>
         );
