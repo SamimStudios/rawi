@@ -74,6 +74,9 @@ const instanceAddr = (groupAddr: string, i: number) => `${groupAddr}.i${i}`;
 const DBG = true;
 const nlog = (...a:any[]) => { if (DBG) console.debug('[NodeRenderer]', ...a); };
 
+// Renderer version (visual only, for deployment verification)
+const RENDERER_VERSION = 'NR v2025.10.01-a';
+
 const saveViaRpc = async (jobId: string, writes: Array<{ address: string; value: any }>) => {
   nlog('saveViaRpc:start', { jobId, count: writes.length, sample: writes.slice(0, 3) });
   // TODO: Implement proper RPC call or use edge function
@@ -150,36 +153,113 @@ function validateAgainstRules(value: any, row?: RegistryRuleRow, required = fals
   if (required && EMPTY(value)) return { ok: false, message: 'Required' };
   if (!row || !row.rules) return { ok: true };
   const rules = row.rules || {};
-  if (typeof value === 'string') {
-    if (typeof rules.min_length === 'number' && value.length < rules.min_length) {
-      return { ok: false, message: `Min length ${rules.min_length}` };
+
+  // accept both camelCase (registry) and snake_case (legacy)
+  const pick = <T,>(...keys: string[]): T | undefined =>
+    keys.map(k => (rules as any)[k]).find(v => v !== undefined);
+
+  const minLen = pick<number>('minLength','min_length');
+  const maxLen = pick<number>('maxLength','max_length');
+  const patt   = pick<string>('pattern');
+  const min    = pick<number>('min');
+  const max    = pick<number>('max');
+  const minIt  = pick<number>('minItems','min_items');
+  const maxIt  = pick<number>('maxItems','max_items');
+  const enumv  = pick<any[]>('enum');
+
+  
+    if (typeof value === 'string') {
+      if (typeof minLen === 'number' && value.length < minLen) return { ok: false, message: `Min length ${minLen}` };
+      if (typeof maxLen === 'number' && value.length > maxLen) return { ok: false, message: `Max length ${maxLen}` };
+      if (typeof patt === 'string') {
+        try { const re = new RegExp(patt); if (!re.test(value)) return { ok: false, message: 'Invalid format' }; } catch {}
+      }
     }
-    if (typeof rules.max_length === 'number' && value.length > rules.max_length) {
-      return { ok: false, message: `Max length ${rules.max_length}` };
+    if (typeof value === 'number') {
+      if (typeof min === 'number' && value < min) return { ok: false, message: `Min ${min}` };
+      if (typeof max === 'number' && value > max) return { ok: false, message: `Max ${max}` };
     }
-    if (typeof rules.pattern === 'string') {
-      try {
-        const re = new RegExp(rules.pattern);
-        if (!re.test(value)) return { ok: false, message: 'Invalid format' };
-      } catch {}
+    if (Array.isArray(value)) {
+      if (typeof minIt === 'number' && value.length < minIt) return { ok: false, message: `Min items ${minIt}` };
+      if (typeof maxIt === 'number' && value.length > maxIt) return { ok: false, message: `Max items ${maxIt}` };
     }
-  }
-  if (typeof value === 'number') {
-    if (typeof rules.min === 'number' && value < rules.min) return { ok: false, message: `Min ${rules.min}` };
-    if (typeof rules.max === 'number' && value > rules.max) return { ok: false, message: `Max ${rules.max}` };
-  }
-  if (Array.isArray(value)) {
-    if (typeof rules.min_items === 'number' && value.length < rules.min_items) {
-      return { ok: false, message: `Min items ${rules.min_items}` };
+    if (Array.isArray(enumv) && enumv.length) {
+      if (!enumv.includes(value)) return { ok: false, message: 'Must be one of predefined options' };
     }
-    if (typeof rules.max_items === 'number' && value.length > rules.max_items) {
-      return { ok: false, message: `Max items ${rules.max_items}` };
-    }
-  }
-  if (Array.isArray(rules.enum) && rules.enum.length) {
-    if (!rules.enum.includes(value)) return { ok: false, message: 'Must be one of predefined options' };
-  }
   return { ok: true };
+}
+
+// ---- Address + JSON token helpers (mirror FieldRenderer) ----
+function buildFieldAddress(nodeAddr: string, fieldRef: string, sectionPath?: string, instanceNum?: number) {
+  const segs = (sectionPath || '').split('.').filter(Boolean);
+  let json = 'content.items';
+  if (segs.length === 0) json += `.${fieldRef}.value`;
+  else {
+    json += `.${segs[0]}`;
+    if (typeof instanceNum === 'number') json += `.instances.i${instanceNum}`;
+    for (let i = 1; i < segs.length; i++) json += `.children.${segs[i]}`;
+    json += `.children.${fieldRef}.value`;
+  }
+  return `${nodeAddr}#${json}`;
+}
+function buildContentTokens(fieldRef: string, sectionPath?: string, instanceNum?: number): string[] {
+  const segs = (sectionPath || '').split('.').filter(Boolean);
+  const tokens: string[] = ['items'];
+  if (segs.length === 0) tokens.push(fieldRef, 'value');
+  else {
+    tokens.push(segs[0]);
+    if (typeof instanceNum === 'number') tokens.push('instances', `i${instanceNum}`);
+    for (let i = 1; i < segs.length; i++) tokens.push('children', segs[i]);
+    tokens.push('children', fieldRef, 'value');
+  }
+  return tokens;
+}
+function getByTokensSmart(json: any, tokens: string[]) {
+  let cur: any = json;
+  for (const t of tokens) {
+    if (cur == null) return undefined;
+    if (Array.isArray(cur)) {
+      let idx = cur.findIndex((el) => el && typeof el === 'object' && (el.ref === t || el.path === t || el.id === t));
+      if (idx === -1) {
+        if (/^\d+$/.test(t)) idx = parseInt(t, 10);
+        else if (/^i\d+$/.test(t)) {
+          idx = cur.findIndex((el) => el && typeof el === 'object' && el.id === t);
+          if (idx === -1) idx = parseInt(t.slice(1), 10) - 1;
+        }
+      }
+      if (idx < 0 || idx >= cur.length) return undefined;
+      cur = cur[idx];
+      continue;
+    }
+    if (typeof cur === 'object') { cur = (cur as any)[t]; continue; }
+    return undefined;
+  }
+  return cur;
+}
+function buildInstanceRootTokens(sectionPath: string): string[] {
+  const segs = (sectionPath || '').split('.').filter(Boolean);
+  const tokens: string[] = ['items'];
+  if (segs.length) {
+    tokens.push(segs[0]);
+    for (let i = 1; i < segs.length; i++) tokens.push('children', segs[i]);
+  }
+  tokens.push('instances');
+  return tokens;
+}
+function getInstanceNumbersFromContent(content: any, sectionPath: string, section: any): number[] {
+  const instObj = getByTokensSmart(content, buildInstanceRootTokens(sectionPath));
+  const keys = instObj && typeof instObj === 'object' ? Object.keys(instObj) : [];
+  const nums = keys
+    .map(k => k.match(/^i(\d+)$/)?.[1])
+    .filter(Boolean)
+    .map(Number)
+    .sort((a,b)=>a-b);
+  if (nums.length) return nums;
+  const cfg = section?.collection || {};
+  const count = typeof cfg.default_instances === 'number' && cfg.default_instances > 0
+    ? cfg.default_instances
+    : Math.max(0, cfg.min || 0);
+  return Array.from({ length: count }, (_, i) => i + 1);
 }
 
 
@@ -206,6 +286,7 @@ export default function NodeRenderer({
   const { credits: userCredits } = useUserCredits();
   const { getPrice, loading: pricingLoading } = useFunctionPricing();
   const { entries, clear: clearDrafts } = useDrafts();
+  const { get: getDraft } = useDrafts(); // need draft reads for effective values
   const { reloadNode } = useJobs();
   const { startEditing, stopEditing, isEditing, hasActiveEditor } = useNodeEditor();
 
@@ -318,26 +399,57 @@ const handleSaveEdit = async () => {
 
 
     
-    // ---- NEW: strict validation for Form nodes before saving ----
+    // ---- STRICT VALIDATION for Form nodes (entire form, not only writes) ----
     if (node.node_type === 'form') {
       setValidationState('validating');
-      const formContent = nodeForRender.content as any;
-      const { refs, requiredMap } = collectFieldRefsFromForm((formContent?.items ?? []) as FormItem[]);
-
-      const writeRefs = writes
-        .map(w => ({ w, ref: extractFieldRefFromAddress(w.address, refs) }))
-        .filter(x => !!x.ref) as Array<{ w: { address: string; value: any }, ref: string }>;
-
-      const uniqueRefs = Array.from(new Set(writeRefs.map(x => x.ref)));
-      const ruleMap = await fetchRegistryRules(uniqueRefs);
-
-      const errors: Array<{ ref: string; address: string; message: string }> = [];
-      for (const { w, ref } of writeRefs) {
-        const rulesRow = ruleMap.get(ref);
-        const required = !!requiredMap.get(ref);
-        const { ok, message } = validateAgainstRules(w.value, rulesRow, required);
-        if (!ok) errors.push({ ref, address: w.address, message: message || 'Invalid value' });
-      }
+            const formContent = nodeForRender.content as FormContent;
+            const errors: Array<{ ref: string; address: string; message: string }> = [];
+      
+            // collect refs + required flags
+            const { refs, requiredMap } = collectFieldRefsFromForm((formContent?.items ?? []) as FormItem[]);
+            const ruleMap = await fetchRegistryRules(Array.from(refs));
+      
+            // recursive walk to validate ALL fields (including untouched & collection instances)
+            const walkSection = (section: SectionItem, parentPath?: string, inheritedInstance?: number) => {
+              const sectionPath = parentPath ? `${parentPath}.${section.path}` : section.path;
+              const isCollection = !!(section as any).collection;
+              const instList = isCollection ? getInstanceNumbersFromContent(nodeForRender.content, sectionPath, section) : [undefined];
+      
+              for (const inst of instList) {
+                section.children?.forEach((child) => {
+                  if (ContentValidation.isFieldItem(child)) {
+                    const field = child as FieldItem;
+                    const addr = buildFieldAddress(node.addr, field.ref, sectionPath, inst);
+                    const tokens = buildContentTokens(field.ref, sectionPath, inst);
+                    const dbVal = getByTokensSmart(nodeForRender.content ?? {}, tokens);
+                    const draftVal = getDraft(addr);
+                    const value = draftVal !== undefined ? draftVal : (dbVal === undefined ? null : dbVal);
+                    const rulesRow = ruleMap.get(field.ref);
+                    const { ok, message } = validateAgainstRules(value, rulesRow, !!field.required);
+                    if (!ok) errors.push({ ref: field.ref, address: addr, message: message || 'Invalid value' });
+                  } else {
+                    walkSection(child as SectionItem, sectionPath, inst);
+                  }
+                });
+              }
+            };
+      
+            // validate root-level fields and sections
+            (formContent.items || []).forEach((item: FormItem) => {
+              if (ContentValidation.isFieldItem(item)) {
+                const f = item as FieldItem;
+                const addr = buildFieldAddress(node.addr, f.ref, undefined, undefined);
+                const tokens = buildContentTokens(f.ref, undefined, undefined);
+                const dbVal = getByTokensSmart(nodeForRender.content ?? {}, tokens);
+                const draftVal = getDraft(addr);
+                const value = draftVal !== undefined ? draftVal : (dbVal === undefined ? null : dbVal);
+                const rulesRow = ruleMap.get(f.ref);
+                const { ok, message } = validateAgainstRules(value, rulesRow, !!f.required);
+                if (!ok) errors.push({ ref: f.ref, address: addr, message: message || 'Invalid value' });
+              } else {
+                walkSection(item as SectionItem, undefined, undefined);
+              }
+            });
 
       if (errors.length) {
         setValidationState('invalid');
@@ -864,6 +976,7 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
           </div>
 
           <div className="flex items-center gap-2">
+            <span className="text-[10px] text-muted-foreground select-none">{RENDERER_VERSION}</span>
             {effectiveMode === 'edit' ? (
               <>
                 <Button size="sm" onClick={handleSaveEdit} disabled={loading}>
