@@ -519,6 +519,13 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
       const fetchChildren = async () => {
         setLoading(true);
         try {
+          console.log('[GroupRenderer] Fetching children for:', {
+            addr: groupNode.addr,
+            isCollection,
+            jobId
+          });
+
+          // Query ALL nodes for this job, then filter by parent_addr
           const { data, error } = await supabase
             .schema('app' as any)
             .from('nodes')
@@ -526,24 +533,38 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
             .eq('job_id', jobId)
             .order('idx', { ascending: true });
 
-          if (error) throw error;
+          if (error) {
+            console.error('[GroupRenderer] Query error:', error);
+            throw error;
+          }
+
+          console.log('[GroupRenderer] Fetched nodes:', data?.length || 0);
 
           if (isCollection) {
+            // Collection group: children have parent_addr like <groupAddr>.iN or <groupAddr>.iN.something
             const instances: Record<number, JobNode[]> = {};
             (data || []).forEach(child => {
-              if (child.parent_addr === groupNode.addr) {
-                // regular child under collection (shouldn't happen often)
-                return;
-              }
               const instNum = parseInstanceFromParent(child.parent_addr, groupNode.addr);
               if (instNum !== null) {
                 if (!instances[instNum]) instances[instNum] = [];
                 instances[instNum].push(child as JobNode);
+                console.log('[GroupRenderer] Collection child:', {
+                  addr: child.addr,
+                  parent_addr: child.parent_addr,
+                  instance: instNum
+                });
               }
             });
+            console.log('[GroupRenderer] Collection instances:', Object.keys(instances).length, instances);
             setByInstance(instances);
           } else {
+            // Regular group: children have parent_addr === groupNode.addr exactly
             const children = (data || []).filter(c => c.parent_addr === groupNode.addr) as JobNode[];
+            console.log('[GroupRenderer] Regular children:', children.length, children.map(c => ({
+              addr: c.addr,
+              parent_addr: c.parent_addr,
+              type: c.node_type
+            })));
             setRegularChildren(children);
           }
         } catch (error) {

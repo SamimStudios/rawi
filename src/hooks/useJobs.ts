@@ -26,6 +26,7 @@ export interface JobNode {
   node_type: 'form' | 'group' | 'media' | string;
   path: string;
   addr?: string;
+  parent_addr?: string | null;
   content: any;
   dependencies?: string[] | null;
   arrangeable?: boolean | null;
