@@ -63,9 +63,10 @@ export default function JobEditor() {
   }, [updateJobNode, checkReadiness]);
 
   const groupNodesByPath = (nodes: JobNode[]) => {
-    // Only show TOP-LEVEL nodes (no parent or parent is 'root')
+    // Only show TOP-LEVEL nodes: addr starts with "root." and parent_addr is null
     const topLevelNodes = nodes.filter(node => 
-      !node.parent_addr || node.parent_addr === 'root' || node.parent_addr === ''
+      (!node.parent_addr || node.parent_addr === '' || node.parent_addr === null) &&
+      node.addr?.startsWith('root.')
     );
     
     const grouped: Record<string, JobNode[]> = {};
