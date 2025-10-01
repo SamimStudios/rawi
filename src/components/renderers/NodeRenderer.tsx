@@ -124,8 +124,16 @@ export default function NodeRenderer({
   const { getPrice, loading: pricingLoading } = useFunctionPricing();
   const { entries, clear: clearDrafts } = useDrafts();
   const { reloadNode } = useJobs();
-  const { startEditing, stopEditing, isEditing, hasActiveEditor } = useNodeEditor();
-
+  const { startEditing, stopEditing, isEditing, hasActiveEditor, editingAddr } = useNodeEditor();
+  
+  const [ancestorLocked, setAncestorLocked] = useState(false);
+  useEffect(() => {
+    if (!editingAddr) { setAncestorLocked(false); return; }
+    const locked =
+      editingAddr === node.addr || editingAddr.startsWith(`${node.addr}.`);
+    if (locked) setIsCollapsed(false); // auto-expand
+    setAncestorLocked(locked);
+  }, [editingAddr, node.addr]);
   const [internalMode, setInternalMode] = useState<'idle' | 'edit'>('idle');
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -701,13 +709,12 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            const isDescendantEditing = false; // TODO: implement with your editor state (see note below)
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => !isDescendantEditing && setIsCollapsed(!isCollapsed)}
+                onClick={() => !ancestorLocked && setIsCollapsed(!isCollapsed)}
                 className="p-1 h-6 w-6"
-                disabled={isDescendantEditing}
+                disabled={ancestorLocked}
               >
               {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </Button>
@@ -722,7 +729,7 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
           </div>
 
           <div className="flex items-center gap-2">
-            {effectiveMode === 'edit' ? (
+            {node.node_type === 'form' && (effectiveMode === 'edit' ? (
               <>
                 <Button size="sm" onClick={handleSaveEdit} disabled={loading}>
                   <Save className="h-3 w-3 mr-1" /> Save
@@ -731,7 +738,7 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
                   <X className="h-3 w-3 mr-1" /> Cancel
                 </Button>
               </>
-            ) : (
+            ) : node.node_type === 'form' ? (
               <>
                 <Button
                   variant="ghost"
@@ -747,13 +754,15 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
                 >
                   <Edit2 className="h-3 w-3 mr-1" /> Edit
                 </Button>
-                {hasGenerateAction && (
-                  <CreditsButton onClick={handleGenerate} price={generateCost} available={userCredits} loading={loading} size="sm">
-                    Generate
-                  </CreditsButton>
-                )}
+                {/* keep Generate button separate below */}
               </>
-            )}
+             ) : null}
+             {/* Generate/Regenerate can remain available for any node type */}
+             {hasGenerateAction && (
+               <CreditsButton onClick={handleGenerate} price={generateCost} available={userCredits} loading={loading} size="sm">
+                 Generate
+               </CreditsButton>
+             )}
           </div>
         </div>
         {description && <p className="text-sm text-muted-foreground mt-2">{description}</p>}
