@@ -8,6 +8,8 @@
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { useFieldRegistry } from '@/hooks/useFieldRegistry';
 import { useDrafts } from '@/contexts/DraftsContext';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import type { JobNode } from '@/hooks/useJobs';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -19,8 +21,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, Plus, X } from 'lucide-react';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { AlertCircle, Plus, X, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from '@/hooks/use-toast';
 
 const DBG = true;
 const dlog = (...a: any[]) => { if (DBG) console.debug('[RENDER:Field]', ...a); };
@@ -169,6 +173,9 @@ export function FieldRenderer({
 
   const [internalError, setInternalError] = useState<string | null>(null);
   const [charCount, setCharCount] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  
+  const { user } = useAuth();
 
   const fieldDefinition = getField(fieldRef);
   const draftValue = getDraft(address || '');
@@ -435,15 +442,64 @@ export function FieldRenderer({
         return <Input type="datetime-local" value={currentValue || ''} onChange={(e) => handleChange(e.target.value)} className={cn(internalError && "border-destructive")} />;
 
       case 'file':
+        const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+          const file = e.target.files?.[0];
+          if (!file || !user) return;
+
+          setIsUploading(true);
+          try {
+            const timestamp = Date.now();
+            const fileName = `${timestamp}_${file.name}`;
+            const filePath = `users/${user.id}/jobs/${node.job_id}/${fileName}`;
+
+            const { error: uploadError } = await supabase.storage
+              .from('media')
+              .upload(filePath, file);
+
+            if (uploadError) throw uploadError;
+
+            const { data: { publicUrl } } = supabase.storage
+              .from('media')
+              .getPublicUrl(filePath);
+
+            handleChange(publicUrl);
+            toast({ title: "File uploaded successfully" });
+          } catch (error) {
+            console.error('File upload error:', error);
+            toast({ 
+              title: "Upload failed", 
+              description: error instanceof Error ? error.message : "Unknown error",
+              variant: "destructive" 
+            });
+          } finally {
+            setIsUploading(false);
+          }
+        };
+
         return (
-          <Input
-            type="file"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleChange({ name: file.name, size: file.size, type: file.type });
-            }}
-            className={cn(internalError && "border-destructive")}
-          />
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Input
+                type="file"
+                onChange={handleFileUpload}
+                disabled={isUploading}
+                className={cn(internalError && "border-destructive")}
+              />
+              {isUploading && <LoadingSpinner size="sm" />}
+            </div>
+            {currentValue && typeof currentValue === 'string' && (
+              <div className="flex items-center gap-2 text-sm">
+                <a 
+                  href={currentValue} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline truncate"
+                >
+                  View uploaded file
+                </a>
+              </div>
+            )}
+          </div>
         );
 
       default:
