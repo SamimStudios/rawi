@@ -5,7 +5,7 @@
  * - dbValue is read directly from node.content so idle + edit show the saved value.
  * - Drafts override dbValue until you save.
  */
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { useFieldRegistry } from '@/hooks/useFieldRegistry';
 import { useDrafts } from '@/contexts/DraftsContext';
 import type { JobNode } from '@/hooks/useJobs';
@@ -36,7 +36,13 @@ interface FieldRendererProps {
   mode?: Mode;
   required?: boolean;
   editable?: boolean;
-  refreshSeq?: number;   // <-- new
+  refreshSeq?: number;   // existing
+  /** report validity on change or when parent asks */
+  onValidityChange?: (info: { address: string; valid: boolean }) => void;
+  /** parent registers a callable validator (returns true/false) */
+  registerValidator?: (address: string, validate: () => boolean) => void;
+  /** when this number changes, re-run validation & report */
+  validateSeq?: number;
 
 }
 
@@ -206,8 +212,26 @@ export function FieldRenderer({
 
   const handleChange = useCallback((val: any) => {
     setValue(val);
-    validateValue(val);
-  }, [setValue, validateValue]);
+    const ok = validateValue(val);
+    onValidityChange?.({ address, valid: ok });
+  }, [setValue, validateValue, onValidityChange, address]);
+
+  // Expose a callable validator to parent (validates current effective value)
+  const validateNow = useCallback(() => {
+    const ok = validateValue(effectiveValue);
+    onValidityChange?.({ address, valid: ok });
+    return ok;
+  }, [effectiveValue, validateValue, onValidityChange, address]);
+
+  useEffect(() => {
+    registerValidator?.(address, validateNow);
+  }, [registerValidator, address, validateNow]);
+
+  // When parent bumps validateSeq, re-run validation (so untouched fields show errors)
+  useEffect(() => {
+    if (validateSeq === undefined) return;
+    validateNow();
+  }, [validateSeq, validateNow]);
 
   // ---- STATUS/ERRORS
   if (registryLoading) {
