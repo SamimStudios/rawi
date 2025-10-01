@@ -515,6 +515,62 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
 
     const isCollection = !!content.collection;
 
+    // Helper: Get parent path from addr (e.g., "root.a.b" -> "root.a")
+    const getParentPath = (addr: string): string | null => {
+      if (!addr || addr === 'root') return null;
+      const parts = addr.split('.');
+      if (parts.length <= 1) return null;
+      return parts.slice(0, -1).join('.');
+    };
+
+    // Helper: Check if childAddr is a DIRECT child of parentAddr
+    const isDirectChildOf = (childAddr: string, parentAddr: string): boolean => {
+      if (!childAddr || !parentAddr) return false;
+      // Must start with parent
+      if (!childAddr.startsWith(parentAddr + '.')) return false;
+      // Get the suffix after parent
+      const suffix = childAddr.slice(parentAddr.length + 1);
+      // Direct child = suffix has no more dots (except for instance markers)
+      // Examples of direct children: "a.b" is direct child of "a", "a.i1" is direct child of "a"
+      // Not direct: "a.b.c" is NOT direct child of "a"
+      const dotCount = (suffix.match(/\./g) || []).length;
+      return dotCount === 0;
+    };
+
+    // Helper: Parse instance number from addr or parent_addr
+    // Supports both ".iN" and ".instances.iN" patterns
+    const parseInstanceFromAny = (addr: string, parent_addr: string | null, groupAddr: string): number | null => {
+      // Try parent_addr first
+      if (parent_addr) {
+        const m = parent_addr.match(new RegExp(`^${groupAddr.replace(/\./g, '\\.')}\\.(i\\d+|instances\\.i\\d+)`));
+        if (m) {
+          const token = m[1]; // "i3" or "instances.i3"
+          const num = token.match(/i(\d+)/);
+          if (num) return parseInt(num[1], 10);
+        }
+      }
+      // Try addr
+      if (addr) {
+        const m = addr.match(new RegExp(`^${groupAddr.replace(/\./g, '\\.')}\\.(i\\d+|instances\\.i\\d+)`));
+        if (m) {
+          const token = m[1];
+          const num = token.match(/i(\d+)/);
+          if (num) return parseInt(num[1], 10);
+        }
+      }
+      return null;
+    };
+
+    // Helper: Sort nodes by idx, then addr
+    const sortNodes = (nodes: JobNode[]): JobNode[] => {
+      return nodes.sort((a, b) => {
+        if (a.idx !== undefined && b.idx !== undefined && a.idx !== b.idx) {
+          return a.idx - b.idx;
+        }
+        return (a.addr || '').localeCompare(b.addr || '');
+      });
+    };
+
     useEffect(() => {
       const fetchChildren = async () => {
         setLoading(true);
@@ -525,47 +581,75 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
             jobId
           });
 
-          // Query ALL nodes for this job, then filter by parent_addr
+          // Query ALL nodes for this job
           const { data, error } = await supabase
             .schema('app' as any)
             .from('nodes')
             .select('*')
-            .eq('job_id', jobId)
-            .order('idx', { ascending: true });
+            .eq('job_id', jobId);
 
           if (error) {
             console.error('[GroupRenderer] Query error:', error);
             throw error;
           }
 
-          console.log('[GroupRenderer] Fetched nodes:', data?.length || 0);
+          console.log('[GroupRenderer] Fetched all nodes:', data?.length || 0);
 
           if (isCollection) {
-            // Collection group: children have parent_addr like <groupAddr>.iN or <groupAddr>.iN.something
+            // Collection group: group by instance, only direct children
             const instances: Record<number, JobNode[]> = {};
             (data || []).forEach(child => {
-              const instNum = parseInstanceFromParent(child.parent_addr, groupNode.addr);
+              const instNum = parseInstanceFromAny(child.addr, child.parent_addr, groupNode.addr);
               if (instNum !== null) {
-                if (!instances[instNum]) instances[instNum] = [];
-                instances[instNum].push(child as JobNode);
-                console.log('[GroupRenderer] Collection child:', {
-                  addr: child.addr,
-                  parent_addr: child.parent_addr,
-                  instance: instNum
-                });
+                // Check if direct child of the instance anchor (e.g., "root.group.i1" or "root.group.instances.i1")
+                const instanceAnchors = [
+                  `${groupNode.addr}.i${instNum}`,
+                  `${groupNode.addr}.instances.i${instNum}`
+                ];
+                const inferredParent = child.parent_addr || getParentPath(child.addr);
+                const isDirect = instanceAnchors.some(anchor => 
+                  inferredParent === anchor || isDirectChildOf(child.addr, anchor)
+                );
+                
+                if (isDirect) {
+                  if (!instances[instNum]) instances[instNum] = [];
+                  instances[instNum].push(child as JobNode);
+                  console.log('[GroupRenderer] Collection child:', {
+                    addr: child.addr,
+                    parent_addr: child.parent_addr,
+                    inferred: inferredParent,
+                    instance: instNum
+                  });
+                }
               }
             });
+            
+            // Sort children in each instance
+            Object.keys(instances).forEach(key => {
+              instances[Number(key)] = sortNodes(instances[Number(key)]);
+            });
+            
             console.log('[GroupRenderer] Collection instances:', Object.keys(instances).length, instances);
             setByInstance(instances);
           } else {
-            // Regular group: children have parent_addr === groupNode.addr exactly
-            const children = (data || []).filter(c => c.parent_addr === groupNode.addr) as JobNode[];
-            console.log('[GroupRenderer] Regular children:', children.length, children.map(c => ({
-              addr: c.addr,
-              parent_addr: c.parent_addr,
-              type: c.node_type
-            })));
-            setRegularChildren(children);
+            // Regular group: direct children only
+            const children: JobNode[] = [];
+            (data || []).forEach(child => {
+              const inferredParent = child.parent_addr || getParentPath(child.addr);
+              const isDirect = inferredParent === groupNode.addr || isDirectChildOf(child.addr, groupNode.addr);
+              
+              if (isDirect) {
+                children.push(child as JobNode);
+                console.log('[GroupRenderer] Regular child:', {
+                  addr: child.addr,
+                  parent_addr: child.parent_addr,
+                  inferred: inferredParent
+                });
+              }
+            });
+            
+            console.log('[GroupRenderer] Regular children:', children.length);
+            setRegularChildren(sortNodes(children));
           }
         } catch (error) {
           console.error('[GroupRenderer] fetch children failed', error);
