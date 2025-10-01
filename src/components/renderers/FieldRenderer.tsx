@@ -137,9 +137,11 @@ export function FieldRenderer({
   onChange,
   mode = 'idle',
   required = false,
-    refreshSeq = 0,    // <-- new
-
-  editable = true
+  refreshSeq = 0,
+  editable = true,
+  onValidityChange,
+  registerValidator,
+  validateSeq
 }: FieldRendererProps) {
   dlog('render', { node: node.addr, fieldRef, sectionPath, instanceNum, mode, editable, required });
 
