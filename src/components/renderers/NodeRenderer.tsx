@@ -6,7 +6,7 @@
  * - Node-level Edit/Save only
  */
 
-import React, { useState, useEffect, Fragment, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, Fragment, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -139,19 +139,11 @@ export default function NodeRenderer({
   const [validationState, setValidationState] = useState<'unknown' | 'valid' | 'invalid' | 'validating'>('unknown');
   const [loading, setLoading] = useState(false);
   const [refreshSeq, setRefreshSeq] = useState(0);
-  const [validateSeq, setValidateSeq] = useState(0); // <- trigger child validations
-  const validatorsRef = useRef(new Map<string, () => boolean>()); // addr -> validate()
   const [contentSnapshot, setContentSnapshot] = useState<any>(node.content); // NEW
   const waitingRealtimeRef = useRef(false);                   // NEW
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null); // NEW
 
-  // Field-level validation plumbing
-  const registerValidator = useCallback((address: string, validate: () => boolean) => {
-    validatorsRef.current.set(address, validate);
-  }, []);
-  const onFieldValidityChange = useCallback((_info: { address: string; valid: boolean }) => {
-    // noop for now; could aggregate or surface a per-field map if desired
-  }, []);
+
 
   const effectiveMode = externalMode || internalMode;
   const setEffectiveMode = onModeChange || setInternalMode;
@@ -241,31 +233,6 @@ const handleSaveEdit = async () => {
   if (!node.addr) return;
   setLoading(true);
   try {
-
-    // 1) Respect field rules: ask every FieldRenderer to validate current values.
-    if (node.node_type === 'form') {
-      // bump validateSeq so children re-run and paint errors immediately
-      setValidateSeq((s) => s + 1);
-      let allValid = true;
-      for (const validate of validatorsRef.current.values()) {
-        try {
-          if (!validate()) allValid = false;
-        } catch {
-          allValid = false;
-        }
-      }
-      if (!allValid) {
-        setValidationState('invalid');
-        toast({
-          title: 'Fix validation errors',
-          description: 'Some fields violate their rules. Please correct them and try again.',
-          variant: 'destructive',
-        });
-        setLoading(false);
-        return;
-      }
-    }
-    
     const nodePrefix = `${node.addr}#`;
 
     // gather & normalize drafts
@@ -368,10 +335,6 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
     editable={field.editable !== false}
     onChange={() => setHasUnsavedChanges(true)}
     refreshSeq={refreshSeq}   // <-- new
-    // NEW: rule validation hooks
-    registerValidator={registerValidator}
-    onValidityChange={onFieldValidityChange}
-    validateSeq={validateSeq}
   />
 );
 
@@ -644,34 +607,43 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
           console.log('[GroupRenderer] Fetched all nodes:', data?.length || 0);
 
           if (isCollection) {
-            // Collection group: group by instance, only direct children
-              const instances: Record<number, JobNode[]> = {};
-              (data || []).forEach((child) => {
-                if (!child.parent_addr) return;
-                // Only parent_addr that matches {group}.iN (no 'instances' segment)
-                const m = child.parent_addr.match(new RegExp(`^${groupNode.addr.replace(/\./g, '\\.')}\\.i(\\d+)$`));
-                if (!m) return;
-                const n = Number(m[1]);
-                (instances[n] ||= []).push(child as JobNode);
-              });
-                        
-            // Sort children in each instance
-            Object.keys(instances).forEach(key => {
-              instances[Number(key)] = sortNodes(instances[Number(key)]);
-            });
-            
-            console.log('[GroupRenderer] Collection instances:', Object.keys(instances).length, instances);
-            setByInstance(instances);
-          } else {
-            // Regular group: direct children only
-              const children = (data || []).filter(
-                (child) => child.parent_addr === groupNode.addr
-              ) as JobNode[];
-              children.sort((a,b)=>a.idx-b.idx);
-            
-            console.log('[GroupRenderer] Regular children:', children.length);
-            setRegularChildren(sortNodes(children));
-          }
+          // ✅ From (28): supports ".iN" and ".instances.iN", and falls back to addr when parent_addr is missing
+          const instances: Record<number, JobNode[]> = {};
+          (data || []).forEach(child => {
+            const instNum = parseInstanceFromAny(child.addr, child.parent_addr, groupNode.addr);
+            if (instNum !== null) {
+              // accept both anchors
+              const instanceAnchors = [
+                `${groupNode.addr}.i${instNum}`,
+                `${groupNode.addr}.instances.i${instNum}`
+              ];
+              const inferredParent = child.parent_addr || getParentPath(child.addr);
+              const isDirect = instanceAnchors.some(anchor =>
+                inferredParent === anchor || isDirectChildOf(child.addr, anchor)
+              );
+              if (isDirect) {
+                (instances[instNum] ||= []).push(child as JobNode);
+              }
+            }
+          });
+        
+          // keep order consistent
+          Object.keys(instances).forEach(key => {
+            instances[Number(key)] = sortNodes(instances[Number(key)]);
+          });
+        
+          setByInstance(instances);
+        } else {
+          // ✅ From (28): allow either strict parent_addr or addr-based inference for direct children
+          const children: JobNode[] = [];
+          (data || []).forEach(child => {
+            const inferredParent = child.parent_addr || getParentPath(child.addr);
+            const isDirect = inferredParent === groupNode.addr || isDirectChildOf(child.addr, groupNode.addr);
+            if (isDirect) children.push(child as JobNode);
+          });
+          setRegularChildren(sortNodes(children));
+        }
+
         } catch (error) {
           console.error('[GroupRenderer] fetch children failed', error);
         } finally {
