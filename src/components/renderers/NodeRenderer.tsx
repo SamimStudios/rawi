@@ -74,16 +74,25 @@ const instanceAddr = (groupAddr: string, i: number) => `${groupAddr}.i${i}`;
 const DBG = true;
 const nlog = (...a:any[]) => { if (DBG) console.debug('[NodeRenderer]', ...a); };
 
-const saveViaRpc = async (jobId: string, writes: Array<{ address: string; value: any }>) => {
+// Renderer version (visual only, for deployment verification)
+const RENDERER_VERSION = 'NR v2025.10.01-f';
+
+const saveViaRpc = async (
+  jobId: string,
+  writes: Array<{ address: string; value: any }>
+) => {
   nlog('saveViaRpc:start', { jobId, count: writes.length, sample: writes.slice(0, 3) });
-  const { data, error } = await supabase.rpc('addr_write_many', {
-    p_job_id: jobId,
-    p_writes: writes as any,
-  });
+
+    const { data, error } = await supabase.rpc('addr_write_many', {
+      p_job_id: jobId,
+      p_writes: writes as any,
+    });
+
   if (error) throw error;
   nlog('saveViaRpc:ok', data);
   return data;
 };
+
 
 
 // normalize writes: ensure `value` is JSON-serializable and never `undefined`
@@ -97,7 +106,170 @@ function toWritesArray(entries: Array<{ address: string; value: any }>, nodeAddr
     }));
 }
 
+// ---- Form validation helpers (lightweight, non-invasive) ----
+type RegistryRuleRow = { ref: string; datatype?: string | null; rules?: any | null };
 
+const EMPTY = (v: any) =>
+  v === null ||
+  v === undefined ||
+  (typeof v === 'string' && v.trim() === '') ||
+  (Array.isArray(v) && v.length === 0);
+
+function collectFieldRefsFromForm(items: FormItem[], acc = new Set<string>(), req = new Map<string, boolean>()) {
+  for (const it of items) {
+    if (ContentValidation.isFieldItem(it)) {
+      const f = it as FieldItem;
+      acc.add(f.ref);
+      if (f.required) req.set(f.ref, true);
+    } else {
+      const s = it as SectionItem;
+      if (Array.isArray((s as any).children) && (s as any).children.length) {
+        collectFieldRefsFromForm((s as any).children, acc, req);
+      }
+    }
+  }
+  return { refs: acc, requiredMap: req };
+}
+
+function extractFieldRefFromAddress(address: string, knownRefs: Set<string>): string | null {
+  const hashIdx = address.indexOf('#');
+  const path = hashIdx >= 0 ? address.slice(hashIdx + 1) : address;
+  const tokens = path.split('.').filter(Boolean);
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    const t = tokens[i];
+    if (knownRefs.has(t)) return t;
+  }
+  return null;
+}
+
+async function fetchRegistryRules(refs: string[]): Promise<Map<string, RegistryRuleRow>> {
+  if (!refs.length) return new Map();
+  const { data, error } = await supabase
+    .schema('app' as any)
+    .from('field_registry')
+    .select('ref, datatype, rules')
+    .in('ref', refs);
+  if (error) {
+    console.warn('[NodeRenderer] fetchRegistryRules error', error);
+    return new Map();
+  }
+  const map = new Map<string, RegistryRuleRow>();
+  for (const row of (data as any[])) map.set(row.ref, row as RegistryRuleRow);
+  return map;
+}
+
+function validateAgainstRules(value: any, row?: RegistryRuleRow, required = false): { ok: boolean; message?: string } {
+  if (required && EMPTY(value)) return { ok: false, message: 'Required' };
+  if (!row || !row.rules) return { ok: true };
+  const rules = row.rules || {};
+
+  // accept both camelCase (registry) and snake_case (legacy)
+  const pick = <T,>(...keys: string[]): T | undefined =>
+    keys.map(k => (rules as any)[k]).find(v => v !== undefined);
+
+  const minLen = pick<number>('minLength','min_length');
+  const maxLen = pick<number>('maxLength','max_length');
+  const patt   = pick<string>('pattern');
+  const min    = pick<number>('min');
+  const max    = pick<number>('max');
+  const minIt  = pick<number>('minItems','min_items');
+  const maxIt  = pick<number>('maxItems','max_items');
+  const enumv  = pick<any[]>('enum');
+
+  
+    if (typeof value === 'string') {
+      if (typeof minLen === 'number' && value.length < minLen) return { ok: false, message: `Min length ${minLen}` };
+      if (typeof maxLen === 'number' && value.length > maxLen) return { ok: false, message: `Max length ${maxLen}` };
+      if (typeof patt === 'string') {
+        try { const re = new RegExp(patt); if (!re.test(value)) return { ok: false, message: 'Invalid format' }; } catch {}
+      }
+    }
+    if (typeof value === 'number') {
+      if (typeof min === 'number' && value < min) return { ok: false, message: `Min ${min}` };
+      if (typeof max === 'number' && value > max) return { ok: false, message: `Max ${max}` };
+    }
+    if (Array.isArray(value)) {
+      if (typeof minIt === 'number' && value.length < minIt) return { ok: false, message: `Min items ${minIt}` };
+      if (typeof maxIt === 'number' && value.length > maxIt) return { ok: false, message: `Max items ${maxIt}` };
+    }
+    if (Array.isArray(enumv) && enumv.length) {
+      if (!enumv.includes(value)) return { ok: false, message: 'Must be one of predefined options' };
+    }
+  return { ok: true };
+}
+
+// ---- Address + JSON token helpers (mirror FieldRenderer) ----
+function buildFieldAddress(nodeAddr: string, fieldRef: string, sectionPath?: string, instanceNum?: number) {
+  const segs = (sectionPath || '').split('.').filter(Boolean);
+  let json = 'content.items';
+  if (segs.length === 0) json += `.${fieldRef}.value`;
+  else {
+    json += `.${segs[0]}`;
+    if (typeof instanceNum === 'number') json += `.instances.i${instanceNum}`;
+    for (let i = 1; i < segs.length; i++) json += `.children.${segs[i]}`;
+    json += `.children.${fieldRef}.value`;
+  }
+  return `${nodeAddr}#${json}`;
+}
+function buildContentTokens(fieldRef: string, sectionPath?: string, instanceNum?: number): string[] {
+  const segs = (sectionPath || '').split('.').filter(Boolean);
+  const tokens: string[] = ['items'];
+  if (segs.length === 0) tokens.push(fieldRef, 'value');
+  else {
+    tokens.push(segs[0]);
+    if (typeof instanceNum === 'number') tokens.push('instances', `i${instanceNum}`);
+    for (let i = 1; i < segs.length; i++) tokens.push('children', segs[i]);
+    tokens.push('children', fieldRef, 'value');
+  }
+  return tokens;
+}
+function getByTokensSmart(json: any, tokens: string[]) {
+  let cur: any = json;
+  for (const t of tokens) {
+    if (cur == null) return undefined;
+    if (Array.isArray(cur)) {
+      let idx = cur.findIndex((el) => el && typeof el === 'object' && (el.ref === t || el.path === t || el.id === t));
+      if (idx === -1) {
+        if (/^\d+$/.test(t)) idx = parseInt(t, 10);
+        else if (/^i\d+$/.test(t)) {
+          idx = cur.findIndex((el) => el && typeof el === 'object' && el.id === t);
+          if (idx === -1) idx = parseInt(t.slice(1), 10) - 1;
+        }
+      }
+      if (idx < 0 || idx >= cur.length) return undefined;
+      cur = cur[idx];
+      continue;
+    }
+    if (typeof cur === 'object') { cur = (cur as any)[t]; continue; }
+    return undefined;
+  }
+  return cur;
+}
+function buildInstanceRootTokens(sectionPath: string): string[] {
+  const segs = (sectionPath || '').split('.').filter(Boolean);
+  const tokens: string[] = ['items'];
+  if (segs.length) {
+    tokens.push(segs[0]);
+    for (let i = 1; i < segs.length; i++) tokens.push('children', segs[i]);
+  }
+  tokens.push('instances');
+  return tokens;
+}
+function getInstanceNumbersFromContent(content: any, sectionPath: string, section: any): number[] {
+  const instObj = getByTokensSmart(content, buildInstanceRootTokens(sectionPath));
+  const keys = instObj && typeof instObj === 'object' ? Object.keys(instObj) : [];
+  const nums = keys
+    .map(k => k.match(/^i(\d+)$/)?.[1])
+    .filter(Boolean)
+    .map(Number)
+    .sort((a,b)=>a-b);
+  if (nums.length) return nums;
+  const cfg = section?.collection || {};
+  const count = typeof cfg.default_instances === 'number' && cfg.default_instances > 0
+    ? cfg.default_instances
+    : Math.max(0, cfg.min || 0);
+  return Array.from({ length: count }, (_, i) => i + 1);
+}
 
 
 interface NodeRendererProps {
@@ -123,16 +295,10 @@ export default function NodeRenderer({
   const { credits: userCredits } = useUserCredits();
   const { getPrice, loading: pricingLoading } = useFunctionPricing();
   const { entries, clear: clearDrafts } = useDrafts();
+  const { get: getDraft } = useDrafts(); // need draft reads for effective values
   const { reloadNode } = useJobs();
-  const { startEditing, stopEditing, isEditing, hasActiveEditor, editingNodeId } = useNodeEditor();
-  
-  const [ancestorLocked, setAncestorLocked] = useState(false);
-  useEffect(() => {
-    if (!editingNodeId) { setAncestorLocked(false); return; }
-    const locked = editingNodeId === node.id;
-    if (locked) setIsCollapsed(false); // auto-expand
-    setAncestorLocked(locked);
-  }, [editingNodeId, node.id]);
+  const { startEditing, stopEditing, isEditing, hasActiveEditor } = useNodeEditor();
+
   const [internalMode, setInternalMode] = useState<'idle' | 'edit'>('idle');
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -239,6 +405,77 @@ const handleSaveEdit = async () => {
     const rawDrafts = entries(nodePrefix); // [{ address, value }]
     const writes = toWritesArray(rawDrafts, node.addr);
     nlog('save:writes', { count: writes.length, sample: writes.slice(0, 3) });
+
+
+    
+    // ---- STRICT VALIDATION for Form nodes (entire form, not only writes) ----
+    if (node.node_type === 'form') {
+      setValidationState('validating');
+            const formContent = nodeForRender.content as FormContent;
+            const errors: Array<{ ref: string; address: string; message: string }> = [];
+      
+            // collect refs + required flags
+            const { refs, requiredMap } = collectFieldRefsFromForm((formContent?.items ?? []) as FormItem[]);
+            const ruleMap = await fetchRegistryRules(Array.from(refs));
+      
+            // recursive walk to validate ALL fields (including untouched & collection instances)
+            const walkSection = (section: SectionItem, parentPath?: string, inheritedInstance?: number) => {
+              const sectionPath = parentPath ? `${parentPath}.${section.path}` : section.path;
+              const isCollection = !!(section as any).collection;
+              const instList = isCollection ? getInstanceNumbersFromContent(nodeForRender.content, sectionPath, section) : [undefined];
+      
+              for (const inst of instList) {
+                section.children?.forEach((child) => {
+                  if (ContentValidation.isFieldItem(child)) {
+                    const field = child as FieldItem;
+                    const addr = buildFieldAddress(node.addr, field.ref, sectionPath, inst);
+                    const tokens = buildContentTokens(field.ref, sectionPath, inst);
+                    const dbVal = getByTokensSmart(nodeForRender.content ?? {}, tokens);
+                    const draftVal = getDraft(addr);
+                    const value = draftVal !== undefined ? draftVal : (dbVal === undefined ? null : dbVal);
+                    const rulesRow = ruleMap.get(field.ref);
+                    const { ok, message } = validateAgainstRules(value, rulesRow, !!field.required);
+                    if (!ok) errors.push({ ref: field.ref, address: addr, message: message || 'Invalid value' });
+                  } else {
+                    walkSection(child as SectionItem, sectionPath, inst);
+                  }
+                });
+              }
+            };
+      
+            // validate root-level fields and sections
+            (formContent.items || []).forEach((item: FormItem) => {
+              if (ContentValidation.isFieldItem(item)) {
+                const f = item as FieldItem;
+                const addr = buildFieldAddress(node.addr, f.ref, undefined, undefined);
+                const tokens = buildContentTokens(f.ref, undefined, undefined);
+                const dbVal = getByTokensSmart(nodeForRender.content ?? {}, tokens);
+                const draftVal = getDraft(addr);
+                const value = draftVal !== undefined ? draftVal : (dbVal === undefined ? null : dbVal);
+                const rulesRow = ruleMap.get(f.ref);
+                const { ok, message } = validateAgainstRules(value, rulesRow, !!f.required);
+                if (!ok) errors.push({ ref: f.ref, address: addr, message: message || 'Invalid value' });
+              } else {
+                walkSection(item as SectionItem, undefined, undefined);
+              }
+            });
+
+      if (errors.length) {
+        setValidationState('invalid');
+        const preview = errors.slice(0, 3).map(e => `${e.ref}: ${e.message}`).join('\n');
+        toast({
+          title: 'Fix validation errors before saving',
+          description: preview + (errors.length > 3 ? `\n...and ${errors.length - 3} more` : ''),
+          variant: 'destructive',
+        });
+        setLoading(false);
+        return;
+      } else {
+        setValidationState('valid');
+      }
+    }
+    // ---- END validation ----
+
 
     if (writes.length === 0) {
       setEffectiveMode('idle');
@@ -591,8 +828,7 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
             jobId
           });
 
-          // Query all nodes (or two filtered queries if you prefer),
-          // but **filter strictly by parent_addr**:
+          // Query ALL nodes for this job
           const { data, error } = await supabase
             .schema('app' as any)
             .from('nodes')
@@ -608,16 +844,33 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
 
           if (isCollection) {
             // Collection group: group by instance, only direct children
-              const instances: Record<number, JobNode[]> = {};
-              (data || []).forEach((child) => {
-                if (!child.parent_addr) return;
-                // Only parent_addr that matches {group}.iN (no 'instances' segment)
-                const m = child.parent_addr.match(new RegExp(`^${groupNode.addr.replace(/\./g, '\\.')}\\.i(\\d+)$`));
-                if (!m) return;
-                const n = Number(m[1]);
-                (instances[n] ||= []).push(child as JobNode);
-              });
-                        
+            const instances: Record<number, JobNode[]> = {};
+            (data || []).forEach(child => {
+              const instNum = parseInstanceFromAny(child.addr, child.parent_addr, groupNode.addr);
+              if (instNum !== null) {
+                // Check if direct child of the instance anchor (e.g., "root.group.i1" or "root.group.instances.i1")
+                const instanceAnchors = [
+                  `${groupNode.addr}.i${instNum}`,
+                  `${groupNode.addr}.instances.i${instNum}`
+                ];
+                const inferredParent = child.parent_addr || getParentPath(child.addr);
+                const isDirect = instanceAnchors.some(anchor => 
+                  inferredParent === anchor || isDirectChildOf(child.addr, anchor)
+                );
+                
+                if (isDirect) {
+                  if (!instances[instNum]) instances[instNum] = [];
+                  instances[instNum].push(child as JobNode);
+                  console.log('[GroupRenderer] Collection child:', {
+                    addr: child.addr,
+                    parent_addr: child.parent_addr,
+                    inferred: inferredParent,
+                    instance: instNum
+                  });
+                }
+              }
+            });
+            
             // Sort children in each instance
             Object.keys(instances).forEach(key => {
               instances[Number(key)] = sortNodes(instances[Number(key)]);
@@ -627,10 +880,20 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
             setByInstance(instances);
           } else {
             // Regular group: direct children only
-              const children = (data || []).filter(
-                (child) => child.parent_addr === groupNode.addr
-              ) as JobNode[];
-              children.sort((a,b)=>a.idx-b.idx);
+            const children: JobNode[] = [];
+            (data || []).forEach(child => {
+              const inferredParent = child.parent_addr || getParentPath(child.addr);
+              const isDirect = inferredParent === groupNode.addr || isDirectChildOf(child.addr, groupNode.addr);
+              
+              if (isDirect) {
+                children.push(child as JobNode);
+                console.log('[GroupRenderer] Regular child:', {
+                  addr: child.addr,
+                  parent_addr: child.parent_addr,
+                  inferred: inferredParent
+                });
+              }
+            });
             
             console.log('[GroupRenderer] Regular children:', children.length);
             setRegularChildren(sortNodes(children));
@@ -708,13 +971,7 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => !ancestorLocked && setIsCollapsed(!isCollapsed)}
-                className="p-1 h-6 w-6"
-                disabled={ancestorLocked}
-              >
+            <Button variant="ghost" size="sm" onClick={() => setIsCollapsed(!isCollapsed)} className="p-1 h-6 w-6">
               {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </Button>
             <div>
@@ -728,36 +985,41 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
           </div>
 
           <div className="flex items-center gap-2">
-            {node.node_type === 'form' && (
-              effectiveMode === 'edit' ? (
-                <>
-                  <Button size="sm" onClick={handleSaveEdit} disabled={loading}>
-                    <Save className="h-3 w-3 mr-1" /> Save
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={loading}>
-                    <X className="h-3 w-3 mr-1" /> Cancel
-                  </Button>
-                </>
-              ) : (
+            <span className="text-[10px] text-muted-foreground select-none">{RENDERER_VERSION}</span>
+            {effectiveMode === 'edit' ? (
+              <>
+                <Button size="sm" onClick={handleSaveEdit} disabled={loading}>
+                  <Save className="h-3 w-3 mr-1" /> Save
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={loading}>
+                  <X className="h-3 w-3 mr-1" /> Cancel
+                </Button>
+              </>
+            ) : (
+              <>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    if (hasActiveEditor() && !isEditing(node.id)) {
-                      const ok = window.confirm('Discard unsaved changes in the other editor and edit this node instead?');
-                      if (!ok) return;
+                    if (hasActiveEditor()) {
+                      toast({
+                        title: "Another node is being edited",
+                        description: "Please finish editing the current node first.",
+                        variant: "destructive",
+                      });
+                      return;
                     }
                     handleStartEdit();
                   }}
                 >
                   <Edit2 className="h-3 w-3 mr-1" /> Edit
                 </Button>
-              )
-            )}
-            {hasGenerateAction && (
-              <CreditsButton onClick={handleGenerate} price={generateCost} available={userCredits} loading={loading} size="sm">
-                Generate
-              </CreditsButton>
+                {hasGenerateAction && (
+                  <CreditsButton onClick={handleGenerate} price={generateCost} available={userCredits} loading={loading} size="sm">
+                    Generate
+                  </CreditsButton>
+                )}
+              </>
             )}
           </div>
         </div>
