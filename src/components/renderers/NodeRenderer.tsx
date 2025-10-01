@@ -94,7 +94,93 @@ function toWritesArray(entries: Array<{ address: string; value: any }>, nodeAddr
     }));
 }
 
+// ---- Form validation helpers (lightweight, non-invasive) ----
+type RegistryRuleRow = { ref: string; datatype?: string | null; rules?: any | null };
 
+const EMPTY = (v: any) =>
+  v === null ||
+  v === undefined ||
+  (typeof v === 'string' && v.trim() === '') ||
+  (Array.isArray(v) && v.length === 0);
+
+function collectFieldRefsFromForm(items: FormItem[], acc = new Set<string>(), req = new Map<string, boolean>()) {
+  for (const it of items) {
+    if (ContentValidation.isFieldItem(it)) {
+      const f = it as FieldItem;
+      acc.add(f.ref);
+      if (f.required) req.set(f.ref, true);
+    } else {
+      const s = it as SectionItem;
+      if (Array.isArray((s as any).children) && (s as any).children.length) {
+        collectFieldRefsFromForm((s as any).children, acc, req);
+      }
+    }
+  }
+  return { refs: acc, requiredMap: req };
+}
+
+function extractFieldRefFromAddress(address: string, knownRefs: Set<string>): string | null {
+  const hashIdx = address.indexOf('#');
+  const path = hashIdx >= 0 ? address.slice(hashIdx + 1) : address;
+  const tokens = path.split('.').filter(Boolean);
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    const t = tokens[i];
+    if (knownRefs.has(t)) return t;
+  }
+  return null;
+}
+
+async function fetchRegistryRules(refs: string[]): Promise<Map<string, RegistryRuleRow>> {
+  if (!refs.length) return new Map();
+  const { data, error } = await supabase
+    .schema('app' as any)
+    .from('field_registry')
+    .select('ref, datatype, rules')
+    .in('ref', refs);
+  if (error) {
+    console.warn('[NodeRenderer] fetchRegistryRules error', error);
+    return new Map();
+  }
+  const map = new Map<string, RegistryRuleRow>();
+  for (const row of (data as any[])) map.set(row.ref, row as RegistryRuleRow);
+  return map;
+}
+
+function validateAgainstRules(value: any, row?: RegistryRuleRow, required = false): { ok: boolean; message?: string } {
+  if (required && EMPTY(value)) return { ok: false, message: 'Required' };
+  if (!row || !row.rules) return { ok: true };
+  const rules = row.rules || {};
+  if (typeof value === 'string') {
+    if (typeof rules.min_length === 'number' && value.length < rules.min_length) {
+      return { ok: false, message: `Min length ${rules.min_length}` };
+    }
+    if (typeof rules.max_length === 'number' && value.length > rules.max_length) {
+      return { ok: false, message: `Max length ${rules.max_length}` };
+    }
+    if (typeof rules.pattern === 'string') {
+      try {
+        const re = new RegExp(rules.pattern);
+        if (!re.test(value)) return { ok: false, message: 'Invalid format' };
+      } catch {}
+    }
+  }
+  if (typeof value === 'number') {
+    if (typeof rules.min === 'number' && value < rules.min) return { ok: false, message: `Min ${rules.min}` };
+    if (typeof rules.max === 'number' && value > rules.max) return { ok: false, message: `Max ${rules.max}` };
+  }
+  if (Array.isArray(value)) {
+    if (typeof rules.min_items === 'number' && value.length < rules.min_items) {
+      return { ok: false, message: `Min items ${rules.min_items}` };
+    }
+    if (typeof rules.max_items === 'number' && value.length > rules.max_items) {
+      return { ok: false, message: `Max items ${rules.max_items}` };
+    }
+  }
+  if (Array.isArray(rules.enum) && rules.enum.length) {
+    if (!rules.enum.includes(value)) return { ok: false, message: 'Must be one of predefined options' };
+  }
+  return { ok: true };
+}
 
 
 interface NodeRendererProps {
@@ -229,6 +315,46 @@ const handleSaveEdit = async () => {
     const rawDrafts = entries(nodePrefix); // [{ address, value }]
     const writes = toWritesArray(rawDrafts, node.addr);
     nlog('save:writes', { count: writes.length, sample: writes.slice(0, 3) });
+
+
+    
+    // ---- NEW: strict validation for Form nodes before saving ----
+    if (node.node_type === 'form') {
+      setValidationState('validating');
+      const formContent = nodeForRender.content as any;
+      const { refs, requiredMap } = collectFieldRefsFromForm((formContent?.items ?? []) as FormItem[]);
+
+      const writeRefs = writes
+        .map(w => ({ w, ref: extractFieldRefFromAddress(w.address, refs) }))
+        .filter(x => !!x.ref) as Array<{ w: { address: string; value: any }, ref: string }>;
+
+      const uniqueRefs = Array.from(new Set(writeRefs.map(x => x.ref)));
+      const ruleMap = await fetchRegistryRules(uniqueRefs);
+
+      const errors: Array<{ ref: string; address: string; message: string }> = [];
+      for (const { w, ref } of writeRefs) {
+        const rulesRow = ruleMap.get(ref);
+        const required = !!requiredMap.get(ref);
+        const { ok, message } = validateAgainstRules(w.value, rulesRow, required);
+        if (!ok) errors.push({ ref, address: w.address, message: message || 'Invalid value' });
+      }
+
+      if (errors.length) {
+        setValidationState('invalid');
+        const preview = errors.slice(0, 3).map(e => `${e.ref}: ${e.message}`).join('\n');
+        toast({
+          title: 'Fix validation errors before saving',
+          description: preview + (errors.length > 3 ? `\n...and ${errors.length - 3} more` : ''),
+          variant: 'destructive',
+        });
+        setLoading(false);
+        return;
+      } else {
+        setValidationState('valid');
+      }
+    }
+    // ---- END validation ----
+
 
     if (writes.length === 0) {
       setEffectiveMode('idle');
