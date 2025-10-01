@@ -75,18 +75,15 @@ const DBG = true;
 const nlog = (...a:any[]) => { if (DBG) console.debug('[NodeRenderer]', ...a); };
 
 // Renderer version (visual only, for deployment verification)
-const RENDERER_VERSION = 'NR v2025.10.01-c';
+const RENDERER_VERSION = 'NR v2025.10.01-d';
 
 const saveViaRpc = async (jobId: string, writes: Array<{ address: string; value: any }>) => {
   nlog('saveViaRpc:start', { jobId, count: writes.length, sample: writes.slice(0, 3) });
-  // Use the app schema and the bare function name so PostgREST hits /rpc/addr_write_many
-  const { data, error } = await supabase
-    .schema('app' as any)
-    .rpc('addr_write_many', { p_job_id: jobId, p_writes: writes as any });
-  if (error) {
-    console.error('[NodeRenderer] saveViaRpc error:', error);
-    throw error;
-  }
+  const { data, error } = await supabase.rpc('app.addr_write_many', {
+    p_job_id: jobId,
+    p_writes: writes as any,
+  });
+  if (error) throw error;
   nlog('saveViaRpc:ok', data);
   return data;
 };
