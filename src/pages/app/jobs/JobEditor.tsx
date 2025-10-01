@@ -107,77 +107,82 @@ export default function JobEditor() {
   const groupedNodes = groupNodesByPath(jobNodes);
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-5xl">
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Button variant="ghost" onClick={() => navigate('/app/templates')}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Templates
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold">{job.name || job.id || 'Unnamed Job'}</h1>
-              <p className="text-muted-foreground">
-                Template: {job.template} • Status: <Badge variant={
-                  job.status === 'completed' ? 'default' : 
-                  job.status === 'failed' ? 'destructive' : 'secondary'
-                }>{job.status}</Badge>
-              </p>
+      <div className="mb-6 sm:mb-8">
+        <Button 
+          variant="ghost" 
+          onClick={() => navigate('/app/templates')}
+          className="mb-4 -ml-2"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          <span className="hidden sm:inline">Back to Templates</span>
+          <span className="sm:hidden">Back</span>
+        </Button>
+
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="space-y-2">
+              <h1 className="text-2xl sm:text-3xl font-bold">{job.job_name || 'Unnamed Job'}</h1>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                <span>ID: {job.id}</span>
+                <span className="hidden sm:inline">•</span>
+                <span>Template: {job.template}</span>
+              </div>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+              {isReady ? (
+                <Badge variant="default" className="bg-green-500 w-fit">
+                  <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+                  <span className="text-xs sm:text-sm">Ready</span>
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="w-fit">
+                  <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+                  <span className="text-xs sm:text-sm">Incomplete</span>
+                </Badge>
+              )}
+              
+              <Button disabled={!isReady} size="sm" className="w-full sm:w-auto">
+                <Play className="w-4 h-4 mr-2" />
+                Generate
+              </Button>
             </div>
           </div>
-          
-          <div className="flex items-center space-x-2">
-            {isReady ? (
-              <Badge variant="default" className="bg-green-500">
-                <CheckCircle className="w-4 h-4 mr-1" />
-                Ready for Generation
-              </Badge>
-            ) : (
-              <Badge variant="outline">
-                <AlertCircle className="w-4 h-4 mr-1" />
-                Incomplete
-              </Badge>
-            )}
-            
-            <Button disabled={!isReady}>
-              <Play className="w-4 h-4 mr-2" />
-              Generate
-            </Button>
-          </div>
+
+          <Badge variant={
+            job.status === 'completed' ? 'default' : 
+            job.status === 'failed' ? 'destructive' : 'secondary'
+          } className="w-fit">
+            {job.status}
+          </Badge>
         </div>
       </div>
 
-      {/* Node Sections */}
-      <div className="space-y-6">
+      {/* Nodes - Direct Render without Card wrapper */}
+      <div className="space-y-4 sm:space-y-6">
         {Object.entries(groupedNodes as Record<string, JobNode[]>).map(([rootPath, nodes]) => (
-          <Card key={rootPath}>
-            <CardHeader>
-              <CardTitle className="capitalize">{rootPath.replace('_', ' ')}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {nodes.map(node => (
-                <NodeRenderer
-                  key={node.id}
-                  node={node}
-                  onUpdate={async (content) => {
-                    await handleNodeUpdate(node.id, content);
-                  }}
-                  mode={editingNodeId === node.id ? 'edit' : 'idle'}
-                  onModeChange={(mode) => {
-                    if (mode === 'edit') {
-                      setEditingNodeId(node.id);
-                    } else {
-                      setEditingNodeId(null);
-                    }
-                  }}
-                  showPath={true}
-                />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <div key={rootPath} className="space-y-3 sm:space-y-4">
+            {nodes.map(node => (
+              <NodeRenderer
+                key={node.id}
+                node={node}
+                onUpdate={async (content) => {
+                  await handleNodeUpdate(node.id, content);
+                }}
+                mode={editingNodeId === node.id ? 'edit' : 'idle'}
+                onModeChange={(mode) => {
+                  if (mode === 'edit') {
+                    setEditingNodeId(node.id);
+                  } else {
+                    setEditingNodeId(null);
+                  }
+                }}
+                showPath={false}
+              />
+            ))}
+          </div>
         ))}
       </div>
 
