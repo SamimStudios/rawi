@@ -25,7 +25,51 @@ import { useNodeEditor } from '@/hooks/useNodeEditor';
 import { useDrafts } from '@/contexts/DraftsContext';
 import { useJobs, type JobNode } from '@/hooks/useJobs';
 
+// ============= Media & Group Types =============
+type MediaItemImage = { kind: 'ImageItem'; url: string; width: number; height: number };
+type MediaItemVideo = { kind: 'VideoItem'; url: string; duration_ms: number; width?: number; height?: number };
+type MediaItemAudio = { kind: 'AudioItem'; url: string; duration_ms: number };
+type MediaItem = MediaItemImage | MediaItemVideo | MediaItemAudio;
 
+type MediaVersion = { kind: 'MediaVersion'; idx: number; path: string; item: MediaItem };
+
+type MediaContent = {
+  kind: 'MediaContent';
+  type: 'image' | 'video' | 'audio';
+  path: string;
+  versions?: MediaVersion[];
+  selected_version_idx?: number;
+};
+
+type GroupCollectionConfig = {
+  min?: number;
+  max?: number;
+  default_instances?: number;
+  allow_add?: boolean;
+  allow_remove?: boolean;
+  allow_reorder?: boolean;
+  label_template?: string;
+};
+
+type GroupContent = {
+  kind: 'Group';
+  path: string;
+  label?: string;
+  collection?: GroupCollectionConfig;
+};
+
+// ============= Address Helpers =============
+const joinAddr = (addr: string, path: string) => `${addr}#${path}`;
+const mediaSelectedIdxAddr = (addr: string) => joinAddr(addr, 'content.selected_version_idx');
+
+function parseInstanceFromParent(parentAddr: string, groupAddr: string): number | null {
+  if (!parentAddr.startsWith(groupAddr)) return null;
+  const suffix = parentAddr.slice(groupAddr.length);
+  const match = suffix.match(/^\.i(\d+)/);
+  return match ? parseInt(match[1], 10) : null;
+}
+
+const instanceAddr = (groupAddr: string, i: number) => `${groupAddr}.i${i}`;
 
 const DBG = true;
 const nlog = (...a:any[]) => { if (DBG) console.debug('[NodeRenderer]', ...a); };
@@ -359,6 +403,217 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
     );
   };
 
+  // ============= Media Renderer =============
+  const MediaRenderer = ({ node: mediaNode, jobId }: { node: JobNode; jobId: string }) => {
+    const content = mediaNode.content as MediaContent;
+    const [editing, setEditing] = useState(false);
+    const [pendingIdx, setPendingIdx] = useState<number | undefined>(content.selected_version_idx);
+
+    useEffect(() => {
+      setPendingIdx(content.selected_version_idx);
+    }, [content.selected_version_idx]);
+
+    const versions = content.versions || [];
+    const selectedIdx = content.selected_version_idx;
+    const currentVersion = versions.find(v => v.idx === selectedIdx) || versions[0];
+
+    const handleSaveMedia = async () => {
+      if (pendingIdx !== selectedIdx) {
+        const write = { address: mediaSelectedIdxAddr(mediaNode.addr), value: pendingIdx };
+        try {
+          await saveViaRpc(jobId, [write]);
+          toast({ title: 'Media version updated', description: 'Selected version saved successfully' });
+          clearDrafts(`${mediaNode.addr}#`);
+        } catch (error) {
+          toast({ title: 'Save failed', variant: 'destructive' });
+        }
+      }
+      setEditing(false);
+      stopEditing();
+    };
+
+    const handleCancelMedia = () => {
+      setPendingIdx(selectedIdx);
+      setEditing(false);
+      stopEditing();
+    };
+
+    const renderMediaItem = (item: MediaItem) => {
+      if (item.kind === 'ImageItem') {
+        return <img src={item.url} alt="Media" className="max-w-full h-auto rounded" />;
+      }
+      if (item.kind === 'VideoItem') {
+        return <video src={item.url} controls className="max-w-full rounded" />;
+      }
+      if (item.kind === 'AudioItem') {
+        return <audio src={item.url} controls className="w-full" />;
+      }
+      return null;
+    };
+
+    return (
+      <div className="space-y-4">
+        {editing ? (
+          <div className="space-y-3">
+            <div className="text-sm font-medium">Select Version:</div>
+            {versions.map(v => (
+              <label key={v.idx} className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="media-version"
+                  checked={pendingIdx === v.idx}
+                  onChange={() => setPendingIdx(v.idx)}
+                  className="cursor-pointer"
+                />
+                <span>Version {v.idx} - {v.path}</span>
+              </label>
+            ))}
+            <div className="flex gap-2 mt-4">
+              <Button size="sm" onClick={handleSaveMedia}>
+                <Save className="h-3 w-3 mr-1" /> Save
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleCancelMedia}>
+                <X className="h-3 w-3 mr-1" /> Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            {currentVersion ? (
+              <div className="space-y-2">
+                <div className="text-sm text-muted-foreground">Version {currentVersion.idx}: {currentVersion.path}</div>
+                {renderMediaItem(currentVersion.item)}
+              </div>
+            ) : (
+              <div className="text-muted-foreground">No versions available yet</div>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-3"
+              onClick={() => {
+                if (startEditing(mediaNode.id)) {
+                  setEditing(true);
+                }
+              }}
+            >
+              <Edit2 className="h-3 w-3 mr-1" /> Edit
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ============= Group Renderer =============
+  const GroupRenderer = ({ node: groupNode, jobId }: { node: JobNode; jobId: string }) => {
+    const content = groupNode.content as GroupContent;
+    const [expanded, setExpanded] = useState(true);
+    const [loading, setLoading] = useState(false);
+    const [regularChildren, setRegularChildren] = useState<JobNode[]>([]);
+    const [byInstance, setByInstance] = useState<Record<number, JobNode[]>>({});
+
+    const isCollection = !!content.collection;
+
+    useEffect(() => {
+      const fetchChildren = async () => {
+        setLoading(true);
+        try {
+          const { data, error } = await supabase
+            .schema('app' as any)
+            .from('nodes')
+            .select('*')
+            .eq('job_id', jobId)
+            .order('idx', { ascending: true });
+
+          if (error) throw error;
+
+          if (isCollection) {
+            const instances: Record<number, JobNode[]> = {};
+            (data || []).forEach(child => {
+              if (child.parent_addr === groupNode.addr) {
+                // regular child under collection (shouldn't happen often)
+                return;
+              }
+              const instNum = parseInstanceFromParent(child.parent_addr, groupNode.addr);
+              if (instNum !== null) {
+                if (!instances[instNum]) instances[instNum] = [];
+                instances[instNum].push(child as JobNode);
+              }
+            });
+            setByInstance(instances);
+          } else {
+            const children = (data || []).filter(c => c.parent_addr === groupNode.addr) as JobNode[];
+            setRegularChildren(children);
+          }
+        } catch (error) {
+          console.error('[GroupRenderer] fetch children failed', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchChildren();
+    }, [jobId, groupNode.addr, groupNode.updated_at, isCollection]);
+
+    return (
+      <div className="space-y-4">
+        {loading && <div className="text-sm text-muted-foreground">Loading children...</div>}
+        
+        {!isCollection && (
+          <div className="space-y-4">
+            {regularChildren.length === 0 && !loading && (
+              <div className="text-muted-foreground text-sm">No children yet</div>
+            )}
+            {regularChildren.map(child => (
+              <NodeRenderer
+                key={child.id}
+                node={child}
+                onUpdate={onUpdate}
+                onGenerate={onGenerate}
+                showPath={showPath}
+              />
+            ))}
+          </div>
+        )}
+
+        {isCollection && (
+          <div className="space-y-4">
+            {Object.keys(byInstance).length === 0 && !loading && (
+              <div className="text-muted-foreground text-sm">No instances yet</div>
+            )}
+            {Object.keys(byInstance)
+              .map(Number)
+              .sort((a, b) => a - b)
+              .map(instNum => {
+                const children = byInstance[instNum] || [];
+                const label = content.collection?.label_template
+                  ? content.collection.label_template.replace('#{i}', String(instNum))
+                  : `Instance ${instNum}`;
+
+                return (
+                  <div key={instNum} className="rounded-lg border p-4">
+                    <div className="font-medium mb-3">{label}</div>
+                    <div className="space-y-4">
+                      {children.map(child => (
+                        <NodeRenderer
+                          key={child.id}
+                          node={child}
+                          onUpdate={onUpdate}
+                          onGenerate={onGenerate}
+                          showPath={showPath}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <Card className={cn("w-full transition-colors", effectiveMode === 'edit' && "border-primary bg-primary/5", className)}>
       <CardHeader className="pb-3">
@@ -421,7 +676,10 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
       <Collapsible open={!isCollapsed} onOpenChange={setIsCollapsed}>
         <CardContent className="pt-0">
           <CollapsibleContent>
-            {node.node_type === 'form' ? renderFormContent() : (
+            {node.node_type === 'form' && renderFormContent()}
+            {node.node_type === 'media' && <MediaRenderer node={node} jobId={node.job_id} />}
+            {node.node_type === 'group' && <GroupRenderer node={node} jobId={node.job_id} />}
+            {!['form', 'media', 'group'].includes(node.node_type) && (
               <div className="text-muted-foreground">Node type '{node.node_type}' not supported by SSOT renderer.</div>
             )}
           </CollapsibleContent>
