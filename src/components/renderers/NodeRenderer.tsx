@@ -75,19 +75,26 @@ const DBG = true;
 const nlog = (...a:any[]) => { if (DBG) console.debug('[NodeRenderer]', ...a); };
 
 // Renderer version (visual only, for deployment verification)
-const RENDERER_VERSION = 'NR v2025.10.01-e';
+const RENDERER_VERSION = 'NR v2025.10.01-f';
 
-const saveViaRpc = async (jobId: string, writes: Array<{ address: string; value: any }>) => {
+const saveViaRpc = async (
+  jobId: string,
+  writes: Array<{ address: string; value: any }>
+) => {
   nlog('saveViaRpc:start', { jobId, count: writes.length, sample: writes.slice(0, 3) });
-  const { data, error } = await supabase.rpc('addr_write_many', {
-    schema: 'app' as any,
-    p_job_id: jobId,
-    p_writes: writes as any,
-  });
+
+  const { data, error } = await supabase
+    .schema('app')                 // <- set schema here
+    .rpc('addr_write_many', {
+      p_job_id: jobId,
+      p_writes: writes as any,
+    });
+
   if (error) throw error;
   nlog('saveViaRpc:ok', data);
   return data;
 };
+
 
 
 // normalize writes: ensure `value` is JSON-serializable and never `undefined`
