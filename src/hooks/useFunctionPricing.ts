@@ -57,6 +57,7 @@ export function useFunctionPricing(): UseFunctionPricingResult {
       });
   
       setPricing(pricingMap);
+      console.log('test pricing ashqar:', pricingMap)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch function pricing');
       console.error('Error fetching function pricing:', err);
