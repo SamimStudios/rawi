@@ -16,10 +16,7 @@ import { cn } from '@/lib/utils';
 // at top
 import { FieldRenderer } from '@/components/renderers/FieldRenderer'; // ✅
 import { ContentValidation, FormContent, FormItem, FieldItem, SectionItem } from '@/lib/content-contracts';
-import { CreditsButton } from '@/components/ui/credits-button';
 import { useToast } from '@/hooks/use-toast';
-import { useUserCredits } from '@/hooks/useUserCredits';
-import { useFunctionPricing } from '@/hooks/useFunctionPricing';
 import { supabase } from '@/integrations/supabase/client';
 import { useNodeEditor } from '@/hooks/useNodeEditor';
 import { useDrafts } from '@/contexts/DraftsContext';
@@ -130,8 +127,6 @@ export default function NodeRenderer({
   className
 }: NodeRendererProps) {
   const { toast } = useToast();
-  const { credits: userCredits } = useUserCredits();
-  const { getPrice, loading: pricingLoading } = useFunctionPricing();
   const { entries, clear: clearDrafts } = useDrafts();
   const { reloadNode } = useJobs();
   const { startEditing, stopEditing, isEditing, hasActiveEditor, editingNodeId } = useNodeEditor();
@@ -171,11 +166,6 @@ export default function NodeRenderer({
   const hasValidateAction = node.validate_n8n_id;
   const hasGenerateAction = node.generate_n8n_id;
 
-  // Pricing
-  const validateCost = node.validate_n8n_id ? getPrice(node.validate_n8n_id) : 0;
-  const generateCost = node.generate_n8n_id ? getPrice(node.generate_n8n_id) : 0;
-
-  console.log('test pricing ashqar:', generateCost);
 
   const formValuesObj =
     node.node_type === 'form' ? (nodeForRender.content as any)?.values : undefined;
@@ -186,7 +176,6 @@ export default function NodeRenderer({
   const shouldCenterGenerate = !!hasGenerateAction && (isFormEmpty || isMediaEmpty);
 
   
-  useEffect(() => {}, [validateCost, generateCost, pricingLoading]);
 
   const handleStartEdit = () => {
     if (startEditing(node.id)) {
@@ -196,19 +185,20 @@ export default function NodeRenderer({
   };
 
   const CenterGenerate = () => (
-  <div className="py-12 flex items-center justify-center">
-    <CreditsButton
-      onClick={handleGenerate}
-      price={generateCost}
-      available={userCredits}
-      loading={loading}
-      size="lg"
-    >
-      <Play className="h-4 w-4 mr-2" />
-      Generate
-    </CreditsButton>
-  </div>
-);
+    <div className="py-12 flex items-center justify-center">
+      <Button
+        size="lg"
+        onClick={handleGenerate}
+        functionId={node.generate_n8n_id || undefined}
+        showCredits
+        disabled={loading}
+      >
+        <Play className="h-4 w-4 mr-2" />
+        Generate
+      </Button>
+    </div>
+  );
+
 
 
 // keep snapshot in sync when parent actually provides new content
@@ -788,15 +778,16 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
                 ) : (
                   <>
                     {hasGenerateAction && !shouldCenterGenerate && (
-                      <CreditsButton
-                        onClick={handleGenerate}
-                        price={generateCost}
-                        available={userCredits}
-                        loading={loading}
+                      <Button
+                        variant="ghost"
                         size="sm"
+                        onClick={handleGenerate}
+                        functionId={node.generate_n8n_id || undefined}
+                        showCredits
+                        disabled={loading}
                       >
                         <RotateCcw className="h-3 w-3" />
-                      </CreditsButton>
+                      </Button>
                     )}
                 
                     <Button
