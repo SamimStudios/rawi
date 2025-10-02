@@ -30,25 +30,28 @@ export function useFunctionPricing(): UseFunctionPricingResult {
       setLoading(true);
       setError(null);
   
-      const pricingMap: FunctionPricing = {};
-  
-      // Read directly from app.n8n_functions (active only)
-      const { data, error: dbError } = await supabase
-        .from<any>('app.n8n_functions') // query non-public schema
-        .select('id,name,active,price_in_credits')
+      // Query the app schema directly (bypass typed client constraints)
+      const { data, error: dbError } = await (supabase as any)
+        .from('app.n8n_functions')
+        .select('id,name,price_in_credits,active')
         .eq('active', true);
   
       if (dbError) throw dbError;
   
-      const rows = (data ?? []) as Array<{ id?: string; name?: string; active?: boolean; price_in_credits?: number | string | null }>;
-rows.forEach((row) => {
-        const raw = row?.price_in_credits;
-        const price =
-          typeof raw === 'number' ? raw : Number(raw ?? 0);
+      const pricingMap: FunctionPricing = {};
+      const rows = (data ?? []) as Array<{
+        id?: string;
+        name?: string;
+        price_in_credits?: number | string | null;
+      }>;
+  
+      rows.forEach((row) => {
+        const price = typeof row.price_in_credits === 'number'
+          ? row.price_in_credits
+          : Number(row.price_in_credits ?? 0);
         if (!Number.isNaN(price)) {
-          // allow lookup by either id or name
-          if (row?.id) pricingMap[row.id] = price;
-          if (row?.name) pricingMap[row.name] = price;
+          if (row.id)   pricingMap[row.id] = price;   // lookup by id
+          if (row.name) pricingMap[row.name] = price; // lookup by name
         }
       });
   
@@ -56,7 +59,7 @@ rows.forEach((row) => {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch function pricing');
       console.error('Error fetching function pricing:', err);
-      setPricing({}); // no fallback map; show 0 when unknown
+      setPricing({});
     } finally {
       setLoading(false);
     }
