@@ -68,6 +68,36 @@ serve(async (request) => {
     // payload is optional for generate; normalize to { fields: [], context: {} }
     const payload = raw.payload ?? { fields: [], context: {} };
 
+    // --- EARLY PARAM/AUTH GUARD (debug-friendly) ---
+    // Log basic input surface (will show up in Logs > Edge Functions)
+    console.log('[execute-n8n] input', {
+      keys: Object.keys(raw || {}),
+      jobId, nodeId, functionId, mode,
+      hasPayload: !!raw?.payload,
+    });
+    
+    // Ensure IDs are present
+    if (!jobId || !nodeId || !functionId) {
+      return new Response(JSON.stringify({
+        status: 'error',
+        code: 'MISSING_PARAMS',
+        message: 'jobId, nodeId, and functionId are required',
+        received: { jobId, nodeId, functionId }
+      }), { status: 400, headers: corsHeaders });
+    }
+    
+    // Ensure the caller is authenticated
+    const { data: authUser, error: authErr } = await supabase.auth.getUser();
+    if (authErr || !authUser?.user) {
+      return new Response(JSON.stringify({
+        status: 'error',
+        code: 'UNAUTHENTICATED',
+        message: 'Missing or invalid Authorization token'
+      }), { status: 401, headers: corsHeaders });
+    }
+    const user = authUser.user;
+
+
 
     console.log(`[${requestId}] Request params:`, { jobId, nodeId, functionId, idempotencyKey });
 
