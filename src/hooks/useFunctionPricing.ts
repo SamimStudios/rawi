@@ -69,7 +69,7 @@ export function useFunctionPricing(): UseFunctionPricingResult {
 
 
   const getPrice = (functionId: string): number => {
-    console.log('test pricing ashqar:', pricing[functionId])
+    
     return pricing[functionId] || 0;
   };
 

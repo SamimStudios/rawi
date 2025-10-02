@@ -175,6 +175,8 @@ export default function NodeRenderer({
   const validateCost = node.validate_n8n_id ? getPrice(node.validate_n8n_id) : 0;
   const generateCost = node.generate_n8n_id ? getPrice(node.generate_n8n_id) : 0;
 
+  console.log('test pricing ashqar:', getPrice(node.generate_n8n_id));
+
   const formValuesObj =
     node.node_type === 'form' ? (nodeForRender.content as any)?.values : undefined;
   
