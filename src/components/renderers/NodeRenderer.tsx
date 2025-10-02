@@ -414,7 +414,7 @@ const handleGenerate = async () => {
             }
            : undefined
        );
-      console.log(info);
+      console.log(data);
        return; // stop here; no generic error toast
     }
 
