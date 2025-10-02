@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
-import { ChevronDown, ChevronRight, Edit2, Save, X, RotateCcw, Play } from 'lucide-react';
+import { ChevronDown, ChevronRight, Edit2, Save, X, RotateCcw, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 // at top
 import { FieldRenderer } from '@/components/renderers/FieldRenderer'; // ✅
@@ -184,7 +184,21 @@ export default function NodeRenderer({
     }
   };
 
-
+  const CenterGenerate = () => (
+    <div className="py-12 flex items-center justify-center">
+      <Button
+        variant="primary"
+        size="lg"
+        onClick={handleGenerate}
+        functionId={node.generate_n8n_id || undefined}
+        showCredits
+        disabled={loading}
+      >
+        <Sparkles className="h-4 w-4 mr-2" />
+        Generate
+      </Button>
+    </div>
+  );
 
 
 
@@ -732,13 +746,13 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-               <Button
-                 variant="ghost"
-                 size="sm"
-                 onClick={() => !ancestorLocked && !shouldCenterGenerate && setIsCollapsed(!isCollapsed)}
-                 className="p-1 h-6 w-6"
-                 disabled={ancestorLocked || shouldCenterGenerate}
-               >
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => !ancestorLocked && setIsCollapsed(!isCollapsed)}
+                className="p-1 h-6 w-6"
+                disabled={ancestorLocked}
+              >
               {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </Button>
             <div>
@@ -752,34 +766,19 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
           </div>
 
           <div className="flex items-center gap-2">
-            {shouldCenterGenerate ? (
-              hasGenerateAction && (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={handleGenerate}
-                  functionId={node.generate_n8n_id || undefined}
-                  showCredits
-                  disabled={loading}
-                >
-                  <Play className="h-3 w-3 mr-1" />
-                  Generate
-                </Button>
-              )
-            ) : (
-              node.node_type === 'form' &&
-                (effectiveMode === 'edit' ? (
-                  <>
-                    <Button size="sm" onClick={handleSaveEdit} disabled={loading}>
-                      <Save className="h-3 w-3 mr-1" /> Save
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={loading}>
-                      <X className="h-3 w-3 mr-1" /> Cancel
-                    </Button>
-                  </>
+            {node.node_type === 'form' && (
+              effectiveMode === 'edit' ? (
+                <>
+                  <Button size="sm" onClick={handleSaveEdit} disabled={loading}>
+                    <Save className="h-3 w-3 mr-1" /> Save
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={loading}>
+                    <X className="h-3 w-3 mr-1" /> Cancel
+                  </Button>
+                </>
                 ) : (
                   <>
-                    {hasGenerateAction && (
+                    {hasGenerateAction && !shouldCenterGenerate && (
                       <Button
                         variant="primary"
                         size="sm"
@@ -791,6 +790,7 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
                         <RotateCcw className="h-3 w-3" />
                       </Button>
                     )}
+                
                     <Button
                       variant="ghost"
                       size="sm"
@@ -807,28 +807,25 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
                       <Edit2 className="h-3 w-3" />
                     </Button>
                   </>
-                ))
-            )}
+                )
+                )}
           </div>
-
         </div>
         {description && <p className="text-sm text-muted-foreground mt-2">{description}</p>}
       </CardHeader>
 
-       {!shouldCenterGenerate && (
-         <Collapsible open={!isCollapsed} onOpenChange={setIsCollapsed}>
-           <CardContent className="pt-0">
-             <CollapsibleContent>
-               {node.node_type === 'form'  && renderFormContent()}
-               {node.node_type === 'media' && <MediaRenderer node={node} jobId={node.job_id} />}
-               {node.node_type === 'group' && <GroupRenderer node={node} jobId={node.job_id} />}
-               {!['form', 'media', 'group'].includes(node.node_type) && (
-                 <div className="text-muted-foreground">Node type '{node.node_type}' not supported by SSOT renderer.</div>
-               )}
-             </CollapsibleContent>
-           </CardContent>
-         </Collapsible>
-       )}
+      <Collapsible open={!isCollapsed} onOpenChange={setIsCollapsed}>
+        <CardContent className="pt-0">
+          <CollapsibleContent>
+            {node.node_type === 'form'  && (shouldCenterGenerate ? <CenterGenerate /> : renderFormContent())}
+            {node.node_type === 'media' && (shouldCenterGenerate ? <CenterGenerate /> : <MediaRenderer node={node} jobId={node.job_id} />)}
+            {node.node_type === 'group' && <GroupRenderer node={node} jobId={node.job_id} />}
+            {!['form', 'media', 'group'].includes(node.node_type) && (
+              <div className="text-muted-foreground">Node type '{node.node_type}' not supported by SSOT renderer.</div>
+            )}
+          </CollapsibleContent>
+        </CardContent>
+      </Collapsible>
     </Card>
   );
   
