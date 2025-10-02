@@ -21,6 +21,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNodeEditor } from '@/hooks/useNodeEditor';
 import { useDrafts } from '@/contexts/DraftsContext';
 import { useJobs, type JobNode } from '@/hooks/useJobs';
+import { ToastAction } from '@/components/ui/toast';
 
 // ============= Media & Group Types =============
 type MediaItemImage = { kind: 'ImageItem'; url: string; width: number; height: number };
@@ -76,6 +77,29 @@ const deepHasNonNull = (v: any): boolean => {
   if (Array.isArray(v)) return v.some(deepHasNonNull);
   return Object.values(v).some(deepHasNonNull);
 };
+
+const promptTopUp = (info?: { required?: number; available?: number; shortfall?: number }) => {
+  const desc =
+    info && Number.isFinite(info.required) && Number.isFinite(info.available)
+      ? `Required ${info.required} credits, you have ${info.available}.`
+      : 'You do not have enough credits.';
+  toast({
+    title: 'Insufficient credits',
+    description: desc,
+    variant: 'destructive',
+    action: (
+      <ToastAction
+        altText="Top up"
+        onClick={() => {
+          window.location.href = '/user/wallet';
+        }}
+      >
+        Top up
+      </ToastAction>
+    ),
+  });
+};
+
 
 
 const DBG = true;
@@ -334,33 +358,65 @@ const handleGenerate = async () => {
   try {
     const { data, error } = await supabase.functions.invoke('execute-n8n', {
       body: {
-        function_id: node.generate_n8n_id, // ← use the node’s generate_n8n_id
+        function_id: node.generate_n8n_id, // id or name is fine (edge handles both)
         job_id: node.job_id,
         node_id: node.id,
         mode: 'generate',
-        context: {},                       // keep for future context
+        context: {},
       },
     });
-    if (error) throw error;
 
-    // tolerate both the new envelope and the old shape
-    const success = data?.status === 'ok' || data?.success === true;
+    // A) Explicit 402 from Edge (supabase-js returns error with status)
+    if (error && (error as any).status === 402) {
+      // We may not get the full JSON in error, so show generic toast
+      // Edge sends { required, available, shortfall } — try to parse if present in data
+      const info =
+        data && typeof data === 'object' && (data as any).status === 'insufficient_credits'
+          ? {
+              required: Number((data as any).required),
+              available: Number((data as any).available),
+              shortfall: Number((data as any).shortfall),
+            }
+          : undefined;
+      promptTopUp(info);
+      return;
+    }
+
+    // B) Edge returned JSON envelope without throwing (defensive)
+    if (data && (data as any).status === 'insufficient_credits') {
+      const d: any = data;
+      promptTopUp({
+        required: Number(d.required),
+        available: Number(d.available),
+        shortfall: Number(d.shortfall),
+      });
+      return;
+    }
+
+    // C) Other error path
+    if (error) {
+      throw error;
+    }
+
+    // D) Success path (new envelope from Edge)
+    const ok = data && ((data as any).status === 'ok' || (data as any).success === true);
     const generatedContent =
-      data?.result?.content ??
-      data?.data?.content ??
-      data?.generatedContent ??
+      (data as any)?.result?.content ??
+      (data as any)?.data?.content ??
+      (data as any)?.generatedContent ??
       null;
 
-    if (success) {
-      toast({
-        title: 'Content generated',
-        description: 'Node content generated successfully.',
-      });
-      if (generatedContent != null) {
-        onUpdate?.(node.id, generatedContent);
-      }
-    } else {
-      throw new Error(data?.error || 'Generation failed');
+    if (!ok) {
+      throw new Error((data as any)?.message || 'Generation failed');
+    }
+
+    toast({
+      title: 'Content generated',
+      description: 'Node content generated successfully.',
+    });
+
+    if (generatedContent != null) {
+      onUpdate?.(node.id, generatedContent);
     }
   } catch (e: any) {
     toast({
@@ -372,6 +428,7 @@ const handleGenerate = async () => {
     setLoading(false);
   }
 };
+
 
 
   // --------- Tree rendering (no extra renderers) ---------
