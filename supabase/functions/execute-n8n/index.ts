@@ -153,7 +153,7 @@ serve(async (request) => {
     // ---------- n8n function (app.n8n_functions) — lookup by id OR name (id is text)
     let { data: n8nFunction, error: fnError } = await app
       .from("n8n_functions")
-      .select("id, name, kind, active, price_in_credits, production_webhook")
+      .select("id, name, kind, active, price_in_credits, webhook_url")
       .eq("id", functionId)
       .eq("active", true)
       .single();
@@ -161,7 +161,7 @@ serve(async (request) => {
     if (!n8nFunction) {
       const { data: byName, error: byNameErr } = await app
         .from("n8n_functions")
-        .select("id, name, kind, active, price_in_credits, production_webhook")
+        .select("id, name, kind, active, price_in_credits, webhook_url")
         .eq("name", functionId)
         .eq("active", true)
         .single();
@@ -273,14 +273,14 @@ serve(async (request) => {
     };
     if (idempotencyKey) webhookPayload.idempotency_key = idempotencyKey;
 
-    console.log(`[${requestId}] Calling webhook:`, n8nFunction.production_webhook);
+    console.log(`[${requestId}] Calling webhook:`, n8nFunction.webhook_url);
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 60_000);
 
     let webhookResult: any;
     try {
-      const webhookResponse = await fetch(n8nFunction.production_webhook, {
+      const webhookResponse = await fetch(n8nFunction.webhook_url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(webhookPayload),
