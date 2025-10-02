@@ -30,12 +30,6 @@ export function FunctionDataProvider({ children }: { children: React.ReactNode }
       return loadingPromises.get(functionId)!;
     }
 
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(functionId)) {
-      console.warn('Invalid function ID format:', functionId);
-      return null;
-    }
 
     // Create and cache the loading promise
     const loadingPromise = (async () => {
