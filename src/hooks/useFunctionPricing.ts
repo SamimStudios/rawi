@@ -32,7 +32,8 @@ export function useFunctionPricing(): UseFunctionPricingResult {
   
       // Query the app schema directly (bypass typed client constraints)
       const { data, error: dbError } = await (supabase as any)
-        .from('app.n8n_functions')
+        .schema('app' as any)
+        .from('n8n_functions')
         .select('id,name,price_in_credits,active')
         .eq('active', true);
   
