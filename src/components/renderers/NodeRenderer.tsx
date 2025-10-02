@@ -187,6 +187,7 @@ export default function NodeRenderer({
   const CenterGenerate = () => (
     <div className="py-12 flex items-center justify-center">
       <Button
+        variant="bg-gradient-primary"
         size="lg"
         onClick={handleGenerate}
         functionId={node.generate_n8n_id || undefined}
@@ -779,7 +780,7 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
                   <>
                     {hasGenerateAction && !shouldCenterGenerate && (
                       <Button
-                        variant="ghost"
+                        variant="bg-gradient-primary"
                         size="sm"
                         onClick={handleGenerate}
                         functionId={node.generate_n8n_id || undefined}
