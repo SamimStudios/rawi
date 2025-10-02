@@ -138,7 +138,7 @@ export default function NodeRenderer({
   onGenerate,
   mode: externalMode,
   onModeChange,
-  showPath = false,
+  showPath = true,
   className
 }: NodeRendererProps) {
   const { toast } = useToast();
