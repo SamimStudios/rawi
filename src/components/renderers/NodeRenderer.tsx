@@ -391,6 +391,8 @@ const handleGenerate = async () => {
         context: {},
       },
     });
+    console.log(data);
+    console.log(error);
 
     // --- Detect 402 from either error.status or error.context.status,
     //     and/or detect the JSON envelope { status: 'insufficient_credits', ... }
@@ -414,7 +416,7 @@ const handleGenerate = async () => {
             }
            : undefined
        );
-      console.log(data);
+      
        return; // stop here; no generic error toast
     }
 
