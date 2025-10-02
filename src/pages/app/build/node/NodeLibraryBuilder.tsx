@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Save, ArrowLeft, Eye, AlertTriangle } from 'lucide-react';
+import { Save, ArrowLeft, Eye, AlertTriangle, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useNodeLibrary, type NodeLibraryEntry } from '@/hooks/useNodeLibrary';
@@ -35,7 +35,13 @@ export default function NodeLibraryBuilder() {
     generate_n8n_id: null,
     active: true,
     version: 1,
+    dependencies: [], // ⬅️ new
   });
+
+  const [newDep, setNewDep] = useState('');
+  const [depError, setDepError] = useState<string | null>(null);
+  const LTREE_RE = /^root(\.[a-z0-9_]+)*$/;
+
 
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -49,7 +55,7 @@ export default function NodeLibraryBuilder() {
     if (id && entries.length > 0) {
       const existingEntry = entries.find(e => e.id === id);
       if (existingEntry) {
-        setEntry(existingEntry);
+        setEntry({ ...existingEntry, dependencies: (existingEntry as any).dependencies ?? [] });
       } else {
         toast({
           title: "Entry not found",
@@ -112,6 +118,30 @@ export default function NodeLibraryBuilder() {
       setIsSaving(false);
     }
   };
+
+  const addDependency = useCallback(() => {
+    const raw = newDep.trim().toLowerCase();
+    if (!raw) return;
+    if (!LTREE_RE.test(raw)) {
+      setDepError('Must start with "root" and use dot-separated lowercase labels (a–z, 0–9, _). Example: root.props.i1');
+      return;
+    }
+    setDepError(null);
+    setEntry(prev => {
+      const current = Array.isArray((prev as any).dependencies) ? (prev as any).dependencies : [];
+      if (current.includes(raw)) return prev;
+      return { ...prev, dependencies: [...current, raw] as any };
+    });
+    setNewDep('');
+  }, [newDep]);
+  
+  const removeDependency = useCallback((dep: string) => {
+    setEntry(prev => {
+      const current = Array.isArray((prev as any).dependencies) ? (prev as any).dependencies : [];
+      return { ...prev, dependencies: current.filter((d: string) => d !== dep) } as any;
+    });
+  }, []);
+
 
   const handleContentChange = useCallback((newContent: Record<string, any>) => {
     setEntry(prev => (isEqual(prev.content, newContent) ? prev : { ...prev, content: newContent }));
@@ -330,6 +360,54 @@ export default function NodeLibraryBuilder() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Dependencies */}
+<Card>
+  <CardHeader>
+    <CardTitle>Dependencies</CardTitle>
+    <p className="text-sm text-muted-foreground">
+      Addresses of other nodes/values this library entry depends on (ltree paths).
+    </p>
+  </CardHeader>
+  <CardContent className="space-y-4">
+    <div className="flex gap-2">
+      <Input
+        placeholder="e.g., root.user_input.form.plan or root.props.i1"
+        value={newDep}
+        onChange={(e) => setNewDep(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            addDependency();
+          }
+        }}
+      />
+      <Button type="button" onClick={addDependency}>Add</Button>
+        </div>
+        {depError && (
+          <div className="flex items-center text-red-600 text-sm gap-2">
+            <AlertTriangle className="w-4 h-4" />
+            <span>{depError}</span>
+          </div>
+        )}
+        <div className="flex flex-wrap gap-2">
+          {(entry as any).dependencies?.length ? (entry as any).dependencies.map((dep: string) => (
+            <Badge key={dep} variant="secondary" className="flex items-center gap-1">
+              <span className="font-mono">{dep}</span>
+              <button
+                type="button"
+                className="ml-1"
+                onClick={() => removeDependency(dep)}
+                aria-label={`Remove ${dep}`}
+                title="Remove"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </Badge>
+          )) : <span className="text-muted-foreground text-sm">No dependencies</span>}
+        </div>
+      </CardContent>
+    </Card>
 
       {/* Payload Configuration */}
       <Card>
