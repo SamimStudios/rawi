@@ -378,25 +378,7 @@ const handleGenerate = async () => {
     }
   };
 
-  const promptTopUp = (info?: { required?: number; available?: number; shortfall?: number }) => {
-    const desc =
-      info && Number.isFinite(info.required) && Number.isFinite(info.available)
-        ? `Required ${info.required} credits, you have ${info.available}.`
-        : 'You do not have enough credits.';
-    toast({
-      title: 'Insufficient credits',
-      description: desc,
-      variant: 'destructive',
-      action: (
-        <ToastAction
-          altText="Top up"
-          onClick={() => { window.location.href = '/user/wallet'; }}
-        >
-          Top up
-        </ToastAction>
-      ),
-    });
-  };
+
 
   setLoading(true);
   try {
