@@ -54,9 +54,20 @@ serve(async (request) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+    const app = (supabase as any).schema('app' as any);
 
-    const body: ExecuteRequest = await request.json();
-    const { jobId, nodeId, functionId, payload, idempotencyKey } = body;
+
+    const raw = await request.json();
+    
+    // accept both snake_case and camelCase
+    const jobId          = raw.jobId          ?? raw.job_id;
+    const nodeId         = raw.nodeId         ?? raw.node_id;
+    const functionId     = raw.functionId     ?? raw.function_id;
+    const idempotencyKey = raw.idempotencyKey ?? raw.idempotency_key ?? undefined;
+    
+    // payload is optional for generate; normalize to { fields: [], context: {} }
+    const payload = raw.payload ?? { fields: [], context: {} };
+
 
     console.log(`[${requestId}] Request params:`, { jobId, nodeId, functionId, idempotencyKey });
 
@@ -81,7 +92,7 @@ serve(async (request) => {
     }
 
     // Fetch job and verify ownership
-    const { data: job, error: jobError } = await supabase
+    const { data: job, error: jobError } = await app
       .from('jobs')
       .select('id, user_id')
       .eq('id', jobId)
@@ -96,7 +107,7 @@ serve(async (request) => {
     }
 
     // Fetch node and verify it belongs to job
-    const { data: node, error: nodeError } = await supabase
+    const { data: node, error: nodeError } = await app
       .from('nodes')
       .select('id, job_id, path, node_type, generate_n8n_id, validate_n8n_id')
       .eq('id', nodeId)
@@ -111,7 +122,7 @@ serve(async (request) => {
     }
 
     // Fetch n8n function and verify compatibility
-    const { data: n8nFunction, error: functionError } = await supabase
+    const { data: n8nFunction, error: functionError } = await app
       .from('n8n_functions')
       .select('id, name, kind, active, price_in_credits, production_webhook')
       .eq('id', functionId)
@@ -162,10 +173,11 @@ serve(async (request) => {
     }
 
     // Validate addresses are rooted at node address
-    const nodeAddr = node.path;
+    const nodeAddr = String(node.addr);
     for (const field of payload.fields) {
-      const addressRoot = field.address.split('#')[0];
-      if (addressRoot !== nodeAddr) {
+      const addressRoot = String(field.address || '').split('#')[0];
+      const inScope = addressRoot === nodeAddr || addressRoot.startsWith(nodeAddr + '.');
+      if (!inScope) {
         throw new Error(`Invalid address root: ${field.address} (expected ${nodeAddr})`);
       }
     }
