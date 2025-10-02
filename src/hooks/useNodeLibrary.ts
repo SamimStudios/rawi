@@ -6,6 +6,7 @@ export interface NodeLibraryEntry {
   id: string;
   node_type: 'form' | 'media' | 'group';
   content: Record<string, any>;
+  dependencies?: string[]; // ltree[] in DB
   payload_validate?: Record<string, any> | null;
   payload_generate?: Record<string, any> | null;
   validate_n8n_id?: string | null;
@@ -15,6 +16,7 @@ export interface NodeLibraryEntry {
   created_at?: string;
   updated_at?: string;
 }
+
 
 export interface N8NFunction {
   id: string;
