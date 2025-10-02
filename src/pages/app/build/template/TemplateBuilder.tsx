@@ -15,13 +15,47 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Save, Plus, ArrowLeft } from 'lucide-react';
+import { Loader2, Save, Plus, ArrowLeft, Edit, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { supabase } from '@/lib/supabase'; // <-- adjust if your client path differs
 
+// -------------------- helpers --------------------
 const ROOT = 'root';
+const LTREE_RE = /^root(\.[a-z0-9_]+)*$/;
+const isValidAddr = (a: string) => LTREE_RE.test(a);
 const joinAddr = (parentAddr: string | null, path: string) =>
   parentAddr ? `${parentAddr}.${path}` : `${ROOT}.${path}`;
+
+type UINode = TemplateNodeRow & {
+  // ensure presence in UI
+  dependencies?: string[];
+  addr?: string; // preview for unsaved nodes
+};
+
+function wouldCreateCycle(allNodes: UINode[], fromAddr: string, toAddr: string): boolean {
+  if (fromAddr === toAddr) return true;
+  const edges = new Map<string, string[]>();
+  for (const n of allNodes) {
+    const a = n.addr ?? joinAddr(n.parent_addr ?? null, n.path);
+    edges.set(a, (n.dependencies ?? []) as string[]);
+  }
+  const list = edges.get(fromAddr) ?? [];
+  list.push(toAddr);
+  edges.set(fromAddr, list);
+
+  const seen = new Set<string>();
+  const stack = [toAddr];
+  while (stack.length) {
+    const cur = stack.pop()!;
+    if (cur === fromAddr) return true;
+    if (seen.has(cur)) continue;
+    seen.add(cur);
+    const next = edges.get(cur) ?? [];
+    for (const n of next) stack.push(n);
+  }
+  return false;
+}
 
 export default function TemplateBuilder() {
   const { id } = useParams<{ id: string }>();
@@ -46,17 +80,24 @@ export default function TemplateBuilder() {
   const [newTemplateCategory, setNewTemplateCategory] = useState('content');
 
   const [template, setTemplate] = useState<TemplateRow | null>(null);
-  const [nodes, setNodes] = useState<TemplateNodeRow[]>([]);
+  const [nodes, setNodes] = useState<UINode[]>([]);
   const [libIndex, setLibIndex] = useState<Map<string, LibraryRow>>(new Map());
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Input controls (simple)
+  // ------- Add Node controls -------
   const [newPath, setNewPath] = useState('');
   const [newType, setNewType] = useState<NodeType>('form');
   const [newLibraryId, setNewLibraryId] = useState('');
+  const [newDepSelect, setNewDepSelect] = useState<string>('');
+  const [newDeps, setNewDeps] = useState<string[]>([]);
+
+  // ------- Edit Node modal -------
+  const [editOpen, setEditOpen] = useState(false);
+  const [editing, setEditing] = useState<UINode | null>(null);
+  const [editDepSelect, setEditDepSelect] = useState<string>('');
 
   useEffect(() => {
     let mounted = true;
@@ -66,7 +107,6 @@ export default function TemplateBuilder() {
           setLoading(false);
           return;
         }
-        
         if (!id) throw new Error('No template id');
         await ensureGroupAnchors();
 
@@ -82,7 +122,14 @@ export default function TemplateBuilder() {
 
         const tnodes = await fetchTemplateNodes(tpl.id, tpl.current_version);
         if (!mounted) return;
-        setNodes(tnodes);
+
+        // ensure deps presence
+        const enriched = tnodes.map(n => ({
+          ...n,
+          dependencies: (n as any).dependencies ?? []
+        })) as UINode[];
+
+        setNodes(enriched);
       } catch (e: any) {
         setError(e.message ?? String(e));
       } finally {
@@ -92,6 +139,46 @@ export default function TemplateBuilder() {
     return () => { mounted = false; };
   }, [id]);
 
+  // ---------------- dependency option builder ----------------
+  const allNodesWithPreview = useMemo<UINode[]>(() => {
+    return nodes.map(n => ({
+      ...n,
+      addr: n.addr ?? joinAddr(n.parent_addr, n.path),
+      dependencies: n.dependencies ?? []
+    }));
+  }, [nodes]);
+
+  const defaultInstancesForNode = (n: UINode) => {
+    const lib = libIndex.get(n.library_id);
+    if (!lib) return 0;
+    const di = Number(lib?.content?.collection?.default_instances ?? 0);
+    return Number.isFinite(di) && di > 0 ? di : 0;
+  };
+
+  const dependencyOptions = useMemo<{ value: string; label: string }[]>(() => {
+    const opts: { value: string; label: string }[] = [];
+    for (const n of allNodesWithPreview) {
+      const base = n.addr ?? joinAddr(n.parent_addr, n.path);
+      if (!isValidAddr(base)) continue;
+
+      // root node
+      opts.push({ value: base, label: base });
+
+      // collection instances
+      const di = defaultInstancesForNode(n);
+      if (di > 0) {
+        for (let i = 1; i <= di; i++) {
+          const inst = `${base}.i${i}`;
+          opts.push({ value: inst, label: inst });
+        }
+      }
+    }
+    // dedupe
+    const seen = new Set<string>();
+    return opts.filter(o => (seen.has(o.value) ? false : (seen.add(o.value), true)));
+  }, [allNodesWithPreview, libIndex]);
+
+  // ---------------- template create/save ----------------
   async function handleCreateTemplate() {
     if (!newTemplateId.trim()) {
       toast({ title: 'Error', description: 'Template ID is required', variant: 'destructive' });
@@ -101,7 +188,6 @@ export default function TemplateBuilder() {
       toast({ title: 'Error', description: 'Template name is required', variant: 'destructive' });
       return;
     }
-    
     setLoading(true);
     try {
       const templateId = await createTemplate(newTemplateName.trim(), newTemplateCategory, newTemplateId.trim());
@@ -118,12 +204,17 @@ export default function TemplateBuilder() {
     setSaving(true);
     setError(null);
     try {
-      const normalized = normalizeNodesForSave(nodes, template.current_version);
+      const normalized = normalizeNodesForSave(
+        nodes.map(n => ({ ...n, dependencies: n.dependencies ?? [] })) as TemplateNodeRow[],
+        template.current_version
+      );
       await saveTemplateNodes(normalized);
-
       const fresh = await fetchTemplateNodes(template.id, template.current_version);
-      setNodes(fresh);
+      setNodes(fresh.map(n => ({ ...n, dependencies: (n as any).dependencies ?? [] })));
       toast({ title: 'Success', description: 'Template nodes saved successfully' });
+      // reset add deps after save
+      setNewDeps([]);
+      setNewDepSelect('');
     } catch (e: any) {
       setError(e.message ?? String(e));
       toast({ title: 'Error', description: e.message ?? String(e), variant: 'destructive' });
@@ -132,7 +223,31 @@ export default function TemplateBuilder() {
     }
   }
 
-  // ---- Adders
+  // ---------------- adders ----------------
+  const addDepToNew = (depAddr: string) => {
+    if (!newPath) {
+      toast({ title: 'Add a path first', description: 'Set a path label before adding dependencies.' });
+      return;
+    }
+    const selfAddr = joinAddr(null, newPath); // top-level in current UI
+    if (depAddr === selfAddr) {
+      toast({ title: 'Invalid', description: 'Self-dependency is not allowed.', variant: 'destructive' });
+      return;
+    }
+    if (wouldCreateCycle(allNodesWithPreview.concat([{
+      // include the new node as a preview in graph
+      ...( {} as any ),
+      path: newPath,
+      parent_addr: null,
+      addr: selfAddr,
+      dependencies: newDeps,
+    } as UINode]), selfAddr, depAddr)) {
+      toast({ title: 'Cycle detected', description: 'This dependency creates a cycle.', variant: 'destructive' });
+      return;
+    }
+    setNewDeps(prev => Array.from(new Set([...prev, depAddr])));
+    setNewDepSelect('');
+  };
 
   function addSimpleNode() {
     if (!template) return;
@@ -143,7 +258,18 @@ export default function TemplateBuilder() {
     if (!lib) return setError('Library not found');
     if (newType !== lib.node_type) return setError(`Type mismatch: ${newType} vs library ${lib.node_type}`);
 
-    const row: TemplateNodeRow = {
+    // compute preview addr to final cycle check against graph
+    const selfAddr = joinAddr(null, newPath);
+    for (const dep of newDeps) {
+      if (!isValidAddr(dep)) {
+        return setError(`Invalid dependency address: ${dep}`);
+      }
+      if (wouldCreateCycle(allNodesWithPreview, selfAddr, dep)) {
+        return setError(`Adding dependency "${dep}" would create a cycle`);
+      }
+    }
+
+    const row: UINode = {
       template_id: template.id,
       version: template.current_version,
       idx: 999999, // temp; fixed on save
@@ -152,10 +278,14 @@ export default function TemplateBuilder() {
       parent_addr: null, // All nodes added at root level
       library_id: lib.id,
       arrangeable: true,
-      removable: true
+      removable: true,
+      dependencies: [...newDeps],
+      addr: selfAddr
     };
     setNodes(prev => [...prev, row]);
     setError(null);
+    setNewDeps([]);
+    setNewDepSelect('');
   }
 
   function seedGroupNodes(params: {
@@ -165,14 +295,14 @@ export default function TemplateBuilder() {
     groupPath: string;
     groupLibrary: LibraryRow;
     libIndex: Map<string, LibraryRow>;
-  }): TemplateNodeRow[] {
+  }): UINode[] {
     const { templateId, version, parentAddr, groupPath, groupLibrary, libIndex } = params;
     if (!isValidPathLabel(groupPath)) throw new Error(`Invalid path: ${groupPath}`);
 
-    console.log('[seedGroupNodes] Starting:', { groupPath, libraryId: groupLibrary.id, parentAddr });
-    const rows: TemplateNodeRow[] = [];
+    const rows: UINode[] = [];
 
-    // 1) the group itself
+    // 1) the group itself (attach Add-section dependencies only to the root group)
+    const groupAddr = parentAddr ? `${parentAddr}.${groupPath}` : `${ROOT}.${groupPath}`;
     rows.push({
       template_id: templateId,
       version,
@@ -182,28 +312,23 @@ export default function TemplateBuilder() {
       parent_addr: parentAddr,
       library_id: groupLibrary.id,
       arrangeable: true,
-      removable: false
+      removable: false,
+      dependencies: [...newDeps],
+      addr: groupAddr
     });
 
-    const groupAddr = parentAddr ? `${parentAddr}.${groupPath}` : `${ROOT}.${groupPath}`;
     const content = groupLibrary.content || {};
-    console.log('[seedGroupNodes] Content:', { content, hasChildren: Array.isArray(content.children), childrenCount: content.children?.length });
 
     // REGULAR group -> children[]
     if (Array.isArray(content.children)) {
       const children = [...content.children].sort((a: any, b: any) => (a.idx ?? 1) - (b.idx ?? 1));
-      console.log('[seedGroupNodes] Processing children:', children.length);
       for (const kid of children) {
         const childPath: string = kid.path;
         if (!isValidPathLabel(childPath)) throw new Error(`Invalid child path: ${childPath}`);
         const childLib = libIndex.get(kid.library_id);
         if (!childLib) throw new Error(`Missing library: ${kid.library_id}`);
-        
-        console.log('[seedGroupNodes] Child:', { childPath, childType: childLib.node_type, libraryId: childLib.id });
-        
-        // If child is a group, recursively expand it
+
         if (childLib.node_type === 'group') {
-          console.log('[seedGroupNodes] Recursing into group child:', childPath);
           const childRows = seedGroupNodes({
             templateId,
             version,
@@ -212,10 +337,9 @@ export default function TemplateBuilder() {
             groupLibrary: childLib,
             libIndex
           });
-          console.log('[seedGroupNodes] Got', childRows.length, 'rows from recursive call');
           rows.push(...childRows);
         } else {
-          // Non-group child: push single row
+          const childAddr = `${groupAddr}.${childPath}`;
           rows.push({
             template_id: templateId,
             version,
@@ -224,35 +348,28 @@ export default function TemplateBuilder() {
             path: childPath,
             parent_addr: groupAddr,
             library_id: childLib.id,
-            removable: true
+            removable: true,
+            dependencies: [],
+            addr: childAddr
           });
         }
       }
-      console.log('[seedGroupNodes] Finished processing children, total rows:', rows.length);
       return rows;
     }
 
     // COLLECTION group -> collection + instances array
     if (content.collection && content.instances && Array.isArray(content.instances)) {
-      console.log('[seedGroupNodes] Processing collection with instances:', { instances: content.instances });
-      
-      // Get the default number of instances to create
       const N = Number.isFinite(+content.collection.default_instances) && +content.collection.default_instances > 0
         ? +content.collection.default_instances
         : 1;
 
-      // Find the instance definition (should have {i: number, children: string[]})
       const instDef = content.instances.find((inst: any) => inst.i === 1);
-      if (!instDef || !Array.isArray(instDef.children)) {
-        console.warn('[seedGroupNodes] No valid instance definition found');
-        return rows;
-      }
-      
-      console.log('[seedGroupNodes] Instance definition:', { instDef, childrenCount: instDef.children.length });
+      if (!instDef || !Array.isArray(instDef.children)) return rows;
 
       // Create instance nodes (i1..iN) directly under the group
       for (let i = 1; i <= N; i++) {
         const iPath = `i${i}`;
+        const iAddr = `${groupAddr}.${iPath}`;
 
         rows.push({
           template_id: templateId,
@@ -263,31 +380,24 @@ export default function TemplateBuilder() {
           parent_addr: groupAddr,
           library_id: 'lib_group_instance_anchor',
           arrangeable: true,
-          removable: true
+          removable: true,
+          dependencies: [],
+          addr: iAddr
         });
 
-        const iAddr = `${groupAddr}.${iPath}`;
-
-        // 4) children under each iN - instDef.children is array of library IDs
+        // children under each iN
         for (const libraryId of instDef.children) {
-          console.log('[seedGroupNodes] Processing instance child library:', { instance: iPath, libraryId });
-          
           const childLib = libIndex.get(libraryId);
           if (!childLib) {
-            throw new Error(`Missing library: ${libraryId}. Available libraries: ${Array.from(libIndex.keys()).join(', ')}`);
+            throw new Error(`Missing library: ${libraryId}`);
           }
-          
-          // Derive the child path from the library ID (remove 'lib_' prefix)
           const childPath = libraryId.replace(/^lib_/, '');
           if (!isValidPathLabel(childPath)) {
             throw new Error(`Invalid child path derived from library: ${childPath}`);
           }
-          
-          console.log('[seedGroupNodes] Instance child:', { instance: iPath, childPath, childType: childLib.node_type, libraryId: childLib.id });
-          
-          // If child is a group, recursively expand it
+          const childAddr = `${iAddr}.${childPath}`;
+
           if (childLib.node_type === 'group') {
-            console.log('[seedGroupNodes] Recursing into group instance child:', childPath);
             const childRows = seedGroupNodes({
               templateId,
               version,
@@ -296,10 +406,8 @@ export default function TemplateBuilder() {
               groupLibrary: childLib,
               libIndex
             });
-            console.log('[seedGroupNodes] Got', childRows.length, 'rows from instance recursive call');
             rows.push(...childRows);
           } else {
-            // Non-group child: push single row
             rows.push({
               template_id: templateId,
               version,
@@ -308,14 +416,14 @@ export default function TemplateBuilder() {
               path: childPath,
               parent_addr: iAddr,
               library_id: childLib.id,
-              removable: true
+              removable: true,
+              dependencies: [],
+              addr: childAddr
             });
           }
         }
       }
-      console.log('[seedGroupNodes] Finished processing instances, total rows:', rows.length);
     }
-
     return rows;
   }
 
@@ -328,22 +436,143 @@ export default function TemplateBuilder() {
     if (!lib) return setError('Library not found');
     if (lib.node_type !== 'group') return setError('Selected library is not a group');
 
+    // cycle check newDeps against current graph for the group root
+    const selfAddr = joinAddr(null, newPath);
+    for (const dep of newDeps) {
+      if (!isValidAddr(dep)) {
+        return setError(`Invalid dependency address: ${dep}`);
+      }
+      if (wouldCreateCycle(allNodesWithPreview, selfAddr, dep)) {
+        return setError(`Adding dependency "${dep}" would create a cycle`);
+      }
+    }
+
     try {
       const seeded = seedGroupNodes({
         templateId: template.id,
         version: template.current_version,
-        parentAddr: null, // All nodes added at root level
+        parentAddr: null,
         groupPath: newPath,
         groupLibrary: lib,
         libIndex
       });
       setNodes(prev => [...prev, ...seeded]);
       setError(null);
+      setNewDeps([]);
+      setNewDepSelect('');
     } catch (e: any) {
       setError(e.message ?? String(e));
     }
   }
 
+  // ---------------- edit modal logic ----------------
+  const openEdit = (row: UINode) => {
+    const addr = row.addr ?? joinAddr(row.parent_addr, row.path);
+    setEditing({
+      ...row,
+      addr,
+      dependencies: row.dependencies ?? [],
+    });
+    setEditDepSelect('');
+    setEditOpen(true);
+  };
+
+  const closeEdit = () => {
+    setEditOpen(false);
+    setEditing(null);
+    setEditDepSelect('');
+  };
+
+  const addDepToEdit = (depAddr: string) => {
+    if (!editing) return;
+    const selfAddr = editing.addr ?? joinAddr(editing.parent_addr, editing.path);
+    if (depAddr === selfAddr) {
+      toast({ title: 'Invalid', description: 'Self-dependency is not allowed.', variant: 'destructive' });
+      return;
+    }
+    // Build a preview graph with the edited node’s updated deps
+    const previewNodes = allNodesWithPreview.map(n =>
+      (n.addr ?? joinAddr(n.parent_addr, n.path)) === selfAddr
+        ? { ...n, dependencies: Array.from(new Set([...(editing.dependencies ?? []), depAddr])) }
+        : n
+    );
+    if (wouldCreateCycle(previewNodes, selfAddr, depAddr)) {
+      toast({ title: 'Cycle detected', description: 'This dependency creates a cycle.', variant: 'destructive' });
+      return;
+    }
+    setEditing(ed => ed ? { ...ed, dependencies: Array.from(new Set([...(ed.dependencies ?? []), depAddr])) } : ed);
+    setEditDepSelect('');
+  };
+
+  const saveEdit = async () => {
+    if (!editing || !template) return;
+
+    const original = nodes.find(n =>
+      (n.addr ?? joinAddr(n.parent_addr, n.path)) === (editing.addr ?? joinAddr(editing.parent_addr, editing.path))
+    );
+    const oldAddr = original ? (original.addr ?? joinAddr(original.parent_addr, original.path)) : editing.addr!;
+    const newAddr = joinAddr(editing.parent_addr, editing.path);
+
+    // Validate deps format + cycles
+    for (const dep of editing.dependencies ?? []) {
+      if (!isValidAddr(dep)) {
+        toast({ title: 'Invalid dependency', description: dep, variant: 'destructive' });
+        return;
+      }
+    }
+    const previewNodes = allNodesWithPreview.map(n =>
+      (n.addr ?? joinAddr(n.parent_addr, n.path)) === oldAddr
+        ? { ...n, dependencies: editing.dependencies ?? [], path: editing.path }
+        : n
+    );
+    for (const dep of editing.dependencies ?? []) {
+      if (wouldCreateCycle(previewNodes, newAddr, dep)) {
+        toast({ title: 'Cycle detected', description: `Dependency "${dep}" creates a cycle.`, variant: 'destructive' });
+        return;
+      }
+    }
+
+    try {
+      // 1) Rename label if changed (server cascades descendants and dep refs)
+      if (oldAddr !== newAddr) {
+        const { error: e1 } = await supabase.rpc('tn_rename_label', {
+          p_template_id: template.id,
+          p_version: template.current_version,
+          p_old_addr: oldAddr,
+          p_new_label: editing.path, // last segment only
+        });
+        if (e1) throw e1;
+      }
+
+      // 2) Update dependencies on this node (by new addr)
+      const { error: e2 } = await supabase
+        .from('app.template_nodes' as any) // schema-qualified
+        .update({ dependencies: editing.dependencies ?? [] })
+        .eq('template_id', template.id)
+        .eq('version', template.current_version)
+        .eq('addr', newAddr);
+      if (e2) throw e2;
+
+      // 3) Reindex siblings (contiguous) via RPC
+      const { error: e3 } = await supabase.rpc('tn_set_idx', {
+        p_template_id: template.id,
+        p_version: template.current_version,
+        p_addr: newAddr,
+        p_new_idx: editing.idx,
+      });
+      if (e3) throw e3;
+
+      // 4) refresh list from DB
+      const fresh = await fetchTemplateNodes(template.id, template.current_version);
+      setNodes(fresh.map(n => ({ ...n, dependencies: (n as any).dependencies ?? [] })));
+      toast({ title: 'Updated', description: 'Node updated successfully.' });
+      closeEdit();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message ?? String(e), variant: 'destructive' });
+    }
+  };
+
+  // ---------------- UI ----------------
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -520,6 +749,41 @@ export default function TemplateBuilder() {
             </div>
           </div>
 
+          {/* Dependencies picker (Add) */}
+          <div className="space-y-2">
+            <Label>Dependencies</Label>
+            <div className="flex gap-2">
+              <Select value={newDepSelect} onValueChange={setNewDepSelect}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select dependency address" />
+                </SelectTrigger>
+                <SelectContent>
+                  {dependencyOptions
+                    .filter(o => o.value !== (newPath ? joinAddr(null, newPath) : ''))
+                    .map(opt => (
+                      <SelectItem value={opt.value} key={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                onClick={() => newDepSelect && addDepToNew(newDepSelect)}
+              >
+                Add
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {newDeps.length ? newDeps.map(dep => (
+                <Badge key={dep} variant="secondary" className="gap-1">
+                  <span className="font-mono text-xs">{dep}</span>
+                  <button onClick={() => setNewDeps(prev => prev.filter(d => d !== dep))} aria-label="Remove">
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              )) : <span className="text-sm text-muted-foreground">No dependencies</span>}
+            </div>
+          </div>
+
           <Button onClick={newType === 'group' ? addGroupNode : addSimpleNode}>
             <Plus className="w-4 h-4 mr-2" />
             Add {newType}
@@ -536,7 +800,7 @@ export default function TemplateBuilder() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
+          <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -546,12 +810,13 @@ export default function TemplateBuilder() {
                   <TableHead>Parent</TableHead>
                   <TableHead>Address</TableHead>
                   <TableHead>Library ID</TableHead>
+                  <TableHead className="w-24">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {nodes.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                       No nodes yet. Add your first node above.
                     </TableCell>
                   </TableRow>
@@ -559,7 +824,7 @@ export default function TemplateBuilder() {
                   nodes.map(n => {
                     const addr = n.addr ?? joinAddr(n.parent_addr, n.path);
                     return (
-                      <TableRow key={(n.addr ?? joinAddr(n.parent_addr, n.path)) + ':' + n.idx}>
+                      <TableRow key={addr + ':' + n.idx}>
                         <TableCell className="font-medium">{n.idx}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="capitalize">
@@ -580,6 +845,11 @@ export default function TemplateBuilder() {
                         <TableCell>
                           <code className="text-xs">{n.library_id}</code>
                         </TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(n)} title="Edit">
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     );
                   })
@@ -589,6 +859,81 @@ export default function TemplateBuilder() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Modal */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Edit Node</DialogTitle>
+            <DialogDescription>Update path label, idx, and dependencies</DialogDescription>
+          </DialogHeader>
+
+          {editing && (
+            <div className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Path label (last segment)</Label>
+                  <Input
+                    value={editing.path}
+                    onChange={(e) => setEditing(ed => ed ? { ...ed, path: e.target.value } : ed)}
+                    placeholder="single_label"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Idx</Label>
+                  <Input
+                    type="number"
+                    value={editing.idx}
+                    onChange={(e) => setEditing(ed => ed ? { ...ed, idx: Math.max(1, Number(e.target.value || 1)) } : ed)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Dependencies</Label>
+                <div className="flex gap-2">
+                  <Select value={editDepSelect} onValueChange={setEditDepSelect}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select dependency address" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {dependencyOptions
+                        .filter(o => o.value !== (editing.addr ?? joinAddr(editing.parent_addr, editing.path)))
+                        .map(opt => (
+                          <SelectItem value={opt.value} key={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    onClick={() => editDepSelect && addDepToEdit(editDepSelect)}
+                  >
+                    Add
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(editing.dependencies ?? []).length ? (editing.dependencies ?? []).map(dep => (
+                    <Badge key={dep} variant="secondary" className="gap-1">
+                      <span className="font-mono text-xs">{dep}</span>
+                      <button
+                        onClick={() => setEditing(ed => ed ? { ...ed, dependencies: (ed.dependencies ?? []).filter(d => d !== dep) } : ed)}
+                        aria-label="Remove"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  )) : <span className="text-sm text-muted-foreground">No dependencies</span>}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closeEdit}>Cancel</Button>
+            <Button onClick={saveEdit}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
