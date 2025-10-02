@@ -18,7 +18,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Save, Plus, ArrowLeft, Edit, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { supabase } from '@/lib/supabase'; // <-- adjust if your client path differs
+import { supabase } from '@/integrations/supabase/client'; // <-- adjust if your client path differs
 
 // -------------------- helpers --------------------
 const ROOT = 'root';
