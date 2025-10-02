@@ -30,34 +30,60 @@ const isValidAddr = (a: string) => LTREE_RE.test(a);
 const joinAddr = (parentAddr: string | null, path: string) =>
   parentAddr ? `${parentAddr}.${path}` : `${ROOT}.${path}`;
 
+
+const LTREE_RE = /^root(\.[a-z0-9_]+)*$/;
+
+const normalizeDeps = (x: unknown): string[] => {
+  if (!Array.isArray(x)) return [];
+  const out: string[] = [];
+  // copy into a fresh, safe array
+  for (let i = 0; i < x.length && i < 10000; i++) {
+    const d = (x as any)[i];
+    if (typeof d === 'string' && LTREE_RE.test(d)) out.push(d);
+  }
+  return out;
+};
+
+
 type UINode = TemplateNodeRow & {
   dependencies?: string[];
   addr?: string; // preview for unsaved nodes
 };
 
-function wouldCreateCycle(allNodes: UINode[], fromAddr: string, toAddr: string): boolean {
+function wouldCreateCycle(allNodes: any[], fromAddr: string, toAddr: string): boolean {
   if (fromAddr === toAddr) return true;
+
+  // Build a safe adjacency map
   const edges = new Map<string, string[]>();
   for (const n of allNodes) {
-    const a = n.addr ?? joinAddr(n.parent_addr ?? null, n.path);
-    edges.set(a, (n.dependencies ?? []) as string[]);
+    const a = (n.addr ?? joinAddr(n.parent_addr ?? null, n.path)) as string;
+    const deps = normalizeDeps(n.dependencies);
+    edges.set(a, deps); // deps is a fresh, normal array we control
   }
-  const list = edges.get(fromAddr) ?? [];
-  list.push(toAddr);
-  edges.set(fromAddr, list);
 
+  // Add the proposed edge safely
+  if (edges.has(fromAddr)) {
+    edges.get(fromAddr)!.push(toAddr);
+  } else {
+    edges.set(fromAddr, [toAddr]);
+  }
+
+  // DFS
   const seen = new Set<string>();
-  const stack = [toAddr];
+  const stack: string[] = [toAddr];
   while (stack.length) {
     const cur = stack.pop()!;
     if (cur === fromAddr) return true;
     if (seen.has(cur)) continue;
     seen.add(cur);
-    const next = edges.get(cur) ?? [];
-    for (const n of next) stack.push(n);
+    const next = edges.get(cur);
+    if (Array.isArray(next)) {
+      for (const n of next) if (typeof n === 'string') stack.push(n);
+    }
   }
   return false;
 }
+
 
 export default function TemplateBuilder() {
   const { id } = useParams<{ id: string }>();
@@ -127,7 +153,7 @@ export default function TemplateBuilder() {
 
         const enriched = tnodes.map(n => ({
           ...n,
-          dependencies: (n as any).dependencies ?? []
+          dependencies: normalizeDeps((n as any).dependencies) ?? []
         })) as UINode[];
 
         setNodes(enriched);
@@ -145,7 +171,7 @@ export default function TemplateBuilder() {
     return nodes.map(n => ({
       ...n,
       addr: n.addr ?? joinAddr(n.parent_addr, n.path),
-      dependencies: n.dependencies ?? []
+      dependencies: normalizeDeps(n.dependencies) ?? []
     }));
   }, [nodes]);
 
