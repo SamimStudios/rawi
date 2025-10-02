@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
-import { ChevronDown, ChevronRight, Edit2, Save, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Edit2, Save, X, RotateCcw, Play } from 'lucide-react';
 import { cn } from '@/lib/utils';
 // at top
 import { FieldRenderer } from '@/components/renderers/FieldRenderer'; // ✅
@@ -70,6 +70,16 @@ function parseInstanceFromParent(parentAddr: string, groupAddr: string): number 
 }
 
 const instanceAddr = (groupAddr: string, i: number) => `${groupAddr}.i${i}`;
+
+
+const deepHasNonNull = (v: any): boolean => {
+  if (v === null || v === undefined) return false;
+  if (typeof v === 'string') return v.trim().length > 0;
+  if (typeof v !== 'object') return true;
+  if (Array.isArray(v)) return v.some(deepHasNonNull);
+  return Object.values(v).some(deepHasNonNull);
+};
+
 
 const DBG = true;
 const nlog = (...a:any[]) => { if (DBG) console.debug('[NodeRenderer]', ...a); };
@@ -164,6 +174,16 @@ export default function NodeRenderer({
   // Pricing
   const validateCost = node.validate_n8n_id ? getPrice(node.validate_n8n_id) : 0;
   const generateCost = node.generate_n8n_id ? getPrice(node.generate_n8n_id) : 0;
+
+  const formValuesObj =
+    node.node_type === 'form' ? (nodeForRender.content as any)?.values : undefined;
+  
+  const isFormEmpty  = node.node_type === 'form'  && !deepHasNonNull(formValuesObj);
+  const isMediaEmpty = node.node_type === 'media' && !((nodeForRender.content as any)?.versions?.length);
+  
+  const shouldCenterGenerate = !!hasGenerateAction && (isFormEmpty || isMediaEmpty);
+
+  
   useEffect(() => {}, [validateCost, generateCost, pricingLoading]);
 
   const handleStartEdit = () => {
@@ -172,6 +192,22 @@ export default function NodeRenderer({
       setIsCollapsed(false);
     }
   };
+
+  const CenterGenerate = () => (
+  <div className="py-12 flex items-center justify-center">
+    <CreditsButton
+      onClick={handleGenerate}
+      price={generateCost}
+      available={userCredits}
+      loading={loading}
+      size="lg"
+    >
+      <Play className="h-4 w-4 mr-2" />
+      Generate
+    </CreditsButton>
+  </div>
+);
+
 
 // keep snapshot in sync when parent actually provides new content
 useEffect(() => {
@@ -747,27 +783,38 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
                     <X className="h-3 w-3 mr-1" /> Cancel
                   </Button>
                 </>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    if (hasActiveEditor() && !isEditing(node.id)) {
-                      const ok = window.confirm('Discard unsaved changes in the other editor and edit this node instead?');
-                      if (!ok) return;
-                    }
-                    handleStartEdit();
-                  }}
-                >
-                  <Edit2 className="h-3 w-3 mr-1" /> Edit
-                </Button>
-              )
-            )}
-            {hasGenerateAction && (
-              <CreditsButton onClick={handleGenerate} price={generateCost} available={userCredits} loading={loading} size="sm">
-                Generate
-              </CreditsButton>
-            )}
+                ) : (
+                  <>
+                    {hasGenerateAction && !shouldCenterGenerate && (
+                      <CreditsButton
+                        onClick={handleGenerate}
+                        price={generateCost}
+                        available={userCredits}
+                        loading={loading}
+                        size="sm"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                      </CreditsButton>
+                    )}
+                
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (hasActiveEditor() && !isEditing(node.id)) {
+                          const ok = window.confirm(
+                            'Discard unsaved changes in the other editor and edit this node instead?'
+                          );
+                          if (!ok) return;
+                        }
+                        handleStartEdit();
+                      }}
+                    >
+                      <Edit2 className="h-3 w-3" />
+                    </Button>
+                  </>
+                )
+                )}
           </div>
         </div>
         {description && <p className="text-sm text-muted-foreground mt-2">{description}</p>}
@@ -776,8 +823,8 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
       <Collapsible open={!isCollapsed} onOpenChange={setIsCollapsed}>
         <CardContent className="pt-0">
           <CollapsibleContent>
-            {node.node_type === 'form' && renderFormContent()}
-            {node.node_type === 'media' && <MediaRenderer node={node} jobId={node.job_id} />}
+            {node.node_type === 'form'  && (shouldCenterGenerate ? <CenterGenerate /> : renderFormContent())}
+            {node.node_type === 'media' && (shouldCenterGenerate ? <CenterGenerate /> : <MediaRenderer node={node} jobId={node.job_id} />)}
             {node.node_type === 'group' && <GroupRenderer node={node} jobId={node.job_id} />}
             {!['form', 'media', 'group'].includes(node.node_type) && (
               <div className="text-muted-foreground">Node type '{node.node_type}' not supported by SSOT renderer.</div>
@@ -787,4 +834,5 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
       </Collapsible>
     </Card>
   );
+  
 }
