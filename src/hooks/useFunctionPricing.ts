@@ -25,45 +25,43 @@ export function useFunctionPricing(): UseFunctionPricingResult {
     fetchPricing();
   }, []);
 
-  const fetchPricing = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+const fetchPricing = async () => {
+  try {
+    setLoading(true);
+    setError(null);
 
-      let pricingMap: FunctionPricing = {};
+    const pricingMap: FunctionPricing = {};
 
-      // Use the list-n8n-functions edge function which includes price
-      try {
-        const { data: edgeFunctions, error: edgeError } = await supabase.functions.invoke('list-n8n-functions');
-        
-        if (edgeError) throw edgeError;
-        
-        edgeFunctions?.data?.forEach((func: any) => {
-          if (func.price !== null && func.price !== undefined) {
-            pricingMap[func.id] = func.price;
-            pricingMap[func.name] = func.price;
-          }
-        });
-        
-        console.log('Fetched pricing from edge function:', pricingMap);
-      } catch (edgeErr) {
-        console.error('Edge function failed, using fallback pricing:', edgeErr);
-        
-        // Fallback to hardcoded pricing for development
-        pricingMap = {
-          'generate_movie_info': 0.05,
-          'validate_edits': 0.05
-        };
+    // Read directly from app.n8n_functions (active only)
+    const { data, error: dbError } = await supabase
+      .schema('app') // ensure we’re querying the "app" schema
+      .from('n8n_functions')
+      .select('id,name,active,price_in_credits')
+      .eq('active', true);
+
+    if (dbError) throw dbError;
+
+    (data ?? []).forEach((row: any) => {
+      const raw = row?.price_in_credits;
+      const price =
+        typeof raw === 'number' ? raw : Number(raw ?? 0);
+      if (!Number.isNaN(price)) {
+        // allow lookup by either id or name
+        if (row?.id) pricingMap[row.id] = price;
+        if (row?.name) pricingMap[row.name] = price;
       }
+    });
 
-      setPricing(pricingMap);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch function pricing');
-      console.error('Error fetching function pricing:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    setPricing(pricingMap);
+  } catch (err) {
+    setError(err instanceof Error ? err.message : 'Failed to fetch function pricing');
+    console.error('Error fetching function pricing:', err);
+    setPricing({}); // no fallback map; show 0 when unknown
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const getPrice = (functionId: string): number => {
     return pricing[functionId] || 0;
