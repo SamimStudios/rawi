@@ -19,6 +19,9 @@ import { Loader2, Save, Plus, ArrowLeft, Edit, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
+// add this near the imports
+const appDb = (supabase as any).schema('app');
+
 
 // -------------------- helpers --------------------
 const ROOT = 'root';
@@ -499,8 +502,16 @@ export default function TemplateBuilder() {
     const oldAddr = original ? (original.addr ?? joinAddr(original.parent_addr, original.path)) : editing.addr!;
     const newAddr = joinAddr(editing.parent_addr, editing.path);
 
+    // guard: valid path label
+    if (!isValidPathLabel(editing.path)) {
+      toast({ title: 'Invalid path', description: 'Path must be [a-z][a-z0-9_]*', variant: 'destructive' });
+      return;
+    }
+    
+
+    // guard: deps + cycle checks
     for (const dep of editing.dependencies ?? []) {
-      if (!isValidAddr(dep)) {
+      if (!/^root(\.[a-z0-9_]+)*$/.test(dep)) {
         toast({ title: 'Invalid dependency', description: dep, variant: 'destructive' });
         return;
       }
@@ -520,7 +531,7 @@ export default function TemplateBuilder() {
     try {
       // 1) Rename label if changed (server cascades descendants + dep refs)
       if (oldAddr !== newAddr) {
-        const { error: e1 } = await (supabase as any).rpc('app.tn_rename_label', {
+        const { error: e1 } = await appDb.rpc('tn_rename_label', {
           p_template_id: template.id,
           p_version: template.current_version,
           p_old_addr: oldAddr,
@@ -528,22 +539,23 @@ export default function TemplateBuilder() {
         });
         if (e1) throw e1;
       }
-
       // 2) Update dependencies on this node (by new addr) in app schema
-      const { error: e2 } = await (supabase as any)
-        .from('app.template_nodes')
-        .update({ dependencies: editing.dependencies ?? [] })
+      const deps = Array.isArray(editing.dependencies) ? editing.dependencies : [];
+      const { error: e2 } = await appDb
+        .from('template_nodes')
+        .update({ dependencies: deps })
         .eq('template_id', template.id)
         .eq('version', template.current_version)
         .eq('addr', newAddr);
       if (e2) throw e2;
 
       // 3) Reindex siblings (contiguous) via RPC in app schema
-      const { error: e3 } = await (supabase as any).rpc('app.tn_set_idx', {
+      const newIdx = Math.max(1, Number.isFinite(+editing.idx) ? +editing.idx : 1);
+      const { error: e3 } = await appDb.rpc('tn_set_idx', {
         p_template_id: template.id,
         p_version: template.current_version,
         p_addr: newAddr,
-        p_new_idx: editing.idx,
+        p_new_idx: newIdx,
       });
       if (e3) throw e3;
 
@@ -551,7 +563,9 @@ export default function TemplateBuilder() {
       const fresh = await fetchTemplateNodes(template.id, template.current_version);
       setNodes(fresh.map(n => ({ ...n, dependencies: (n as any).dependencies ?? [] })));
       toast({ title: 'Updated', description: 'Node updated successfully.' });
-      closeEdit();
+      setEditOpen(false);
+      setEditing(null);
+      setEditDepSelect('');
     } catch (e: any) {
       toast({ title: 'Error', description: e.message ?? String(e), variant: 'destructive' });
     }
