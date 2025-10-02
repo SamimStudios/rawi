@@ -861,6 +861,7 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
   };
 
   return (
+    <>
     <Card className={cn("w-full transition-colors", effectiveMode === 'edit' && "border-primary bg-primary/5", className)}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
@@ -984,16 +985,16 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
             )}
           </AlertDialogDescription>
         </AlertDialogHeader>
-    
+
         <div className="mt-2 rounded-xl bg-muted/30 px-4 py-3 text-sm">
           Tip: Top up now and you can generate instantly. Unused credits roll over.
         </div>
-    
+
         <AlertDialogFooter className="mt-4">
           <AlertDialogCancel onClick={() => setCreditModal(null)}>Not now</AlertDialogCancel>
           <AlertDialogAction asChild>
             <Button
-              variant="primary"      // gradient, tempting CTA
+              variant="primary"
               size="lg"
               className="min-w-[180px]"
               onClick={() => { window.location.href = '/user/wallet'; }}
@@ -1004,7 +1005,7 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-
+  </>
   );
   
 }
