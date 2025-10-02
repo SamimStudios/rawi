@@ -21,6 +21,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNodeEditor } from '@/hooks/useNodeEditor';
 import { useDrafts } from '@/contexts/DraftsContext';
 import { useJobs, type JobNode } from '@/hooks/useJobs';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -348,7 +349,6 @@ const handleSaveEdit = async () => {
     toast({ title: 'Changes discarded', description: 'All unsaved changes have been discarded' });
   };
 
-
 const handleGenerate = async () => {
   if (!node.generate_n8n_id) {
     toast({
@@ -358,27 +358,6 @@ const handleGenerate = async () => {
     });
     return;
   }
-
-  // helper to parse insufficient-credits details from any shape
-  const extractInsufficient = (src: any) => {
-    try {
-      if (!src) return null;
-      // if it's a string, try JSON
-      if (typeof src === 'string') {
-        const j = JSON.parse(src);
-        return j?.status === 'insufficient_credits' ? j : null;
-      }
-      // object: check top-level or .body/.data
-      const obj =
-        (src?.context?.body ?? src?.body ?? src?.data ?? src) as any;
-      if (obj?.status === 'insufficient_credits') return obj;
-      return null;
-    } catch {
-      return null;
-    }
-  };
-
-
 
   setLoading(true);
   try {
@@ -391,22 +370,45 @@ const handleGenerate = async () => {
         context: {},
       },
     });
-    console.log(data);
-    console.log(error);
 
-    // --- Detect 402 from either error.status or error.context.status,
-    //     and/or detect the JSON envelope { status: 'insufficient_credits', ... }
-    const statusFromErr =
-      (error as any)?.context?.status ??
-      (error as any)?.status ??
-      (error as any)?.cause?.status ??
-      null;
+    // --- Detect 402 and parse JSON body from the Edge response when present ---
+    let statusFromErr: number | null = null;
+    let insufficientInfo: any | null = null;
 
-    const insufficientFromErr = extractInsufficient(error);
-    const insufficientFromData = extractInsufficient(data);
+    if (error) {
+      // Supabase returns an error with .context = Response on non-2xx
+      const ctx: any = (error as any).context;
+      statusFromErr =
+        (ctx && typeof ctx.status === 'number' ? ctx.status : null) ??
+        ((error as any)?.status ?? null);
 
-    if (statusFromErr === 402 || insufficientFromErr || insufficientFromData) {
-      const info = (insufficientFromErr ?? insufficientFromData) as any | undefined;
+      // Try to parse JSON from the Response (preferred)
+      try {
+        if (ctx && typeof ctx.json === 'function') {
+          const body = await ctx.json();
+          if (body && body.status === 'insufficient_credits') {
+            insufficientInfo = body;
+          }
+        } else if (ctx?.body) {
+          // Fallback if context.json() isn't available
+          const body =
+            typeof ctx.body === 'string' ? JSON.parse(ctx.body) : ctx.body;
+          if (body && body.status === 'insufficient_credits') {
+            insufficientInfo = body;
+          }
+        }
+      } catch {
+        // swallow parse errors; we'll fall back below
+      }
+    }
+
+    // Also handle the case where the SDK still returned data with the envelope
+    if (!insufficientInfo && data && (data as any).status === 'insufficient_credits') {
+      insufficientInfo = data as any;
+    }
+
+    if (statusFromErr === 402 || insufficientInfo) {
+      const info = insufficientInfo as any | undefined;
       showCreditModal(
         info
           ? {
@@ -414,10 +416,9 @@ const handleGenerate = async () => {
               available: Number(info.available),
               shortfall: Number(info.shortfall),
             }
-           : undefined
-       );
-      
-       return; // stop here; no generic error toast
+          : undefined
+      );
+      return; // stop here; no generic error toast
     }
 
     if (error) {
@@ -451,6 +452,7 @@ const handleGenerate = async () => {
     setLoading(false);
   }
 };
+
 
 
 
