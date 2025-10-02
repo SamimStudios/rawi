@@ -30,12 +30,7 @@ export function FunctionDataProvider({ children }: { children: React.ReactNode }
       return loadingPromises.get(functionId)!;
     }
 
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(functionId)) {
-      console.warn('Invalid function ID format:', functionId);
-      return null;
-    }
+
 
     // Create and cache the loading promise
     const loadingPromise = (async () => {
@@ -43,13 +38,13 @@ export function FunctionDataProvider({ children }: { children: React.ReactNode }
         const { data, error } = await supabase
           .schema('app' as any)
           .from('n8n_functions')
-          .select('price_in_credits')
+          .select('price')
           .eq('id', functionId)
           .eq('active', true)
           .single();
 
         if (!error && data) {
-          const functionData = { price: Number(data.price_in_credits) || 0 };
+          const functionData = { price: data.price };
           functionDataCache.set(functionId, functionData);
           return functionData;
         }
