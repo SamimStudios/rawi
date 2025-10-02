@@ -31,7 +31,6 @@ const joinAddr = (parentAddr: string | null, path: string) =>
   parentAddr ? `${parentAddr}.${path}` : `${ROOT}.${path}`;
 
 
-const LTREE_RE = /^root(\.[a-z0-9_]+)*$/;
 
 const normalizeDeps = (x: unknown): string[] => {
   if (!Array.isArray(x)) return [];
@@ -53,22 +52,19 @@ type UINode = TemplateNodeRow & {
 function wouldCreateCycle(allNodes: any[], fromAddr: string, toAddr: string): boolean {
   if (fromAddr === toAddr) return true;
 
-  // Build a safe adjacency map
   const edges = new Map<string, string[]>();
   for (const n of allNodes) {
     const a = (n.addr ?? joinAddr(n.parent_addr ?? null, n.path)) as string;
-    const deps = normalizeDeps(n.dependencies);
-    edges.set(a, deps); // deps is a fresh, normal array we control
+    console.log('cycle-check', { fromAddr, toAddr, existing: edges.get(fromAddr) });
+    edges.set(a, normalizeDeps(n.dependencies));
   }
 
-  // Add the proposed edge safely
-  if (edges.has(fromAddr)) {
-    edges.get(fromAddr)!.push(toAddr);
-  } else {
-    edges.set(fromAddr, [toAddr]);
-  }
+  // copy before push (never mutate a list we didn't create here)
+  const current = edges.get(fromAddr);
+  const nextList = Array.isArray(current) ? current.slice() : [];
+  nextList.push(toAddr);
+  edges.set(fromAddr, nextList);
 
-  // DFS
   const seen = new Set<string>();
   const stack: string[] = [toAddr];
   while (stack.length) {
@@ -83,6 +79,7 @@ function wouldCreateCycle(allNodes: any[], fromAddr: string, toAddr: string): bo
   }
   return false;
 }
+
 
 
 export default function TemplateBuilder() {
@@ -235,7 +232,7 @@ export default function TemplateBuilder() {
       );
       await saveTemplateNodes(normalized);
       const fresh = await fetchTemplateNodes(template.id, template.current_version);
-      setNodes(fresh.map(n => ({ ...n, dependencies: (n as any).dependencies ?? [] })));
+      setNodes(fresh.map(n => ({ ...n, dependencies: normalizeDeps((n as any).dependencies) ?? [] })));
       toast({ title: 'Success', description: 'Template nodes saved successfully' });
       setNewDeps([]);
       setNewDepSelect('');
@@ -487,7 +484,7 @@ export default function TemplateBuilder() {
     setEditing({
       ...row,
       addr,
-      dependencies: row.dependencies ?? [],
+      dependencies: normalizeDeps(row.dependencies) ?? [],
     });
     setEditDepSelect('');
     setEditOpen(true);
