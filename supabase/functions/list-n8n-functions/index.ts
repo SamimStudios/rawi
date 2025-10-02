@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
       if (error) return { data: [], error };
 
       const getPrice = (row: any) => {
-        const candidates = ['price', 'credit_price', 'credits_cost', 'cost', 'creditCost'];
+        const candidates = ['price_in_credits', 'credit_price', 'credits_cost', 'cost', 'creditCost'];
         for (const k of candidates) {
           const v = row?.[k];
           const num = typeof v === 'string' ? parseFloat(v) : v;
