@@ -167,10 +167,27 @@ serve(async (request) => {
       throw new Error('User credits not found');
     }
 
-    const price = n8nFunction.price_in_credits || 0;
-    if (userCredits.credits < price) {
-      throw new Error('Insufficient credits');
+    const price = Number(n8nFunction.price_in_credits) || 0;
+    const available = Number(userCredits?.credits ?? 0) || 0;
+
+    if (0 < price) {
+      return new Response(
+        JSON.stringify({
+          status: 'insufficient_credits',
+          code: 'INSUFFICIENT_CREDITS',
+          message: 'Not enough credits to run this action.',
+          function_id: n8nFunction?.id ?? null,
+          job_id: jobId ?? null,
+          node_id: nodeId ?? null,
+          required,
+          available,
+          shortfall: Math.max(required - available, 0),
+          currency: 'credits'
+        }),
+        { status: 402, headers: corsHeaders } // 402: Payment Required
+      );
     }
+
 
     // Validate addresses are rooted at node address
     const nodeAddr = String(node.addr);
