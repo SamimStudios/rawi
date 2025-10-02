@@ -56,7 +56,6 @@ serve(async (request) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const app = (supabase as any).schema('app' as any);
 
-
     const raw = await request.json();
     
     // accept both snake_case and camelCase
@@ -72,7 +71,7 @@ serve(async (request) => {
     // Log basic input surface (will show up in Logs > Edge Functions)
     console.log('[execute-n8n] input', {
       keys: Object.keys(raw || {}),
-      jobId, nodeId, functionId, mode,
+      jobId, nodeId, functionId,
       hasPayload: !!raw?.payload,
     });
     
@@ -87,33 +86,17 @@ serve(async (request) => {
     }
     
     // Ensure the caller is authenticated
-    const { data: authUser, error: authErr } = await supabase.auth.getUser();
-    if (authErr || !authUser?.user) {
+    const { data: authData, error: authErr } = await supabase.auth.getUser();
+    if (authErr || !authData?.user) {
       return new Response(JSON.stringify({
         status: 'error',
         code: 'UNAUTHENTICATED',
         message: 'Missing or invalid Authorization token'
       }), { status: 401, headers: corsHeaders });
     }
-    const user = authUser.user;
-
-
+    const user = authData.user;
 
     console.log(`[${requestId}] Request params:`, { jobId, nodeId, functionId, idempotencyKey });
-
-    // Get user from auth token
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      throw new Error('Missing authorization header');
-    }
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
-
-    if (authError || !user) {
-      throw new Error('Unauthorized');
-    }
 
     // Check idempotency
     if (idempotencyKey) {
@@ -129,26 +112,42 @@ serve(async (request) => {
       .single();
 
     if (jobError || !job) {
-      throw new Error('Job not found');
+      return new Response(JSON.stringify({
+        status: 'error',
+        code: 'JOB_NOT_FOUND',
+        message: 'Job not found'
+      }), { status: 404, headers: corsHeaders });
     }
 
     if (job.user_id !== user.id) {
-      throw new Error('Job not owned by user');
+      return new Response(JSON.stringify({
+        status: 'error',
+        code: 'UNAUTHORIZED',
+        message: 'Job not owned by user'
+      }), { status: 403, headers: corsHeaders });
     }
 
     // Fetch node and verify it belongs to job
     const { data: node, error: nodeError } = await app
       .from('nodes')
-      .select('id, job_id, path, node_type, generate_n8n_id, validate_n8n_id')
+      .select('id, job_id, addr, node_type, generate_n8n_id, validate_n8n_id')
       .eq('id', nodeId)
       .single();
 
     if (nodeError || !node) {
-      throw new Error('Node not found');
+      return new Response(JSON.stringify({
+        status: 'error',
+        code: 'NODE_NOT_FOUND',
+        message: 'Node not found'
+      }), { status: 404, headers: corsHeaders });
     }
 
     if (node.job_id !== jobId) {
-      throw new Error('Node does not belong to job');
+      return new Response(JSON.stringify({
+        status: 'error',
+        code: 'NODE_JOB_MISMATCH',
+        message: 'Node does not belong to job'
+      }), { status: 400, headers: corsHeaders });
     }
 
     // Fetch n8n function and verify compatibility
@@ -181,23 +180,32 @@ serve(async (request) => {
       }), { status: 400, headers: corsHeaders });
     }
 
-
-
-
     // Verify function is configured on node
     const isGenerate = n8nFunction.kind === 'generate';
     const isValidate = n8nFunction.kind === 'validate';
 
     if (!isGenerate && !isValidate) {
-      throw new Error('Invalid function kind');
+      return new Response(JSON.stringify({
+        status: 'error',
+        code: 'INVALID_FUNCTION_KIND',
+        message: 'Invalid function kind'
+      }), { status: 400, headers: corsHeaders });
     }
 
     if (isGenerate && node.generate_n8n_id !== functionId) {
-      throw new Error('Function not configured for generate on this node');
+      return new Response(JSON.stringify({
+        status: 'error',
+        code: 'FUNCTION_NOT_CONFIGURED',
+        message: 'Function not configured for generate on this node'
+      }), { status: 400, headers: corsHeaders });
     }
 
     if (isValidate && node.validate_n8n_id !== functionId) {
-      throw new Error('Function not configured for validate on this node');
+      return new Response(JSON.stringify({
+        status: 'error',
+        code: 'FUNCTION_NOT_CONFIGURED',
+        message: 'Function not configured for validate on this node'
+      }), { status: 400, headers: corsHeaders });
     }
 
     // Check user credits
@@ -208,13 +216,17 @@ serve(async (request) => {
       .single();
 
     if (creditsError || !userCredits) {
-      throw new Error('User credits not found');
+      return new Response(JSON.stringify({
+        status: 'error',
+        code: 'CREDITS_NOT_FOUND',
+        message: 'User credits not found'
+      }), { status: 400, headers: corsHeaders });
     }
 
     const price = Number(n8nFunction.price_in_credits) || 0;
     const available = Number(userCredits?.credits ?? 0) || 0;
 
-    if (0 < price) {
+    if (available < price) {
       return new Response(
         JSON.stringify({
           status: 'insufficient_credits',
@@ -223,15 +235,14 @@ serve(async (request) => {
           function_id: n8nFunction?.id ?? null,
           job_id: jobId ?? null,
           node_id: nodeId ?? null,
-          required,
+          required: price,
           available,
-          shortfall: Math.max(required - available, 0),
+          shortfall: Math.max(price - available, 0),
           currency: 'credits'
         }),
         { status: 402, headers: corsHeaders } // 402: Payment Required
       );
     }
-
 
     // Validate addresses are rooted at node address
     const nodeAddr = String(node.addr);
@@ -239,7 +250,11 @@ serve(async (request) => {
       const addressRoot = String(field.address || '').split('#')[0];
       const inScope = addressRoot === nodeAddr || addressRoot.startsWith(nodeAddr + '.');
       if (!inScope) {
-        throw new Error(`Invalid address root: ${field.address} (expected ${nodeAddr})`);
+        return new Response(JSON.stringify({
+          status: 'error',
+          code: 'INVALID_ADDRESS',
+          message: `Invalid address root: ${field.address} (expected ${nodeAddr})`
+        }), { status: 400, headers: corsHeaders });
       }
     }
 
@@ -341,7 +356,11 @@ serve(async (request) => {
       clearTimeout(timeoutId);
       
       if (fetchError.name === 'AbortError') {
-        throw new Error('Webhook request timed out');
+        return new Response(JSON.stringify({
+          status: 'error',
+          code: 'WEBHOOK_TIMEOUT',
+          message: 'Webhook request timed out'
+        }), { status: 504, headers: corsHeaders });
       }
       
       throw fetchError;
