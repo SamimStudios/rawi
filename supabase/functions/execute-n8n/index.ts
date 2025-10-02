@@ -152,23 +152,37 @@ serve(async (request) => {
     }
 
     // Fetch n8n function and verify compatibility
-    const { data: n8nFunction, error: functionError } = await app
+    let { data: n8nFunction, error: fnError } = await app
       .from('n8n_functions')
       .select('id, name, kind, active, price_in_credits, production_webhook')
       .eq('id', functionId)
+      .eq('active', true)
       .single();
-
-    if (functionError || !n8nFunction) {
-      throw new Error('N8N function not found');
+    
+    if (!n8nFunction) {
+      const { data: byName, error: fnByNameErr } = await app
+        .from('n8n_functions')
+        .select('id, name, kind, active, price_in_credits, production_webhook')
+        .eq('name', functionId)
+        .eq('active', true)
+        .single();
+    
+      n8nFunction = byName ?? null;
+      fnError = fnByNameErr ?? fnError;
+    }
+    
+    if (fnError || !n8nFunction) {
+      console.error('[execute-n8n] N8N function not found', { functionId, fnError });
+      return new Response(JSON.stringify({
+        status: 'error',
+        code: 'N8N_FUNCTION_NOT_FOUND',
+        message: 'Could not find an active n8n function by id or name',
+        function_id: String(functionId),
+      }), { status: 400, headers: corsHeaders });
     }
 
-    if (!n8nFunction.active) {
-      throw new Error('N8N function is not active');
-    }
 
-    if (!n8nFunction.production_webhook) {
-      throw new Error('N8N function has no webhook URL');
-    }
+
 
     // Verify function is configured on node
     const isGenerate = n8nFunction.kind === 'generate';
