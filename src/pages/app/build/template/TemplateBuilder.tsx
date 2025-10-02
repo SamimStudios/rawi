@@ -18,7 +18,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Save, Plus, ArrowLeft, Edit, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { supabase } from '@/integrations/supabase/client'; // <-- adjust if your client path differs
+import { supabase } from '@/integrations/supabase/client';
 
 // -------------------- helpers --------------------
 const ROOT = 'root';
@@ -28,7 +28,6 @@ const joinAddr = (parentAddr: string | null, path: string) =>
   parentAddr ? `${parentAddr}.${path}` : `${ROOT}.${path}`;
 
 type UINode = TemplateNodeRow & {
-  // ensure presence in UI
   dependencies?: string[];
   addr?: string; // preview for unsaved nodes
 };
@@ -123,7 +122,6 @@ export default function TemplateBuilder() {
         const tnodes = await fetchTemplateNodes(tpl.id, tpl.current_version);
         if (!mounted) return;
 
-        // ensure deps presence
         const enriched = tnodes.map(n => ({
           ...n,
           dependencies: (n as any).dependencies ?? []
@@ -173,12 +171,10 @@ export default function TemplateBuilder() {
         }
       }
     }
-    // dedupe
     const seen = new Set<string>();
     return opts.filter(o => (seen.has(o.value) ? false : (seen.add(o.value), true)));
   }, [allNodesWithPreview, libIndex]);
 
-  // ---------------- template create/save ----------------
   async function handleCreateTemplate() {
     if (!newTemplateId.trim()) {
       toast({ title: 'Error', description: 'Template ID is required', variant: 'destructive' });
@@ -212,7 +208,6 @@ export default function TemplateBuilder() {
       const fresh = await fetchTemplateNodes(template.id, template.current_version);
       setNodes(fresh.map(n => ({ ...n, dependencies: (n as any).dependencies ?? [] })));
       toast({ title: 'Success', description: 'Template nodes saved successfully' });
-      // reset add deps after save
       setNewDeps([]);
       setNewDepSelect('');
     } catch (e: any) {
@@ -229,14 +224,12 @@ export default function TemplateBuilder() {
       toast({ title: 'Add a path first', description: 'Set a path label before adding dependencies.' });
       return;
     }
-    const selfAddr = joinAddr(null, newPath); // top-level in current UI
+    const selfAddr = joinAddr(null, newPath); // top-level current UI
     if (depAddr === selfAddr) {
       toast({ title: 'Invalid', description: 'Self-dependency is not allowed.', variant: 'destructive' });
       return;
     }
     if (wouldCreateCycle(allNodesWithPreview.concat([{
-      // include the new node as a preview in graph
-      ...( {} as any ),
       path: newPath,
       parent_addr: null,
       addr: selfAddr,
@@ -258,7 +251,6 @@ export default function TemplateBuilder() {
     if (!lib) return setError('Library not found');
     if (newType !== lib.node_type) return setError(`Type mismatch: ${newType} vs library ${lib.node_type}`);
 
-    // compute preview addr to final cycle check against graph
     const selfAddr = joinAddr(null, newPath);
     for (const dep of newDeps) {
       if (!isValidAddr(dep)) {
@@ -272,10 +264,10 @@ export default function TemplateBuilder() {
     const row: UINode = {
       template_id: template.id,
       version: template.current_version,
-      idx: 999999, // temp; fixed on save
+      idx: 999999,
       node_type: newType,
       path: newPath,
-      parent_addr: null, // All nodes added at root level
+      parent_addr: null,
       library_id: lib.id,
       arrangeable: true,
       removable: true,
@@ -301,7 +293,7 @@ export default function TemplateBuilder() {
 
     const rows: UINode[] = [];
 
-    // 1) the group itself (attach Add-section dependencies only to the root group)
+    // group root (dependencies from Add form apply to root only)
     const groupAddr = parentAddr ? `${parentAddr}.${groupPath}` : `${ROOT}.${groupPath}`;
     rows.push({
       template_id: templateId,
@@ -319,7 +311,6 @@ export default function TemplateBuilder() {
 
     const content = groupLibrary.content || {};
 
-    // REGULAR group -> children[]
     if (Array.isArray(content.children)) {
       const children = [...content.children].sort((a: any, b: any) => (a.idx ?? 1) - (b.idx ?? 1));
       for (const kid of children) {
@@ -357,7 +348,6 @@ export default function TemplateBuilder() {
       return rows;
     }
 
-    // COLLECTION group -> collection + instances array
     if (content.collection && content.instances && Array.isArray(content.instances)) {
       const N = Number.isFinite(+content.collection.default_instances) && +content.collection.default_instances > 0
         ? +content.collection.default_instances
@@ -366,7 +356,6 @@ export default function TemplateBuilder() {
       const instDef = content.instances.find((inst: any) => inst.i === 1);
       if (!instDef || !Array.isArray(instDef.children)) return rows;
 
-      // Create instance nodes (i1..iN) directly under the group
       for (let i = 1; i <= N; i++) {
         const iPath = `i${i}`;
         const iAddr = `${groupAddr}.${iPath}`;
@@ -385,7 +374,6 @@ export default function TemplateBuilder() {
           addr: iAddr
         });
 
-        // children under each iN
         for (const libraryId of instDef.children) {
           const childLib = libIndex.get(libraryId);
           if (!childLib) {
@@ -436,7 +424,6 @@ export default function TemplateBuilder() {
     if (!lib) return setError('Library not found');
     if (lib.node_type !== 'group') return setError('Selected library is not a group');
 
-    // cycle check newDeps against current graph for the group root
     const selfAddr = joinAddr(null, newPath);
     for (const dep of newDeps) {
       if (!isValidAddr(dep)) {
@@ -490,7 +477,6 @@ export default function TemplateBuilder() {
       toast({ title: 'Invalid', description: 'Self-dependency is not allowed.', variant: 'destructive' });
       return;
     }
-    // Build a preview graph with the edited node’s updated deps
     const previewNodes = allNodesWithPreview.map(n =>
       (n.addr ?? joinAddr(n.parent_addr, n.path)) === selfAddr
         ? { ...n, dependencies: Array.from(new Set([...(editing.dependencies ?? []), depAddr])) }
@@ -513,7 +499,6 @@ export default function TemplateBuilder() {
     const oldAddr = original ? (original.addr ?? joinAddr(original.parent_addr, original.path)) : editing.addr!;
     const newAddr = joinAddr(editing.parent_addr, editing.path);
 
-    // Validate deps format + cycles
     for (const dep of editing.dependencies ?? []) {
       if (!isValidAddr(dep)) {
         toast({ title: 'Invalid dependency', description: dep, variant: 'destructive' });
@@ -533,28 +518,28 @@ export default function TemplateBuilder() {
     }
 
     try {
-      // 1) Rename label if changed (server cascades descendants and dep refs)
+      // 1) Rename label if changed (server cascades descendants + dep refs)
       if (oldAddr !== newAddr) {
-        const { error: e1 } = await supabase.rpc('tn_rename_label', {
+        const { error: e1 } = await (supabase as any).rpc('app.tn_rename_label', {
           p_template_id: template.id,
           p_version: template.current_version,
           p_old_addr: oldAddr,
-          p_new_label: editing.path, // last segment only
+          p_new_label: editing.path,
         });
         if (e1) throw e1;
       }
 
-      // 2) Update dependencies on this node (by new addr)
-      const { error: e2 } = await supabase
-        .from('app.template_nodes' as any) // schema-qualified
+      // 2) Update dependencies on this node (by new addr) in app schema
+      const { error: e2 } = await (supabase as any)
+        .from('app.template_nodes')
         .update({ dependencies: editing.dependencies ?? [] })
         .eq('template_id', template.id)
         .eq('version', template.current_version)
         .eq('addr', newAddr);
       if (e2) throw e2;
 
-      // 3) Reindex siblings (contiguous) via RPC
-      const { error: e3 } = await supabase.rpc('tn_set_idx', {
+      // 3) Reindex siblings (contiguous) via RPC in app schema
+      const { error: e3 } = await (supabase as any).rpc('app.tn_set_idx', {
         p_template_id: template.id,
         p_version: template.current_version,
         p_addr: newAddr,
@@ -613,7 +598,6 @@ export default function TemplateBuilder() {
       );
     }
 
-    // Fallback dialog (kept for compatibility)
     return (
       <>
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
