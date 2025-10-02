@@ -320,22 +320,59 @@ const handleSaveEdit = async () => {
     toast({ title: 'Changes discarded', description: 'All unsaved changes have been discarded' });
   };
 
-  const handleGenerate = async () => {
-    setLoading(true);
-    try {
-      const { data } = await supabase.functions.invoke('generate-node-content', {
-        body: { nodeId: node.id, jobId: node.job_id, context: {} }
+const handleGenerate = async () => {
+  if (!node.generate_n8n_id) {
+    toast({
+      title: 'No generate action',
+      description: 'This node has no generate function configured.',
+      variant: 'destructive',
+    });
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const { data, error } = await supabase.functions.invoke('execute-n8n', {
+      body: {
+        function_id: node.generate_n8n_id, // ← use the node’s generate_n8n_id
+        job_id: node.job_id,
+        node_id: node.id,
+        mode: 'generate',
+        context: {},                       // keep for future context
+      },
+    });
+    if (error) throw error;
+
+    // tolerate both the new envelope and the old shape
+    const success = data?.status === 'ok' || data?.success === true;
+    const generatedContent =
+      data?.result?.content ??
+      data?.data?.content ??
+      data?.generatedContent ??
+      null;
+
+    if (success) {
+      toast({
+        title: 'Content generated',
+        description: 'Node content generated successfully.',
       });
-      if (data?.success) {
-        toast({ title: 'Content generated', description: 'Node content generated successfully.' });
-        onUpdate?.(node.id, data.generatedContent);
+      if (generatedContent != null) {
+        onUpdate?.(node.id, generatedContent);
       }
-    } catch {
-      toast({ title: 'Generation failed', variant: 'destructive' });
-    } finally {
-      setLoading(false);
+    } else {
+      throw new Error(data?.error || 'Generation failed');
     }
-  };
+  } catch (e: any) {
+    toast({
+      title: 'Generation failed',
+      description: e?.message ?? 'Unexpected error',
+      variant: 'destructive',
+    });
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   // --------- Tree rendering (no extra renderers) ---------
 const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number) => (
