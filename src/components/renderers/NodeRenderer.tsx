@@ -357,11 +357,50 @@ const handleGenerate = async () => {
     return;
   }
 
+  // helper to parse insufficient-credits details from any shape
+  const extractInsufficient = (src: any) => {
+    try {
+      if (!src) return null;
+      // if it's a string, try JSON
+      if (typeof src === 'string') {
+        const j = JSON.parse(src);
+        return j?.status === 'insufficient_credits' ? j : null;
+      }
+      // object: check top-level or .body/.data
+      const obj =
+        (src?.context?.body ?? src?.body ?? src?.data ?? src) as any;
+      if (obj?.status === 'insufficient_credits') return obj;
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  const promptTopUp = (info?: { required?: number; available?: number; shortfall?: number }) => {
+    const desc =
+      info && Number.isFinite(info.required) && Number.isFinite(info.available)
+        ? `Required ${info.required} credits, you have ${info.available}.`
+        : 'You do not have enough credits.';
+    toast({
+      title: 'Insufficient credits',
+      description: desc,
+      variant: 'destructive',
+      action: (
+        <ToastAction
+          altText="Top up"
+          onClick={() => { window.location.href = '/user/wallet'; }}
+        >
+          Top up
+        </ToastAction>
+      ),
+    });
+  };
+
   setLoading(true);
   try {
     const { data, error } = await supabase.functions.invoke('execute-n8n', {
       body: {
-        function_id: node.generate_n8n_id, // id or name is fine (edge handles both)
+        function_id: node.generate_n8n_id, // id OR name (edge handles both)
         job_id: node.job_id,
         node_id: node.id,
         mode: 'generate',
@@ -369,55 +408,49 @@ const handleGenerate = async () => {
       },
     });
 
-    // A) Explicit 402 from Edge (supabase-js returns error with status)
-    if (error && (error as any).status === 402) {
-      // We may not get the full JSON in error, so show generic toast
-      // Edge sends { required, available, shortfall } — try to parse if present in data
-      const info =
-        data && typeof data === 'object' && (data as any).status === 'insufficient_credits'
+    // --- Detect 402 from either error.status or error.context.status,
+    //     and/or detect the JSON envelope { status: 'insufficient_credits', ... }
+    const statusFromErr =
+      (error as any)?.context?.status ??
+      (error as any)?.status ??
+      (error as any)?.cause?.status ??
+      null;
+
+    const insufficientFromErr = extractInsufficient(error);
+    const insufficientFromData = extractInsufficient(data);
+
+    if (statusFromErr === 402 || insufficientFromErr || insufficientFromData) {
+      const info = (insufficientFromErr ?? insufficientFromData) as any | undefined;
+      promptTopUp(
+        info
           ? {
-              required: Number((data as any).required),
-              available: Number((data as any).available),
-              shortfall: Number((data as any).shortfall),
+              required: Number(info.required),
+              available: Number(info.available),
+              shortfall: Number(info.shortfall),
             }
-          : undefined;
-      promptTopUp(info);
-      return;
+          : undefined
+      );
+      return; // stop here; don’t show the generic failure toast
     }
 
-    // B) Edge returned JSON envelope without throwing (defensive)
-    if (data && (data as any).status === 'insufficient_credits') {
-      const d: any = data;
-      promptTopUp({
-        required: Number(d.required),
-        available: Number(d.available),
-        shortfall: Number(d.shortfall),
-      });
-      return;
-    }
-
-    // C) Other error path
     if (error) {
+      // Other error (not insufficient credits)
       throw error;
     }
 
-    // D) Success path (new envelope from Edge)
+    // Success envelope from edge
     const ok = data && ((data as any).status === 'ok' || (data as any).success === true);
+    if (!ok) {
+      throw new Error((data as any)?.message || 'Generation failed');
+    }
+
     const generatedContent =
       (data as any)?.result?.content ??
       (data as any)?.data?.content ??
       (data as any)?.generatedContent ??
       null;
 
-    if (!ok) {
-      throw new Error((data as any)?.message || 'Generation failed');
-    }
-
-    toast({
-      title: 'Content generated',
-      description: 'Node content generated successfully.',
-    });
-
+    toast({ title: 'Content generated', description: 'Node content generated successfully.' });
     if (generatedContent != null) {
       onUpdate?.(node.id, generatedContent);
     }
@@ -431,6 +464,7 @@ const handleGenerate = async () => {
     setLoading(false);
   }
 };
+
 
 
 
