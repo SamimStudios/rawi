@@ -346,6 +346,7 @@ const handleSaveEdit = async () => {
     toast({ title: 'Changes discarded', description: 'All unsaved changes have been discarded' });
   };
 
+
 const handleGenerate = async () => {
   if (!node.generate_n8n_id) {
     toast({
