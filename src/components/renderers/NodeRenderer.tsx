@@ -21,7 +21,17 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNodeEditor } from '@/hooks/useNodeEditor';
 import { useDrafts } from '@/contexts/DraftsContext';
 import { useJobs, type JobNode } from '@/hooks/useJobs';
-import { ToastAction } from '@/components/ui/toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Coins } from 'lucide-react';
 
 // ============= Media & Group Types =============
 type MediaItemImage = { kind: 'ImageItem'; url: string; width: number; height: number };
@@ -151,6 +161,11 @@ export default function NodeRenderer({
   const [contentSnapshot, setContentSnapshot] = useState<any>(node.content); // NEW
   const waitingRealtimeRef = useRef(false);                   // NEW
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null); // NEW
+  const [creditModal, setCreditModal] = useState<{
+    required: number;
+    available: number;
+    shortfall: number;
+  } | null>(null);
 
 
 
@@ -188,27 +203,14 @@ export default function NodeRenderer({
     }
   };
 
-  const promptTopUp = (info?: { required?: number; available?: number; shortfall?: number }) => {
-  const desc =
-    info && Number.isFinite(info.required) && Number.isFinite(info.available)
-      ? `Required ${info.required} credits, you have ${info.available}.`
-      : 'You do not have enough credits.';
-  toast({
-    title: 'Insufficient credits',
-    description: desc,
-    variant: 'destructive',
-    action: (
-      <ToastAction
-        altText="Top up"
-        onClick={() => {
-          window.location.href = '/user/wallet';
-        }}
-      >
-        Top up
-      </ToastAction>
-    ),
-  });
-};
+  const showCreditModal = (info?: { required?: number; available?: number; shortfall?: number }) => {
+    setCreditModal({
+      required: Number(info?.required ?? 0),
+      available: Number(info?.available ?? 0),
+      shortfall: Number(info?.shortfall ?? 0),
+    });
+  };
+
 
 
 
@@ -421,16 +423,16 @@ const handleGenerate = async () => {
 
     if (statusFromErr === 402 || insufficientFromErr || insufficientFromData) {
       const info = (insufficientFromErr ?? insufficientFromData) as any | undefined;
-      promptTopUp(
+      showCreditModal(
         info
           ? {
               required: Number(info.required),
               available: Number(info.available),
               shortfall: Number(info.shortfall),
             }
-          : undefined
-      );
-      return; // stop here; don’t show the generic failure toast
+           : undefined
+       );
+       return; // stop here; no generic error toast
     }
 
     if (error) {
@@ -961,6 +963,48 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
          </Collapsible>
        )}
     </Card>
+    <AlertDialog open={!!creditModal} onOpenChange={(open) => !open && setCreditModal(null)}>
+      <AlertDialogContent className="sm:max-w-[520px]">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="text-2xl flex items-center gap-2">
+            <Coins className="h-6 w-6" />
+            Not enough credits
+          </AlertDialogTitle>
+          <AlertDialogDescription className="text-base">
+            {creditModal?.required !== undefined && creditModal?.available !== undefined ? (
+              <>
+                You need <span className="font-semibold">{creditModal.required}</span> credits to run this,
+                and you currently have <span className="font-semibold">{creditModal.available}</span>.
+                {Number.isFinite(creditModal?.shortfall) && creditModal!.shortfall > 0 && (
+                  <> You’re just <span className="font-semibold">{creditModal!.shortfall}</span> credits short.</>
+                )}
+              </>
+            ) : (
+              <>You don’t have enough credits to run this action.</>
+            )}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+    
+        <div className="mt-2 rounded-xl bg-muted/30 px-4 py-3 text-sm">
+          Tip: Top up now and you can generate instantly. Unused credits roll over.
+        </div>
+    
+        <AlertDialogFooter className="mt-4">
+          <AlertDialogCancel onClick={() => setCreditModal(null)}>Not now</AlertDialogCancel>
+          <AlertDialogAction asChild>
+            <Button
+              variant="primary"      // gradient, tempting CTA
+              size="lg"
+              className="min-w-[180px]"
+              onClick={() => { window.location.href = '/user/wallet'; }}
+            >
+              Top up credits
+            </Button>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
   );
   
 }
