@@ -86,23 +86,12 @@ serve(async (request) => {
     }
     
     // Ensure the caller is authenticated
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({
-        status: 'error',
-        code: 'UNAUTHENTICATED',
-        message: 'Missing Authorization header'
-      }), { status: 401, headers: corsHeaders });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: authData, error: authErr } = await supabase.auth.getUser(token);
+    const { data: authData, error: authErr } = await supabase.auth.getUser();
     if (authErr || !authData?.user) {
       return new Response(JSON.stringify({
         status: 'error',
         code: 'UNAUTHENTICATED',
-        message: 'Invalid Authorization token',
-        error: authErr?.message
+        message: 'Missing or invalid Authorization token'
       }), { status: 401, headers: corsHeaders });
     }
     const user = authData.user;
