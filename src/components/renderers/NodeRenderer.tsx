@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
-import { ChevronDown, ChevronRight, Edit2, Save, X, RotateCcw, Play } from 'lucide-react';
+import { ChevronDown, ChevronRight, Edit2, Save, X, RotateCcw, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 // at top
 import { FieldRenderer } from '@/components/renderers/FieldRenderer'; // ✅
@@ -762,7 +762,7 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
                   showCredits
                   disabled={loading}
                 >
-                  <Play className="h-3 w-3 mr-1" />
+                  <Sparkles className="h-3 w-3 mr-1" />
                   Generate
                 </Button>
               )
