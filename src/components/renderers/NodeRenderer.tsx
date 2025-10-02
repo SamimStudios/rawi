@@ -165,7 +165,7 @@ export default function NodeRenderer({
   );
   
 
-  const label = nodeForRender.content?.label?.fallback || `Node ${node.addr}`;
+  const label = nodeForRender.content?.label?.fallback || `Node ${node.path}`;
   const description = nodeForRender.content?.description?.fallback;
 
   const hasValidateAction = node.validate_n8n_id;
