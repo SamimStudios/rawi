@@ -79,13 +79,14 @@ export function useFunctionPricing(): UseFunctionPricingResult {
 
   const getPriceInfo = (functionId: string): { price: number; canAfford: boolean } => {
     const price = getPrice(functionId);
+      console.log('test pricing ashqar:', price)
+
     return {
       price,
       canAfford: credits >= price
     };
   };
 
-  console.log('test pricing ashqar:', getPriceInfo)
 
   return {
     pricing,
