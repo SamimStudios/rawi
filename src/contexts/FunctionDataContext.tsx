@@ -43,13 +43,13 @@ export function FunctionDataProvider({ children }: { children: React.ReactNode }
         const { data, error } = await supabase
           .schema('app' as any)
           .from('n8n_functions')
-          .select('price')
+          .select('price_in_credits')
           .eq('id', functionId)
           .eq('active', true)
           .single();
 
         if (!error && data) {
-          const functionData = { price: data.price };
+          const functionData = { price: Number(data.price_in_credits) || 0 };
           functionDataCache.set(functionId, functionData);
           return functionData;
         }
