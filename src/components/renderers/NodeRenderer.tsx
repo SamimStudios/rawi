@@ -84,10 +84,18 @@ const instanceAddr = (groupAddr: string, i: number) => `${groupAddr}.i${i}`;
 const deepHasNonNull = (v: any): boolean => {
   if (v === null || v === undefined) return false;
   if (typeof v === 'string') return v.trim().length > 0;
-  if (typeof v !== 'object') return true;
+  if (typeof v === 'number' || typeof v === 'boolean') return true;
   if (Array.isArray(v)) return v.some(deepHasNonNull);
-  return Object.values(v).some(deepHasNonNull);
+  if (typeof v === 'object') {
+    for (const [k, val] of Object.entries(v)) {
+      if (k === '_meta') continue; // ignore metadata buckets if present
+      if (deepHasNonNull(val)) return true;
+    }
+    return false;
+  }
+  return false;
 };
+
 
 
 
@@ -138,7 +146,7 @@ export default function NodeRenderer({
   onGenerate,
   mode: externalMode,
   onModeChange,
-  showPath = true,
+  showPath = false,
   className
 }: NodeRendererProps) {
   const { toast } = useToast();
@@ -195,7 +203,15 @@ export default function NodeRenderer({
   
   const shouldCenterGenerate = !!hasGenerateAction && (isFormEmpty || isMediaEmpty);
 
-  
+  // Auto-open body when we transition from "center generate" to normal view
+  const prevCenterRef = useRef(shouldCenterGenerate);
+  useEffect(() => {
+    if (prevCenterRef.current && !shouldCenterGenerate) {
+      setIsCollapsed(false);
+    }
+    prevCenterRef.current = shouldCenterGenerate;
+  }, [shouldCenterGenerate]);
+
 
   const handleStartEdit = () => {
     if (startEditing(node.id)) {
@@ -442,6 +458,29 @@ const handleGenerate = async () => {
     if (generatedContent != null) {
       onUpdate?.(node.id, generatedContent);
     }
+    // Reveal the form body now that content exists
+    setIsCollapsed(false);
+    
+    // In case realtime is delayed, fetch fresh content after a short wait
+    waitingRealtimeRef.current = true;
+    setTimeout(async () => {
+      if (!waitingRealtimeRef.current) return; // realtime already handled it
+      console.debug('[NodeRenderer] generate:timeout → manual RPC fetch');
+      const { data, error } = await supabase
+        .schema('app' as any)
+        .from('nodes')
+        .select('content')
+        .eq('id', node.id)
+        .single();
+      if (!error && data) {
+        setContentSnapshot(data.content);
+        setRefreshSeq((s) => s + 1);
+      } else {
+        console.warn('[NodeRenderer] manual fetch after generate failed', error);
+      }
+      waitingRealtimeRef.current = false;
+    }, 1500);
+
   } catch (e: any) {
     toast({
       title: 'Generation failed',
