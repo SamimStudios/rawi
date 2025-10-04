@@ -157,7 +157,7 @@ export default function JobsList() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
                     <CardTitle className="text-lg truncate">
-                      {job.name || 'Untitled Job'}
+                      {job.job_name || 'Untitled Job'}
                     </CardTitle>
                     <p className="text-sm text-muted-foreground truncate">
                       Template: {job.template || 'Unknown'}
