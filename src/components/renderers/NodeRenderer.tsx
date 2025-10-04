@@ -888,8 +888,9 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
                 </Button>
               )
             ) : (
-              node.node_type === 'form' &&
-                (effectiveMode === 'edit' ? (
+              effectiveMode === 'edit' ? (
+                // Save/Cancel remain form-only while editing
+                node.node_type === 'form' ? (
                   <>
                     <Button size="sm" onClick={handleSaveEdit} disabled={loading}>
                       <Save className="h-3 w-3 mr-1" /> Save
@@ -898,20 +899,26 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
                       <X className="h-3 w-3 mr-1" /> Cancel
                     </Button>
                   </>
-                ) : (
-                  <>
-                    {hasGenerateAction && (
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={handleGenerate}
-                        functionId={node.generate_n8n_id || undefined}
-                        showCredits
-                        disabled={loading}
-                      >
-                        <RotateCcw className="h-3 w-3" />
-                      </Button>
-                    )}
+                ) : null
+              ) : (
+                <>
+                  {/* Regenerate shows for ALL node types when not editing */}
+                  {hasGenerateAction && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={handleGenerate}
+                      functionId={node.generate_n8n_id || undefined}
+                      showCredits
+                      disabled={loading}
+                      title="Regenerate"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                    </Button>
+                  )}
+          
+                  {/* Edit stays form-only */}
+                  {node.node_type === 'form' && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -924,13 +931,16 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
                         }
                         handleStartEdit();
                       }}
+                      title="Edit"
                     >
                       <Edit2 className="h-3 w-3" />
                     </Button>
-                  </>
-                ))
+                  )}
+                </>
+              )
             )}
           </div>
+
 
         </div>
         {description && <p className="text-sm text-muted-foreground mt-2">{description}</p>}
