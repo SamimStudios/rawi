@@ -80,6 +80,73 @@ function wouldCreateCycle(allNodes: any[], fromAddr: string, toAddr: string): bo
   return false;
 }
 
+// --- Regular Group: children normalizer --------------------------------------
+type RegularChildInput =
+  | string
+  | { library_id?: string; libraryId?: string; path?: string; idx?: number };
+
+type NormalizedChild = { library_id: string; path: string };
+
+const _slugFromLibId = (id: string) =>
+  (id || '')
+    .replace(/^lib[_-]?/i, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'child';
+
+const _sanitizePath = (s?: string) =>
+  (s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'child';
+
+/**
+ * Normalizes regular-group children to { library_id, path }.
+ * Accepts strings or objects with library_id|libraryId and optional path.
+ * Path resolution: child.path -> childLib.content.path -> slug(library_id).
+ * De-duplicates with suffixes: foo, foo_2, foo_3, ...
+ */
+function normalizeRegularGroupChildren(
+  rawChildren: RegularChildInput[],
+  getLib: (id: string) => { content?: any } | undefined,
+  isValidPathLabel: (s: string) => boolean
+): NormalizedChild[] {
+  // keep original order; if you *must* sort by idx, do it on rawChildren first
+  const used = new Set<string>();
+  const out: NormalizedChild[] = [];
+
+  rawChildren.forEach((kid, idx) => {
+    const library_id =
+      typeof kid === 'string' ? kid : (kid.library_id ?? kid.libraryId);
+
+    if (!library_id) {
+      throw new Error(`Child #${idx + 1} missing library_id/libraryId.`);
+    }
+
+    const lib = getLib(library_id);
+    if (!lib) {
+      throw new Error(`Child #${idx + 1} references unknown library "${library_id}".`);
+    }
+
+    const providedPath = typeof kid === 'string' ? undefined : kid.path;
+    const fromLib = lib?.content?.path as string | undefined;
+    const base = _sanitizePath(providedPath ?? fromLib ?? _slugFromLibId(library_id));
+
+    let path = base;
+    let n = 2;
+    while (used.has(path)) path = `${base}_${n++}`;
+    if (!isValidPathLabel(path)) {
+      throw new Error(`Invalid child path after normalization: ${path}`);
+    }
+    used.add(path);
+
+    out.push({ library_id, path });
+  });
+
+  return out;
+}
+
+
 
 
 export default function TemplateBuilder() {
@@ -338,31 +405,34 @@ export default function TemplateBuilder() {
     const content = groupLibrary.content || {};
 
     if (Array.isArray(content.children)) {
-      const children = [...content.children].sort((a: any, b: any) => (a.idx ?? 1) - (b.idx ?? 1));
-      for (const kid of children) {
-        const childPath: string = kid.path;
-        if (!isValidPathLabel(childPath)) throw new Error(`Invalid child path: ${childPath}`);
-        const childLib = libIndex.get(kid.library_id);
-        if (!childLib) throw new Error(`Missing library: ${kid.library_id}`);
-
+      // Accept strings or objects; normalize to { library_id, path }
+      const normalized = normalizeRegularGroupChildren(
+        content.children as any[],
+        (id) => libIndex.get(id),
+        isValidPathLabel
+      );
+    
+      for (const { library_id, path } of normalized) {
+        const childLib = libIndex.get(library_id)!; // safe after normalize
+    
         if (childLib.node_type === 'group') {
           const childRows = seedGroupNodes({
             templateId,
             version,
             parentAddr: groupAddr,
-            groupPath: childPath,
+            groupPath: path,
             groupLibrary: childLib,
             libIndex
           });
           rows.push(...childRows);
         } else {
-          const childAddr = `${groupAddr}.${childPath}`;
+          const childAddr = `${groupAddr}.${path}`;
           rows.push({
             template_id: templateId,
             version,
             idx: 999999,
             node_type: childLib.node_type,
-            path: childPath,
+            path,
             parent_addr: groupAddr,
             library_id: childLib.id,
             removable: true,
@@ -373,6 +443,7 @@ export default function TemplateBuilder() {
       }
       return rows;
     }
+
 
     if (content.collection && content.instances && Array.isArray(content.instances)) {
       const N = Number.isFinite(+content.collection.default_instances) && +content.collection.default_instances > 0
