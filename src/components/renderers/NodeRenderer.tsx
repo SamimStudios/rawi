@@ -529,8 +529,7 @@ const handleGenerate = async () => {
      parentPath?: string,
      instanceNum?: number,
      mode: 'idle' | 'edit'
-   ) => {
-   return (
+   ) => (
      <FieldRenderer
     key={`field:${node.id}:${parentPath || ''}:${instanceNum ?? 0}:${field.ref}`}
     node={nodeForRender}
