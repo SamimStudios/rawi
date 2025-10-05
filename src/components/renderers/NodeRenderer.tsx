@@ -189,49 +189,26 @@ export default function NodeRenderer({
   const { reloadNode } = useJobs();
   const { startEditing, stopEditing, isEditing, hasActiveEditor, editingNodeId } = useNodeEditor();
 
-  const modeRef = useRef<'idle' | 'edit'>(effectiveMode);
-  useEffect(() => { modeRef.current = effectiveMode; }, [effectiveMode]);
-
-  
-  const [ancestorLocked, setAncestorLocked] = useState(false);
-  useEffect(() => {
-    if (!editingNodeId) { setAncestorLocked(false); return; }
-    const locked = editingNodeId === node.id;
-    if (locked) setIsCollapsed(false); // auto-expand
-    setAncestorLocked(locked);
-  }, [editingNodeId, node.id]);
-  const toggleCollapse = () => {
-    if (ancestorLocked || shouldCenterGenerate) return;
-    setIsCollapsed(prev => {
-      const next = !prev;
-      collapseStore.set(node.id, next);
-      return next;
-    });
-  };
-
   const [internalMode, setInternalMode] = useState<'idle' | 'edit'>('idle');
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => collapseStore.get(node.id) ?? true);
-  useEffect(() => {
-    // restore from store when the renderer points to another node id
-    setIsCollapsed(collapseStore.get(node.id) ?? true);
-  }, [node.id]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [validationState, setValidationState] = useState<'unknown' | 'valid' | 'invalid' | 'validating'>('unknown');
   const [loading, setLoading] = useState(false);
   const [refreshSeq, setRefreshSeq] = useState(0);
-  const [contentSnapshot, setContentSnapshot] = useState<any>(node.content); // NEW
-  const waitingRealtimeRef = useRef(false);                   // NEW
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null); // NEW
+  const [contentSnapshot, setContentSnapshot] = useState<any>(node.content);
+  const waitingRealtimeRef = useRef(false);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const [creditModal, setCreditModal] = useState<{
     required: number;
     available: number;
     shortfall: number;
   } | null>(null);
 
-
-
   const effectiveMode = externalMode || internalMode;
   const setEffectiveMode = onModeChange || setInternalMode;
+
+  const modeRef = useRef<'idle' | 'edit'>(effectiveMode);
+  useEffect(() => { modeRef.current = effectiveMode; }, [effectiveMode]);
 
   // convenience: snapshot-based node passed to fields and header
   const nodeForRender = useMemo(
@@ -239,13 +216,11 @@ export default function NodeRenderer({
     [node, contentSnapshot]
   );
   
-
   const label = nodeForRender.content?.label?.fallback || `${node.path}`;
   const description = nodeForRender.content?.description?.fallback;
 
   const hasValidateAction = node.validate_n8n_id;
   const hasGenerateAction = node.generate_n8n_id;
-
 
   const formValuesObj =
     node.node_type === 'form' ? (nodeForRender.content as any)?.values : undefined;
@@ -254,6 +229,28 @@ export default function NodeRenderer({
   const isMediaEmpty = node.node_type === 'media' && !((nodeForRender.content as any)?.versions?.length);
   
   const shouldCenterGenerate = false; //!!hasGenerateAction && (isFormEmpty || isMediaEmpty);
+
+  const [ancestorLocked, setAncestorLocked] = useState(false);
+  useEffect(() => {
+    if (!editingNodeId) { setAncestorLocked(false); return; }
+    const locked = editingNodeId === node.id;
+    if (locked) setIsCollapsed(false); // auto-expand
+    setAncestorLocked(locked);
+  }, [editingNodeId, node.id]);
+
+  useEffect(() => {
+    // restore from store when the renderer points to another node id
+    setIsCollapsed(collapseStore.get(node.id) ?? true);
+  }, [node.id]);
+
+  const toggleCollapse = () => {
+    if (ancestorLocked || shouldCenterGenerate) return;
+    setIsCollapsed(prev => {
+      const next = !prev;
+      collapseStore.set(node.id, next);
+      return next;
+    });
+  };
 
   
 
@@ -525,9 +522,9 @@ const handleGenerate = async () => {
 
   // --------- Tree rendering (no extra renderers) ---------
    const renderField = (
-     field: FieldDef,
-     parentPath?: string,
-     instanceNum?: number,
+     field: FieldItem,
+     parentPath: string | undefined,
+     instanceNum: number | undefined,
      mode: 'idle' | 'edit'
    ) => {
    return (
@@ -544,6 +541,7 @@ const handleGenerate = async () => {
     refreshSeq={refreshSeq}   // <-- new
   />
 );
+};
 
 
   const renderSection = (section: SectionItem, parentPath?: string, inheritedInstance?: number) => {
