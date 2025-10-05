@@ -90,6 +90,47 @@ const deepHasNonNull = (v: any): boolean => {
 };
 
 
+// ======== Media URL Helpers (CSP-aware) ========
+declare global {
+  interface Window {
+    __MEDIA_PROXY__?: boolean; // set to true if you have /api/media proxy
+  }
+}
+
+/**
+ * Ensures a Supabase Storage URL uses /object/public/ (if bucket is public).
+ * Leaves non-Supabase URLs unchanged.
+ */
+function normalizeSupabasePublicUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    // Expect path like /storage/v1/object/...; make sure it uses /object/public/...
+    if (u.hostname.endsWith('.supabase.co') && u.pathname.includes('/storage/v1/object/')) {
+      // if it's already .../object/public/... keep it
+      if (!u.pathname.includes('/storage/v1/object/public/')) {
+        u.pathname = u.pathname.replace('/storage/v1/object/', '/storage/v1/object/public/');
+      }
+      return u.toString();
+    }
+    return url;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * If window.__MEDIA_PROXY__ is true, rewrite to same-origin proxy:
+ *   /api/media?u=<encoded original url>
+ * Otherwise, return the (normalized) URL as-is.
+ */
+function transformMediaUrlForCsp(url: string): string {
+  const normalized = normalizeSupabasePublicUrl(url);
+  if (typeof window !== 'undefined' && window.__MEDIA_PROXY__) {
+    const q = new URLSearchParams({ u: normalized }).toString();
+    return `/api/media?${q}`;
+  }
+  return normalized;
+}
 
 
 
@@ -584,17 +625,20 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
     };
 
     const renderMediaItem = (item: MediaItem) => {
+      const src = transformMediaUrlForCsp(item.url);
+    
       if (item.kind === 'ImageItem') {
-        return <img src={item.url} alt="Media" className="max-w-full h-auto rounded" />;
+        return <img src={src} alt="Media" className="max-w-full h-auto rounded" crossOrigin="anonymous" />;
       }
       if (item.kind === 'VideoItem') {
-        return <video src={item.url} controls className="max-w-full rounded" />;
+        return <video src={src} controls className="max-w-full rounded" crossOrigin="anonymous" preload="metadata" />;
       }
       if (item.kind === 'AudioItem') {
-        return <audio src={item.url} controls className="w-full" />;
+        return <audio src={src} controls className="w-full" crossOrigin="anonymous" preload="none" />;
       }
       return null;
     };
+
 
     return (
       <div className="space-y-4">
