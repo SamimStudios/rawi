@@ -68,6 +68,8 @@ type GroupContent = {
 };
 
 // ============= Address Helpers =============
+const collapseStore = new Map<string, boolean>();
+
 const joinAddr = (addr: string, path: string) => `${addr}#${path}`;
 const mediaSelectedIdxAddr = (addr: string) => joinAddr(addr, 'content.selected_version_idx');
 
@@ -186,6 +188,10 @@ export default function NodeRenderer({
   const { entries, clear: clearDrafts } = useDrafts();
   const { reloadNode } = useJobs();
   const { startEditing, stopEditing, isEditing, hasActiveEditor, editingNodeId } = useNodeEditor();
+
+  const modeRef = useRef<'idle' | 'edit'>(effectiveMode);
+  useEffect(() => { modeRef.current = effectiveMode; }, [effectiveMode]);
+
   
   const [ancestorLocked, setAncestorLocked] = useState(false);
   useEffect(() => {
@@ -194,8 +200,21 @@ export default function NodeRenderer({
     if (locked) setIsCollapsed(false); // auto-expand
     setAncestorLocked(locked);
   }, [editingNodeId, node.id]);
+  const toggleCollapse = () => {
+    if (ancestorLocked || shouldCenterGenerate) return;
+    setIsCollapsed(prev => {
+      const next = !prev;
+      collapseStore.set(node.id, next);
+      return next;
+    });
+  };
+
   const [internalMode, setInternalMode] = useState<'idle' | 'edit'>('idle');
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => collapseStore.get(node.id) ?? true);
+  useEffect(() => {
+    // restore from store when the renderer points to another node id
+    setIsCollapsed(collapseStore.get(node.id) ?? true);
+  }, [node.id]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [validationState, setValidationState] = useState<'unknown' | 'valid' | 'invalid' | 'validating'>('unknown');
   const [loading, setLoading] = useState(false);
@@ -289,8 +308,11 @@ useEffect(() => {
           .eq('id', node.id)
           .single();
         if (!error && data) {
-          setContentSnapshot(data.content);
-          setRefreshSeq((s) => s + 1);
+          // Only apply when NOT editing this node
+          if (modeRef.current !== 'edit' && !isEditing(node.id)) {
+            setContentSnapshot(data.content);
+            setRefreshSeq((s) => s + 1);
+          }
         } else {
           console.warn('[NodeRenderer] realtime fetch failed', error);
         }
@@ -357,8 +379,11 @@ const handleSaveEdit = async () => {
             .eq('id', node.id)
             .single();
       if (!error && data) {
-            setContentSnapshot(data.content);
-            setRefreshSeq((s) => s + 1);
+        // Only apply when NOT editing this node
+        if (modeRef.current !== 'edit' && !isEditing(node.id)) {
+          setContentSnapshot(data.content);
+          setRefreshSeq((s) => s + 1);
+        }
       } else {
         console.warn('[NodeRenderer] manual fetch failed', error);
       }
@@ -699,6 +724,7 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
     const content = groupNode.content as GroupContent;
     const [expanded, setExpanded] = useState(true);
     const [loading, setLoading] = useState(false);
+    const didInit = useRef(false);
     const [regularChildren, setRegularChildren] = useState<JobNode[]>([]);
     const [byInstance, setByInstance] = useState<Record<number, JobNode[]>>({});
 
@@ -762,7 +788,7 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
 
     useEffect(() => {
       const fetchChildren = async () => {
-        setLoading(true);
+        if (!didInit.current) setLoading(true);
         try {
           console.log('[GroupRenderer] Fetching children for:', {
             addr: groupNode.addr,
@@ -826,7 +852,10 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
         } catch (error) {
           console.error('[GroupRenderer] fetch children failed', error);
         } finally {
-          setLoading(false);
+          if (!didInit.current) {
+            setLoading(false);
+            didInit.current = true;
+          }
         }
       };
 
@@ -900,7 +929,7 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
                <Button
                  variant="ghost"
                  size="sm"
-                 onClick={() => !ancestorLocked && !shouldCenterGenerate && setIsCollapsed(!isCollapsed)}
+                 onClick={toggleCollapse}
                  className="p-1 h-6 w-6"
                  disabled={ancestorLocked || shouldCenterGenerate}
                >
@@ -991,7 +1020,14 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
       </CardHeader>
 
        {!shouldCenterGenerate && (
-         <Collapsible open={!isCollapsed} onOpenChange={setIsCollapsed}>
+          <Collapsible
+             open={!isCollapsed}
+             onOpenChange={(open) => {
+               const collapsed = !open;
+               collapseStore.set(node.id, collapsed);
+               setIsCollapsed(collapsed);
+             }}
+          >
            <CardContent className="pt-0">
              <CollapsibleContent>
                {node.node_type === 'form'  && renderFormContent()}
