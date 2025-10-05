@@ -526,14 +526,14 @@ const handleGenerate = async () => {
   // --------- Tree rendering (no extra renderers) ---------
 const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number) => (
   <FieldRenderer
-    key={`field:${node.id}:${parentPath || ''}:${instanceNum ?? 0}:${field.ref}:${refreshSeq}`}
+    key={`field:${node.id}:${parentPath || ''}:${instanceNum ?? 0}:${field.ref}`}
     node={nodeForRender}
     fieldRef={field.ref}
     sectionPath={parentPath}
     instanceNum={instanceNum}
     mode={effectiveMode}
     required={field.required}
-    editable={field.editable !== false}
+    editable={effectiveMode === 'edit' && field.editable !== false}
     onChange={() => setHasUnsavedChanges(true)}
     refreshSeq={refreshSeq}   // <-- new
   />
