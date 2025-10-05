@@ -524,16 +524,22 @@ const handleGenerate = async () => {
 
 
   // --------- Tree rendering (no extra renderers) ---------
-const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number) => (
-  <FieldRenderer
+   const renderField = (
+     field: FieldDef,
+     parentPath?: string,
+     instanceNum?: number,
+     mode: 'idle' | 'edit'
+   ) => {
+   return (
+     <FieldRenderer
     key={`field:${node.id}:${parentPath || ''}:${instanceNum ?? 0}:${field.ref}`}
     node={nodeForRender}
     fieldRef={field.ref}
     sectionPath={parentPath}
     instanceNum={instanceNum}
-    mode={effectiveMode}
+    mode={mode}
     required={field.required}
-    editable={effectiveMode === 'edit' && field.editable !== false}
+    editable={mode === 'edit' && field.editable !== false}
     onChange={() => setHasUnsavedChanges(true)}
     refreshSeq={refreshSeq}   // <-- new
   />
@@ -561,7 +567,7 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
           <div className="mt-3 space-y-3">
             {section.children?.map((child) => (
               ContentValidation.isFieldItem(child)
-                ? renderField(child as FieldItem, sectionPath, inheritedInstance)
+                ? renderField(child as FieldItem, sectionPath, inheritedInstance, effectiveMode)
                 : renderSection(child as SectionItem, sectionPath, inheritedInstance)
             ))}
           </div>
@@ -582,7 +588,7 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
                   <div className="space-y-3">
                     {section.children?.map((child) => (
                       ContentValidation.isFieldItem(child)
-                        ? renderField(child as FieldItem, sectionPath, i)
+                        ? renderField(child as FieldItem, sectionPath, i, effectiveMode)
                         : renderSection(child as SectionItem, sectionPath, i)
                     ))}
                   </div>
@@ -607,7 +613,7 @@ const renderField = (field: FieldItem, parentPath?: string, instanceNum?: number
       <div className="space-y-4">
         {form.items.map((item: FormItem) => (
           ContentValidation.isFieldItem(item)
-            ? renderField(item as FieldItem, undefined, undefined)
+            ? renderField(item as FieldItem, undefined, undefined, effectiveMode)
             : renderSection(item as SectionItem, undefined, undefined)
         ))}
       </div>
