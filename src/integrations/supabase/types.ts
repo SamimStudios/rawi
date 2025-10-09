@@ -67,10 +67,12 @@ export type Database = {
           error: Json | null
           final_output_url: string | null
           id: string
+          job_id: string | null
           job_type: string | null
           last_http_status: number | null
           logs: Json | null
           metrics: Json | null
+          node_id: string | null
           output: Json | null
           poll_ms: number | null
           provider: string
@@ -93,10 +95,12 @@ export type Database = {
           error?: Json | null
           final_output_url?: string | null
           id: string
+          job_id?: string | null
           job_type?: string | null
           last_http_status?: number | null
           logs?: Json | null
           metrics?: Json | null
+          node_id?: string | null
           output?: Json | null
           poll_ms?: number | null
           provider?: string
@@ -119,10 +123,12 @@ export type Database = {
           error?: Json | null
           final_output_url?: string | null
           id?: string
+          job_id?: string | null
           job_type?: string | null
           last_http_status?: number | null
           logs?: Json | null
           metrics?: Json | null
+          node_id?: string | null
           output?: Json | null
           poll_ms?: number | null
           provider?: string
@@ -472,15 +478,26 @@ export type Database = {
           p_credits: number
           p_currency?: string
           p_description?: string
+          p_metadata?: Json
+          p_stripe_payment_intent_id?: string
           p_stripe_session_id?: string
-          p_type?: string
+          p_stripe_subscription_id?: string
+          p_type: string
           p_user_id: string
         }
-        Returns: undefined
+        Returns: string
       }
       add_updated_at_trigger: {
         Args: { p_schema: string; p_table: string }
         Returns: undefined
+      }
+      addr_read_many: {
+        Args: { p_job_id: string; p_reads: Json }
+        Returns: Json
+      }
+      addr_read_many_map: {
+        Args: { p_job_id: string; p_reads: Json }
+        Returns: Json
       }
       addr_write_many: {
         Args: { p_job_id: string; p_writes: Json }
@@ -850,6 +867,10 @@ export type Database = {
           p_v: number
         }
         Returns: string
+      }
+      media_add_version: {
+        Args: { p_item: Json; p_node_id: string }
+        Returns: Json
       }
       nlevel: {
         Args: { "": unknown }
