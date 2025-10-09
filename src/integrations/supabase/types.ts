@@ -545,7 +545,13 @@ export type Database = {
         Returns: undefined
       }
       consume_credits: {
-        Args: { p_credits: number; p_description?: string; p_user_id: string }
+        Args: {
+          p_credits: number
+          p_description?: string
+          p_function_id?: string
+          p_job_id?: string
+          p_user_id: string
+        }
         Returns: boolean
       }
       export_db_catalog: {

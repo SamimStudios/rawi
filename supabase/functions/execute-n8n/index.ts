@@ -30,6 +30,111 @@ interface WebhookPayload {
   idempotency_key?: string;
 }
 
+// Bilingual message helper
+const bi = (msg: unknown, enDefault: string, arDefault?: string) => {
+  if (msg && typeof msg === 'object' && 'en' in (msg as any) && 'ar' in (msg as any)) return msg as any;
+  const s = typeof msg === 'string' ? msg : enDefault;
+  return { en: s, ar: arDefault ?? s };
+};
+
+// Envelope pass-through detection
+const isEnvelope = (response: any): boolean => {
+  return response && 
+         typeof response === 'object' && 
+         'status' in response && 
+         ('http_status' in response || 'data' in response || 'error' in response);
+};
+
+// Check if status should trigger retry
+const shouldRetry = (status: number): boolean => [429, 502, 503, 504].includes(status);
+
+// N8N Response Envelope Interface
+interface N8NResponseEnvelope<TParsed = unknown> {
+  request_id: string;
+  execution_id?: string;
+  workflow_name?: string;
+  workflow_version?: string;
+  timestamp: string;
+  http_status?: number;
+  status: 'success' | 'error' | 'partial_success';
+  error?: {
+    type: 'validation' | 'authentication' | 'authorization' | 'credits' | 'webhook_connectivity' | 'workflow_execution' | 'upstream_http' | 'rate_limited' | 'parsing' | 'internal';
+    code: string;
+    message: { en: string; ar: string } | string;
+    details?: unknown;
+    retry_possible: boolean;
+  };
+  data?: {
+    raw_response?: unknown;
+    parsed?: TParsed;
+  };
+  warnings?: Array<{
+    type: string;
+    message: string;
+    field?: string;
+  }>;
+  meta: {
+    env: 'prod' | 'staging' | 'dev';
+    started_at: string;
+    finished_at: string;
+    duration_ms: number;
+    credits_consumed?: number;
+  };
+}
+
+// Helper function to create envelope
+const createEnvelope = (
+  requestId: string,
+  startTime: Date,
+  status: 'success' | 'error' | 'partial_success',
+  options: {
+    data?: any;
+    error?: {
+      type: 'validation' | 'authentication' | 'authorization' | 'credits' | 'webhook_connectivity' | 'workflow_execution' | 'upstream_http' | 'rate_limited' | 'parsing' | 'internal';
+      code: string;
+      message: { en: string; ar: string } | string;
+      details?: unknown;
+      retryPossible: boolean;
+    };
+    httpStatus?: number;
+    creditsConsumed?: number;
+    warnings?: Array<{ type: string; message: string; field?: string }>;
+  } = {}
+): N8NResponseEnvelope => {
+  const finishTime = new Date();
+  const env = Deno.env.get('ENVIRONMENT') as 'prod' | 'staging' | 'dev' || 'dev';
+  
+  let defaultStatus = 200;
+  if (status === 'error') defaultStatus = 500;
+  if (status === 'partial_success') defaultStatus = 207;
+  
+  return {
+    request_id: requestId,
+    timestamp: finishTime.toISOString(),
+    http_status: options.httpStatus || defaultStatus,
+    status,
+    error: options.error ? {
+      type: options.error.type,
+      code: options.error.code,
+      message: options.error.message,
+      details: options.error.details,
+      retry_possible: options.error.retryPossible
+    } : undefined,
+    data: options.data ? {
+      raw_response: options.data,
+      parsed: options.data
+    } : undefined,
+    warnings: options.warnings,
+    meta: {
+      env,
+      started_at: startTime.toISOString(),
+      finished_at: finishTime.toISOString(),
+      duration_ms: finishTime.getTime() - startTime.getTime(),
+      credits_consumed: options.creditsConsumed
+    }
+  };
+};
+
 serve(async (request) => {
   if (request.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -279,8 +384,9 @@ serve(async (request) => {
     const timer = setTimeout(() => controller.abort(), 60_000);
 
     let webhookResult: any;
+    let webhookResponse: any;
     try {
-      const webhookResponse = await fetch(n8nFunction.webhook_url, {
+      webhookResponse = await fetch(n8nFunction.webhook_url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(webhookPayload),
@@ -288,67 +394,135 @@ serve(async (request) => {
       });
       clearTimeout(timer);
 
-      if (!webhookResponse.ok) {
-        return new Response(
-          JSON.stringify({
-            status: "error",
-            code: "N8N_WEBHOOK_ERROR",
-            message: `Webhook returned ${webhookResponse.status}: ${webhookResponse.statusText}`,
-          }),
-          { status: 400, headers: corsHeaders },
-        );
+      const responseText = await webhookResponse.text();
+      console.log(`[${requestId}] Webhook response status: ${webhookResponse.status}`);
+      
+      // Try to parse response
+      try {
+        webhookResult = JSON.parse(responseText);
+      } catch (parseErr) {
+        console.error(`[${requestId}] Failed to parse webhook response:`, parseErr);
+        webhookResult = { raw: responseText };
       }
-      webhookResult = await webhookResponse.json().catch(() => ({}));
-      if (!(webhookResult && (webhookResult.status === "ok" || webhookResult.success === true))) {
-        return new Response(
-          JSON.stringify({
-            status: "error",
-            code: "N8N_WEBHOOK_FAILED",
-            message: "Webhook reported failure",
-            result: webhookResult,
-          }),
-          { status: 400, headers: corsHeaders },
-        );
+
+      // Check if response is already an envelope
+      if (isEnvelope(webhookResult)) {
+        console.log(`[${requestId}] Webhook returned envelope format`);
+        
+        // Fix type issues (http_status might be string)
+        if (webhookResult.http_status && typeof webhookResult.http_status === 'string') {
+          const parsed = parseInt(webhookResult.http_status, 10);
+          if (!isNaN(parsed)) {
+            webhookResult.http_status = parsed;
+          }
+        }
+        
+        // Ensure bilingual error messages
+        if (webhookResult.error?.message && typeof webhookResult.error.message === 'string') {
+          webhookResult.error.message = bi(webhookResult.error.message, webhookResult.error.message);
+        }
+        
+        // Update request_id to match ours
+        webhookResult.request_id = requestId;
+        
+      } else {
+        // Non-envelope response - wrap it
+        console.log(`[${requestId}] Wrapping non-envelope response`);
+        
+        const isSuccess = webhookResponse.ok && 
+                         (webhookResult?.status === 'ok' || 
+                          webhookResult?.status === 'success' ||
+                          webhookResult?.success === true);
+        
+        if (!isSuccess) {
+          // Webhook failed - create error envelope
+          webhookResult = createEnvelope(requestId, new Date(startedAt), 'error', {
+            error: {
+              type: 'workflow_execution',
+              code: 'N8N_WEBHOOK_FAILED',
+              message: bi(null, 'Webhook execution failed', 'فشل تنفيذ webhook'),
+              details: { 
+                status: webhookResponse.status,
+                response: webhookResult 
+              },
+              retryPossible: false
+            },
+            httpStatus: webhookResponse.status
+          });
+        } else {
+          // Success - wrap data
+          webhookResult = createEnvelope(requestId, new Date(startedAt), 'success', {
+            data: webhookResult
+          });
+        }
       }
+
     } catch (err: any) {
       clearTimeout(timer);
+      console.error(`[${requestId}] Webhook error:`, err);
+      
       if (err?.name === "AbortError") {
         return new Response(
-          JSON.stringify({ status: "error", code: "N8N_WEBHOOK_TIMEOUT", message: "Webhook timeout" }),
-          { status: 504, headers: corsHeaders },
+          JSON.stringify(createEnvelope(requestId, new Date(startedAt), 'error', {
+            error: {
+              type: 'webhook_connectivity',
+              code: 'N8N_WEBHOOK_TIMEOUT',
+              message: bi(null, 'Webhook request timed out', 'انتهت مهلة طلب webhook'),
+              details: { timeout_ms: 60000 },
+              retryPossible: true
+            },
+            httpStatus: 504
+          })),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
       throw err;
     }
 
-    // ---------- No writes here (generation will write in n8n; save writes later)
+    // ---------- Consume credits ONLY on success/partial_success
+    let creditsConsumed = 0;
+    const webhookStatus = webhookResult?.status;
 
-    // ---------- Optional: deduct credits via existing RPC (kept from your file)
-    // If you prefer moving to public.transactions later, we’ll change this in the next step.
-    if (required > 0) {
-      const { error: consumeError } = await supabase.rpc("consume_credits", {
+    if (required > 0 && (webhookStatus === 'success' || webhookStatus === 'partial_success')) {
+      console.log(`[${requestId}] Consuming ${required} credits for user ${user.id}`);
+      
+      const { data: consumeResult, error: consumeError } = await supabase.rpc("consume_credits", {
         p_user_id: user.id,
-        p_amount: required,
+        p_credits: required,
         p_description: `${n8nFunction.kind} - ${n8nFunction.name}`,
         p_job_id: jobId,
         p_function_id: n8nFunction.id,
       });
+      
       if (consumeError) {
-        console.error(`[${requestId}] Failed to consume credits`, consumeError);
-        // Do not fail the request since webhook was successful
+        console.error(`[${requestId}] Failed to consume credits:`, consumeError);
+        // Log but don't fail - webhook already succeeded
+      } else if (consumeResult === true) {
+        creditsConsumed = required;
+        console.log(`[${requestId}] Successfully consumed ${creditsConsumed} credits`);
+      } else {
+        console.warn(`[${requestId}] consume_credits returned false - insufficient credits?`);
       }
+    } else if (webhookStatus === 'error') {
+      console.log(`[${requestId}] Not consuming credits - webhook failed with error status`);
+    } else {
+      console.log(`[${requestId}] No credits to consume (required: ${required})`);
+    }
+
+    // Add credits_consumed to envelope metadata if present
+    if (webhookResult?.meta && creditsConsumed > 0) {
+      webhookResult.meta.credits_consumed = creditsConsumed;
     }
 
     const ms = Date.now() - startedAt;
-    console.log(`[${requestId}] OK in ${ms}ms`);
+    console.log(`[${requestId}] Completed in ${ms}ms`);
 
     return new Response(
-      JSON.stringify({
-        status: "ok",
-        result: webhookResult,
-        credits_consumed: required,
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      JSON.stringify(webhookResult),
+      { 
+        status: 200, // Always 200 for envelope pattern
+        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      },
     );
   } catch (error: any) {
     const ms = Date.now() - startedAt;
