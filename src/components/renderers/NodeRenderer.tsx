@@ -21,6 +21,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNodeEditor } from '@/hooks/useNodeEditor';
 import { useDrafts } from '@/contexts/DraftsContext';
 import { useJobs, type JobNode } from '@/hooks/useJobs';
+import { useUserCredits } from '@/hooks/useUserCredits';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import {
   AlertDialog,
@@ -188,6 +189,7 @@ export default function NodeRenderer({
   const { entries, clear: clearDrafts } = useDrafts();
   const { reloadNode } = useJobs();
   const { startEditing, stopEditing, isEditing, hasActiveEditor, editingNodeId } = useNodeEditor();
+  const { refresh: refreshCredits } = useUserCredits();
 
   const [internalMode, setInternalMode] = useState<'idle' | 'edit'>('idle');
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => collapseStore.get(node.id) ?? true);
@@ -505,6 +507,8 @@ const handleGenerate = async () => {
     if (generatedContent != null) {
       onUpdate?.(node.id, generatedContent);
     }
+    // Refresh credits display to show updated balance
+    refreshCredits();
   } catch (e: any) {
     toast({
       title: 'Generation failed',
