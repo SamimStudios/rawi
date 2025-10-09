@@ -405,9 +405,9 @@ serve(async (request) => {
         webhookResult = { raw: responseText };
       }
 
-      // Check if response is already an envelope
-      if (isEnvelope(webhookResult)) {
-        console.log(`[${requestId}] Webhook returned envelope format`);
+  // Check if response is already an envelope
+  if (isEnvelope(webhookResult)) {
+    console.log(`[${requestId}] Webhook returned envelope format, status:`, webhookResult.status);
         
         // Fix type issues (http_status might be string)
         if (webhookResult.http_status && typeof webhookResult.http_status === 'string') {
@@ -479,12 +479,13 @@ serve(async (request) => {
       throw err;
     }
 
-    // ---------- Consume credits ONLY on success/partial_success
-    let creditsConsumed = 0;
-    const webhookStatus = webhookResult?.status;
+// ---------- Consume credits ONLY on success/partial_success
+let creditsConsumed = 0;
+const webhookStatus = webhookResult?.status;
+console.log(`[${requestId}] Webhook status for credit check: "${webhookStatus}", required: ${required}`);
 
-    if (required > 0 && (webhookStatus === 'success' || webhookStatus === 'partial_success')) {
-      console.log(`[${requestId}] Consuming ${required} credits for user ${user.id}`);
+if (required > 0 && (webhookStatus === 'success' || webhookStatus === 'partial_success')) {
+  console.log(`[${requestId}] Consuming ${required} credits for user ${user.id}`);
       
       const { data: consumeResult, error: consumeError } = await supabase.rpc("consume_credits", {
         p_user_id: user.id,
@@ -517,8 +518,16 @@ serve(async (request) => {
     const ms = Date.now() - startedAt;
     console.log(`[${requestId}] Completed in ${ms}ms`);
 
+    // Add backward compatibility fields for frontend
+    const responsePayload = {
+      ...webhookResult,
+      // Backward compatibility: frontend expects 'ok' status or success boolean
+      success: webhookResult.status === 'success' || webhookResult.status === 'partial_success',
+      status: webhookResult.status === 'success' ? 'ok' : webhookResult.status,
+    };
+
     return new Response(
-      JSON.stringify(webhookResult),
+      JSON.stringify(responsePayload),
       { 
         status: 200, // Always 200 for envelope pattern
         headers: { ...corsHeaders, "Content-Type": "application/json" } 
