@@ -56,14 +56,34 @@ Deno.serve(async (req) => {
 
     for (const template of templates || []) {
       try {
+        // Skip if image already exists unless force=true
+        const force = (body?.force === true) || (url.searchParams.get('force') === 'true');
+        if (!force) {
+          const filePath = `templates/${template.id}.jpg`;
+          const { data: existing, error: listErr } = await supabase.storage
+            .from('template-images')
+            .list('templates', { search: `${template.id}.jpg`, limit: 1 });
+          if (!listErr && (existing?.length ?? 0) > 0) {
+            console.log(`Skipping ${template.name} (${template.id}) - image already exists`);
+            results.push({
+              template_id: template.id,
+              template_name: template.name,
+              success: true,
+              path: filePath,
+              skipped: true
+            });
+            continue;
+          }
+        }
+
         console.log(`Generating image for template: ${template.name} (${template.id})`);
 
         // Generate image prompt based on template name and category
         const prompt = `Create a professional, cinematic movie poster style image for a video template called "${template.name}". 
-Category: ${template.category}. 
-Style: Netflix-quality, 16:9 aspect ratio, dramatic lighting, high production value, vibrant colors.
-The image should represent the theme and feel of ${template.name} in a visually appealing way.
-Make it look like a professional movie or video production thumbnail.`;
+        Category: ${template.category}. 
+        Style: Netflix-quality, 16:9 aspect ratio, dramatic lighting, high production value, vibrant colors.
+        The image should represent the theme and feel of ${template.name} in a visually appealing way.
+        Make it look like a professional movie or video production thumbnail.`;
 
         // Call Lovable AI Gateway to generate image
         const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {

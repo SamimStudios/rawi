@@ -112,7 +112,7 @@ export default function AppTemplates() {
       // Process in batches to avoid timeouts
       while (hasMore) {
         const { data, error } = await supabase.functions.invoke('generate-template-images', {
-          body: { batch_size: 10, offset }
+          body: { batch_size: 5, offset }
         });
 
         if (error) {
