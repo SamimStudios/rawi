@@ -98,18 +98,52 @@ export default function AppTemplates() {
   const handleGenerateImages = async () => {
     try {
       setGeneratingImages(true);
+      let totalProcessed = 0;
+      let totalSuccess = 0;
+      let totalFailed = 0;
+      let offset = 0;
+      let hasMore = true;
+
       toast({
         title: 'Generating Images',
-        description: 'Creating template images with AI. This may take a few minutes...'
+        description: 'Creating template images with AI. This will process in batches...'
       });
 
-      const { data, error } = await supabase.functions.invoke('generate-template-images');
+      // Process in batches to avoid timeouts
+      while (hasMore) {
+        const { data, error } = await supabase.functions.invoke('generate-template-images', {
+          body: { batch_size: 10, offset }
+        });
 
-      if (error) throw error;
+        if (error) {
+          console.error('Batch failed:', error);
+          toast({
+            title: 'Batch Error',
+            description: `Error processing batch at offset ${offset}`,
+            variant: 'destructive'
+          });
+          break;
+        }
+
+        if (data) {
+          totalProcessed += data.batch_info.processed;
+          totalSuccess += data.results.filter((r: any) => r.success).length;
+          totalFailed += data.results.filter((r: any) => !r.success).length;
+          hasMore = data.batch_info.has_more;
+          offset = data.batch_info.next_offset || 0;
+
+          toast({
+            title: 'Batch Complete',
+            description: `Processed ${totalProcessed} templates so far (${totalSuccess} succeeded, ${totalFailed} failed)`
+          });
+        }
+
+        if (!hasMore) break;
+      }
 
       toast({
-        title: 'Success',
-        description: data.message || 'Template images generated successfully'
+        title: 'Generation Complete',
+        description: `Generated images for ${totalSuccess} templates (${totalFailed} failed)`
       });
 
       // Reload templates to show new images

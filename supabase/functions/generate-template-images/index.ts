@@ -21,15 +21,21 @@ Deno.serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    // Fetch all templates from app.templates
+    // Get batch size and offset from query params (default: 10 templates at a time)
+    const url = new URL(req.url);
+    const batchSize = parseInt(url.searchParams.get('batch_size') || '10');
+    const offset = parseInt(url.searchParams.get('offset') || '0');
+
+    // Fetch templates with pagination to avoid timeouts
     const { data: templates, error: fetchError } = await supabase
       .schema('app')
       .from('templates')
-      .select('id, name, category, active');
+      .select('id, name, category, active')
+      .range(offset, offset + batchSize - 1);
 
     if (fetchError) throw fetchError;
 
-    console.log(`Found ${templates?.length || 0} templates to process`);
+    console.log(`Processing batch: ${offset}-${offset + batchSize - 1}, found ${templates?.length || 0} templates`);
 
     const results = [];
 
@@ -116,10 +122,20 @@ Make it look like a professional movie or video production thumbnail.`;
     const successCount = results.filter(r => r.success).length;
     const failCount = results.filter(r => !r.success).length;
 
+    // Check if there might be more templates to process
+    const hasMore = templates?.length === batchSize;
+
     return new Response(
       JSON.stringify({
         success: true,
         message: `Processed ${templates?.length || 0} templates: ${successCount} succeeded, ${failCount} failed`,
+        batch_info: {
+          offset,
+          batch_size: batchSize,
+          processed: templates?.length || 0,
+          has_more: hasMore,
+          next_offset: hasMore ? offset + batchSize : null
+        },
         results
       }),
       { 
