@@ -60,6 +60,43 @@ export async function fetchActiveTemplates(): Promise<TemplateRow[]> {
   return data ?? [];
 }
 
+export async function fetchAllTemplates(): Promise<TemplateRow[]> {
+  const { data, error } = await supabase
+    .schema('app' as any)
+    .from('templates')
+    .select('id,name,category,active,current_version,meta,created_at,updated_at')
+    .order('category', { ascending: true })
+    .order('name', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export function getTemplateImageUrl(templateId: string): string {
+  const { data } = supabase.storage
+    .from('template-images')
+    .getPublicUrl(`templates/${templateId}.jpg`);
+  return data.publicUrl;
+}
+
+export async function uploadTemplateImage(
+  templateId: string, 
+  file: File
+): Promise<string> {
+  const filePath = `templates/${templateId}.jpg`;
+  
+  const { error } = await supabase.storage
+    .from('template-images')
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: true,
+      contentType: 'image/jpeg'
+    });
+  
+  if (error) throw error;
+  
+  return getTemplateImageUrl(templateId);
+}
+
 export async function fetchTemplateById(id: string): Promise<TemplateRow | null> {
   const { data, error } = await supabase
     .schema('app' as any)
@@ -202,6 +239,9 @@ export async function replaceSaveTemplateNodes(allRows: TemplateNodeRow[]): Prom
 export function useTemplates() {
   return {
     fetchTemplates: fetchActiveTemplates,
+    fetchAllTemplates,
+    getTemplateImageUrl,
+    uploadTemplateImage,
     fetchTemplateById,
     fetchTemplateNodes,
     loadLibraryIndex,

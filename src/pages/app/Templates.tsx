@@ -4,7 +4,7 @@ import { useTemplates } from '@/hooks/useTemplates';
 import { useJobs } from '@/hooks/useJobs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function AppTemplates() {
   const navigate = useNavigate();
-  const { fetchTemplates } = useTemplates();
+  const { fetchAllTemplates, getTemplateImageUrl } = useTemplates();
   const { createJobFromTemplate, loading: jobLoading } = useJobs();
   const { toast } = useToast();
   
@@ -28,7 +28,7 @@ export default function AppTemplates() {
     const loadTemplates = async () => {
       try {
         setLoading(true);
-        const data = await fetchTemplates();
+        const data = await fetchAllTemplates();
         setTemplates(data);
       } catch (error) {
         console.error('Failed to load templates:', error);
@@ -39,10 +39,22 @@ export default function AppTemplates() {
     loadTemplates();
   }, []);
 
-  const filteredTemplates = templates.filter(template => 
-    template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    template.category.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredTemplates = templates.filter(template => {
+    const search = searchTerm.toLowerCase();
+    return (
+      template.name.toLowerCase().includes(search) ||
+      (template.category || '').toLowerCase().includes(search) ||
+      template.id.toLowerCase().includes(search) ||
+      (template.active ? 'active' : 'inactive').includes(search)
+    );
+  });
+
+  const groupedTemplates = filteredTemplates.reduce((acc, template) => {
+    const category = template.category || 'Uncategorized';
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(template);
+    return acc;
+  }, {} as Record<string, any[]>);
 
   const handleCreateJob = async () => {
     if (!selectedTemplate || !jobName.trim()) {
@@ -93,17 +105,15 @@ export default function AppTemplates() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Templates</h1>
-        <p className="text-muted-foreground">
+      <div className="mb-8 space-y-4">
+        <h1 className="text-4xl md:text-5xl font-bold">Templates</h1>
+        <p className="text-lg text-muted-foreground max-w-3xl">
           Choose a template to create a new job. Templates provide the structure and fields you need to generate content.
         </p>
-      </div>
 
-      {/* Search */}
-      <div className="mb-6">
-        <div className="relative">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+        {/* Search */}
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search templates..."
             value={searchTerm}
@@ -113,48 +123,105 @@ export default function AppTemplates() {
         </div>
       </div>
 
-      {/* Templates Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredTemplates.map((template) => (
-          <Card key={template.id} className="group hover:shadow-md transition-shadow">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-lg">{template.name}</CardTitle>
-                  <CardDescription className="mt-1">
-                    Template ID: {template.id}
-                  </CardDescription>
+      {/* Templates Grid - Grouped by Category */}
+      {Object.entries(groupedTemplates).map(([category, categoryTemplates]) => (
+        <div key={category} className="mb-12">
+          <h2 className="text-2xl font-bold mb-6 px-2">{category}</h2>
+          
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {(categoryTemplates as any[]).map((template) => (
+              <Card 
+                key={template.id} 
+                className={`group relative overflow-hidden transition-all duration-300 cursor-pointer ${
+                  template.active 
+                    ? 'hover:scale-105 hover:shadow-2xl' 
+                    : 'opacity-75'
+                }`}
+              >
+                {/* Image Container - 16:9 aspect ratio */}
+                <div className="relative aspect-video bg-gradient-to-br from-primary/20 via-secondary/20 to-accent/20">
+                  {/* Template Image */}
+                  <img 
+                    src={getTemplateImageUrl(template.id)}
+                    alt={template.name}
+                    className={`w-full h-full object-cover transition-all duration-300 ${
+                      template.active 
+                        ? 'filter-none group-hover:scale-110' 
+                        : 'grayscale'
+                    }`}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                  
+                  {/* Gradient Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+                  
+                  {/* Inactive Badge */}
+                  {!template.active && (
+                    <div className="absolute top-3 right-3">
+                      <Badge variant="secondary" className="bg-black/60 text-white border-white/20">
+                        Inactive
+                      </Badge>
+                    </div>
+                  )}
+                  
+                  {/* Template Info */}
+                  <div className="absolute bottom-0 left-0 right-0 p-4 text-white space-y-2">
+                    <h3 className="font-bold text-lg leading-tight group-hover:text-primary transition-colors line-clamp-2">
+                      {template.name}
+                    </h3>
+                    
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge 
+                        variant="outline" 
+                        className="text-xs border-white/40 text-white bg-black/30"
+                      >
+                        v{template.current_version}
+                      </Badge>
+                      
+                      {template.active && (
+                        <Badge 
+                          variant="default" 
+                          className="text-xs bg-green-600/80 border-green-400/50"
+                        >
+                          Active
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <Badge variant="outline">{template.category}</Badge>
-              </div>
-            </CardHeader>
-            
-            <CardContent>
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  Version: {template.current_version}
-                </p>
-              </div>
-            </CardContent>
-            
-              <CardFooter>
-                <Button 
-                  onClick={() => openCreateDialog(template.id)}
-                  className="w-full"
-                  size="sm"
-                >
-                  <Play className="w-4 h-4 mr-2" />
-                  Create Job
-                </Button>
-              </CardFooter>
-          </Card>
-        ))}
-      </div>
+                
+                {/* Action Button - ONLY for active templates */}
+                {template.active && (
+                  <CardFooter className="p-3 bg-card">
+                    <Button 
+                      onClick={() => openCreateDialog(template.id)}
+                      className="w-full group-hover:scale-105 transition-all"
+                      size="sm"
+                    >
+                      <Play className="w-4 h-4 mr-2" />
+                      Create Job
+                    </Button>
+                  </CardFooter>
+                )}
+                
+                {/* Coming Soon footer for inactive */}
+                {!template.active && (
+                  <div className="p-3 bg-muted/50 text-center">
+                    <p className="text-sm text-muted-foreground">Coming Soon</p>
+                  </div>
+                )}
+              </Card>
+            ))}
+          </div>
+        </div>
+      ))}
 
-      {filteredTemplates.length === 0 && (
+      {Object.keys(groupedTemplates).length === 0 && (
         <div className="text-center py-12">
           <p className="text-muted-foreground">
-            {searchTerm ? 'No templates match your search.' : 'No active templates found.'}
+            {searchTerm ? 'No templates match your search.' : 'No templates found.'}
           </p>
         </div>
       )}
