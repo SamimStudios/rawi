@@ -8,8 +8,9 @@ import { Card, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Loader2, Play, Search } from 'lucide-react';
+import { Loader2, Play, Search, ImagePlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function AppTemplates() {
   const navigate = useNavigate();
@@ -23,19 +24,21 @@ export default function AppTemplates() {
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [jobName, setJobName] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [generatingImages, setGeneratingImages] = useState(false);
+
+  const loadTemplates = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchAllTemplates();
+      setTemplates(data);
+    } catch (error) {
+      console.error('Failed to load templates:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadTemplates = async () => {
-      try {
-        setLoading(true);
-        const data = await fetchAllTemplates();
-        setTemplates(data);
-      } catch (error) {
-        console.error('Failed to load templates:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
     loadTemplates();
   }, []);
 
@@ -92,6 +95,37 @@ export default function AppTemplates() {
     setDialogOpen(true);
   };
 
+  const handleGenerateImages = async () => {
+    try {
+      setGeneratingImages(true);
+      toast({
+        title: 'Generating Images',
+        description: 'Creating template images with AI. This may take a few minutes...'
+      });
+
+      const { data, error } = await supabase.functions.invoke('generate-template-images');
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: data.message || 'Template images generated successfully'
+      });
+
+      // Reload templates to show new images
+      await loadTemplates();
+    } catch (error) {
+      console.error('Failed to generate images:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to generate template images',
+        variant: 'destructive'
+      });
+    } finally {
+      setGeneratingImages(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -106,10 +140,33 @@ export default function AppTemplates() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8 space-y-4">
-        <h1 className="text-4xl md:text-5xl font-bold">Templates</h1>
-        <p className="text-lg text-muted-foreground max-w-3xl">
-          Choose a template to create a new job. Templates provide the structure and fields you need to generate content.
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl md:text-5xl font-bold">Templates</h1>
+            <p className="text-lg text-muted-foreground max-w-3xl mt-2">
+              Choose a template to create a new job. Templates provide the structure and fields you need to generate content.
+            </p>
+          </div>
+          
+          <Button
+            onClick={handleGenerateImages}
+            disabled={generatingImages}
+            variant="outline"
+            className="gap-2"
+          >
+            {generatingImages ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <ImagePlus className="w-4 h-4" />
+                Generate Images
+              </>
+            )}
+          </Button>
+        </div>
 
         {/* Search */}
         <div className="relative max-w-md">
