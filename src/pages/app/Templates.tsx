@@ -139,6 +139,9 @@ export default function AppTemplates() {
         }
 
         if (!hasMore) break;
+
+        // Small delay to avoid rate limiting / CPU spikes
+        await new Promise((res) => setTimeout(res, 500));
       }
 
       toast({

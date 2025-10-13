@@ -21,10 +21,25 @@ Deno.serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    // Get batch size and offset from query params (default: 10 templates at a time)
+    // Determine batch size and offset from body first, fallback to URL params
     const url = new URL(req.url);
-    const batchSize = parseInt(url.searchParams.get('batch_size') || '10');
-    const offset = parseInt(url.searchParams.get('offset') || '0');
+    let body: any = null;
+    try {
+      body = await req.json();
+    } catch (_) {
+      // no body provided
+    }
+
+    const qsBatch = parseInt(url.searchParams.get('batch_size') || '');
+    const qsOffset = parseInt(url.searchParams.get('offset') || '');
+
+    const batchSize = Number.isFinite(body?.batch_size)
+      ? Math.max(1, Math.min(20, Number(body.batch_size)))
+      : (Number.isFinite(qsBatch) ? Math.max(1, Math.min(20, qsBatch)) : 8);
+
+    const offset = Number.isFinite(body?.offset)
+      ? Math.max(0, Number(body.offset))
+      : (Number.isFinite(qsOffset) ? Math.max(0, qsOffset) : 0);
 
     // Fetch templates with pagination to avoid timeouts
     const { data: templates, error: fetchError } = await supabase
