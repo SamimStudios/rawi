@@ -10,12 +10,14 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Loader2, Crown, ChevronRight, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export default function AppPresets() {
   const navigate = useNavigate();
   const { fetchAllTemplates, getTemplateImageUrl } = useTemplates();
   const { createJobFromTemplate, loading: jobLoading } = useJobs();
   const { toast } = useToast();
+  const { t } = useLanguage();
   
   const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,7 +31,7 @@ export default function AppPresets() {
       const data = await fetchAllTemplates();
       setTemplates(data);
     } catch (error) {
-      console.error('Failed to load presets:', error);
+      console.error(t('errorLoadingJobs'), error);
     } finally {
       setLoading(false);
     }
@@ -89,7 +91,7 @@ export default function AppPresets() {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          <span className="text-muted-foreground">Loading presets...</span>
+          <span className="text-muted-foreground">{t('loadingPresets')}</span>
         </div>
       </div>
     );
@@ -100,7 +102,7 @@ export default function AppPresets() {
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b">
         <div className="container mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold">Presets</h1>
+          <h1 className="text-2xl font-bold">{t('presets')}</h1>
         </div>
       </div>
 
@@ -143,7 +145,7 @@ export default function AppPresets() {
         {activeTemplates.length > 0 && (
           <div className="mb-8">
             <div className="px-4 mb-4">
-              <h2 className="text-xl font-bold">Active</h2>
+              <h2 className="text-xl font-bold">{t('active')}</h2>
             </div>
 
             <div className="relative">
@@ -210,7 +212,7 @@ export default function AppPresets() {
           <div key={category} className="mb-8">
             {/* Section Header */}
             <div className="px-4 mb-4">
-              <h2 className="text-xl font-bold">{category}</h2>
+              <h2 className="text-xl font-bold">{t(category.toLowerCase()) || category}</h2>
             </div>
 
             {/* Horizontal Scrolling Cards */}
@@ -299,7 +301,7 @@ export default function AppPresets() {
         {/* Empty State */}
         {Object.keys(groupedTemplates).length === 0 && (
           <div className="text-center py-12 px-4">
-            <p className="text-muted-foreground">No presets found.</p>
+            <p className="text-muted-foreground">{t('noPresetsFound')}</p>
           </div>
         )}
       </div>
