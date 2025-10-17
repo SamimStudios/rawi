@@ -39,6 +39,8 @@ export default function AppTemplates() {
     loadTemplates();
   }, []);
 
+  // Create Active category and other categories
+  const activeTemplates = templates.filter(t => t.active);
   const groupedTemplates = templates.reduce((acc, template) => {
     const category = template.category || 'Uncategorized';
     if (!acc[category]) acc[category] = [];
@@ -69,7 +71,15 @@ export default function AppTemplates() {
     }
   };
 
-  const openCreateDialog = (templateId: string) => {
+  const openCreateDialog = (templateId: string, isActive: boolean) => {
+    if (!isActive) {
+      toast({
+        title: "Coming Soon",
+        description: "This template will be available soon!",
+        variant: "default",
+      });
+      return;
+    }
     setSelectedTemplate(templateId);
     setDialogOpen(true);
   };
@@ -101,7 +111,7 @@ export default function AppTemplates() {
             {templates.slice(0, 4).map((template) => (
               <button
                 key={template.id}
-                onClick={() => template.active && openCreateDialog(template.id)}
+                onClick={() => openCreateDialog(template.id, template.active)}
                 className="flex-shrink-0 relative w-36 h-36 rounded-2xl overflow-hidden hover:scale-105 transition-transform"
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/30 to-accent/30" />
@@ -129,6 +139,72 @@ export default function AppTemplates() {
           </div>
         </div>
 
+        {/* Active Templates Category */}
+        {activeTemplates.length > 0 && (
+          <div className="mb-8">
+            <div className="px-4 mb-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold">Active</h2>
+            </div>
+
+            <div className="relative">
+              <div className="flex gap-4 overflow-x-auto px-4 pb-2 scrollbar-hide">
+                {activeTemplates.map((template) => (
+                  <Card 
+                    key={template.id}
+                    onClick={() => openCreateDialog(template.id, template.active)}
+                    className="flex-shrink-0 w-48 overflow-hidden cursor-pointer hover:scale-[1.02] transition-all bg-card/50 backdrop-blur-sm border-border/50"
+                  >
+                    <div className="relative aspect-[3/4] bg-gradient-to-br from-primary/10 to-accent/10">
+                      <img 
+                        src={getTemplateImageUrl(template.id)}
+                        alt={template.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => e.currentTarget.style.opacity = '0'}
+                      />
+                      
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                      
+                      <div className="absolute top-2 left-2">
+                        <div className="bg-primary/90 backdrop-blur-sm rounded-lg p-1.5">
+                          <Crown className="w-4 h-4 text-primary-foreground" />
+                        </div>
+                      </div>
+
+                      <div className="absolute bottom-2 left-2 right-2 space-y-2">
+                        <div className="flex gap-1 justify-center">
+                          <div className="w-10 h-10 rounded border-2 border-white/30 bg-black/40 backdrop-blur-sm overflow-hidden">
+                            <img 
+                              src={getTemplateImageUrl(template.id)}
+                              alt=""
+                              className="w-full h-full object-cover opacity-60"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-3 space-y-2">
+                      <h3 className="font-semibold text-sm line-clamp-2 leading-tight">
+                        {template.name}
+                      </h3>
+                      
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          v{template.current_version}
+                        </Badge>
+                        <Badge className="text-xs bg-green-600/20 text-green-400 border-green-600/30">
+                          <Zap className="w-3 h-3 mr-1" />
+                          Active
+                        </Badge>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Category Sections */}
         {Object.entries(groupedTemplates).map(([category, categoryTemplates]) => (
           <div key={category} className="mb-8">
@@ -147,7 +223,7 @@ export default function AppTemplates() {
                 {(categoryTemplates as any[]).map((template) => (
                   <Card 
                     key={template.id}
-                    onClick={() => template.active && openCreateDialog(template.id)}
+                    onClick={() => openCreateDialog(template.id, template.active)}
                     className="flex-shrink-0 w-48 overflow-hidden cursor-pointer hover:scale-[1.02] transition-all bg-card/50 backdrop-blur-sm border-border/50"
                   >
                     {/* Image Container */}
