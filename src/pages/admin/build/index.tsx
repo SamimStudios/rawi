@@ -9,21 +9,21 @@ const buildTools = [
     title: 'Fields',
     description: 'Create and manage form fields with validation rules and UI configuration',
     icon: <Settings className="w-6 h-6" />,
-    href: '/app/build/field',
+    href: '/admin/build/field',
     color: 'text-blue-600'
   },
   {
     title: 'Node Library',
     description: 'Build reusable node definitions for forms, media, and groups',
     icon: <Boxes className="w-6 h-6" />,
-    href: '/app/build/node',
+    href: '/admin/build/node',
     color: 'text-indigo-600'
   },
   {
     title: 'Schemas',
     description: 'Design database schemas and relationships',
     icon: <Database className="w-6 h-6" />,
-    href: '/app/build/schema',
+    href: '/admin/build/schema',
     color: 'text-green-600',
     disabled: true
   },
@@ -31,7 +31,7 @@ const buildTools = [
     title: 'Workflows',
     description: 'Build automated workflows and business logic',
     icon: <Workflow className="w-6 h-6" />,
-    href: '/app/build/workflow',
+    href: '/admin/build/workflow',
     color: 'text-purple-600',
     disabled: true
   },
@@ -39,7 +39,7 @@ const buildTools = [
     title: 'Templates',
     description: 'Create reusable templates and components',
     icon: <FileText className="w-6 h-6" />,
-    href: '/app/build/template',
+    href: '/admin/build/template',
     color: 'text-orange-600'
   }
 ];

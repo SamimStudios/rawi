@@ -102,7 +102,7 @@ export default function Dashboard() {
             {/* Build Tools */}
             <Card className="bg-card border-border hover:bg-card/80 transition-colors">
               <CardContent className="p-6">
-                <Link to="/app/build" className="block">
+                <Link to="/admin/build" className="block">
                   <div className="flex items-center gap-3 mb-3">
                     <Wrench className="w-8 h-8 text-primary" />
                     <h3 className="text-xl font-semibold text-foreground">

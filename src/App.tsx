@@ -13,8 +13,6 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import CookieConsent from "@/components/CookieConsent";
 import Index from "./pages/Index";
-import CinematicTeaser from "./pages/CinematicTeaser";
-import Templates from "./pages/Templates";
 import Help from "./pages/Help";
 import NotFound from "./pages/NotFound";
 import ServerError from "./pages/ServerError";
@@ -32,10 +30,12 @@ import Privacy from "./pages/legal/Privacy";
 import Consent from "./pages/legal/Consent";
 import Refund from "./pages/legal/Refund";
 import Dashboard from '@/pages/app/Dashboard';
-import BuildIndex from '@/pages/app/build';
-import FieldRoutes from '@/pages/app/build/field';
-import NodeLibraryRoutes from '@/pages/app/build/node';
-import TemplateRoutes from '@/pages/app/build/template';
+import AdminIndex from '@/pages/admin';
+import AdminBuildIndex from '@/pages/admin/build';
+import AdminDemoIndex from '@/pages/admin/demo';
+import FieldRoutes from '@/pages/admin/build/field';
+import NodeLibraryRoutes from '@/pages/admin/build/node';
+import TemplateRoutes from '@/pages/admin/build/template';
 import AppTemplates from '@/pages/app/Templates';
 import JobRoutes from '@/pages/app/jobs';
 import NodeRendererPreview from '@/pages/app/renderers/node';
@@ -87,34 +87,6 @@ const MainApp = () => (
                       <Footer />
                     </div>
                   } />
-                  <Route path="/app/build" element={
-                    <div>
-                      <Header />
-                      <BuildIndex />
-                      <Footer />
-                    </div>
-                  } />
-                  <Route path="/app/build/field/*" element={
-                    <div>
-                      <Header />
-                      <FieldRoutes />
-                      <Footer />
-                    </div>
-                  } />
-                  <Route path="/app/build/node/*" element={
-                    <div>
-                      <Header />
-                      <NodeLibraryRoutes />
-                      <Footer />
-                    </div>
-                  } />
-                  <Route path="/app/build/template/*" element={
-                    <div>
-                      <Header />
-                      <TemplateRoutes />
-                      <Footer />
-                    </div>
-                  } />
                   <Route path="/app/templates" element={
                     <div>
                       <Header />
@@ -157,6 +129,97 @@ const MainApp = () => (
                       <Footer />
                     </div>
                   } />
+                  <Route path="/admin" element={
+                    <div>
+                      <Header />
+                      <AdminIndex />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/admin/build" element={
+                    <div>
+                      <Header />
+                      <AdminBuildIndex />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/admin/build/field/*" element={
+                    <div>
+                      <Header />
+                      <FieldRoutes />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/admin/build/node/*" element={
+                    <div>
+                      <Header />
+                      <NodeLibraryRoutes />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/admin/build/template/*" element={
+                    <div>
+                      <Header />
+                      <TemplateRoutes />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/admin/demo" element={
+                    <div>
+                      <Header />
+                      <AdminDemoIndex />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/admin/demo/i18n" element={
+                    <div>
+                      <Header />
+                      <I18nDemo />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/admin/demo/seo" element={
+                    <div>
+                      <Header />
+                      <SEODemo />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/admin/demo/config" element={
+                    <div>
+                      <Header />
+                      <ConfigDemo />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/admin/demo/analytics" element={
+                    <div>
+                      <Header />
+                      <AnalyticsDemo />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/admin/demo/media-player" element={
+                    <div>
+                      <Header />
+                      <MediaPlayerDemo />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/admin/demo/style-guideline" element={
+                    <div>
+                      <Header />
+                      <StyleGuideline />
+                      <Footer />
+                    </div>
+                  } />
+                  <Route path="/admin/demo/button-showcase" element={
+                    <div>
+                      <Header />
+                      <ButtonShowcase />
+                      <Footer />
+                    </div>
+                  } />
                   <Route path="/legal/terms" element={
                     <div>
                       <Header />
@@ -192,66 +255,10 @@ const MainApp = () => (
                       <Footer />
                     </div>
                   } />
-                  <Route path="/try/cinematic-teaser" element={
-                    <div>
-                      <Header />
-                      <CinematicTeaser />
-                      <Footer />
-                    </div>
-                  } />
-                  <Route path="/templates" element={
-                    <div>
-                      <Header />
-                      <Templates />
-                      <Footer />
-                    </div>
-                  } />
                   <Route path="/help" element={
                     <div>
                       <Header />
                       <Help />
-                      <Footer />
-                    </div>
-                  } />
-                  <Route path="/i18n-demo" element={
-                    <div>
-                      <Header />
-                      <I18nDemo />
-                      <Footer />
-                    </div>
-                  } />
-                  <Route path="/seo-demo" element={
-                    <div>
-                      <Header />
-                      <SEODemo />
-                      <Footer />
-                    </div>
-                  } />
-                  <Route path="/config-demo" element={
-                    <div>
-                      <Header />
-                      <ConfigDemo />
-                      <Footer />
-                    </div>
-                  } />
-                  <Route path="/analytics-demo" element={
-                    <div>
-                      <Header />
-                      <AnalyticsDemo />
-                      <Footer />
-                    </div>
-                  } />
-                  <Route path="/media-player-demo" element={
-                    <div>
-                      <Header />
-                      <MediaPlayerDemo />
-                      <Footer />
-                    </div>
-                  } />
-                  <Route path="/style-guideline" element={
-                    <div>
-                      <Header />
-                      <StyleGuideline />
                       <Footer />
                     </div>
                   } />
