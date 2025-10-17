@@ -98,16 +98,16 @@ const Wallet = () => {
 
     if (success === 'true') {
       toast({
-        title: 'Payment Successful!',
-        description: 'Credits will be added to your account within minutes.',
+        title: t('wallet.paymentSuccessful'),
+        description: t('wallet.creditsWillBeAdded'),
       });
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
     if (canceled === 'true') {
       toast({
-        title: 'Payment Canceled',
-        description: 'No charge was made to your account.',
+        title: t('wallet.paymentCanceled'),
+        description: t('wallet.noChargeWasMade'),
         variant: 'destructive'
       });
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -146,8 +146,8 @@ const Wallet = () => {
     } catch (error) {
       console.error('Checkout error:', error);
       toast({
-        title: 'Error',
-        description: 'An error occurred while creating the checkout session',
+        title: t('common.error'),
+        description: t('wallet.checkoutError'),
         variant: 'destructive'
       });
     }
@@ -156,8 +156,8 @@ const Wallet = () => {
   const handleCustomPurchase = async () => {
     if (customCredits < 10) {
       toast({
-        title: 'Minimum Credits',
-        description: 'Minimum purchase is 10 credits',
+        title: t('wallet.minimumCredits'),
+        description: t('wallet.minimumPurchaseIs10'),
         variant: "destructive"
       });
       return;
@@ -176,8 +176,8 @@ const Wallet = () => {
     } catch (error) {
       console.error('Checkout error:', error);
       toast({
-        title: 'Error',
-        description: 'An error occurred while creating the checkout session',
+        title: t('common.error'),
+        description: t('wallet.checkoutError'),
         variant: 'destructive'
       });
     }
@@ -192,8 +192,8 @@ const Wallet = () => {
     } catch (error) {
       console.error('Subscription error:', error);
       toast({
-        title: 'Error',
-        description: 'An error occurred while creating the subscription',
+        title: t('common.error'),
+        description: t('wallet.subscriptionError'),
         variant: 'destructive'
       });
     }
@@ -238,14 +238,14 @@ const Wallet = () => {
         {/* Purchase Options */}
         <Tabs defaultValue="packages" className="w-full">
           <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-8">
-            <TabsTrigger value="packages" className="text-base">One-Time Purchase</TabsTrigger>
-            <TabsTrigger value="subscription" className="text-base">Weekly Plans</TabsTrigger>
+            <TabsTrigger value="packages" className="text-base">{t('wallet.oneTimePurchase')}</TabsTrigger>
+            <TabsTrigger value="subscription" className="text-base">{t('wallet.weeklyPlans')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="packages" className="space-y-8">
             {/* Popular Packages */}
             <div>
-              <h2 className="text-2xl font-bold mb-4">Popular Packages</h2>
+              <h2 className="text-2xl font-bold mb-4">{t('wallet.popularPackages')}</h2>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 {creditPackages.map((pkg) => {
                   const pricing = calculateDynamicPrice(pkg.credits, currency);
@@ -257,13 +257,13 @@ const Wallet = () => {
                       {pricing.discountPercent > 0 && (
                         <div className="absolute top-4 right-4 z-10">
                           <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0">
-                            Save {pricing.discountPercent}%
+                            {t('wallet.savePercent', { percent: pricing.discountPercent })}
                           </Badge>
                         </div>
                       )}
                       <CardHeader className="pb-3">
                         <div className="text-5xl font-bold text-primary mb-2">{pkg.credits}</div>
-                        <CardTitle className="text-lg text-muted-foreground">Credits</CardTitle>
+                        <CardTitle className="text-lg text-muted-foreground">{t('wallet.credits')}</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         <div className="space-y-2">
@@ -271,7 +271,7 @@ const Wallet = () => {
                             <span className="text-3xl font-bold">{formatPrice(pricing.totalPrice)}</span>
                           </div>
                           <p className="text-sm text-muted-foreground">
-                            {formatPrice(pricing.perCreditRate)} per credit
+                            {formatPrice(pricing.perCreditRate)} {t('wallet.perCredit')}
                           </p>
                         </div>
                         <Button
@@ -284,7 +284,7 @@ const Wallet = () => {
                           ) : (
                             <>
                               <CreditCard className="mr-2 h-4 w-4" />
-                              Purchase
+                              {t('wallet.purchase')}
                             </>
                           )}
                         </Button>
@@ -298,15 +298,15 @@ const Wallet = () => {
             {/* Custom Amount */}
             <Card className="border-2 border-dashed">
               <CardHeader>
-                <CardTitle className="text-2xl">Custom Amount</CardTitle>
+                <CardTitle className="text-2xl">{t('wallet.customAmount')}</CardTitle>
                 <CardDescription className="text-base">
-                  Choose exactly how many credits you need (minimum 10)
+                  {t('wallet.chooseExactly')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <Label className="text-lg font-semibold">Credits</Label>
+                    <Label className="text-lg font-semibold">{t('wallet.credits')}</Label>
                     <div className="flex items-center gap-3">
                       <Input
                         type="number"
@@ -327,8 +327,8 @@ const Wallet = () => {
                     className="w-full"
                   />
                   <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    <span>10 credits</span>
-                    <span>1,000 credits</span>
+                    <span>{t('wallet.minCredits')}</span>
+                    <span>{t('wallet.maxCredits')}</span>
                   </div>
                 </div>
 
@@ -338,16 +338,16 @@ const Wallet = () => {
                     return (
                       <>
                         <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">Total Amount</span>
+                          <span className="text-muted-foreground">{t('wallet.totalAmount')}</span>
                           <span className="text-3xl font-bold">{formatPrice(pricing.totalPrice)}</span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Rate per credit</span>
+                          <span className="text-muted-foreground">{t('wallet.ratePerCredit')}</span>
                           <span className="font-medium">{formatPrice(pricing.perCreditRate)}</span>
                         </div>
                         {pricing.discountPercent > 0 && (
                           <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white">
-                            {pricing.discountPercent}% Discount Applied
+                            {t('wallet.discountApplied', { percent: pricing.discountPercent })}
                           </Badge>
                         )}
                       </>
@@ -366,7 +366,7 @@ const Wallet = () => {
                   ) : (
                     <>
                       <CreditCard className="mr-2 h-5 w-5" />
-                      Purchase {customCredits} Credits
+                      {t('wallet.purchaseCredits', { count: customCredits })}
                     </>
                   )}
                 </Button>
@@ -376,30 +376,30 @@ const Wallet = () => {
             {/* Discount Tiers */}
             <Card className="bg-muted/50">
               <CardHeader>
-                <CardTitle className="text-xl">Volume Discounts</CardTitle>
-                <CardDescription>Save more when you buy more credits</CardDescription>
+                <CardTitle className="text-xl">{t('wallet.volumeDiscounts')}</CardTitle>
+                <CardDescription>{t('wallet.saveMoreBuyMore')}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="space-y-1">
                     <div className="text-2xl font-bold text-muted-foreground">0%</div>
-                    <div className="text-sm text-muted-foreground">10-49 credits</div>
-                    <div className="text-xs font-medium">{formatPrice(1.00)}/credit</div>
+                    <div className="text-sm text-muted-foreground">{t('wallet.tier1')}</div>
+                    <div className="text-xs font-medium">{formatPrice(1.00)}{t('wallet.perCreditShort')}</div>
                   </div>
                   <div className="space-y-1">
                     <div className="text-2xl font-bold text-amber-600">10%</div>
-                    <div className="text-sm text-muted-foreground">50-99 credits</div>
-                    <div className="text-xs font-medium">{formatPrice(0.90)}/credit</div>
+                    <div className="text-sm text-muted-foreground">{t('wallet.tier2')}</div>
+                    <div className="text-xs font-medium">{formatPrice(0.90)}{t('wallet.perCreditShort')}</div>
                   </div>
                   <div className="space-y-1">
                     <div className="text-2xl font-bold text-orange-600">20%</div>
-                    <div className="text-sm text-muted-foreground">100-249 credits</div>
-                    <div className="text-xs font-medium">{formatPrice(0.80)}/credit</div>
+                    <div className="text-sm text-muted-foreground">{t('wallet.tier3')}</div>
+                    <div className="text-xs font-medium">{formatPrice(0.80)}{t('wallet.perCreditShort')}</div>
                   </div>
                   <div className="space-y-1">
                     <div className="text-2xl font-bold text-red-600">30%</div>
-                    <div className="text-sm text-muted-foreground">250+ credits</div>
-                    <div className="text-xs font-medium">{formatPrice(0.70)}/credit</div>
+                    <div className="text-sm text-muted-foreground">{t('wallet.tier4')}</div>
+                    <div className="text-xs font-medium">{formatPrice(0.70)}{t('wallet.perCreditShort')}</div>
                   </div>
                 </div>
               </CardContent>
@@ -410,15 +410,15 @@ const Wallet = () => {
             {/* Subscription Benefits */}
             <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
               <CardContent className="pt-6">
-                <h3 className="text-xl font-bold mb-4">Why Subscribe?</h3>
+                <h3 className="text-xl font-bold mb-4">{t('wallet.whySubscribe')}</h3>
                 <div className="grid md:grid-cols-3 gap-4">
                   <div className="flex gap-3">
                     <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                       <span className="text-2xl">💰</span>
                     </div>
                     <div>
-                      <div className="font-semibold mb-1">Best Value</div>
-                      <div className="text-sm text-muted-foreground">Lower cost per credit than one-time purchases</div>
+                      <div className="font-semibold mb-1">{t('wallet.bestValue')}</div>
+                      <div className="text-sm text-muted-foreground">{t('wallet.lowerCost')}</div>
                     </div>
                   </div>
                   <div className="flex gap-3">
@@ -426,8 +426,8 @@ const Wallet = () => {
                       <span className="text-2xl">🔄</span>
                     </div>
                     <div>
-                      <div className="font-semibold mb-1">Auto-Renewal</div>
-                      <div className="text-sm text-muted-foreground">Never run out of credits</div>
+                      <div className="font-semibold mb-1">{t('wallet.autoRenewal')}</div>
+                      <div className="text-sm text-muted-foreground">{t('wallet.neverRunOut')}</div>
                     </div>
                   </div>
                   <div className="flex gap-3">
@@ -435,8 +435,8 @@ const Wallet = () => {
                       <span className="text-2xl">✨</span>
                     </div>
                     <div>
-                      <div className="font-semibold mb-1">Flexible</div>
-                      <div className="text-sm text-muted-foreground">Cancel anytime, no commitment</div>
+                      <div className="font-semibold mb-1">{t('wallet.flexible')}</div>
+                      <div className="text-sm text-muted-foreground">{t('wallet.cancelAnytime')}</div>
                     </div>
                   </div>
                 </div>
@@ -445,7 +445,7 @@ const Wallet = () => {
 
             {/* Subscription Plans */}
             <div>
-              <h2 className="text-2xl font-bold mb-4">Weekly Plans</h2>
+              <h2 className="text-2xl font-bold mb-4">{t('wallet.weeklyPlans')}</h2>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 {subscriptionPlans.map((plan) => {
                   const oneTimePricing = calculateDynamicPrice(plan.credits_per_week, currency);
@@ -460,7 +460,7 @@ const Wallet = () => {
                     >
                       <div className="absolute top-4 right-4 z-10">
                         <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0">
-                          Save {savingsPercent}%
+                          {t('wallet.savePercent', { percent: savingsPercent })}
                         </Badge>
                       </div>
                       <CardHeader className="pb-3">
@@ -468,25 +468,25 @@ const Wallet = () => {
                         <div className="text-4xl font-bold text-primary mb-2">
                           {plan.credits_per_week}
                         </div>
-                        <div className="text-sm text-muted-foreground">credits per week</div>
+                        <div className="text-sm text-muted-foreground">{t('wallet.creditsPerWeek')}</div>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         <div className="space-y-2">
                           <div className="flex items-baseline gap-2">
                             <span className="text-3xl font-bold">{formatPrice(subscriptionPrice)}</span>
-                            <span className="text-muted-foreground">/week</span>
+                            <span className="text-muted-foreground">{t('wallet.perWeek')}</span>
                           </div>
                           <p className="text-sm text-muted-foreground">
-                            {formatPrice(perCreditRate)} per credit
+                            {formatPrice(perCreditRate)} {t('wallet.perCredit')}
                           </p>
                         </div>
                         <div className="p-3 rounded-lg bg-muted/50 text-xs">
                           <div className="flex justify-between mb-1">
-                            <span className="text-muted-foreground">One-time rate:</span>
+                            <span className="text-muted-foreground">{t('wallet.oneTimeRate')}:</span>
                             <span className="line-through">{formatPrice(oneTimePricing.perCreditRate)}</span>
                           </div>
                           <div className="flex justify-between font-semibold text-green-600">
-                            <span>Subscription rate:</span>
+                            <span>{t('wallet.subscriptionRate')}:</span>
                             <span>{formatPrice(perCreditRate)}</span>
                           </div>
                         </div>
@@ -498,7 +498,7 @@ const Wallet = () => {
                           {subscriptionLoading === plan.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
-                            'Subscribe Now'
+                            t('wallet.subscribeNow')
                           )}
                         </Button>
                       </CardContent>
@@ -513,9 +513,9 @@ const Wallet = () => {
         {/* Transaction History */}
         <Card className="mt-12">
           <CardHeader>
-            <CardTitle className="text-2xl">Transaction History</CardTitle>
+            <CardTitle className="text-2xl">{t('wallet.transactionHistory')}</CardTitle>
             <CardDescription>
-              View your recent credit purchases and usage
+              {t('wallet.viewRecentPurchases')}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -524,8 +524,8 @@ const Wallet = () => {
                 <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
                   <CreditCard className="h-8 w-8 text-muted-foreground" />
                 </div>
-                <p className="text-muted-foreground">No transactions yet</p>
-                <p className="text-sm text-muted-foreground mt-1">Your purchase history will appear here</p>
+                <p className="text-muted-foreground">{t('wallet.noTransactions')}</p>
+                <p className="text-sm text-muted-foreground mt-1">{t('wallet.purchaseHistoryAppear')}</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -554,7 +554,7 @@ const Wallet = () => {
                     <div className="flex items-center gap-4">
                       <div className="text-right">
                         <div className="font-bold">
-                          {transaction.credits_amount > 0 ? '+' : ''}{transaction.credits_amount.toFixed(2)} credits
+                          {transaction.credits_amount > 0 ? '+' : ''}{transaction.credits_amount.toFixed(2)} {t('wallet.credits')}
                         </div>
                         {transaction.amount_paid && (
                           <div className="text-sm text-muted-foreground">
