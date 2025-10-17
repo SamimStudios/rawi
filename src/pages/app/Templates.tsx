@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Loader2, Crown, ChevronRight, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-export default function AppTemplates() {
+export default function AppPresets() {
   const navigate = useNavigate();
   const { fetchAllTemplates, getTemplateImageUrl } = useTemplates();
   const { createJobFromTemplate, loading: jobLoading } = useJobs();
@@ -29,7 +29,7 @@ export default function AppTemplates() {
       const data = await fetchAllTemplates();
       setTemplates(data);
     } catch (error) {
-      console.error('Failed to load templates:', error);
+      console.error('Failed to load presets:', error);
     } finally {
       setLoading(false);
     }
@@ -89,7 +89,7 @@ export default function AppTemplates() {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          <span className="text-muted-foreground">Loading templates...</span>
+          <span className="text-muted-foreground">Loading presets...</span>
         </div>
       </div>
     );
@@ -100,7 +100,7 @@ export default function AppTemplates() {
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b">
         <div className="container mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold">Templates</h1>
+          <h1 className="text-2xl font-bold">Presets</h1>
         </div>
       </div>
 
@@ -142,7 +142,7 @@ export default function AppTemplates() {
         {/* Active Templates Category */}
         {activeTemplates.length > 0 && (
           <div className="mb-8">
-            <div className="px-4 mb-4 flex items-center justify-between">
+            <div className="px-4 mb-4">
               <h2 className="text-xl font-bold">Active</h2>
             </div>
 
@@ -209,12 +209,8 @@ export default function AppTemplates() {
         {Object.entries(groupedTemplates).map(([category, categoryTemplates]) => (
           <div key={category} className="mb-8">
             {/* Section Header */}
-            <div className="px-4 mb-4 flex items-center justify-between">
+            <div className="px-4 mb-4">
               <h2 className="text-xl font-bold">{category}</h2>
-              <button className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors">
-                <span className="text-sm">All</span>
-                <ChevronRight className="w-4 h-4" />
-              </button>
             </div>
 
             {/* Horizontal Scrolling Cards */}
@@ -303,7 +299,7 @@ export default function AppTemplates() {
         {/* Empty State */}
         {Object.keys(groupedTemplates).length === 0 && (
           <div className="text-center py-12 px-4">
-            <p className="text-muted-foreground">No templates found.</p>
+            <p className="text-muted-foreground">No presets found.</p>
           </div>
         )}
       </div>
