@@ -257,7 +257,7 @@ const Wallet = () => {
                       {pricing.discountPercent > 0 && (
                         <div className="absolute top-4 right-4 z-10">
                           <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0">
-                            {t('wallet.savePercent', { percent: pricing.discountPercent })}
+                            {t('wallet.save')} {pricing.discountPercent}%
                           </Badge>
                         </div>
                       )}
@@ -347,7 +347,7 @@ const Wallet = () => {
                         </div>
                         {pricing.discountPercent > 0 && (
                           <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white">
-                            {t('wallet.discountApplied', { percent: pricing.discountPercent })}
+                            {pricing.discountPercent}% {t('wallet.discountApplied')}
                           </Badge>
                         )}
                       </>
@@ -366,7 +366,7 @@ const Wallet = () => {
                   ) : (
                     <>
                       <CreditCard className="mr-2 h-5 w-5" />
-                      {t('wallet.purchaseCredits', { count: customCredits })}
+                      {t('wallet.purchase')} {customCredits} {t('wallet.credits')}
                     </>
                   )}
                 </Button>
@@ -460,7 +460,7 @@ const Wallet = () => {
                     >
                       <div className="absolute top-4 right-4 z-10">
                         <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0">
-                          {t('wallet.savePercent', { percent: savingsPercent })}
+                          {t('wallet.save')} {savingsPercent}%
                         </Badge>
                       </div>
                       <CardHeader className="pb-3">
