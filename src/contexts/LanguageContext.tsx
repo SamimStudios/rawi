@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 type Language = 'en' | 'ar';
 
@@ -1435,6 +1437,40 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const isRTL = language === 'ar';
 
+  // Fetch translations from database
+  const { data: dbTranslations } = useQuery({
+    queryKey: ['translations', language],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('translations')
+        .select(`
+          key,
+          translation_values!inner(value)
+        `)
+        .eq('translation_values.language', language);
+
+      if (error) {
+        console.warn('Failed to load translations from database, using fallback:', error);
+        return null;
+      }
+
+      // Convert to key-value object
+      const translationsMap: Record<string, string> = {};
+      data?.forEach(item => {
+        if (item.translation_values && item.translation_values.length > 0) {
+          translationsMap[item.key] = item.translation_values[0].value;
+        }
+      });
+      
+      console.log(`Loaded ${Object.keys(translationsMap).length} translations from database for ${language}`);
+      return translationsMap;
+    },
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    retry: 1,
+    placeholderData: null,
+  });
+
   // Update language and persist to localStorage
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
@@ -1459,6 +1495,10 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [language, isRTL]);
 
   const t = (key: string): string => {
+    // Try database translations first, fallback to local
+    if (dbTranslations && dbTranslations[key]) {
+      return dbTranslations[key];
+    }
     return translations[language][key as keyof typeof translations[typeof language]] || key;
   };
 
