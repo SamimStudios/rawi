@@ -3,14 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useTemplates } from '@/hooks/useTemplates';
 import { useJobs } from '@/hooks/useJobs';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardFooter } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Loader2, Play, Search, ImagePlus } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Loader2, Crown, ChevronRight, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 
 export default function AppTemplates() {
   const navigate = useNavigate();
@@ -20,11 +19,9 @@ export default function AppTemplates() {
   
   const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [jobName, setJobName] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [generatingImages, setGeneratingImages] = useState(false);
 
   const loadTemplates = async () => {
     try {
@@ -42,17 +39,7 @@ export default function AppTemplates() {
     loadTemplates();
   }, []);
 
-  const filteredTemplates = templates.filter(template => {
-    const search = searchTerm.toLowerCase();
-    return (
-      template.name.toLowerCase().includes(search) ||
-      (template.category || '').toLowerCase().includes(search) ||
-      template.id.toLowerCase().includes(search) ||
-      (template.active ? 'active' : 'inactive').includes(search)
-    );
-  });
-
-  const groupedTemplates = filteredTemplates.reduce((acc, template) => {
+  const groupedTemplates = templates.reduce((acc, template) => {
     const category = template.category || 'Uncategorized';
     if (!acc[category]) acc[category] = [];
     acc[category].push(template);
@@ -70,23 +57,15 @@ export default function AppTemplates() {
     }
 
     try {
-      console.group('[Templates] ▶ handleCreateJob');
-      console.debug('templateId:', selectedTemplate, 'jobName:', jobName);
-
-      // Back-compat call: hook supports (templateId, jobNameString)
       const jobId = await createJobFromTemplate(selectedTemplate, jobName.trim());
-
       if (jobId) {
         setDialogOpen(false);
         setJobName('');
         setSelectedTemplate(null);
-        console.debug('[Templates] → navigate to job:', jobId);
         navigate(`/app/jobs/edit/${jobId}`);
       }
     } catch (e) {
-      console.error('[Templates] ❌ failed to create job:', e);
-    } finally {
-      console.groupEnd();
+      console.error('[Templates] Failed to create job:', e);
     }
   };
 
@@ -95,230 +74,163 @@ export default function AppTemplates() {
     setDialogOpen(true);
   };
 
-  const handleGenerateImages = async () => {
-    try {
-      setGeneratingImages(true);
-      let totalProcessed = 0;
-      let totalSuccess = 0;
-      let totalFailed = 0;
-      let offset = 0;
-      let hasMore = true;
-
-      toast({
-        title: 'Generating Images',
-        description: 'Creating template images with AI. This will process in batches...'
-      });
-
-      // Process in batches to avoid timeouts
-      while (hasMore) {
-        const { data, error } = await supabase.functions.invoke('generate-template-images', {
-          body: { batch_size: 5, offset }
-        });
-
-        if (error) {
-          console.error('Batch failed:', error);
-          toast({
-            title: 'Batch Error',
-            description: `Error processing batch at offset ${offset}`,
-            variant: 'destructive'
-          });
-          break;
-        }
-
-        if (data) {
-          totalProcessed += data.batch_info.processed;
-          totalSuccess += data.results.filter((r: any) => r.success).length;
-          totalFailed += data.results.filter((r: any) => !r.success).length;
-          hasMore = data.batch_info.has_more;
-          offset = data.batch_info.next_offset || 0;
-
-          toast({
-            title: 'Batch Complete',
-            description: `Processed ${totalProcessed} templates so far (${totalSuccess} succeeded, ${totalFailed} failed)`
-          });
-        }
-
-        if (!hasMore) break;
-
-        // Small delay to avoid rate limiting / CPU spikes
-        await new Promise((res) => setTimeout(res, 500));
-      }
-
-      toast({
-        title: 'Generation Complete',
-        description: `Generated images for ${totalSuccess} templates (${totalFailed} failed)`
-      });
-
-      // Reload templates to show new images
-      await loadTemplates();
-    } catch (error) {
-      console.error('Failed to generate images:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to generate template images',
-        variant: 'destructive'
-      });
-    } finally {
-      setGeneratingImages(false);
-    }
-  };
-
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-2">Loading templates...</span>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <span className="text-muted-foreground">Loading templates...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8 space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl md:text-5xl font-bold">Templates</h1>
-            <p className="text-lg text-muted-foreground max-w-3xl mt-2">
-              Choose a template to create a new job. Templates provide the structure and fields you need to generate content.
-            </p>
-          </div>
-          
-          <Button
-            onClick={handleGenerateImages}
-            disabled={generatingImages}
-            variant="outline"
-            className="gap-2"
-          >
-            {generatingImages ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <ImagePlus className="w-4 h-4" />
-                Generate Images
-              </>
-            )}
-          </Button>
-        </div>
-
-        {/* Search */}
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search templates..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b">
+        <div className="container mx-auto px-4 py-4">
+          <h1 className="text-2xl font-bold">Templates</h1>
         </div>
       </div>
 
-      {/* Templates Grid - Grouped by Category */}
-      {Object.entries(groupedTemplates).map(([category, categoryTemplates]) => (
-        <div key={category} className="mb-12">
-          <h2 className="text-2xl font-bold mb-6 px-2">{category}</h2>
-          
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {(categoryTemplates as any[]).map((template) => (
-              <Card 
-                key={template.id} 
-                className={`group relative overflow-hidden transition-all duration-300 cursor-pointer ${
-                  template.active 
-                    ? 'hover:scale-105 hover:shadow-2xl' 
-                    : 'opacity-75'
-                }`}
+      <div className="pb-8">
+        {/* Quick Access Templates - Horizontal Scroll */}
+        <div className="px-4 py-6">
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+            {templates.slice(0, 4).map((template) => (
+              <button
+                key={template.id}
+                onClick={() => template.active && openCreateDialog(template.id)}
+                className="flex-shrink-0 relative w-36 h-36 rounded-2xl overflow-hidden hover:scale-105 transition-transform"
               >
-                {/* Image Container - 16:9 aspect ratio */}
-                <div className="relative aspect-video bg-gradient-to-br from-primary/20 via-secondary/20 to-accent/20">
-                  {/* Template Image */}
-                  <img 
-                    src={getTemplateImageUrl(template.id)}
-                    alt={template.name}
-                    className={`w-full h-full object-cover transition-all duration-300 ${
-                      template.active 
-                        ? 'filter-none group-hover:scale-110' 
-                        : 'grayscale'
-                    }`}
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                    }}
-                  />
-                  
-                  {/* Gradient Overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
-                  
-                  {/* Inactive Badge */}
-                  {!template.active && (
-                    <div className="absolute top-3 right-3">
-                      <Badge variant="secondary" className="bg-black/60 text-white border-white/20">
-                        Inactive
-                      </Badge>
-                    </div>
-                  )}
-                  
-                  {/* Template Info */}
-                  <div className="absolute bottom-0 left-0 right-0 p-4 text-white space-y-2">
-                    <h3 className="font-bold text-lg leading-tight group-hover:text-primary transition-colors line-clamp-2">
-                      {template.name}
-                    </h3>
-                    
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge 
-                        variant="outline" 
-                        className="text-xs border-white/40 text-white bg-black/30"
-                      >
-                        v{template.current_version}
-                      </Badge>
-                      
-                      {template.active && (
-                        <Badge 
-                          variant="default" 
-                          className="text-xs bg-green-600/80 border-green-400/50"
-                        >
-                          Active
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/30 to-accent/30" />
+                <img 
+                  src={getTemplateImageUrl(template.id)}
+                  alt={template.name}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  onError={(e) => e.currentTarget.style.opacity = '0'}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                 
-                {/* Action Button - ONLY for active templates */}
-                {template.active && (
-                  <CardFooter className="p-3 bg-card">
-                    <Button 
-                      onClick={() => openCreateDialog(template.id)}
-                      className="w-full group-hover:scale-105 transition-all"
-                      size="sm"
-                    >
-                      <Play className="w-4 h-4 mr-2" />
-                      Create Job
-                    </Button>
-                  </CardFooter>
-                )}
-                
-                {/* Coming Soon footer for inactive */}
+                {/* Badge */}
                 {!template.active && (
-                  <div className="p-3 bg-muted/50 text-center">
-                    <p className="text-sm text-muted-foreground">Coming Soon</p>
+                  <div className="absolute top-2 right-2">
+                    <Badge className="bg-primary text-primary-foreground text-xs">Hot</Badge>
                   </div>
                 )}
-              </Card>
+                
+                {/* Name */}
+                <div className="absolute bottom-2 left-2 right-2">
+                  <p className="text-white text-sm font-semibold line-clamp-2">{template.name}</p>
+                </div>
+              </button>
             ))}
           </div>
         </div>
-      ))}
 
-      {Object.keys(groupedTemplates).length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">
-            {searchTerm ? 'No templates match your search.' : 'No templates found.'}
-          </p>
-        </div>
-      )}
+        {/* Category Sections */}
+        {Object.entries(groupedTemplates).map(([category, categoryTemplates]) => (
+          <div key={category} className="mb-8">
+            {/* Section Header */}
+            <div className="px-4 mb-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold">{category}</h2>
+              <button className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors">
+                <span className="text-sm">All</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Horizontal Scrolling Cards */}
+            <div className="relative">
+              <div className="flex gap-4 overflow-x-auto px-4 pb-2 scrollbar-hide">
+                {(categoryTemplates as any[]).map((template) => (
+                  <Card 
+                    key={template.id}
+                    onClick={() => template.active && openCreateDialog(template.id)}
+                    className="flex-shrink-0 w-48 overflow-hidden cursor-pointer hover:scale-[1.02] transition-all bg-card/50 backdrop-blur-sm border-border/50"
+                  >
+                    {/* Image Container */}
+                    <div className="relative aspect-[3/4] bg-gradient-to-br from-primary/10 to-accent/10">
+                      <img 
+                        src={getTemplateImageUrl(template.id)}
+                        alt={template.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => e.currentTarget.style.opacity = '0'}
+                      />
+                      
+                      {/* Gradient Overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                      
+                      {/* Premium Badge */}
+                      {template.active && (
+                        <div className="absolute top-2 left-2">
+                          <div className="bg-primary/90 backdrop-blur-sm rounded-lg p-1.5">
+                            <Crown className="w-4 h-4 text-primary-foreground" />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Status Badge */}
+                      {!template.active && (
+                        <div className="absolute top-2 right-2">
+                          <Badge variant="secondary" className="text-xs">
+                            Soon
+                          </Badge>
+                        </div>
+                      )}
+
+                      {/* Before/After Indicator */}
+                      <div className="absolute bottom-2 left-2 right-2 space-y-2">
+                        {/* Mini Preview (simulating before/after) */}
+                        <div className="flex gap-1 justify-center">
+                          <div className="w-10 h-10 rounded border-2 border-white/30 bg-black/40 backdrop-blur-sm overflow-hidden">
+                            <img 
+                              src={getTemplateImageUrl(template.id)}
+                              alt=""
+                              className="w-full h-full object-cover opacity-60"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Info Section */}
+                    <div className="p-3 space-y-2">
+                      <h3 className="font-semibold text-sm line-clamp-2 leading-tight">
+                        {template.name}
+                      </h3>
+                      
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          v{template.current_version}
+                        </Badge>
+                        {template.active ? (
+                          <Badge className="text-xs bg-green-600/20 text-green-400 border-green-600/30">
+                            <Zap className="w-3 h-3 mr-1" />
+                            Active
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs">
+                            Coming
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {/* Empty State */}
+        {Object.keys(groupedTemplates).length === 0 && (
+          <div className="text-center py-12 px-4">
+            <p className="text-muted-foreground">No templates found.</p>
+          </div>
+        )}
+      </div>
 
       {/* Create Job Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -336,6 +248,11 @@ export default function AppTemplates() {
                 onChange={(e) => setJobName(e.target.value)}
                 placeholder="Enter a name for your job"
                 className="mt-1"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && jobName.trim()) {
+                    handleCreateJob();
+                  }
+                }}
               />
             </div>
             
@@ -360,6 +277,17 @@ export default function AppTemplates() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Custom Scrollbar Styles */}
+      <style>{`
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+        .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
     </div>
   );
 }
