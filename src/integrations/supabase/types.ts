@@ -605,6 +605,17 @@ export type Database = {
         }
         Returns: string
       }
+      add_plan_credits: {
+        Args: {
+          p_credits: number
+          p_description?: string
+          p_expire_at: string
+          p_metadata?: Json
+          p_stripe_subscription_id?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       add_updated_at_trigger: {
         Args: { p_schema: string; p_table: string }
         Returns: undefined

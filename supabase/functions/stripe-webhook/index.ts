@@ -49,12 +49,25 @@ serve(async (req) => {
       console.log(`Processing checkout session completion: ${session.id}`);
       
       if (session.metadata?.user_id) {
-        await processCreditsAddition(
-          session.metadata, 
-          session.id, 
-          session.amount_total, 
-          session.invoice as string
-        );
+        // Check if this is a subscription or one-time payment
+        if (session.mode === 'subscription' && session.subscription) {
+          // Handle subscription checkout
+          await createOrUpdateSubscription(
+            session.metadata.user_id,
+            session.metadata.plan_id,
+            session.subscription as string,
+            session.metadata.credits_per_week,
+            session.metadata.currency || 'AED'
+          );
+        } else {
+          // Handle one-time payment (top-up)
+          await processCreditsAddition(
+            session.metadata, 
+            session.id, 
+            session.amount_total, 
+            session.invoice as string
+          );
+        }
       }
     }
 
@@ -71,23 +84,37 @@ serve(async (req) => {
 
       // For subscription renewals or invoice payments
       if (invoice.subscription) {
-        // Handle subscription renewal - add weekly credits
+        // Handle subscription renewal - add plan credits (not regular credits)
         const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
-        if (subscription.metadata?.user_id) {
-          // Add credits based on subscription plan
-          const weeklyCredits = parseInt(subscription.metadata.weekly_credits || "0");
-          if (weeklyCredits > 0) {
-            await processCreditsAddition(
-              {
-                user_id: subscription.metadata.user_id,
-                credits: weeklyCredits.toString(),
-                currency: invoice.currency?.toUpperCase() || "AED"
-              },
-              invoice.id,
-              invoice.amount_paid,
-              invoice.id,
-              "subscription_renewal"
-            );
+        if (subscription.metadata?.user_id && subscription.metadata?.credits_per_week) {
+          const creditsPerWeek = parseInt(subscription.metadata.credits_per_week);
+          
+          // Calculate period end for expiration
+          const periodEnd = new Date(subscription.current_period_end * 1000);
+          
+          // Add plan credits using the new RPC function
+          const supabaseAdmin = createClient(
+            Deno.env.get("SUPABASE_URL") ?? "",
+            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+            { auth: { persistSession: false } }
+          );
+
+          const { error } = await supabaseAdmin.rpc('add_plan_credits', {
+            p_user_id: subscription.metadata.user_id,
+            p_credits: creditsPerWeek,
+            p_expire_at: periodEnd.toISOString(),
+            p_description: `Weekly plan credits - ${creditsPerWeek} credits`,
+            p_stripe_subscription_id: subscription.id,
+            p_metadata: {
+              invoice_id: invoice.id,
+              invoice_pdf_url: invoice.invoice_pdf
+            }
+          });
+
+          if (error) {
+            console.error('Error adding plan credits:', error);
+          } else {
+            console.log(`Added ${creditsPerWeek} plan credits for user ${subscription.metadata.user_id}, expiring at ${periodEnd}`);
           }
         }
       } else if (invoice.metadata?.user_id) {
@@ -365,6 +392,73 @@ serve(async (req) => {
         }
       } catch (error) {
         console.error("Error in logFailedPayment:", error);
+      }
+    }
+
+    // Helper function to create or update subscription
+    async function createOrUpdateSubscription(
+      userId: string,
+      planId: string,
+      stripeSubscriptionId: string,
+      creditsPerWeek: string,
+      currency: string
+    ) {
+      const supabaseAdmin = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+        { auth: { persistSession: false } }
+      );
+
+      try {
+        // Get subscription details from Stripe
+        const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+        
+        // Calculate period end (weekly)
+        const periodEnd = new Date(subscription.current_period_end * 1000);
+        
+        // Create/update user_subscription record
+        const { error: subError } = await supabaseAdmin
+          .from('user_subscriptions')
+          .upsert({
+            user_id: userId,
+            subscription_plan_id: planId,
+            stripe_subscription_id: stripeSubscriptionId,
+            status: subscription.status,
+            current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+            current_period_end: periodEnd.toISOString(),
+            cancel_at_period_end: subscription.cancel_at_period_end
+          });
+
+        if (subError) {
+          console.error('Error creating subscription record:', subError);
+          throw subError;
+        }
+
+        console.log(`Subscription record created for user ${userId}`);
+
+        // Add plan credits using the new RPC function
+        const credits = parseInt(creditsPerWeek);
+        const { error: creditsError } = await supabaseAdmin.rpc('add_plan_credits', {
+          p_user_id: userId,
+          p_credits: credits,
+          p_expire_at: periodEnd.toISOString(),
+          p_description: `Weekly plan credits - ${credits} credits`,
+          p_stripe_subscription_id: stripeSubscriptionId,
+          p_metadata: {
+            plan_id: planId,
+            currency: currency
+          }
+        });
+
+        if (creditsError) {
+          console.error('Error adding plan credits:', creditsError);
+          throw creditsError;
+        }
+
+        console.log(`Subscription created for user ${userId} with ${credits} credits expiring at ${periodEnd}`);
+      } catch (error) {
+        console.error('Error in createOrUpdateSubscription:', error);
+        throw error;
       }
     }
 

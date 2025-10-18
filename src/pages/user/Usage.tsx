@@ -325,17 +325,17 @@ export default function Usage() {
                 <Button
                   key={amount}
                   variant="outline"
-                  className="h-auto flex-col items-start p-4 gap-1"
+                  className="h-auto flex-col items-start p-3 md:p-4 gap-0.5 md:gap-1 min-h-[100px]"
                   onClick={() => handleTopUp(amount)}
                   disabled={loading}
                 >
-                  <span className="text-lg font-bold">{amount}</span>
-                  <span className="text-xs text-muted-foreground">credits</span>
-                  <span className="text-sm font-semibold mt-2">
+                  <span className="text-base md:text-lg font-bold">{amount}</span>
+                  <span className="text-[10px] md:text-xs text-muted-foreground">credits</span>
+                  <span className="text-xs md:text-sm font-semibold mt-1 md:mt-2 break-words w-full">
                     {formatPrice(price, currency)}
                   </span>
                   {pricing.discount > 0 && (
-                    <Badge variant="secondary" className="text-xs mt-1">
+                    <Badge variant="secondary" className="text-[10px] md:text-xs mt-0.5 md:mt-1">
                       {pricing.discount}% off
                     </Badge>
                   )}
