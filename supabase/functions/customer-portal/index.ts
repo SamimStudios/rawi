@@ -59,9 +59,29 @@ serve(async (req) => {
         features: {
           invoice_history: { enabled: true },
           payment_method_update: { enabled: true },
-          subscription_cancel: { enabled: true, mode: "at_period_end", cancellation_reason: { enabled: true } },
-          subscription_update: { enabled: true, proration_behavior: "none", default_allowed_updates: ["price", "quantity"] },
-          customer_update: { enabled: true, allowed_updates: ["email", "address", "shipping", "phone", "tax_id"] }
+          subscription_cancel: { 
+            enabled: true, 
+            mode: "at_period_end", 
+            cancellation_reason: { 
+              enabled: true,
+              options: [
+                "too_expensive",
+                "missing_features",
+                "switched_service",
+                "unused",
+                "other"
+              ]
+            }
+          },
+          subscription_update: { 
+            enabled: true, 
+            proration_behavior: "none", 
+            default_allowed_updates: ["price"] 
+          },
+          customer_update: { 
+            enabled: true, 
+            allowed_updates: ["email", "address", "shipping", "phone", "tax_id"] 
+          }
         },
       });
 
