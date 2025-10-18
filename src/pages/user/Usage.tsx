@@ -122,11 +122,15 @@ export default function Usage() {
   const handleTopUp = async (credits: number) => {
     setLoading(true);
     try {
-      await createCheckout({ 
+      const { data, error } = await createCheckout({ 
         credits, 
         currency,
         customAmount: true 
       });
+      if (error) throw error;
+      if (data?.url) {
+        window.location.href = data.url;
+      }
     } catch (error) {
       toast({
         title: 'Error',
@@ -325,7 +329,7 @@ export default function Usage() {
                 <Button
                   key={amount}
                   variant="outline"
-                  className="h-auto flex-col items-start p-3 md:p-4 gap-0.5 md:gap-1 min-h-[100px]"
+                  className="w-full min-w-0 whitespace-normal h-auto flex-col items-stretch text-left p-3 md:p-4 gap-0.5 md:gap-1 min-h-[100px]"
                   onClick={() => handleTopUp(amount)}
                   disabled={loading}
                 >

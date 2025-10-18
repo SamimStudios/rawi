@@ -5,6 +5,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserCredits } from '@/hooks/useUserCredits';
 import { useState } from "react";
+import CreditsModal from "@/components/payments/CreditsModal";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +20,7 @@ const Header = () => {
   const { user, signOut } = useAuth();
   const { credits } = useUserCredits();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [creditsOpen, setCreditsOpen] = useState(false);
 
   const logoSrc = language === 'ar' 
     ? "/brand/logo-lockup-ar-horizontal.svg" 
@@ -88,12 +90,19 @@ const Header = () => {
             </DropdownMenu>
 
             {/* Wallet */}
-            <Link to={user ? "/user/usage" : "/auth/sign-in"}>
-              <Button variant="outline" size="sm" className="flex items-center gap-2">
+            {user ? (
+              <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={() => setCreditsOpen(true)}>
                 <Wallet className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium">{walletCredits} {t('credits')}</span>
               </Button>
-            </Link>
+            ) : (
+              <Button variant="outline" size="sm" className="flex items-center gap-2" asChild>
+                <Link to="/auth/sign-in">
+                  <Wallet className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">{walletCredits} {t('credits')}</span>
+                </Link>
+              </Button>
+            )}
 
             {/* User Menu or Sign In */}
             {user ? (
@@ -156,12 +165,19 @@ const Header = () => {
                 </Link>
               ))}
               <div className="flex items-center justify-between pt-4 border-t border-border">
-                <Link to={user ? "/user/usage" : "/auth/sign-in"}>
-                  <Button variant="outline" size="sm" className="flex items-center gap-2">
+                {user ? (
+                  <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={() => setCreditsOpen(true)}>
                     <Wallet className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm font-medium">{walletCredits} {t('credits')}</span>
                   </Button>
-                </Link>
+                ) : (
+                  <Button variant="outline" size="sm" className="flex items-center gap-2" asChild>
+                    <Link to="/auth/sign-in">
+                      <Wallet className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">{walletCredits} {t('credits')}</span>
+                    </Link>
+                  </Button>
+                )}
                 {user ? (
                   <Button variant="type_3_blue" size="sm" asChild>
                     <Link to="/user/settings">{t('settings')}</Link>
@@ -175,6 +191,7 @@ const Header = () => {
             </nav>
           </div>
         )}
+        <CreditsModal open={creditsOpen} onOpenChange={setCreditsOpen} />
       </div>
     </header>
   );

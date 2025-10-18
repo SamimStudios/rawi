@@ -42,11 +42,35 @@ serve(async (req) => {
 
     const customerId = customers.data[0].id;
 
-    // Create portal session
-    const portalSession = await stripe.billingPortal.sessions.create({
-      customer: customerId,
-      return_url: `${req.headers.get("origin")}/user/billing`,
-    });
+    // Create portal session (ensure configuration exists)
+    let portalSession;
+    try {
+      portalSession = await stripe.billingPortal.sessions.create({
+        customer: customerId,
+        return_url: `${req.headers.get("origin")}/user/billing`,
+      });
+    } catch (e) {
+      const msg = e && typeof e === "object" && "message" in e ? (e as any).message as string : "";
+      const needsConfig = msg?.includes("No configuration provided") || msg?.includes("default configuration has not been created");
+      if (!needsConfig) throw e;
+
+      // Create a default configuration then retry
+      const config = await stripe.billingPortal.configurations.create({
+        features: {
+          invoice_history: { enabled: true },
+          payment_method_update: { enabled: true },
+          subscription_cancel: { enabled: true, mode: "at_period_end", cancellation_reason: { enabled: true } },
+          subscription_update: { enabled: true, proration_behavior: "none", default_allowed_updates: ["price", "quantity"] },
+          customer_update: { enabled: true, allowed_updates: ["email", "address", "shipping", "phone", "tax_id"] }
+        },
+      });
+
+      portalSession = await stripe.billingPortal.sessions.create({
+        customer: customerId,
+        return_url: `${req.headers.get("origin")}/user/billing`,
+        configuration: config.id,
+      });
+    }
 
     return new Response(
       JSON.stringify({ url: portalSession.url }),
