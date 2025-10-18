@@ -119,7 +119,28 @@ const Wallet = () => {
           .eq('active', true)
           .order('credits_per_week', { ascending: true });
 
-        if (data) setSubscriptionPlans(data);
+        // Add free plan if not in database
+        const allPlans = data || [];
+        const hasFree = allPlans.some(p => p.credits_per_week === 0);
+        
+        if (!hasFree) {
+          allPlans.unshift({
+            id: 'free-plan',
+            name: 'Free Plan',
+            credits_per_week: 0,
+            price_aed: 0,
+            price_sar: 0,
+            price_usd: 0,
+            active: true,
+            created_at: new Date().toISOString(),
+            stripe_price_id_aed: '',
+            stripe_price_id_sar: '',
+            stripe_price_id_usd: '',
+            updated_at: new Date().toISOString()
+          });
+        }
+
+        setSubscriptionPlans(allPlans);
       } catch (error) {
         console.error('Error fetching plans:', error);
       }
@@ -222,87 +243,116 @@ const Wallet = () => {
             <p className="text-muted-foreground">{t('wallet.chooseTheBestPlan')}</p>
           </RTLWrapper>
 
-          <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-            {subscriptionPlans.map((plan, index) => {
-              const isFree = plan.credits_per_week === 0;
-              const isRecommended = index === 2;
-              const price = currency === 'AED' ? plan.price_aed : currency === 'SAR' ? plan.price_sar : plan.price_usd;
+          <Card className="border-2">
+            <CardContent className="p-4 md:p-6">
+              <RadioGroup defaultValue={subscriptionPlans[0]?.id} className="space-y-3">
+                {subscriptionPlans.map((plan, index) => {
+                  const isFree = plan.credits_per_week === 0;
+                  const isRecommended = index === 2 && !isFree;
+                  const price = currency === 'AED' ? plan.price_aed : currency === 'SAR' ? plan.price_sar : plan.price_usd;
 
-              return (
-                <Card 
-                  key={plan.id}
-                  variant={isRecommended ? "premium" : isFree ? "outline" : "default"}
-                  className="relative overflow-hidden hover:shadow-xl transition-all duration-300"
-                >
-                  {isRecommended && (
-                    <div className="absolute top-4 right-4 z-10">
-                      <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0">
-                        {t('wallet.recommendedPlan')}
-                      </Badge>
-                    </div>
-                  )}
-                  
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-xl">{plan.name}</CardTitle>
-                    <div className="mt-4">
-                      {isFree ? (
-                        <div>
-                          <div className="text-4xl font-bold">{t('wallet.freePlan')}</div>
-                          <p className="text-sm text-muted-foreground mt-2">
-                            {t('wallet.freePlanFeatures')}
-                          </p>
-                        </div>
-                      ) : (
-                        <>
-                          <RTLFlex reverse className="items-baseline gap-2">
-                            <span className="text-4xl font-bold">{formatPrice(price)}</span>
-                            <span className="text-muted-foreground">/{t('wallet.week')}</span>
-                          </RTLFlex>
-                          <p className="text-sm text-muted-foreground mt-2">
-                            {plan.credits_per_week} {t('wallet.creditsPerWeek')}
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  </CardHeader>
-
-                  <CardContent className="space-y-4">
-                    <ul className="space-y-2">
-                      <li className="flex items-center gap-2 text-sm">
-                        <Check className="h-4 w-4 text-primary flex-shrink-0" />
-                        <span>{isFree ? t('wallet.basicAccess') : t('wallet.prioritySupport')}</span>
-                      </li>
-                      <li className="flex items-center gap-2 text-sm">
-                        <Check className="h-4 w-4 text-primary flex-shrink-0" />
-                        <span>{t('wallet.neverExpire')}</span>
-                      </li>
-                      {!isFree && (
-                        <li className="flex items-center gap-2 text-sm">
-                          <Check className="h-4 w-4 text-primary flex-shrink-0" />
-                          <span>{t('wallet.cancelAnytime')}</span>
-                        </li>
-                      )}
-                    </ul>
-
-                    <Button
-                      onClick={() => !isFree && handleSubscription(plan.id)}
-                      disabled={subscriptionLoading === plan.id || isFree}
-                      variant={isRecommended ? "default" : "outline"}
-                      className="w-full"
+                  return (
+                    <Label
+                      key={plan.id}
+                      htmlFor={`plan-${plan.id}`}
+                      className="relative cursor-pointer block"
                     >
-                      {subscriptionLoading === plan.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : isFree ? (
-                        t('wallet.currentPlan')
-                      ) : (
-                        t('wallet.getStarted')
-                      )}
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                      <div className={`border-2 rounded-xl p-4 md:p-5 transition-all ${
+                        isRecommended
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-primary/50 hover:bg-accent/50'
+                      }`}>
+                        <RTLFlex reverse className="items-start justify-between gap-4">
+                          <div className="flex items-start gap-3 md:gap-4 flex-1 min-w-0">
+                            <RadioGroupItem 
+                              value={plan.id} 
+                              id={`plan-${plan.id}`}
+                              className="mt-1 flex-shrink-0"
+                              disabled={isFree}
+                            />
+                            
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="font-semibold text-base md:text-lg">{plan.name}</h3>
+                                {isRecommended && (
+                                  <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 text-xs">
+                                    {t('wallet.recommendedPlan')}
+                                  </Badge>
+                                )}
+                              </div>
+                              
+                              {isFree ? (
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  {t('wallet.basicAccess')}
+                                </p>
+                              ) : (
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  {plan.credits_per_week} {t('wallet.creditsPerWeek')}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="text-right flex-shrink-0">
+                            {isFree ? (
+                              <div className="text-lg md:text-xl font-bold text-primary">
+                                {t('wallet.freePlan')}
+                              </div>
+                            ) : (
+                              <>
+                                <div className="text-xl md:text-2xl font-bold">
+                                  {formatPrice(price)}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  /{t('wallet.week')}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </RTLFlex>
+                      </div>
+                    </Label>
+                  );
+                })}
+              </RadioGroup>
+
+              <div className="mt-6 pt-6 border-t">
+                <div className="space-y-3 mb-6">
+                  <h4 className="font-semibold text-sm text-muted-foreground">{t('wallet.whatIncluded')}</h4>
+                  <ul className="space-y-2">
+                    <li className="flex items-center gap-2 text-sm">
+                      <Check className="h-4 w-4 text-primary flex-shrink-0" />
+                      <span>{t('wallet.neverExpire')}</span>
+                    </li>
+                    <li className="flex items-center gap-2 text-sm">
+                      <Check className="h-4 w-4 text-primary flex-shrink-0" />
+                      <span>{t('wallet.prioritySupport')}</span>
+                    </li>
+                    <li className="flex items-center gap-2 text-sm">
+                      <Check className="h-4 w-4 text-primary flex-shrink-0" />
+                      <span>{t('wallet.cancelAnytime')}</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <Button
+                  onClick={() => {
+                    const selectedPlan = subscriptionPlans.find(p => p.credits_per_week > 0);
+                    if (selectedPlan) handleSubscription(selectedPlan.id);
+                  }}
+                  disabled={subscriptionLoading !== null}
+                  size="lg"
+                  className="w-full"
+                >
+                  {subscriptionLoading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    t('wallet.getStarted')
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* One-Time Top-Up Section */}
