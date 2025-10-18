@@ -55,6 +55,34 @@ serve(async (req) => {
       if (!needsConfig) throw e;
 
       // Create a default configuration then retry
+      // Build allowed products/prices for plan changes from Supabase plans
+      const { data: plans, error: plansError } = await supabase
+        .from('subscription_plans')
+        .select('stripe_price_id_aed, stripe_price_id_sar, stripe_price_id_usd')
+        .eq('active', true);
+
+      if (plansError) throw plansError;
+
+      const priceIds = (plans || [])
+        .flatMap((p) => [p.stripe_price_id_aed, p.stripe_price_id_sar, p.stripe_price_id_usd])
+        .filter((id): id is string => !!id);
+
+      // Map product => [prices]
+      const productPricesMap = new Map<string, string[]>();
+      for (const priceId of priceIds) {
+        try {
+          const price = await stripe.prices.retrieve(priceId);
+          const productId = typeof price.product === 'string' ? price.product : price.product.id;
+          const list = productPricesMap.get(productId) || [];
+          list.push(priceId);
+          productPricesMap.set(productId, list);
+        } catch (err) {
+          console.warn('Failed to retrieve price for portal config:', priceId, err);
+        }
+      }
+
+      const products = Array.from(productPricesMap.entries()).map(([product, prices]) => ({ product, prices }));
+
       const config = await stripe.billingPortal.configurations.create({
         features: {
           invoice_history: { enabled: true },
@@ -76,7 +104,8 @@ serve(async (req) => {
           subscription_update: { 
             enabled: true, 
             proration_behavior: "none", 
-            default_allowed_updates: ["price"] 
+            default_allowed_updates: ["price"],
+            products
           },
           customer_update: { 
             enabled: true, 
