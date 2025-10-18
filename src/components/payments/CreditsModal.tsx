@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,7 @@ interface CreditsModalProps {
 }
 
 export default function CreditsModal({ open, onOpenChange, defaultTab = 'subscribe' }: CreditsModalProps) {
+  const navigate = useNavigate();
   const { t } = useLanguage();
   const { currency, formatPrice, getPrice } = useCurrency();
   const { subscription } = useUserSubscription();
@@ -198,7 +200,7 @@ export default function CreditsModal({ open, onOpenChange, defaultTab = 'subscri
               <div className="mt-2 flex justify-center">
                 <Button variant="ghost" onClick={() => {
                   onOpenChange(false);
-                  window.location.href = '/user/usage';
+                  navigate('/user/usage');
                 }}>
                   {t('usage.viewUsage') || 'View Usage'}
                 </Button>
