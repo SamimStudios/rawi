@@ -3,48 +3,52 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserCredits } from '@/hooks/useUserCredits';
 import { useUserSubscription } from '@/hooks/useUserSubscription';
-import { usePayments } from '@/hooks/usePayments';
-import { useCurrency } from '@/hooks/useCurrency';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useCurrency } from '@/hooks/useCurrency';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Coins, CreditCard, Calendar } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Coins, TrendingUp, Zap, Calendar, CreditCard, Download, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
+import CreditsModal from '@/components/payments/CreditsModal';
 
-interface SubscriptionPlan {
+interface Transaction {
   id: string;
-  name: string;
-  credits_per_week: number;
-  price_aed: number;
-  price_sar: number;
-  price_usd: number;
-  active: boolean;
+  created_at: string;
+  type: string;
+  credits_amount: number;
+  amount_paid: number | null;
+  currency: string;
+  description: string | null;
+  stripe_session_id: string | null;
 }
 
 export default function Usage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { t, language } = useLanguage();
-  const { credits, loading: creditsLoading, refresh: refreshCredits } = useUserCredits();
-  const { subscription, isFree, expiresAt, loading: subLoading } = useUserSubscription();
-  const { createCheckout } = usePayments();
-  const { currency, formatPrice, getPrice, currencies } = useCurrency();
+  const { credits, loading: creditsLoading } = useUserCredits();
+  const { subscription, loading: subLoading } = useUserSubscription();
+  const { formatPrice } = useCurrency();
   const { toast } = useToast();
   const isRTL = language === 'ar';
 
-  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>([]);
-  const [selectedPlanId, setSelectedPlanId] = useState<string>('');
-  const [topUpAmounts] = useState([50, 100, 250, 500]);
-  const [customCredits, setCustomCredits] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalTab, setModalTab] = useState<'subscribe' | 'topup'>('subscribe');
 
   useEffect(() => {
     if (!user) {
@@ -52,66 +56,24 @@ export default function Usage() {
       return;
     }
 
-    fetchSubscriptionPlans();
+    fetchTransactions();
   }, [user, navigate]);
 
-  const fetchSubscriptionPlans = async () => {
+  const fetchTransactions = async () => {
     try {
       const { data, error } = await supabase
-        .from('subscription_plans')
+        .from('transactions')
         .select('*')
-        .eq('active', true)
-        .order('credits_per_week');
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (error) throw error;
-
-      const plansWithFree: SubscriptionPlan[] = [
-        {
-          id: 'free',
-          name: t('usage.freePlan') || 'Free Plan',
-          credits_per_week: 0,
-          price_aed: 0,
-          price_sar: 0,
-          price_usd: 0,
-          active: true,
-        },
-        ...(data || []),
-      ];
-
-      setSubscriptionPlans(plansWithFree);
-
-      if (subscription?.subscription_plan_id) {
-        setSelectedPlanId(subscription.subscription_plan_id);
-      } else {
-        setSelectedPlanId('free');
-      }
+      setTransactions(data || []);
     } catch (error) {
-      console.error('Error fetching plans:', error);
-    }
-  };
-
-  const handleSubscribe = async () => {
-    if (!selectedPlanId || selectedPlanId === 'free') return;
-    
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('create-subscription', {
-        body: { 
-          planId: selectedPlanId,
-          currency: currency
-        }
-      });
-
-      if (error) throw error;
-
-      if (data?.url) {
-        window.location.href = data.url;
-      }
-    } catch (error) {
-      console.error('Error creating subscription:', error);
+      console.error('Error fetching transactions:', error);
       toast({
         title: 'Error',
-        description: 'Failed to create checkout session',
+        description: 'Failed to fetch transactions',
         variant: 'destructive',
       });
     } finally {
@@ -119,53 +81,63 @@ export default function Usage() {
     }
   };
 
-  const handleTopUp = async (credits: number) => {
-    setLoading(true);
+  const handleManageStripe = async () => {
     try {
-      const { data, error } = await createCheckout({ 
-        credits, 
-        currency,
-        customAmount: true 
-      });
+      const { data, error } = await supabase.functions.invoke('customer-portal');
+      
       if (error) throw error;
       if (data?.url) {
-        window.location.href = data.url;
+        window.open(data.url, '_blank');
       }
     } catch (error) {
+      console.error('Error opening portal:', error);
       toast({
         title: 'Error',
-        description: 'Failed to create checkout session',
+        description: 'Failed to open billing portal',
         variant: 'destructive',
       });
-    } finally {
-      setLoading(false);
     }
   };
 
-  const calculateDynamicPrice = (credits: number) => {
-    const basePrice = credits * 0.5;
-    let discount = 0;
-    
-    if (credits >= 500) discount = 0.3;
-    else if (credits >= 250) discount = 0.2;
-    else if (credits >= 100) discount = 0.1;
+  const handleDownloadInvoice = async (transactionId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-invoice', {
+        body: { transaction_id: transactionId },
+      });
 
-    const finalPrice = basePrice * (1 - discount);
-    return {
-      price: finalPrice,
-      perCredit: finalPrice / credits,
-      discount: Math.round(discount * 100),
-    };
+      if (error) throw error;
+      if (data?.invoice_url) {
+        window.open(data.invoice_url, '_blank');
+      }
+    } catch (error) {
+      console.error('Error downloading invoice:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to download invoice',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const totalCredits = (credits.plan_credits || 0) + (credits.topup_credits || 0);
-  const planCredits = credits.plan_credits || 0;
-  const topupCredits = credits.topup_credits || 0;
-  const planPercentage = totalCredits > 0 ? (planCredits / totalCredits) * 100 : 0;
+  const getTransactionTypeBadge = (type: string) => {
+    switch (type) {
+      case 'purchase':
+        return <Badge variant="default">Purchase</Badge>;
+      case 'subscription':
+        return <Badge variant="secondary">Subscription</Badge>;
+      case 'consumption':
+        return <Badge variant="outline">Usage</Badge>;
+      default:
+        return <Badge variant="outline">{type}</Badge>;
+    }
+  };
 
-  const currentPlanId = subscription?.subscription_plan_id || 'free';
+  const openModal = (tab: 'subscribe' | 'topup') => {
+    setModalTab(tab);
+    setModalOpen(true);
+  };
 
-  if (creditsLoading || subLoading) {
+  if (creditsLoading || subLoading || loading) {
     return (
       <div className="container max-w-7xl mx-auto px-4 py-8">
         <div className="animate-pulse space-y-6">
@@ -181,190 +153,203 @@ export default function Usage() {
     <div className="container max-w-7xl mx-auto px-4 py-8 space-y-8">
       <h1 className="text-3xl font-bold">{t('usage.title')}</h1>
 
-      {/* Usage Card */}
-      <Card className="p-6">
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2 text-3xl font-bold">
-                <Coins className="h-8 w-8 text-amber-500" />
-                {totalCredits.toFixed(2)}
-              </div>
-              <p className="text-sm text-muted-foreground mt-1">
-                {t('usage.currentBalance')}
-              </p>
+      {/* Credits Overview */}
+      <div className="grid gap-6 md:grid-cols-3">
+        <Card className="p-6">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="p-3 rounded-lg bg-primary/10">
+              <Coins className="h-6 w-6 text-primary" />
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => navigate('/user/billing')}>
-                <CreditCard className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
-                {t('usage.viewBilling')}
-              </Button>
+            <div>
+              <p className="text-sm text-muted-foreground">{t('usage.totalCredits')}</p>
+              <p className="text-2xl font-bold">{credits?.credits?.toFixed(2) || '0.00'}</p>
             </div>
           </div>
+          <Progress value={100} className="h-2" />
+        </Card>
 
-          {/* Plan Credits Progress */}
-          {planCredits > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">{t('usage.planCredits')}</span>
-                <span className="text-muted-foreground">
-                  {planCredits.toFixed(2)} {t('usage.creditsRemaining')}
-                </span>
-              </div>
-              <Progress value={planPercentage} className="h-2" />
-              {expiresAt && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Calendar className="h-3 w-3" />
-                  <span>
-                    {t('usage.expiresOn')}: {format(expiresAt, 'MMM dd, yyyy')}
-                  </span>
+        <Card className="p-6">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="p-3 rounded-lg bg-blue-500/10">
+              <TrendingUp className="h-6 w-6 text-blue-500" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">{t('usage.planCredits')}</p>
+              <p className="text-2xl font-bold">{credits?.plan_credits?.toFixed(2) || '0.00'}</p>
+            </div>
+          </div>
+          <Progress 
+            value={(credits?.plan_credits || 0) / ((credits?.plan_credits || 1) + (credits?.topup_credits || 0)) * 100} 
+            className="h-2"
+          />
+        </Card>
+
+        <Card className="p-6">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="p-3 rounded-lg bg-green-500/10">
+              <Zap className="h-6 w-6 text-green-500" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">{t('usage.topUpCredits')}</p>
+              <p className="text-2xl font-bold">{credits?.topup_credits?.toFixed(2) || '0.00'}</p>
+            </div>
+          </div>
+          <Progress 
+            value={(credits?.topup_credits || 0) / ((credits?.plan_credits || 0) + (credits?.topup_credits || 1)) * 100} 
+            className="h-2"
+          />
+        </Card>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="flex gap-4">
+        <Button onClick={() => openModal('subscribe')} className="flex-1">
+          {subscription?.subscription_plan_id ? t('usage.changePlan') : t('usage.subscribeToPlan')}
+        </Button>
+        <Button onClick={() => openModal('topup')} variant="outline" className="flex-1">
+          {t('usage.topUp')}
+        </Button>
+      </div>
+
+      {/* Payment Method */}
+      <Card className="p-6">
+        <h2 className="text-xl font-bold mb-4">{t('billing.paymentMethod')}</h2>
+        <div className="space-y-4">
+          <div className="flex items-center gap-4">
+            <CreditCard className="h-12 w-12 text-muted-foreground" />
+            <div className="flex-1">
+              <p className="text-sm text-muted-foreground">
+                {t('billing.noPaymentMethod')}
+              </p>
+            </div>
+          </div>
+          <Button onClick={handleManageStripe} variant="outline" className="w-full sm:w-auto">
+            <ExternalLink className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+            {t('billing.manageInStripe')}
+          </Button>
+        </div>
+      </Card>
+
+      {/* Current Subscription */}
+      <Card className="p-6">
+        <h2 className="text-xl font-bold mb-4">{t('billing.currentSubscription')}</h2>
+        <div className="space-y-4">
+          {subscription?.subscription_plan_id ? (
+            <>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">{t('billing.currentPlan')}</span>
+                  <span className="font-bold">{subscription.plan?.name}</span>
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* Top-up Credits */}
-          {topupCredits > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">{t('usage.topUpCredits')}</span>
-                <span className="text-muted-foreground">{topupCredits.toFixed(2)}</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">{t('billing.billingCycle')}</span>
+                  <span>{t('billing.weekly')}</span>
+                </div>
+                {subscription.current_period_end && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">{t('billing.nextBilling')}</span>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <span>{format(new Date(subscription.current_period_end), 'MMM dd, yyyy')}</span>
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">{t('billing.status')}</span>
+                  <Badge variant={subscription.status === 'active' ? 'default' : 'secondary'}>
+                    {subscription.status === 'active' ? t('billing.active') : t('billing.canceled')}
+                  </Badge>
+                </div>
               </div>
-              <Progress value={100} className="h-2 bg-secondary" />
-              <p className="text-xs text-muted-foreground">{t('usage.neverExpires')}</p>
-            </div>
+              <Button
+                variant="outline"
+                onClick={handleManageStripe}
+                className="w-full sm:w-auto"
+              >
+                {subscription.cancel_at_period_end
+                  ? t('billing.reactivateSubscription')
+                  : t('billing.cancelSubscription')}
+              </Button>
+            </>
+          ) : (
+            <p className="text-muted-foreground">{t('usage.freePlan')}</p>
           )}
         </div>
       </Card>
 
-      {/* Subscription Plans */}
+      {/* Transaction History */}
       <div className="space-y-4">
-        <h2 className="text-2xl font-bold">{t('usage.subscriptionPlans')}</h2>
-        <Card className="p-6">
-          <RadioGroup value={selectedPlanId} onValueChange={setSelectedPlanId}>
-            <div className="space-y-3">
-              {subscriptionPlans.map((plan, index) => {
-                const isCurrent = plan.id === currentPlanId;
-                const isRecommended = index === 1; // Second plan (after free)
-                const price = plan.id === 'free' ? 0 : getPrice({
-                  price_aed: plan.price_aed,
-                  price_sar: plan.price_sar,
-                  price_usd: plan.price_usd,
-                });
-
-                return (
-                  <div key={plan.id}>
-                    <Label
-                      htmlFor={plan.id}
-                      className={cn(
-                        "flex items-center justify-between p-4 border rounded-lg cursor-pointer transition-all",
-                        selectedPlanId === plan.id
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-primary/50",
-                        isCurrent && "ring-2 ring-primary"
-                      )}
-                    >
-                      <div className="flex items-center gap-3 flex-1">
-                        <RadioGroupItem value={plan.id} id={plan.id} />
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold">{plan.name}</span>
-                            {isCurrent && (
-                              <Badge variant="default" className="text-xs">
-                                {t('usage.currentPlan')}
-                              </Badge>
-                            )}
-                            {isRecommended && !isCurrent && (
-                              <Badge variant="secondary" className="text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400">
-                                {t('usage.recommended')}
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {plan.credits_per_week} {t('usage.creditsUsed')} {t('usage.perWeek')}
-                          </p>
-                        </div>
-                      </div>
-                      <div className={cn("text-right", isRTL && "text-left")}>
-                        <div className="font-bold text-lg">
-                          {plan.id === 'free' ? 'FREE' : formatPrice(price, currency)}
-                        </div>
-                        {plan.id !== 'free' && (
-                          <p className="text-xs text-muted-foreground">{t('usage.perWeek')}</p>
+        <h2 className="text-2xl font-bold">{t('billing.transactionHistory')}</h2>
+        <Card>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('billing.date')}</TableHead>
+                  <TableHead>{t('billing.type')}</TableHead>
+                  <TableHead className={cn(isRTL ? "text-left" : "text-right")}>
+                    {t('billing.credits')}
+                  </TableHead>
+                  <TableHead className={cn(isRTL ? "text-left" : "text-right")}>
+                    {t('billing.amount')}
+                  </TableHead>
+                  <TableHead className={cn(isRTL ? "text-left" : "text-right")}>
+                    {t('billing.invoice')}
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {transactions.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      {t('billing.noTransactions')}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  transactions.map((transaction) => (
+                    <TableRow key={transaction.id}>
+                      <TableCell className="whitespace-nowrap">
+                        {format(new Date(transaction.created_at), 'MMM dd, yyyy')}
+                      </TableCell>
+                      <TableCell>
+                        {getTransactionTypeBadge(transaction.type)}
+                      </TableCell>
+                      <TableCell className={cn(isRTL ? "text-left" : "text-right")}>
+                        <span className={cn(transaction.credits_amount > 0 ? "text-green-600" : "text-red-600")}>
+                          {transaction.credits_amount > 0 ? '+' : ''}
+                          {transaction.credits_amount.toFixed(2)}
+                        </span>
+                      </TableCell>
+                      <TableCell className={cn(isRTL ? "text-left" : "text-right")}>
+                        {transaction.amount_paid ? (
+                          formatPrice(transaction.amount_paid, transaction.currency as any)
+                        ) : (
+                          '-'
                         )}
-                      </div>
-                    </Label>
-                  </div>
-                );
-              })}
-            </div>
-          </RadioGroup>
-          
-          <div className="mt-6">
-            <Button
-              onClick={handleSubscribe}
-              disabled={loading || selectedPlanId === 'free' || selectedPlanId === currentPlanId}
-              className="w-full"
-            >
-              {selectedPlanId === currentPlanId
-                ? t('usage.currentPlan')
-                : selectedPlanId === 'free'
-                ? t('usage.selectPlan')
-                : t('usage.upgradePlan')}
-            </Button>
+                      </TableCell>
+                      <TableCell className={cn(isRTL ? "text-left" : "text-right")}>
+                        {transaction.amount_paid && transaction.stripe_session_id ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDownloadInvoice(transaction.id)}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          '-'
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
           </div>
         </Card>
       </div>
 
-      {/* One-Time Top-Up */}
-      <div className="space-y-4">
-        <h2 className="text-2xl font-bold">{t('usage.oneTimeTopUp')}</h2>
-        <Card className="p-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            {topUpAmounts.map((amount) => {
-              const pricing = calculateDynamicPrice(amount);
-              const price = pricing.price * (currency === 'SAR' ? 3.75 : currency === 'AED' ? 3.67 : 1);
-              
-              return (
-                <Button
-                  key={amount}
-                  variant="outline"
-                  className="w-full min-w-0 whitespace-normal h-auto flex-col items-stretch text-left p-3 md:p-4 gap-0.5 md:gap-1 min-h-[100px]"
-                  onClick={() => handleTopUp(amount)}
-                  disabled={loading}
-                >
-                  <span className="text-base md:text-lg font-bold">{amount}</span>
-                  <span className="text-[10px] md:text-xs text-muted-foreground">credits</span>
-                  <span className="text-xs md:text-sm font-semibold mt-1 md:mt-2 break-words w-full">
-                    {formatPrice(price, currency)}
-                  </span>
-                  {pricing.discount > 0 && (
-                    <Badge variant="secondary" className="text-[10px] md:text-xs mt-0.5 md:mt-1">
-                      {pricing.discount}% off
-                    </Badge>
-                  )}
-                </Button>
-              );
-            })}
-          </div>
-
-          <div className="flex gap-2">
-            <Input
-              type="number"
-              placeholder="Custom amount"
-              value={customCredits}
-              onChange={(e) => setCustomCredits(e.target.value)}
-              min="1"
-            />
-            <Button
-              onClick={() => handleTopUp(parseInt(customCredits))}
-              disabled={loading || !customCredits || parseInt(customCredits) < 1}
-            >
-              {t('usage.topUpNow')}
-            </Button>
-          </div>
-        </Card>
-      </div>
+      <CreditsModal open={modalOpen} onOpenChange={setModalOpen} defaultTab={modalTab} />
     </div>
   );
 }

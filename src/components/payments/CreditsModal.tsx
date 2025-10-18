@@ -27,16 +27,21 @@ interface SubscriptionPlan {
 interface CreditsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  defaultTab?: 'subscribe' | 'topup';
 }
 
-export default function CreditsModal({ open, onOpenChange }: CreditsModalProps) {
+export default function CreditsModal({ open, onOpenChange, defaultTab = 'subscribe' }: CreditsModalProps) {
   const { t } = useLanguage();
   const { currency, formatPrice, getPrice } = useCurrency();
   const { subscription } = useUserSubscription();
   const { createCheckout, createSubscription, openCustomerPortal } = usePayments();
   const { toast } = useToast();
 
-  const [tab, setTab] = useState('subscribe');
+  const [tab, setTab] = useState(defaultTab);
+
+  useEffect(() => {
+    setTab(defaultTab);
+  }, [defaultTab, open]);
   const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string>('');
   const [topUpAmounts] = useState([50, 100, 250, 500]);
@@ -123,7 +128,7 @@ export default function CreditsModal({ open, onOpenChange }: CreditsModalProps) 
           <DialogTitle>{t('usage.title') || 'Credits & Plans'}</DialogTitle>
         </DialogHeader>
 
-        <Tabs value={tab} onValueChange={setTab} className="w-full">
+        <Tabs value={tab} onValueChange={(value) => setTab(value as 'subscribe' | 'topup')} className="w-full">
           <TabsList className="grid grid-cols-2 w-full">
             <TabsTrigger value="subscribe">{t('usage.subscriptionPlans')}</TabsTrigger>
             <TabsTrigger value="topup">{t('usage.oneTimeTopUp')}</TabsTrigger>
