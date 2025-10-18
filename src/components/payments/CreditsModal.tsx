@@ -196,7 +196,12 @@ export default function CreditsModal({ open, onOpenChange, defaultTab = 'subscri
                 </Button>
               </div>
               <div className="mt-2 flex justify-center">
-                <Button variant="ghost" onClick={openCustomerPortal}>{t('usage.viewBilling')}</Button>
+                <Button variant="ghost" onClick={() => {
+                  onOpenChange(false);
+                  window.location.href = '/user/usage';
+                }}>
+                  {t('usage.viewUsage') || 'View Usage'}
+                </Button>
               </div>
             </Card>
           </TabsContent>

@@ -47,7 +47,7 @@ serve(async (req) => {
     try {
       portalSession = await stripe.billingPortal.sessions.create({
         customer: customerId,
-        return_url: `${req.headers.get("origin")}/user/billing`,
+        return_url: `${req.headers.get("origin")}/user/usage`,
       });
     } catch (e) {
       const msg = e && typeof e === "object" && "message" in e ? (e as any).message as string : "";
@@ -67,7 +67,7 @@ serve(async (req) => {
 
       portalSession = await stripe.billingPortal.sessions.create({
         customer: customerId,
-        return_url: `${req.headers.get("origin")}/user/billing`,
+        return_url: `${req.headers.get("origin")}/user/usage`,
         configuration: config.id,
       });
     }

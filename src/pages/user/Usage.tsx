@@ -154,52 +154,63 @@ export default function Usage() {
       <h1 className="text-3xl font-bold">{t('usage.title')}</h1>
 
       {/* Credits Overview */}
-      <div className="grid gap-6 md:grid-cols-3">
-        <Card className="p-6">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 rounded-lg bg-primary/10">
-              <Coins className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">{t('usage.totalCredits')}</p>
-              <p className="text-2xl font-bold">{credits?.credits?.toFixed(2) || '0.00'}</p>
-            </div>
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <Coins className="h-6 w-6 text-primary" />
+            <h2 className="text-2xl font-bold">{t('usage.credits')}</h2>
           </div>
-          <Progress value={100} className="h-2" />
-        </Card>
+          <div className="text-3xl font-bold">
+            {credits?.credits?.toFixed(2) || '0.00'}
+          </div>
+        </div>
 
-        <Card className="p-6">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 rounded-lg bg-blue-500/10">
-              <TrendingUp className="h-6 w-6 text-blue-500" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">{t('usage.planCredits')}</p>
-              <p className="text-2xl font-bold">{credits?.plan_credits?.toFixed(2) || '0.00'}</p>
-            </div>
-          </div>
-          <Progress 
-            value={(credits?.plan_credits || 0) / ((credits?.plan_credits || 1) + (credits?.topup_credits || 0)) * 100} 
-            className="h-2"
-          />
-        </Card>
+        {/* Stacked Progress Bar */}
+        <div className="relative h-3 w-full overflow-hidden rounded-full bg-secondary mb-3">
+          {credits && credits.credits > 0 && (
+            <>
+              {/* Plan Credits Layer */}
+              {credits.plan_credits > 0 && (
+                <div
+                  className="absolute h-full bg-primary transition-all"
+                  style={{ width: `${(credits.plan_credits / credits.credits) * 100}%` }}
+                />
+              )}
+              {/* Top-up Credits Layer */}
+              {credits.topup_credits > 0 && (
+                <div
+                  className="absolute h-full bg-accent transition-all"
+                  style={{ 
+                    left: `${(credits.plan_credits / credits.credits) * 100}%`,
+                    width: `${(credits.topup_credits / credits.credits) * 100}%` 
+                  }}
+                />
+              )}
+            </>
+          )}
+        </div>
 
-        <Card className="p-6">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 rounded-lg bg-green-500/10">
-              <Zap className="h-6 w-6 text-green-500" />
+        {/* Credit Status Text */}
+        <div className="flex items-center justify-between text-sm flex-wrap gap-2">
+          <span className="text-muted-foreground">
+            {credits && credits.plan_credits > 0 
+              ? t('usage.usingPlanCredits') || 'Using plan credits'
+              : credits && credits.topup_credits > 0
+              ? t('usage.usingTopUpCredits') || 'Using top-up credits'
+              : t('usage.noCreditsRemaining') || 'No credits remaining'}
+          </span>
+          <div className="flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-1.5">
+              <div className="h-2.5 w-2.5 rounded-full bg-primary" />
+              <span>{t('usage.planCredits')}: {credits?.plan_credits?.toFixed(2) || '0.00'}</span>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">{t('usage.topUpCredits')}</p>
-              <p className="text-2xl font-bold">{credits?.topup_credits?.toFixed(2) || '0.00'}</p>
+            <div className="flex items-center gap-1.5">
+              <div className="h-2.5 w-2.5 rounded-full bg-accent" />
+              <span>{t('usage.topUpCredits')}: {credits?.topup_credits?.toFixed(2) || '0.00'}</span>
             </div>
           </div>
-          <Progress 
-            value={(credits?.topup_credits || 0) / ((credits?.plan_credits || 0) + (credits?.topup_credits || 1)) * 100} 
-            className="h-2"
-          />
-        </Card>
-      </div>
+        </div>
+      </Card>
 
       {/* Quick Actions */}
       <div className="flex gap-4">
