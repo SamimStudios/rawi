@@ -6,6 +6,9 @@ import { useToast } from '@/hooks/use-toast';
 export interface UserCredits {
   id: string;
   credits: number;
+  plan_credits: number;
+  topup_credits: number;
+  plan_credits_expire_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -47,7 +50,10 @@ export const useUserCredits = () => {
 
       setCredits(creditsData || { 
         id: '', 
-        credits: 0, 
+        credits: 0,
+        plan_credits: 0,
+        topup_credits: 0,
+        plan_credits_expire_at: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       });
@@ -155,7 +161,16 @@ export const useUserCredits = () => {
   }, [user]);
 
   return {
-    credits: parseFloat((credits?.credits || 0).toFixed(2)),
+    credits: credits || { 
+      id: '', 
+      credits: 0,
+      plan_credits: 0,
+      topup_credits: 0,
+      plan_credits_expire_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    },
+    totalCredits: parseFloat((credits?.credits || 0).toFixed(2)),
     userCredits: credits,
     transactions,
     loading,

@@ -464,6 +464,9 @@ export type Database = {
           created_at: string
           credits: number
           id: string
+          plan_credits: number | null
+          plan_credits_expire_at: string | null
+          topup_credits: number | null
           updated_at: string
           user_id: string
         }
@@ -471,6 +474,9 @@ export type Database = {
           created_at?: string
           credits?: number
           id?: string
+          plan_credits?: number | null
+          plan_credits_expire_at?: string | null
+          topup_credits?: number | null
           updated_at?: string
           user_id: string
         }
@@ -478,10 +484,60 @@ export type Database = {
           created_at?: string
           credits?: number
           id?: string
+          plan_credits?: number | null
+          plan_credits_expire_at?: string | null
+          topup_credits?: number | null
           updated_at?: string
           user_id?: string
         }
         Relationships: []
+      }
+      user_subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean | null
+          created_at: string | null
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          status: string
+          stripe_subscription_id: string | null
+          subscription_plan_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          status?: string
+          stripe_subscription_id?: string | null
+          subscription_plan_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          status?: string
+          stripe_subscription_id?: string | null
+          subscription_plan_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_subscriptions_subscription_plan_id_fkey"
+            columns: ["subscription_plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

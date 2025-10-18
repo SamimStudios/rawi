@@ -75,15 +75,17 @@ export function useFunctionPricing(): UseFunctionPricingResult {
 
   const canAfford = (functionId: string): boolean => {
     const price = getPrice(functionId);
-    return credits >= price;
+    const totalCredits = (credits.plan_credits || 0) + (credits.topup_credits || 0);
+    return totalCredits >= price;
   };
 
   const getPriceInfo = (functionId: string): { price: number; canAfford: boolean } => {
     const price = getPrice(functionId);
+    const totalCredits = (credits.plan_credits || 0) + (credits.topup_credits || 0);
 
     return {
       price,
-      canAfford: credits >= price
+      canAfford: totalCredits >= price
     };
   };
 

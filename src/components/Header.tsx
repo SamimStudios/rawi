@@ -33,7 +33,7 @@ const Header = () => {
     { key: 'help', href: '/help', label: undefined },
   ];
 
-  const walletCredits = user ? credits : 0;
+  const walletCredits = user ? (credits.credits || 0).toFixed(2) : '0.00';
 
   return (
     <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
@@ -88,7 +88,7 @@ const Header = () => {
             </DropdownMenu>
 
             {/* Wallet */}
-            <Link to={user ? "/user/wallet" : "/auth/sign-in"}>
+            <Link to={user ? "/user/usage" : "/auth/sign-in"}>
               <Button variant="outline" size="sm" className="flex items-center gap-2">
                 <Wallet className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium">{walletCredits} {t('credits')}</span>
@@ -156,7 +156,7 @@ const Header = () => {
                 </Link>
               ))}
               <div className="flex items-center justify-between pt-4 border-t border-border">
-                <Link to={user ? "/user/wallet" : "/auth/sign-in"}>
+                <Link to={user ? "/user/usage" : "/auth/sign-in"}>
                   <Button variant="outline" size="sm" className="flex items-center gap-2">
                     <Wallet className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm font-medium">{walletCredits} {t('credits')}</span>

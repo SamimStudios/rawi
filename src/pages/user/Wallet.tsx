@@ -67,6 +67,7 @@ const Wallet = () => {
   const { toast } = useToast();
   const { trackPurchase, trackViewItem } = useCommerceTracking();
   const { credits, transactions, loading: creditsLoading, refresh: refreshCredits } = useUserCredits();
+  const totalCredits = (credits.plan_credits || 0) + (credits.topup_credits || 0);
   const { 
     loading,
     packageLoading,
@@ -217,7 +218,7 @@ const Wallet = () => {
             <RTLWrapper className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-6">
               <div>
                 <h1 className="text-3xl md:text-5xl font-bold mb-2 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                  {credits.toFixed(2)} {t('walletCredits')}
+                  {totalCredits.toFixed(2)} {t('walletCredits')}
                 </h1>
                 <p className="text-base md:text-lg text-muted-foreground mb-1">{t('walletCurrentBalance')}</p>
                 <RTLFlex reverse className="items-center gap-2">

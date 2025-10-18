@@ -40,7 +40,8 @@ import AppTemplates from '@/pages/app/Templates';
 import JobRoutes from '@/pages/app/jobs';
 import NodeRendererPreview from '@/pages/app/renderers/node';
 import LtreeTesterPage from '@/pages/app/ltree';
-import Wallet from '@/pages/user/Wallet';
+import Usage from "@/pages/user/Usage";
+import Billing from "@/pages/user/Billing";
 import Settings from '@/pages/user/Settings';
 import StyleGuideline from "./pages/StyleGuideline";
 import ButtonShowcase from "./pages/ButtonShowcase";
@@ -115,13 +116,28 @@ const MainApp = () => (
                       <Footer />
                     </div>
                   } />
-                  <Route path="/user/wallet" element={
-                    <div>
-                      <Header />
-                      <Wallet />
-                      <Footer />
-                    </div>
-                  } />
+            <Route path="/user/usage" element={
+              <div>
+                <Header />
+                <Usage />
+                <Footer />
+              </div>
+            } />
+            <Route path="/user/billing" element={
+              <div>
+                <Header />
+                <Billing />
+                <Footer />
+              </div>
+            } />
+            {/* Legacy route redirect */}
+            <Route path="/user/wallet" element={
+              <div>
+                <Header />
+                <Usage />
+                <Footer />
+              </div>
+            } />
                   <Route path="/user/settings" element={
                     <div>
                       <Header />
