@@ -2,10 +2,10 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { RTLFlex, RTLWrapper } from "@/components/ui/rtl-wrapper";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
@@ -15,7 +15,7 @@ import { useUserCredits } from "@/hooks/useUserCredits";
 import { usePayments } from "@/hooks/usePayments";
 import { useCurrency } from "@/hooks/useCurrency";
 import { supabase } from "@/integrations/supabase/client";
-import { CreditCard, Loader2, Download, ExternalLink } from "lucide-react";
+import { CreditCard, Loader2, Download, ExternalLink, Check, Minus, Plus } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
@@ -25,7 +25,6 @@ import { CreditPackage, SubscriptionPlan } from "@/hooks/usePayments";
 const calculateDynamicPrice = (credits: number, currency: string) => {
   let baseRate;
   
-  // Base rates per credit
   switch (currency) {
     case "AED":
     case "SAR":
@@ -38,16 +37,14 @@ const calculateDynamicPrice = (credits: number, currency: string) => {
       baseRate = 1.00;
   }
 
-  // Apply discount tiers
   let discountRate = 0;
   if (credits >= 250) {
-    discountRate = 0.30; // 30% off
+    discountRate = 0.30;
   } else if (credits >= 100) {
-    discountRate = 0.20; // 20% off
+    discountRate = 0.20;
   } else if (credits >= 50) {
-    discountRate = 0.10; // 10% off
+    discountRate = 0.10;
   }
-  // 0-49 credits = 0% off
 
   const discountedRate = baseRate * (1 - discountRate);
   const totalPrice = credits * discountedRate;
@@ -60,8 +57,8 @@ const calculateDynamicPrice = (credits: number, currency: string) => {
 };
 
 const Wallet = () => {
+  const [topUpAmount, setTopUpAmount] = useState<string>("50");
   const [customCredits, setCustomCredits] = useState(50);
-  const [creditPackages, setCreditPackages] = useState<CreditPackage[]>([]);
   const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>([]);
   
   const { language, t } = useLanguage();
@@ -90,7 +87,6 @@ const Wallet = () => {
     }
   }, [user, navigate]);
 
-  // Show success message when returning from Stripe
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const success = urlParams.get('success');
@@ -114,47 +110,28 @@ const Wallet = () => {
     }
   }, [toast]);
 
-  // Fetch credit packages and subscription plans
   useEffect(() => {
-    const fetchPackagesAndPlans = async () => {
+    const fetchPlans = async () => {
       try {
-        const [packagesResult, plansResult] = await Promise.all([
-          supabase.from('credit_packages').select('*').eq('active', true),
-          supabase.from('subscription_plans').select('*').eq('active', true)
-        ]);
+        const { data } = await supabase
+          .from('subscription_plans')
+          .select('*')
+          .eq('active', true)
+          .order('credits_per_week', { ascending: true });
 
-        if (packagesResult.data) setCreditPackages(packagesResult.data);
-        if (plansResult.data) setSubscriptionPlans(plansResult.data);
+        if (data) setSubscriptionPlans(data);
       } catch (error) {
-        console.error('Error fetching packages and plans:', error);
+        console.error('Error fetching plans:', error);
       }
     };
 
-    fetchPackagesAndPlans();
+    fetchPlans();
   }, []);
 
-  const handlePackagePurchase = async (packageId: string) => {
-    try {
-      const { data, error } = await createCheckout({
-        packageId,
-        currency: currency,
-      });
-
-      if (error) throw error;
-
-      window.location.href = data.url;
-    } catch (error) {
-      console.error('Checkout error:', error);
-      toast({
-        title: t('common.error'),
-        description: t('wallet.checkoutError'),
-        variant: 'destructive'
-      });
-    }
-  };
-
   const handleCustomPurchase = async () => {
-    if (customCredits < 10) {
+    const credits = topUpAmount === "custom" ? customCredits : parseInt(topUpAmount);
+    
+    if (credits < 10) {
       toast({
         title: t('wallet.minimumCredits'),
         description: t('wallet.minimumPurchaseIs10'),
@@ -165,13 +142,12 @@ const Wallet = () => {
 
     try {
       const { data, error } = await createCheckout({
-        credits: customCredits,
+        credits,
         currency: currency,
         customAmount: true
       });
 
       if (error) throw error;
-
       window.location.href = data.url;
     } catch (error) {
       console.error('Checkout error:', error);
@@ -187,7 +163,6 @@ const Wallet = () => {
     try {
       const { data, error } = await createSubscription(planId, currency);
       if (error) throw error;
-
       window.location.href = data.url;
     } catch (error) {
       console.error('Subscription error:', error);
@@ -207,375 +182,345 @@ const Wallet = () => {
     );
   }
 
+  const topUpPricing = calculateDynamicPrice(
+    topUpAmount === "custom" ? customCredits : parseInt(topUpAmount),
+    currency
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
-      <main className="container mx-auto px-4 py-8 max-w-7xl">
-        {/* Hero Section with Balance */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background border border-primary/20 mb-8 p-8 md:p-12">
+      <main className="container mx-auto px-4 py-6 md:py-8 max-w-7xl">
+        {/* Hero Section */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-background border border-primary/20 mb-6 md:mb-8 p-6 md:p-12">
           <div className="relative z-10">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <RTLWrapper className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-6">
               <div>
-                <h1 className="text-4xl md:text-5xl font-bold mb-2 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                <h1 className="text-3xl md:text-5xl font-bold mb-2 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
                   {credits.toFixed(2)} {t('walletCredits')}
                 </h1>
-                <p className="text-lg text-muted-foreground mb-1">{t('walletCurrentBalance')}</p>
-                <div className="flex items-center gap-2">
+                <p className="text-base md:text-lg text-muted-foreground mb-1">{t('walletCurrentBalance')}</p>
+                <RTLFlex reverse className="items-center gap-2">
                   <Badge variant="outline" className="bg-background/50">{currency}</Badge>
-                  <span className="text-sm text-muted-foreground">• {t('walletCreditsNeverExpire')}</span>
-                </div>
+                  <span className="text-xs md:text-sm text-muted-foreground">• {t('walletCreditsNeverExpire')}</span>
+                </RTLFlex>
               </div>
               <div className="flex gap-3">
-                <Button onClick={openCustomerPortal} variant="outline" size="lg">
-                  <ExternalLink className="mr-2 h-4 w-4" />
+                <Button onClick={openCustomerPortal} variant="outline" size="lg" className="w-full md:w-auto">
+                  <ExternalLink className={`h-4 w-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
                   {t('wallet.manageSubscriptions')}
                 </Button>
               </div>
-            </div>
+            </RTLWrapper>
           </div>
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -z-0" />
         </div>
 
-        {/* Purchase Options */}
-        <Tabs defaultValue="packages" className="w-full">
-          <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-8">
-            <TabsTrigger value="packages" className="text-base">{t('wallet.oneTimePurchase')}</TabsTrigger>
-            <TabsTrigger value="subscription" className="text-base">{t('wallet.weeklyPlans')}</TabsTrigger>
-          </TabsList>
+        {/* Subscription Plans Section */}
+        <div className="mb-8 md:mb-12">
+          <RTLWrapper className="mb-6">
+            <h2 className="text-2xl md:text-3xl font-bold mb-2">{t('wallet.selectPlan')}</h2>
+            <p className="text-muted-foreground">{t('wallet.chooseTheBestPlan')}</p>
+          </RTLWrapper>
 
-          <TabsContent value="packages" className="space-y-8">
-            {/* Popular Packages */}
-            <div>
-              <h2 className="text-2xl font-bold mb-4">{t('wallet.popularPackages')}</h2>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {creditPackages.map((pkg) => {
-                  const pricing = calculateDynamicPrice(pkg.credits, currency);
-                  return (
-                    <Card 
-                      key={pkg.id} 
-                      className="relative overflow-hidden hover:shadow-xl transition-all duration-300 border-2 hover:border-primary/50 group"
-                    >
-                      {pricing.discountPercent > 0 && (
-                        <div className="absolute top-4 right-4 z-10">
-                          <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0">
-                            {t('wallet.save')} {pricing.discountPercent}%
-                          </Badge>
-                        </div>
-                      )}
-                      <CardHeader className="pb-3">
-                        <div className="text-5xl font-bold text-primary mb-2">{pkg.credits}</div>
-                        <CardTitle className="text-lg text-muted-foreground">{t('wallet.credits')}</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-3xl font-bold">{formatPrice(pricing.totalPrice)}</span>
-                          </div>
-                          <p className="text-sm text-muted-foreground">
-                            {formatPrice(pricing.perCreditRate)} {t('wallet.perCredit')}
-                          </p>
-                        </div>
-                        <Button
-                          onClick={() => handlePackagePurchase(pkg.id)}
-                          disabled={packageLoading === pkg.id}
-                          className="w-full h-11 group-hover:scale-105 transition-transform"
-                        >
-                          {packageLoading === pkg.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <>
-                              <CreditCard className="mr-2 h-4 w-4" />
-                              {t('wallet.purchase')}
-                            </>
-                          )}
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            </div>
+          <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+            {subscriptionPlans.map((plan, index) => {
+              const isFree = plan.credits_per_week === 0;
+              const isRecommended = index === 2;
+              const price = currency === 'AED' ? plan.price_aed : currency === 'SAR' ? plan.price_sar : plan.price_usd;
 
-            {/* Custom Amount */}
-            <Card className="border-2 border-dashed">
-              <CardHeader>
-                <CardTitle className="text-2xl">{t('wallet.customAmount')}</CardTitle>
-                <CardDescription className="text-base">
-                  {t('wallet.chooseExactly')}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-lg font-semibold">{t('wallet.credits')}</Label>
-                    <div className="flex items-center gap-3">
-                      <Input
-                        type="number"
-                        min={10}
-                        max={1000}
-                        value={customCredits}
-                        onChange={(e) => setCustomCredits(Math.max(10, parseInt(e.target.value) || 10))}
-                        className="w-28 text-center text-lg font-bold"
-                      />
-                    </div>
-                  </div>
-                  <Slider
-                    min={10}
-                    max={1000}
-                    step={5}
-                    value={[customCredits]}
-                    onValueChange={(value) => setCustomCredits(value[0])}
-                    className="w-full"
-                  />
-                  <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    <span>{t('wallet.minCredits')}</span>
-                    <span>{t('wallet.maxCredits')}</span>
-                  </div>
-                </div>
-
-                <div className="rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 p-6 space-y-3">
-                  {(() => {
-                    const pricing = calculateDynamicPrice(customCredits, currency);
-                    return (
-                      <>
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">{t('wallet.totalAmount')}</span>
-                          <span className="text-3xl font-bold">{formatPrice(pricing.totalPrice)}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">{t('wallet.ratePerCredit')}</span>
-                          <span className="font-medium">{formatPrice(pricing.perCreditRate)}</span>
-                        </div>
-                        {pricing.discountPercent > 0 && (
-                          <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white">
-                            {pricing.discountPercent}% {t('wallet.discountApplied')}
-                          </Badge>
-                        )}
-                      </>
-                    );
-                  })()}
-                </div>
-
-                <Button
-                  onClick={handleCustomPurchase}
-                  disabled={loading || customCredits < 10}
-                  size="lg"
-                  className="w-full h-12 text-base"
+              return (
+                <Card 
+                  key={plan.id}
+                  variant={isRecommended ? "premium" : isFree ? "outline" : "default"}
+                  className="relative overflow-hidden hover:shadow-xl transition-all duration-300"
                 >
-                  {loading ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <>
-                      <CreditCard className="mr-2 h-5 w-5" />
-                      {t('wallet.purchase')} {customCredits} {t('wallet.credits')}
-                    </>
+                  {isRecommended && (
+                    <div className="absolute top-4 right-4 z-10">
+                      <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0">
+                        {t('wallet.recommendedPlan')}
+                      </Badge>
+                    </div>
                   )}
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Discount Tiers */}
-            <Card className="bg-muted/50">
-              <CardHeader>
-                <CardTitle className="text-xl">{t('wallet.volumeDiscounts')}</CardTitle>
-                <CardDescription>{t('wallet.saveMoreBuyMore')}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="space-y-1">
-                    <div className="text-2xl font-bold text-muted-foreground">0%</div>
-                    <div className="text-sm text-muted-foreground">{t('wallet.tier1')}</div>
-                    <div className="text-xs font-medium">{formatPrice(1.00)}{t('wallet.perCreditShort')}</div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-2xl font-bold text-amber-600">10%</div>
-                    <div className="text-sm text-muted-foreground">{t('wallet.tier2')}</div>
-                    <div className="text-xs font-medium">{formatPrice(0.90)}{t('wallet.perCreditShort')}</div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-2xl font-bold text-orange-600">20%</div>
-                    <div className="text-sm text-muted-foreground">{t('wallet.tier3')}</div>
-                    <div className="text-xs font-medium">{formatPrice(0.80)}{t('wallet.perCreditShort')}</div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-2xl font-bold text-red-600">30%</div>
-                    <div className="text-sm text-muted-foreground">{t('wallet.tier4')}</div>
-                    <div className="text-xs font-medium">{formatPrice(0.70)}{t('wallet.perCreditShort')}</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="subscription" className="space-y-8">
-            {/* Subscription Benefits */}
-            <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
-              <CardContent className="pt-6">
-                <h3 className="text-xl font-bold mb-4">{t('wallet.whySubscribe')}</h3>
-                <div className="grid md:grid-cols-3 gap-4">
-                  <div className="flex gap-3">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <span className="text-2xl">💰</span>
-                    </div>
-                    <div>
-                      <div className="font-semibold mb-1">{t('wallet.bestValue')}</div>
-                      <div className="text-sm text-muted-foreground">{t('wallet.lowerCost')}</div>
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <span className="text-2xl">🔄</span>
-                    </div>
-                    <div>
-                      <div className="font-semibold mb-1">{t('wallet.autoRenewal')}</div>
-                      <div className="text-sm text-muted-foreground">{t('wallet.neverRunOut')}</div>
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <span className="text-2xl">✨</span>
-                    </div>
-                    <div>
-                      <div className="font-semibold mb-1">{t('wallet.flexible')}</div>
-                      <div className="text-sm text-muted-foreground">{t('wallet.cancelAnytime')}</div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Subscription Plans */}
-            <div>
-              <h2 className="text-2xl font-bold mb-4">{t('wallet.weeklyPlans')}</h2>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {subscriptionPlans.map((plan) => {
-                  const oneTimePricing = calculateDynamicPrice(plan.credits_per_week, currency);
-                  const subscriptionPrice = getPrice(plan);
-                  const perCreditRate = subscriptionPrice / plan.credits_per_week;
-                  const savingsPercent = Math.round((1 - (perCreditRate / oneTimePricing.perCreditRate)) * 100);
                   
-                  return (
-                    <Card 
-                      key={plan.id} 
-                      className="relative overflow-hidden hover:shadow-xl transition-all duration-300 border-2 hover:border-primary/50 group"
-                    >
-                      <div className="absolute top-4 right-4 z-10">
-                        <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0">
-                          {t('wallet.save')} {savingsPercent}%
-                        </Badge>
-                      </div>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-xl mb-2">{plan.name}</CardTitle>
-                        <div className="text-4xl font-bold text-primary mb-2">
-                          {plan.credits_per_week}
-                        </div>
-                        <div className="text-sm text-muted-foreground">{t('wallet.creditsPerWeek')}</div>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-3xl font-bold">{formatPrice(subscriptionPrice)}</span>
-                            <span className="text-muted-foreground">{t('wallet.perWeek')}</span>
-                          </div>
-                          <p className="text-sm text-muted-foreground">
-                            {formatPrice(perCreditRate)} {t('wallet.perCredit')}
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-xl">{plan.name}</CardTitle>
+                    <div className="mt-4">
+                      {isFree ? (
+                        <div>
+                          <div className="text-4xl font-bold">{t('wallet.freePlan')}</div>
+                          <p className="text-sm text-muted-foreground mt-2">
+                            {t('wallet.freePlanFeatures')}
                           </p>
                         </div>
-                        <div className="p-3 rounded-lg bg-muted/50 text-xs">
-                          <div className="flex justify-between mb-1">
-                            <span className="text-muted-foreground">{t('wallet.oneTimeRate')}:</span>
-                            <span className="line-through">{formatPrice(oneTimePricing.perCreditRate)}</span>
-                          </div>
-                          <div className="flex justify-between font-semibold text-green-600">
-                            <span>{t('wallet.subscriptionRate')}:</span>
-                            <span>{formatPrice(perCreditRate)}</span>
-                          </div>
-                        </div>
-                        <Button
-                          onClick={() => handleSubscription(plan.id)}
-                          disabled={subscriptionLoading === plan.id}
-                          className="w-full h-11 group-hover:scale-105 transition-transform"
-                        >
-                          {subscriptionLoading === plan.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            t('wallet.subscribeNow')
+                      ) : (
+                        <>
+                          <RTLFlex reverse className="items-baseline gap-2">
+                            <span className="text-4xl font-bold">{formatPrice(price)}</span>
+                            <span className="text-muted-foreground">/{t('wallet.week')}</span>
+                          </RTLFlex>
+                          <p className="text-sm text-muted-foreground mt-2">
+                            {plan.credits_per_week} {t('wallet.creditsPerWeek')}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="space-y-4">
+                    <ul className="space-y-2">
+                      <li className="flex items-center gap-2 text-sm">
+                        <Check className="h-4 w-4 text-primary flex-shrink-0" />
+                        <span>{isFree ? t('wallet.basicAccess') : t('wallet.prioritySupport')}</span>
+                      </li>
+                      <li className="flex items-center gap-2 text-sm">
+                        <Check className="h-4 w-4 text-primary flex-shrink-0" />
+                        <span>{t('wallet.neverExpire')}</span>
+                      </li>
+                      {!isFree && (
+                        <li className="flex items-center gap-2 text-sm">
+                          <Check className="h-4 w-4 text-primary flex-shrink-0" />
+                          <span>{t('wallet.cancelAnytime')}</span>
+                        </li>
+                      )}
+                    </ul>
+
+                    <Button
+                      onClick={() => !isFree && handleSubscription(plan.id)}
+                      disabled={subscriptionLoading === plan.id || isFree}
+                      variant={isRecommended ? "default" : "outline"}
+                      className="w-full"
+                    >
+                      {subscriptionLoading === plan.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : isFree ? (
+                        t('wallet.currentPlan')
+                      ) : (
+                        t('wallet.getStarted')
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* One-Time Top-Up Section */}
+        <Card className="mb-8 md:mb-12 border-2">
+          <CardHeader>
+            <RTLFlex reverse className="items-start justify-between">
+              <div>
+                <CardTitle className="text-2xl md:text-3xl flex items-center gap-2">
+                  <CreditCard className="h-6 w-6" />
+                  {t('wallet.topUpCredits')}
+                </CardTitle>
+                <CardDescription className="mt-2">
+                  {t('wallet.availableForAll')}
+                </CardDescription>
+              </div>
+            </RTLFlex>
+          </CardHeader>
+
+          <CardContent className="space-y-6">
+            <RadioGroup value={topUpAmount} onValueChange={setTopUpAmount}>
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                {/* Preset Options */}
+                {[
+                  { credits: 50, label: "50" },
+                  { credits: 100, label: "100" },
+                  { credits: 250, label: "250" }
+                ].map((option) => {
+                  const pricing = calculateDynamicPrice(option.credits, currency);
+                  return (
+                    <Label
+                      key={option.credits}
+                      htmlFor={option.label}
+                      className="relative cursor-pointer"
+                    >
+                      <div className={`border-2 rounded-lg p-4 transition-all ${
+                        topUpAmount === option.label
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-primary/50'
+                      }`}>
+                        <RTLFlex reverse className="items-start justify-between mb-2">
+                          <RadioGroupItem value={option.label} id={option.label} />
+                          {pricing.discountPercent > 0 && (
+                            <Badge variant="secondary" className="text-xs">
+                              {t('wallet.save')} {pricing.discountPercent}%
+                            </Badge>
                           )}
-                        </Button>
-                      </CardContent>
-                    </Card>
+                        </RTLFlex>
+                        <div className="font-semibold text-lg">{option.credits} {t('wallet.credits')}</div>
+                        <div className="text-2xl font-bold text-primary mt-1">
+                          {formatPrice(pricing.totalPrice)}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {formatPrice(pricing.perCreditRate)} {t('wallet.perCredit')}
+                        </div>
+                      </div>
+                    </Label>
                   );
                 })}
               </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+
+              {/* Custom Amount Option */}
+              <div className="pt-4 border-t">
+                <Label htmlFor="custom" className="cursor-pointer">
+                  <div className={`border-2 rounded-lg p-6 transition-all ${
+                    topUpAmount === "custom"
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/50'
+                  }`}>
+                    <RTLFlex reverse className="items-start justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem value="custom" id="custom" />
+                        <span className="font-semibold text-lg">{t('wallet.customOption')}</span>
+                      </div>
+                    </RTLFlex>
+
+                    {topUpAmount === "custom" && (
+                      <div className="space-y-4">
+                        <RTLFlex reverse className="items-center justify-center gap-4">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setCustomCredits(Math.max(10, customCredits - 10));
+                            }}
+                            disabled={customCredits <= 10}
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          
+                          <Input
+                            type="number"
+                            min={10}
+                            max={1000}
+                            value={customCredits}
+                            onChange={(e) => setCustomCredits(Math.max(10, parseInt(e.target.value) || 10))}
+                            className="w-32 text-center text-xl font-bold"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setCustomCredits(Math.min(1000, customCredits + 10));
+                            }}
+                            disabled={customCredits >= 1000}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </RTLFlex>
+
+                        <div className="rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 p-4 space-y-2">
+                          <RTLFlex reverse className="items-center justify-between">
+                            <span className="text-muted-foreground">{t('wallet.totalAmount')}</span>
+                            <span className="text-2xl font-bold">{formatPrice(topUpPricing.totalPrice)}</span>
+                          </RTLFlex>
+                          <RTLFlex reverse className="items-center justify-between text-sm">
+                            <span className="text-muted-foreground">{t('wallet.ratePerCredit')}</span>
+                            <span className="font-medium">{formatPrice(topUpPricing.perCreditRate)}</span>
+                          </RTLFlex>
+                          {topUpPricing.discountPercent > 0 && (
+                            <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white">
+                              {topUpPricing.discountPercent}% {t('wallet.discountApplied')}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </Label>
+              </div>
+            </RadioGroup>
+
+            <Button
+              onClick={handleCustomPurchase}
+              disabled={loading}
+              size="lg"
+              className="w-full h-12 text-base"
+            >
+              {loading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <>
+                  <CreditCard className={`h-5 w-5 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                  {t('wallet.purchase')} {' '}
+                  {topUpAmount === "custom" ? customCredits : topUpAmount} {' '}
+                  {t('wallet.credits')}
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
 
         {/* Transaction History */}
-        <Card className="mt-12">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">{t('wallet.transactionHistory')}</CardTitle>
-            <CardDescription>
-              {t('wallet.viewRecentPurchases')}
-            </CardDescription>
+            <CardTitle className="text-xl md:text-2xl">{t('wallet.transactionHistory')}</CardTitle>
+            <CardDescription>{t('wallet.recentTransactions')}</CardDescription>
           </CardHeader>
           <CardContent>
-            {transactions.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
-                  <CreditCard className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <p className="text-muted-foreground">{t('wallet.noTransactions')}</p>
-                <p className="text-sm text-muted-foreground mt-1">{t('wallet.purchaseHistoryAppear')}</p>
+            <div className="overflow-x-auto -mx-6 md:mx-0">
+              <div className="inline-block min-w-full align-middle">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="whitespace-nowrap">{t('wallet.date')}</TableHead>
+                      <TableHead className="whitespace-nowrap">{t('wallet.type')}</TableHead>
+                      <TableHead className="whitespace-nowrap">{t('wallet.credits')}</TableHead>
+                      <TableHead className="whitespace-nowrap">{t('wallet.amount')}</TableHead>
+                      <TableHead className="whitespace-nowrap">{t('wallet.actions')}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {transactions.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                          {t('wallet.noTransactions')}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      transactions.map((transaction) => (
+                        <TableRow key={transaction.id}>
+                          <TableCell className="whitespace-nowrap">
+                            {format(new Date(transaction.created_at), "MMM dd, yyyy")}
+                          </TableCell>
+                          <TableCell className="capitalize whitespace-nowrap">{transaction.type}</TableCell>
+                          <TableCell className={`whitespace-nowrap ${
+                            transaction.credits_amount >= 0 ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {transaction.credits_amount >= 0 ? '+' : ''}{transaction.credits_amount}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {transaction.amount_paid
+                              ? `${transaction.currency} ${transaction.amount_paid}`
+                              : '-'}
+                          </TableCell>
+                          <TableCell>
+                            {transaction.type === 'purchase' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => downloadInvoice(transaction.id)}
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {transactions.map((transaction) => (
-                  <div 
-                    key={transaction.id}
-                    className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        transaction.credits_amount > 0 
-                          ? 'bg-green-500/10 text-green-500' 
-                          : 'bg-orange-500/10 text-orange-500'
-                      }`}>
-                        {transaction.credits_amount > 0 ? '+' : '-'}
-                      </div>
-                      <div>
-                        <div className="font-medium capitalize">
-                          {transaction.type.replace('_', ' ')}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {format(new Date(transaction.created_at), 'MMM dd, yyyy • h:mm a')}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <div className="font-bold">
-                          {transaction.credits_amount > 0 ? '+' : ''}{transaction.credits_amount.toFixed(2)} {t('wallet.credits')}
-                        </div>
-                        {transaction.amount_paid && (
-                          <div className="text-sm text-muted-foreground">
-                            {formatPrice(transaction.amount_paid, transaction.currency as any)}
-                          </div>
-                        )}
-                      </div>
-                      {transaction.amount_paid && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => downloadInvoice(transaction.id)}
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            </div>
           </CardContent>
         </Card>
       </main>
