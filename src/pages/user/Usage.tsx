@@ -150,148 +150,105 @@ export default function Usage() {
   }
 
   return (
-    <div className="container max-w-7xl mx-auto px-4 py-8 space-y-8">
+    <div className="container max-w-7xl mx-auto px-4 py-8 space-y-6">
       <h1 className="text-3xl font-bold">{t('usage.title')}</h1>
 
-      {/* Credits Overview */}
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <Coins className="h-6 w-6 text-primary" />
-            <h2 className="text-2xl font-bold">{t('usage.credits')}</h2>
-          </div>
-          <div className="text-3xl font-bold">
-            {credits?.credits?.toFixed(2) || '0.00'}
-          </div>
-        </div>
-
-        {/* Stacked Progress Bar */}
-        <div className="relative h-3 w-full overflow-hidden rounded-full bg-secondary mb-3">
-          {credits && credits.credits > 0 && (
-            <>
-              {/* Plan Credits Layer */}
-              {credits.plan_credits > 0 && (
-                <div
-                  className="absolute h-full bg-primary transition-all"
-                  style={{ width: `${(credits.plan_credits / credits.credits) * 100}%` }}
-                />
+      {/* Current Subscription - Prominent Card at Top */}
+      <Card className="p-6 bg-gradient-to-br from-primary/5 via-background to-background border-primary/20">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-start gap-4">
+            <div className="p-3 rounded-full bg-gradient-to-br from-primary to-primary/60">
+              <Zap className="h-6 w-6 text-primary-foreground" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold mb-1">
+                {subscription?.subscription_plan_id 
+                  ? subscription.plan?.name 
+                  : t('usage.freePlan')}
+              </h2>
+              {subscription?.current_period_end && (
+                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                  <Calendar className="h-3.5 w-3.5" />
+                  {t('billing.renews')} {format(new Date(subscription.current_period_end), 'MMM dd, yyyy')}
+                </p>
               )}
-              {/* Top-up Credits Layer */}
-              {credits.topup_credits > 0 && (
-                <div
-                  className="absolute h-full bg-accent transition-all"
-                  style={{ 
-                    left: `${(credits.plan_credits / credits.credits) * 100}%`,
-                    width: `${(credits.topup_credits / credits.credits) * 100}%` 
-                  }}
-                />
+              {subscription?.subscription_plan_id && (
+                <Badge variant="default" className="mt-2">
+                  {subscription.status === 'active' ? t('billing.active') : t('billing.canceled')}
+                </Badge>
               )}
-            </>
-          )}
-        </div>
-
-        {/* Credit Status Text */}
-        <div className="flex items-center justify-between text-sm flex-wrap gap-2">
-          <span className="text-muted-foreground">
-            {credits && credits.plan_credits > 0 
-              ? t('usage.usingPlanCredits') || 'Using plan credits'
-              : credits && credits.topup_credits > 0
-              ? t('usage.usingTopUpCredits') || 'Using top-up credits'
-              : t('usage.noCreditsRemaining') || 'No credits remaining'}
-          </span>
-          <div className="flex items-center gap-4 text-xs">
-            <div className="flex items-center gap-1.5">
-              <div className="h-2.5 w-2.5 rounded-full bg-primary" />
-              <span>{t('usage.planCredits')}: {credits?.plan_credits?.toFixed(2) || '0.00'}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="h-2.5 w-2.5 rounded-full bg-accent" />
-              <span>{t('usage.topUpCredits')}: {credits?.topup_credits?.toFixed(2) || '0.00'}</span>
             </div>
           </div>
-        </div>
-      </Card>
-
-      {/* Quick Actions */}
-      <div className="flex gap-4">
-        <Button onClick={() => openModal('subscribe')} className="flex-1">
-          {subscription?.subscription_plan_id ? t('usage.changePlan') : t('usage.subscribeToPlan')}
-        </Button>
-        <Button onClick={() => openModal('topup')} variant="outline" className="flex-1">
-          {t('usage.topUp')}
-        </Button>
-      </div>
-
-      {/* Payment Method */}
-      <Card className="p-6">
-        <h2 className="text-xl font-bold mb-4">{t('billing.paymentMethod')}</h2>
-        <div className="space-y-4">
-          <div className="flex items-center gap-4">
-            <CreditCard className="h-12 w-12 text-muted-foreground" />
-            <div className="flex-1">
-              <p className="text-sm text-muted-foreground">
-                {t('billing.noPaymentMethod')}
-              </p>
-            </div>
-          </div>
-          <Button onClick={handleManageStripe} variant="outline" className="w-full sm:w-auto">
+          <Button onClick={handleManageStripe} variant="outline" size="sm">
             <ExternalLink className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
             {t('billing.manageInStripe')}
           </Button>
         </div>
       </Card>
 
-      {/* Current Subscription */}
+      {/* Credits Overview - Clean Number Display */}
       <Card className="p-6">
-        <h2 className="text-xl font-bold mb-4">{t('billing.currentSubscription')}</h2>
-        <div className="space-y-4">
-          {subscription?.subscription_plan_id ? (
-            <>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{t('billing.currentPlan')}</span>
-                  <span className="font-bold">{subscription.plan?.name}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{t('billing.billingCycle')}</span>
-                  <span>{t('billing.weekly')}</span>
-                </div>
-                {subscription.current_period_end && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{t('billing.nextBilling')}</span>
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>{format(new Date(subscription.current_period_end), 'MMM dd, yyyy')}</span>
-                    </div>
-                  </div>
-                )}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{t('billing.status')}</span>
-                  <Badge variant={subscription.status === 'active' ? 'default' : 'secondary'}>
-                    {subscription.status === 'active' ? t('billing.active') : t('billing.canceled')}
-                  </Badge>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                onClick={handleManageStripe}
-                className="w-full sm:w-auto"
-              >
-                {subscription.cancel_at_period_end
-                  ? t('billing.reactivateSubscription')
-                  : t('billing.cancelSubscription')}
-              </Button>
-            </>
-          ) : (
-            <p className="text-muted-foreground">{t('usage.freePlan')}</p>
-          )}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-3">
+            <Coins className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">{t('usage.credits')}</h2>
+          </div>
+        </div>
+        <div className="mt-4">
+          <div className="text-5xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            {credits?.credits?.toFixed(1) || '0'}
+          </div>
+          <p className="text-sm text-muted-foreground mt-2">
+            {credits?.plan_credits?.toFixed(1) || '0'} {t('usage.planCredits').toLowerCase()} + {credits?.topup_credits?.toFixed(1) || '0'} {t('usage.topUpCredits').toLowerCase()}
+          </p>
         </div>
       </Card>
 
+      {/* Quick Actions - Card-Based Buttons */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Card 
+          className="p-6 cursor-pointer transition-all hover:shadow-lg hover:border-primary/50 group"
+          onClick={() => openModal('subscribe')}
+        >
+          <div className="flex items-start gap-4">
+            <div className="p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+              <TrendingUp className="h-6 w-6 text-primary" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-lg mb-1">
+                {subscription?.subscription_plan_id ? t('usage.changePlan') : t('usage.subscribeToPlan')}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {subscription?.subscription_plan_id 
+                  ? 'Upgrade or change your subscription plan' 
+                  : 'Get weekly credits automatically'}
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        <Card 
+          className="p-6 cursor-pointer transition-all hover:shadow-lg hover:border-primary/50 group"
+          onClick={() => openModal('topup')}
+        >
+          <div className="flex items-start gap-4">
+            <div className="p-3 rounded-lg bg-accent/10 group-hover:bg-accent/20 transition-colors">
+              <Coins className="h-6 w-6 text-accent-foreground" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-lg mb-1">{t('usage.topUp')}</h3>
+              <p className="text-sm text-muted-foreground">
+                Purchase credits for immediate use
+              </p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
       {/* Transaction History */}
-      <div className="space-y-4">
+      <div className="space-y-4 mt-8">
         <h2 className="text-2xl font-bold">{t('billing.transactionHistory')}</h2>
-        <Card>
+        <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -312,26 +269,30 @@ export default function Usage() {
               <TableBody>
                 {transactions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
                       {t('billing.noTransactions')}
                     </TableCell>
                   </TableRow>
                 ) : (
                   transactions.map((transaction) => (
-                    <TableRow key={transaction.id}>
-                      <TableCell className="whitespace-nowrap">
+                    <TableRow key={transaction.id} className="hover:bg-muted/30 transition-colors">
+                      <TableCell className="whitespace-nowrap font-medium">
                         {format(new Date(transaction.created_at), 'MMM dd, yyyy')}
                       </TableCell>
                       <TableCell>
                         {getTransactionTypeBadge(transaction.type)}
                       </TableCell>
-                      <TableCell className={cn(isRTL ? "text-left" : "text-right")}>
-                        <span className={cn(transaction.credits_amount > 0 ? "text-green-600" : "text-red-600")}>
+                      <TableCell className={cn(isRTL ? "text-left" : "text-right", "font-semibold")}>
+                        <span className={cn(
+                          transaction.credits_amount > 0 
+                            ? "text-green-600 dark:text-green-400" 
+                            : "text-red-600 dark:text-red-400"
+                        )}>
                           {transaction.credits_amount > 0 ? '+' : ''}
                           {transaction.credits_amount.toFixed(2)}
                         </span>
                       </TableCell>
-                      <TableCell className={cn(isRTL ? "text-left" : "text-right")}>
+                      <TableCell className={cn(isRTL ? "text-left" : "text-right", "font-medium")}>
                         {transaction.amount_paid ? (
                           formatPrice(transaction.amount_paid, transaction.currency as any)
                         ) : (
@@ -344,6 +305,7 @@ export default function Usage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDownloadInvoice(transaction.id)}
+                            className="hover:bg-primary/10"
                           >
                             <Download className="h-4 w-4" />
                           </Button>

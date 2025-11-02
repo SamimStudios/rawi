@@ -14,6 +14,7 @@ import { useUserSubscription } from '@/hooks/useUserSubscription';
 import { usePayments } from '@/hooks/usePayments';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 interface SubscriptionPlan {
   id: string;
@@ -92,11 +93,12 @@ export default function CreditsModal({ open, onOpenChange, defaultTab = 'subscri
     }
   };
 
-  const handleSubscribe = async () => {
-    if (!selectedPlanId || selectedPlanId === 'free') return;
+  const handleSubscribe = async (planId?: string) => {
+    const targetPlanId = planId || selectedPlanId;
+    if (!targetPlanId || targetPlanId === 'free') return;
     setLoading(true);
     try {
-      const { data, error } = await createSubscription(selectedPlanId, currency);
+      const { data, error } = await createSubscription(targetPlanId, currency);
       if (error) throw error;
       if (data?.url) {
         window.location.href = data.url;
@@ -125,112 +127,151 @@ export default function CreditsModal({ open, onOpenChange, defaultTab = 'subscri
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{t('usage.title') || 'Credits & Plans'}</DialogTitle>
+          <DialogTitle className="text-2xl">{t('usage.title') || 'Credits & Plans'}</DialogTitle>
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={(value) => setTab(value as 'subscribe' | 'topup')} className="w-full">
-          <TabsList className="grid grid-cols-2 w-full">
-            <TabsTrigger value="subscribe">{t('usage.subscriptionPlans')}</TabsTrigger>
-            <TabsTrigger value="topup">{t('usage.oneTimeTopUp')}</TabsTrigger>
+          <TabsList className="grid grid-cols-2 w-full mb-6">
+            <TabsTrigger value="subscribe" className="text-base">{t('usage.subscriptionPlans')}</TabsTrigger>
+            <TabsTrigger value="topup" className="text-base">{t('usage.oneTimeTopUp')}</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="subscribe" className="mt-4">
-            <Card className="p-4">
-              <RadioGroup value={selectedPlanId} onValueChange={setSelectedPlanId}>
-                <div className="space-y-3">
-                  {subscriptionPlans.map((plan, index) => {
-                    const isCurrent = plan.id === (subscription?.subscription_plan_id || 'free');
-                    const isRecommended = index === 1;
-                    const price = plan.id === 'free' ? 0 : getPrice({
-                      price_aed: plan.price_aed,
-                      price_sar: plan.price_sar,
-                      price_usd: plan.price_usd,
-                    });
+          <TabsContent value="subscribe" className="mt-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+              {subscriptionPlans.map((plan, index) => {
+                const isCurrent = plan.id === (subscription?.subscription_plan_id || 'free');
+                const isRecommended = index === 1;
+                const price = plan.id === 'free' ? 0 : getPrice({
+                  price_aed: plan.price_aed,
+                  price_sar: plan.price_sar,
+                  price_usd: plan.price_usd,
+                });
 
-                    return (
-                      <div key={plan.id}>
-                        <Label
-                          htmlFor={plan.id}
-                          className="flex items-center justify-between p-4 border rounded-lg cursor-pointer transition-all"
-                        >
-                          <div className="flex items-center gap-3 flex-1">
-                            <RadioGroupItem value={plan.id} id={plan.id} />
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-semibold">{plan.name}</span>
-                                {isCurrent && (
-                                  <Badge variant="default" className="text-xs">{t('usage.currentPlan')}</Badge>
-                                )}
-                                {isRecommended && !isCurrent && (
-                                  <Badge variant="secondary" className="text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400">
-                                    {t('usage.recommended')}
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="text-sm text-muted-foreground mt-1">
-                                {plan.credits_per_week} {t('usage.creditsUsed')} {t('usage.perWeek')}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold text-lg">
-                              {plan.id === 'free' ? 'FREE' : formatPrice(price, currency)}
-                            </div>
-                            {plan.id !== 'free' && (
-                              <p className="text-xs text-muted-foreground">{t('usage.perWeek')}</p>
-                            )}
-                          </div>
-                        </Label>
+                return (
+                  <Card 
+                    key={plan.id} 
+                    className={cn(
+                      "p-6 flex flex-col transition-all hover:shadow-lg relative",
+                      isCurrent && "border-primary bg-primary/5",
+                      isRecommended && !isCurrent && "border-amber-500/50"
+                    )}
+                  >
+                    {/* Badges */}
+                    <div className="absolute top-4 right-4 flex flex-col gap-1 items-end">
+                      {isCurrent && (
+                        <Badge variant="default" className="text-xs">
+                          {t('usage.currentPlan')}
+                        </Badge>
+                      )}
+                      {isRecommended && !isCurrent && (
+                        <Badge className="text-xs bg-gradient-to-r from-amber-500 to-amber-600 text-white border-0">
+                          {t('usage.recommended')}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Plan Details */}
+                    <div className="flex-1 mb-4">
+                      <h3 className="text-xl font-bold mb-2">{plan.name}</h3>
+                      <div className="mb-4">
+                        <div className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                          {plan.id === 'free' ? 'FREE' : formatPrice(price, currency)}
+                        </div>
+                        {plan.id !== 'free' && (
+                          <p className="text-sm text-muted-foreground">{t('usage.perWeek')}</p>
+                        )}
                       </div>
-                    );
-                  })}
-                </div>
-              </RadioGroup>
-              <div className="mt-4">
-                <Button onClick={handleSubscribe} disabled={loading || selectedPlanId === 'free' || selectedPlanId === (subscription?.subscription_plan_id || 'free')} className="w-full">
-                  {selectedPlanId === (subscription?.subscription_plan_id || 'free')
-                    ? t('usage.currentPlan')
-                    : selectedPlanId === 'free'
-                    ? t('usage.selectPlan')
-                    : t('usage.upgradePlan')}
-                </Button>
-              </div>
-              <div className="mt-2 flex justify-center">
-                <Button variant="ghost" onClick={() => {
-                  onOpenChange(false);
-                  navigate('/user/usage');
-                }}>
-                  {t('usage.viewUsage') || 'View Usage'}
-                </Button>
-              </div>
-            </Card>
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-semibold text-foreground">{plan.credits_per_week}</span> {t('usage.creditsUsed')} {t('usage.perWeek')}
+                      </p>
+                    </div>
+
+                    {/* Action Button */}
+                    <Button 
+                      onClick={() => {
+                        if (plan.id !== 'free' && plan.id !== (subscription?.subscription_plan_id || 'free')) {
+                          setSelectedPlanId(plan.id);
+                          handleSubscribe();
+                        }
+                      }}
+                      disabled={loading || isCurrent || plan.id === 'free'}
+                      className="w-full"
+                      variant={isCurrent ? "outline" : "default"}
+                    >
+                      {isCurrent 
+                        ? t('usage.currentPlan')
+                        : plan.id === 'free'
+                        ? t('usage.freePlan')
+                        : t('usage.selectPlan')}
+                    </Button>
+                  </Card>
+                );
+              })}
+            </div>
+            <div className="flex justify-center pt-2">
+              <Button variant="ghost" onClick={() => {
+                onOpenChange(false);
+                navigate('/user/usage');
+              }}>
+                {t('usage.viewUsage') || 'View Usage'}
+              </Button>
+            </div>
           </TabsContent>
 
-          <TabsContent value="topup" className="mt-4">
-            <Card className="p-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                {topUpAmounts.map((amount) => (
-                  <Button
-                    key={amount}
-                    variant="outline"
-                    className="w-full min-w-0 whitespace-normal h-auto flex-col items-stretch text-left p-3 md:p-4 gap-0.5 md:gap-1 min-h-[100px]"
-                    onClick={() => handleTopUp(amount)}
-                    disabled={loading}
-                  >
-                    <span className="text-base md:text-lg font-bold">{amount}</span>
-                    <span className="text-[10px] md:text-xs text-muted-foreground">credits</span>
-                  </Button>
-                ))}
+          <TabsContent value="topup" className="mt-0">
+            <div className="space-y-6">
+              {/* Predefined Amounts */}
+              <div>
+                <h3 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">
+                  Quick Top-Up
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {topUpAmounts.map((amount) => (
+                    <Card
+                      key={amount}
+                      className="p-6 cursor-pointer transition-all hover:shadow-lg hover:border-primary/50 group"
+                      onClick={() => handleTopUp(amount)}
+                    >
+                      <div className="text-center">
+                        <div className="text-3xl font-bold mb-1 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                          {amount}
+                        </div>
+                        <div className="text-sm text-muted-foreground">credits</div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Input type="number" placeholder={t('usage.custom') || 'Custom amount'} value={customCredits} onChange={(e) => setCustomCredits(e.target.value)} min="1" />
-                <Button onClick={() => handleTopUp(parseInt(customCredits))} disabled={loading || !customCredits || parseInt(customCredits) < 1}>
-                  {t('usage.topUpNow')}
-                </Button>
+
+              {/* Custom Amount */}
+              <div>
+                <h3 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">
+                  Custom Amount
+                </h3>
+                <Card className="p-6">
+                  <div className="flex gap-3">
+                    <Input 
+                      type="number" 
+                      placeholder={t('usage.custom') || 'Enter custom amount'} 
+                      value={customCredits} 
+                      onChange={(e) => setCustomCredits(e.target.value)} 
+                      min="1"
+                      className="text-lg"
+                    />
+                    <Button 
+                      onClick={() => handleTopUp(parseInt(customCredits))} 
+                      disabled={loading || !customCredits || parseInt(customCredits) < 1}
+                      className="px-8"
+                      size="lg"
+                    >
+                      {t('usage.topUpNow')}
+                    </Button>
+                  </div>
+                </Card>
               </div>
-            </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </DialogContent>
