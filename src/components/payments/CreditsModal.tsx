@@ -8,13 +8,16 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useUserSubscription } from '@/hooks/useUserSubscription';
+import { useUserCredits } from '@/hooks/useUserCredits';
 import { usePayments } from '@/hooks/usePayments';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { Coins } from 'lucide-react';
 
 interface SubscriptionPlan {
   id: string;
@@ -37,6 +40,7 @@ export default function CreditsModal({ open, onOpenChange, defaultTab = 'subscri
   const { t } = useLanguage();
   const { currency, formatPrice, getPrice } = useCurrency();
   const { subscription } = useUserSubscription();
+  const { credits: userCredits, loading: creditsLoading } = useUserCredits();
   const { createCheckout, createSubscription, openCustomerPortal } = usePayments();
   const { toast } = useToast();
 
@@ -125,12 +129,57 @@ export default function CreditsModal({ open, onOpenChange, defaultTab = 'subscri
     }
   };
 
+  const planCreditsMax = subscription?.plan?.credits_per_week || 0;
+  const planCreditsRemaining = userCredits?.plan_credits || 0;
+  const progressPercentage = planCreditsMax > 0 ? (planCreditsRemaining / planCreditsMax) * 100 : 0;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl">{t('usage.title') || 'Credits & Plans'}</DialogTitle>
         </DialogHeader>
+
+        {/* Credits Overview */}
+        {creditsLoading ? (
+          <Card className="p-6 mb-6 animate-pulse">
+            <div className="h-24 bg-muted rounded" />
+          </Card>
+        ) : (
+          <Card className="p-6 mb-6 bg-gradient-to-br from-primary/5 to-background">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
+              {t('usage.availableCredits') || 'Available Credits'}
+            </h3>
+            
+            <div className="space-y-5">
+              {/* Plan Credits */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">{t('usage.planCredits') || 'Plan Credits'} ({t('usage.thisWeek') || 'this week'})</span>
+                  <span className="text-sm font-bold">
+                    {planCreditsRemaining.toFixed(1)} / {planCreditsMax} {t('usage.creditsUsed') || 'credits'}
+                  </span>
+                </div>
+                <Progress value={progressPercentage} className="h-2" />
+              </div>
+              
+              {/* Extra Credits */}
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Coins className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">{t('usage.extraCredits') || 'Extra Credits'}</span>
+                </div>
+                <div className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                  {(userCredits?.topup_credits || 0).toFixed(1)}
+                </div>
+              </div>
+            </div>
+            
+            <p className="text-xs text-muted-foreground text-center mt-4">
+              {t('usage.consumptionOrder') || 'Credits are consumed from your weekly plan first, then from extra credits'}
+            </p>
+          </Card>
+        )}
 
         <Tabs value={tab} onValueChange={(value) => setTab(value as 'subscribe' | 'topup')} className="w-full">
           <TabsList className="grid grid-cols-2 w-full mb-6">
@@ -215,7 +264,7 @@ export default function CreditsModal({ open, onOpenChange, defaultTab = 'subscri
                 onOpenChange(false);
                 navigate('/user/usage');
               }}>
-                {t('usage.viewUsage') || 'View Usage'}
+                {t('usage.manage') || 'Manage'}
               </Button>
             </div>
           </TabsContent>
