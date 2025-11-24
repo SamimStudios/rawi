@@ -89,18 +89,11 @@ const Header = () => {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Wallet */}
-            {user ? (
+            {/* Wallet - Only show for authenticated users */}
+            {user && (
               <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={() => setCreditsOpen(true)}>
                 <Wallet className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium">{walletCredits} {t('credits')}</span>
-              </Button>
-            ) : (
-              <Button variant="outline" size="sm" className="flex items-center gap-2" asChild>
-                <Link to="/auth/sign-in">
-                  <Wallet className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">{walletCredits} {t('credits')}</span>
-                </Link>
               </Button>
             )}
 
@@ -165,17 +158,10 @@ const Header = () => {
                 </Link>
               ))}
               <div className="flex items-center justify-between pt-4 border-t border-border">
-                {user ? (
+                {user && (
                   <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={() => setCreditsOpen(true)}>
                     <Wallet className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm font-medium">{walletCredits} {t('credits')}</span>
-                  </Button>
-                ) : (
-                  <Button variant="outline" size="sm" className="flex items-center gap-2" asChild>
-                    <Link to="/auth/sign-in">
-                      <Wallet className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">{walletCredits} {t('credits')}</span>
-                    </Link>
                   </Button>
                 )}
                 {user ? (

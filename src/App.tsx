@@ -9,6 +9,7 @@ import { AnalyticsProvider } from "@/contexts/AnalyticsContext";
 import { FunctionDataProvider } from "@/contexts/FunctionDataContext";
 import { AuthProvider } from "@/hooks/useAuth";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import CookieConsent from "@/components/CookieConsent";
@@ -81,68 +82,86 @@ const MainApp = () => (
                     </div>
                   } />
                   <Route path="/app" element={
-                    <div>
-                      <Header />
-                      <Dashboard />
-                      <Footer />
-                    </div>
+                    <ProtectedRoute>
+                      <div>
+                        <Header />
+                        <Dashboard />
+                        <Footer />
+                      </div>
+                    </ProtectedRoute>
                   } />
                   <Route path="/app/templates" element={
-                    <div>
-                      <Header />
-                      <AppTemplates />
-                      <Footer />
-                    </div>
+                    <ProtectedRoute>
+                      <div>
+                        <Header />
+                        <AppTemplates />
+                        <Footer />
+                      </div>
+                    </ProtectedRoute>
                   } />
                   <Route path="/app/jobs/*" element={
-                    <div>
-                      <Header />
-                      <JobRoutes />
-                      <Footer />
-                    </div>
+                    <ProtectedRoute>
+                      <div>
+                        <Header />
+                        <JobRoutes />
+                        <Footer />
+                      </div>
+                    </ProtectedRoute>
                   } />
                   <Route path="/app/renderers/node" element={
-                    <div>
-                      <Header />
-                      <NodeRendererPreview />
-                      <Footer />
-                    </div>
+                    <ProtectedRoute>
+                      <div>
+                        <Header />
+                        <NodeRendererPreview />
+                        <Footer />
+                      </div>
+                    </ProtectedRoute>
                   } />
                   <Route path="/app/ltree" element={
-                    <div>
-                      <Header />
-                      <LtreeTesterPage />
-                      <Footer />
-                    </div>
+                    <ProtectedRoute>
+                      <div>
+                        <Header />
+                        <LtreeTesterPage />
+                        <Footer />
+                      </div>
+                    </ProtectedRoute>
                   } />
             <Route path="/user/usage" element={
-              <div>
-                <Header />
-                <Usage />
-                <Footer />
-              </div>
+              <ProtectedRoute>
+                <div>
+                  <Header />
+                  <Usage />
+                  <Footer />
+                </div>
+              </ProtectedRoute>
             } />
             {/* Legacy routes redirect to usage */}
             <Route path="/user/wallet" element={
-              <div>
-                <Header />
-                <Usage />
-                <Footer />
-              </div>
+              <ProtectedRoute>
+                <div>
+                  <Header />
+                  <Usage />
+                  <Footer />
+                </div>
+              </ProtectedRoute>
             } />
             <Route path="/user/billing" element={
-              <div>
-                <Header />
-                <Usage />
-                <Footer />
-              </div>
+              <ProtectedRoute>
+                <div>
+                  <Header />
+                  <Usage />
+                  <Footer />
+                </div>
+              </ProtectedRoute>
             } />
                   <Route path="/user/settings" element={
-                    <div>
-                      <Header />
-                      <Settings />
-                      <Footer />
-                    </div>
+                    <ProtectedRoute>
+                      <div>
+                        <Header />
+                        <Settings />
+                        <Footer />
+                      </div>
+                    </ProtectedRoute>
                   } />
                   <Route path="/admin" element={
                     <div>
