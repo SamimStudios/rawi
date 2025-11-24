@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useSEOConfig, seoConfigs } from '@/hooks/useSEO';
+import heroBg from "@/assets/hero-bg.jpg";
 
 const Index = () => {
   const { t, language } = useLanguage();
@@ -10,9 +11,17 @@ const Index = () => {
   useSEOConfig(seoConfigs.homepage[language]);
 
   return (
-    <div className="bg-[#0F1320]">
+    <div className="relative min-h-screen">
+      {/* Background Image */}
+      <div 
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: `url(${heroBg})` }}
+      />
+      {/* Overlay for better text readability */}
+      <div className="absolute inset-0 bg-black/40" />
+      
       {/* Hero Section */}
-      <main className="container mx-auto px-4 py-16 md:py-24">
+      <main className="relative container mx-auto px-4 py-16 md:py-24">
         <div className="text-center space-y-8 max-w-4xl mx-auto">
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-white leading-tight">
             {t('heroHeadline')}
