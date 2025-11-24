@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Loader2, Crown, ChevronRight, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function AppPresets() {
   const navigate = useNavigate();
@@ -24,6 +25,7 @@ export default function AppPresets() {
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [jobName, setJobName] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
 
   const loadTemplates = async () => {
     try {
@@ -86,6 +88,10 @@ export default function AppPresets() {
     setDialogOpen(true);
   };
 
+  const handleImageLoad = (templateId: string) => {
+    setLoadedImages(prev => new Set(prev).add(templateId));
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -117,10 +123,15 @@ export default function AppPresets() {
                 className="flex-shrink-0 relative w-36 h-36 rounded-2xl overflow-hidden hover:scale-105 transition-transform"
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/30 to-accent/30" />
+                {!loadedImages.has(template.id) && (
+                  <Skeleton className="absolute inset-0" />
+                )}
                 <img 
                   src={getTemplateImageUrl(template.id)}
                   alt={template.name}
+                  loading="lazy"
                   className="absolute inset-0 w-full h-full object-cover"
+                  onLoad={() => handleImageLoad(template.id)}
                   onError={(e) => e.currentTarget.style.opacity = '0'}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
@@ -157,10 +168,15 @@ export default function AppPresets() {
                     className="flex-shrink-0 w-48 overflow-hidden cursor-pointer hover:scale-[1.02] transition-all bg-card/50 backdrop-blur-sm border-border/50"
                   >
                     <div className="relative aspect-[3/4] bg-gradient-to-br from-primary/10 to-accent/10">
+                      {!loadedImages.has(`active-${template.id}`) && (
+                        <Skeleton className="absolute inset-0" />
+                      )}
                       <img 
                         src={getTemplateImageUrl(template.id)}
                         alt={template.name}
+                        loading="lazy"
                         className="w-full h-full object-cover"
+                        onLoad={() => handleImageLoad(`active-${template.id}`)}
                         onError={(e) => e.currentTarget.style.opacity = '0'}
                       />
                       
@@ -169,18 +185,6 @@ export default function AppPresets() {
                       <div className="absolute top-2 left-2">
                         <div className="bg-primary/90 backdrop-blur-sm rounded-lg p-1.5">
                           <Crown className="w-4 h-4 text-primary-foreground" />
-                        </div>
-                      </div>
-
-                      <div className="absolute bottom-2 left-2 right-2 space-y-2">
-                        <div className="flex gap-1 justify-center">
-                          <div className="w-10 h-10 rounded border-2 border-white/30 bg-black/40 backdrop-blur-sm overflow-hidden">
-                            <img 
-                              src={getTemplateImageUrl(template.id)}
-                              alt=""
-                              className="w-full h-full object-cover opacity-60"
-                            />
-                          </div>
                         </div>
                       </div>
                     </div>
@@ -226,10 +230,15 @@ export default function AppPresets() {
                   >
                     {/* Image Container */}
                     <div className="relative aspect-[3/4] bg-gradient-to-br from-primary/10 to-accent/10">
+                      {!loadedImages.has(`cat-${template.id}`) && (
+                        <Skeleton className="absolute inset-0" />
+                      )}
                       <img 
                         src={getTemplateImageUrl(template.id)}
                         alt={template.name}
+                        loading="lazy"
                         className="w-full h-full object-cover"
+                        onLoad={() => handleImageLoad(`cat-${template.id}`)}
                         onError={(e) => e.currentTarget.style.opacity = '0'}
                       />
                       
@@ -253,20 +262,6 @@ export default function AppPresets() {
                           </Badge>
                         </div>
                       )}
-
-                      {/* Before/After Indicator */}
-                      <div className="absolute bottom-2 left-2 right-2 space-y-2">
-                        {/* Mini Preview (simulating before/after) */}
-                        <div className="flex gap-1 justify-center">
-                          <div className="w-10 h-10 rounded border-2 border-white/30 bg-black/40 backdrop-blur-sm overflow-hidden">
-                            <img 
-                              src={getTemplateImageUrl(template.id)}
-                              alt=""
-                              className="w-full h-full object-cover opacity-60"
-                            />
-                          </div>
-                        </div>
-                      </div>
                     </div>
 
                     {/* Info Section */}
