@@ -17,8 +17,16 @@ const Index = () => {
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: `url(${heroBg})` }}
       />
+      {/* Animated Gradient Overlay */}
+      <div 
+        className="absolute inset-0 animate-gradient"
+        style={{ 
+          background: 'linear-gradient(45deg, rgba(59, 130, 246, 0.3), rgba(147, 51, 234, 0.3), rgba(37, 99, 235, 0.3))',
+          backgroundSize: '200% 200%'
+        }}
+      />
       {/* Overlay for better text readability */}
-      <div className="absolute inset-0 bg-black/40" />
+      <div className="absolute inset-0 bg-black/30" />
       
       {/* Hero Section */}
       <main className="relative container mx-auto px-4 py-16 md:py-24">
