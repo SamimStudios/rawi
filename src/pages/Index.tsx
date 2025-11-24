@@ -29,7 +29,7 @@ const Index = () => {
               asChild
               className="text-lg px-8 py-4 h-auto"
             >
-              <Link to="/templates">
+              <Link to="/app/templates">
                 Explore Templates
               </Link>
             </Button>
