@@ -27,10 +27,10 @@ const Header = () => {
     : "/brand/logo-lockup-en-horizontal.svg";
 
   const navItems = user ? [
-    { key: 'templates', href: '/templates', label: undefined },
+    { key: 'templates', href: '/app/templates', label: undefined },
     { key: 'wallet', href: '/user/wallet', label: undefined },
   ] : [
-    { key: 'templates', href: '/templates', label: undefined },
+    { key: 'templates', href: '/app/templates', label: undefined },
     { key: 'tryFree', href: '/try/cinematic-teaser', label: undefined },
     { key: 'help', href: '/help', label: undefined },
   ];
