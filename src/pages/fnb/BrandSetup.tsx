@@ -253,7 +253,7 @@ export default function BrandSetup() {
             </div>
             <div>
               <Label>{t('fnb.brandType')}</Label>
-              <Select value={formData.brand_type} onValueChange={(v) => setFormData(prev => ({ ...prev, brand_type: v }))}>
+              <Select value={formData.brand_type} onValueChange={(v) => setFormData(prev => ({ ...prev, brand_type: v as typeof formData.brand_type }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {BRAND_TYPES.map(type => (
@@ -264,7 +264,7 @@ export default function BrandSetup() {
             </div>
             <div>
               <Label>{t('fnb.priceLevel')}</Label>
-              <Select value={formData.price_level} onValueChange={(v) => setFormData(prev => ({ ...prev, price_level: v }))}>
+              <Select value={formData.price_level} onValueChange={(v) => setFormData(prev => ({ ...prev, price_level: v as typeof formData.price_level }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {PRICE_LEVELS.map(level => (
@@ -302,7 +302,7 @@ export default function BrandSetup() {
             </div>
             <div>
               <Label>{t('fnb.defaultLanguage')}</Label>
-              <Select value={formData.default_language} onValueChange={(v) => setFormData(prev => ({ ...prev, default_language: v }))}>
+              <Select value={formData.default_language} onValueChange={(v) => setFormData(prev => ({ ...prev, default_language: v as typeof formData.default_language }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {LANGUAGES.map(lang => (
