@@ -146,6 +146,539 @@ export type Database = {
         }
         Relationships: []
       }
+      fnb_branches: {
+        Row: {
+          branch_address_line: string | null
+          branch_city: string | null
+          branch_code: string | null
+          branch_country: string | null
+          branch_district: string | null
+          branch_maps_url: string | null
+          branch_name: string
+          branch_opening_hours: string | null
+          branch_seating_capacity: number | null
+          branch_tags: string[] | null
+          branch_type: string | null
+          brand_id: string
+          created_at: string
+          id: string
+          is_active: boolean | null
+          photos: Json | null
+          sort_order: number | null
+          updated_at: string
+        }
+        Insert: {
+          branch_address_line?: string | null
+          branch_city?: string | null
+          branch_code?: string | null
+          branch_country?: string | null
+          branch_district?: string | null
+          branch_maps_url?: string | null
+          branch_name: string
+          branch_opening_hours?: string | null
+          branch_seating_capacity?: number | null
+          branch_tags?: string[] | null
+          branch_type?: string | null
+          brand_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          photos?: Json | null
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Update: {
+          branch_address_line?: string | null
+          branch_city?: string | null
+          branch_code?: string | null
+          branch_country?: string | null
+          branch_district?: string | null
+          branch_maps_url?: string | null
+          branch_name?: string
+          branch_opening_hours?: string | null
+          branch_seating_capacity?: number | null
+          branch_tags?: string[] | null
+          branch_type?: string | null
+          brand_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          photos?: Json | null
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fnb_branches_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "fnb_brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fnb_brand_media: {
+        Row: {
+          brand_id: string
+          created_at: string
+          description: string | null
+          file_name: string | null
+          file_size: number | null
+          file_url: string
+          id: string
+          media_type: string
+          mime_type: string | null
+          tags: string[] | null
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          description?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          file_url: string
+          id?: string
+          media_type: string
+          mime_type?: string | null
+          tags?: string[] | null
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          description?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          file_url?: string
+          id?: string
+          media_type?: string
+          mime_type?: string | null
+          tags?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fnb_brand_media_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "fnb_brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fnb_brands: {
+        Row: {
+          account_owner: Json | null
+          brand_long_bio: string | null
+          brand_name: string
+          brand_short_bio: string | null
+          brand_slug: string
+          brand_type: string
+          city: string | null
+          country: string
+          created_at: string
+          currency: string | null
+          default_language: string
+          district: string | null
+          id: string
+          inspiration_links: string | null
+          is_active: boolean | null
+          menu_file_url: string | null
+          menu_notes: string | null
+          preferences: Json | null
+          price_level: string | null
+          setup_progress: number | null
+          social_links: Json | null
+          updated_at: string
+          user_id: string
+          visual_identity: Json | null
+          voice: Json | null
+        }
+        Insert: {
+          account_owner?: Json | null
+          brand_long_bio?: string | null
+          brand_name: string
+          brand_short_bio?: string | null
+          brand_slug: string
+          brand_type?: string
+          city?: string | null
+          country?: string
+          created_at?: string
+          currency?: string | null
+          default_language?: string
+          district?: string | null
+          id?: string
+          inspiration_links?: string | null
+          is_active?: boolean | null
+          menu_file_url?: string | null
+          menu_notes?: string | null
+          preferences?: Json | null
+          price_level?: string | null
+          setup_progress?: number | null
+          social_links?: Json | null
+          updated_at?: string
+          user_id: string
+          visual_identity?: Json | null
+          voice?: Json | null
+        }
+        Update: {
+          account_owner?: Json | null
+          brand_long_bio?: string | null
+          brand_name?: string
+          brand_short_bio?: string | null
+          brand_slug?: string
+          brand_type?: string
+          city?: string | null
+          country?: string
+          created_at?: string
+          currency?: string | null
+          default_language?: string
+          district?: string | null
+          id?: string
+          inspiration_links?: string | null
+          is_active?: boolean | null
+          menu_file_url?: string | null
+          menu_notes?: string | null
+          preferences?: Json | null
+          price_level?: string | null
+          setup_progress?: number | null
+          social_links?: Json | null
+          updated_at?: string
+          user_id?: string
+          visual_identity?: Json | null
+          voice?: Json | null
+        }
+        Relationships: []
+      }
+      fnb_content_requests: {
+        Row: {
+          brand_id: string
+          completed_at: string | null
+          content_type: string
+          created_at: string
+          error_message: string | null
+          id: string
+          options: Json | null
+          prompt: string
+          request_type: string
+          result: Json | null
+          scheduled_for: string | null
+          started_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          brand_id: string
+          completed_at?: string | null
+          content_type: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          options?: Json | null
+          prompt: string
+          request_type?: string
+          result?: Json | null
+          scheduled_for?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          brand_id?: string
+          completed_at?: string | null
+          content_type?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          options?: Json | null
+          prompt?: string
+          request_type?: string
+          result?: Json | null
+          scheduled_for?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fnb_content_requests_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "fnb_brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fnb_generated_content: {
+        Row: {
+          brand_id: string
+          captions: Json | null
+          content_type: string
+          created_at: string
+          file_url: string
+          id: string
+          is_archived: boolean | null
+          is_favorite: boolean | null
+          metadata: Json | null
+          request_id: string | null
+          thumbnail_url: string | null
+          used_count: number | null
+          user_id: string
+        }
+        Insert: {
+          brand_id: string
+          captions?: Json | null
+          content_type: string
+          created_at?: string
+          file_url: string
+          id?: string
+          is_archived?: boolean | null
+          is_favorite?: boolean | null
+          metadata?: Json | null
+          request_id?: string | null
+          thumbnail_url?: string | null
+          used_count?: number | null
+          user_id: string
+        }
+        Update: {
+          brand_id?: string
+          captions?: Json | null
+          content_type?: string
+          created_at?: string
+          file_url?: string
+          id?: string
+          is_archived?: boolean | null
+          is_favorite?: boolean | null
+          metadata?: Json | null
+          request_id?: string | null
+          thumbnail_url?: string | null
+          used_count?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fnb_generated_content_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "fnb_brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fnb_generated_content_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "fnb_content_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fnb_menu_items: {
+        Row: {
+          brand_id: string
+          created_at: string
+          id: string
+          is_active: boolean | null
+          item_all_branches: boolean | null
+          item_branches: string[] | null
+          item_category: string | null
+          item_currency: string | null
+          item_description: string | null
+          item_is_signature: boolean | null
+          item_name_ar: string
+          item_name_en: string | null
+          item_photo_url: string | null
+          item_price: number | null
+          item_tags: string[] | null
+          sort_order: number | null
+          updated_at: string
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          item_all_branches?: boolean | null
+          item_branches?: string[] | null
+          item_category?: string | null
+          item_currency?: string | null
+          item_description?: string | null
+          item_is_signature?: boolean | null
+          item_name_ar: string
+          item_name_en?: string | null
+          item_photo_url?: string | null
+          item_price?: number | null
+          item_tags?: string[] | null
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          item_all_branches?: boolean | null
+          item_branches?: string[] | null
+          item_category?: string | null
+          item_currency?: string | null
+          item_description?: string | null
+          item_is_signature?: boolean | null
+          item_name_ar?: string
+          item_name_en?: string | null
+          item_photo_url?: string | null
+          item_price?: number | null
+          item_tags?: string[] | null
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fnb_menu_items_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "fnb_brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fnb_performance_metrics: {
+        Row: {
+          attributed_orders: number | null
+          attributed_revenue: number | null
+          brand_id: string
+          clicks: number | null
+          comments: number | null
+          created_at: string
+          id: string
+          impressions: number | null
+          likes: number | null
+          metric_date: string
+          platform: string
+          post_id: string | null
+          raw_data: Json | null
+          reach: number | null
+          saves: number | null
+          shares: number | null
+        }
+        Insert: {
+          attributed_orders?: number | null
+          attributed_revenue?: number | null
+          brand_id: string
+          clicks?: number | null
+          comments?: number | null
+          created_at?: string
+          id?: string
+          impressions?: number | null
+          likes?: number | null
+          metric_date: string
+          platform: string
+          post_id?: string | null
+          raw_data?: Json | null
+          reach?: number | null
+          saves?: number | null
+          shares?: number | null
+        }
+        Update: {
+          attributed_orders?: number | null
+          attributed_revenue?: number | null
+          brand_id?: string
+          clicks?: number | null
+          comments?: number | null
+          created_at?: string
+          id?: string
+          impressions?: number | null
+          likes?: number | null
+          metric_date?: string
+          platform?: string
+          post_id?: string | null
+          raw_data?: Json | null
+          reach?: number | null
+          saves?: number | null
+          shares?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fnb_performance_metrics_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "fnb_brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fnb_performance_metrics_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "fnb_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fnb_posts: {
+        Row: {
+          brand_id: string
+          caption: string | null
+          content_id: string | null
+          created_at: string
+          hashtags: string[] | null
+          id: string
+          platform: string
+          post_type: string
+          post_url: string | null
+          published_at: string | null
+          scheduled_for: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          brand_id: string
+          caption?: string | null
+          content_id?: string | null
+          created_at?: string
+          hashtags?: string[] | null
+          id?: string
+          platform: string
+          post_type: string
+          post_url?: string | null
+          published_at?: string | null
+          scheduled_for?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          brand_id?: string
+          caption?: string | null
+          content_id?: string | null
+          created_at?: string
+          hashtags?: string[] | null
+          id?: string
+          platform?: string
+          post_type?: string
+          post_url?: string | null
+          published_at?: string | null
+          scheduled_for?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fnb_posts_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "fnb_brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fnb_posts_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "fnb_generated_content"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           amount: number
@@ -649,6 +1182,10 @@ export type Database = {
       flatten_section_items: { Args: { p: Json }; Returns: Json[] }
       form_default_required_false: { Args: { j: Json }; Returns: Json }
       form_plain_to_lquery: { Args: { p: string }; Returns: unknown }
+      generate_fnb_brand_slug: {
+        Args: { p_brand_name: string; p_user_id: string }
+        Returns: string
+      }
       generate_guest_session_id: { Args: never; Returns: string }
       generate_secure_token: {
         Args: { length_bytes?: number }
