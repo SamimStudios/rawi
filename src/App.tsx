@@ -45,6 +45,7 @@ import Usage from "@/pages/user/Usage";
 import Settings from '@/pages/user/Settings';
 import StyleGuideline from "./pages/StyleGuideline";
 import ButtonShowcase from "./pages/ButtonShowcase";
+import FnbRoutes from "@/pages/fnb";
 
 
 
@@ -113,6 +114,15 @@ const MainApp = () => (
                       <div>
                         <Header />
                         <NodeRendererPreview />
+                        <Footer />
+                      </div>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/app/fnb/*" element={
+                    <ProtectedRoute>
+                      <div>
+                        <Header />
+                        <FnbRoutes />
                         <Footer />
                       </div>
                     </ProtectedRoute>

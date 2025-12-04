@@ -3,7 +3,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-import { Plus, History, Settings, CreditCard, Wrench } from 'lucide-react';
+import { Plus, History, Settings, CreditCard, Wrench, Utensils } from 'lucide-react';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -117,6 +117,29 @@ export default function Dashboard() {
                   </p>
                   <Button variant="outline" className="w-full">
                     {language === 'ar' ? 'فتح الأدوات' : 'Open Tools'}
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+
+            {/* F&B Brands */}
+            <Card className="bg-card border-border hover:bg-card/80 transition-colors">
+              <CardContent className="p-6">
+                <Link to="/app/fnb" className="block">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Utensils className="w-8 h-8 text-primary" />
+                    <h3 className="text-xl font-semibold text-foreground">
+                      {language === 'ar' ? 'براندات المطاعم' : 'F&B Brands'}
+                    </h3>
+                  </div>
+                  <p className="text-muted-foreground mb-4">
+                    {language === 'ar' 
+                      ? 'إدارة علاماتك التجارية وإنشاء المحتوى' 
+                      : 'Manage your brands and generate content'
+                    }
+                  </p>
+                  <Button variant="primary" className="w-full">
+                    {language === 'ar' ? 'إدارة البراندات' : 'Manage Brands'}
                   </Button>
                 </Link>
               </CardContent>
